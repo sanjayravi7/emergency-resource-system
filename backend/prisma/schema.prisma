@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  REQUESTER
+  RESPONDER
+  ADMIN
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  PARTIALLY_ALLOCATED
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AllocationStatus {
+  RESERVED
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  password    String
+  phone       String?
+  role        UserRole @default(REQUESTER)
+  createdAt   DateTime @default(now())
+
+  requests    EmergencyRequest[]
+  allocations Allocation[] @relation("ResponderAllocations")
+}
+
+model EmergencyRequest {
+  id              Int           @id @default(autoincrement())
+  requesterId     Int
+  emergencyType   String
+  description     String
+  location        String
+  latitude        Float?
+  longitude       Float?
+  priority        Priority      @default(MEDIUM)
+  status          RequestStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  requester       User          @relation(fields: [requesterId], references: [id])
+  requiredResources RequestResource[]
+  allocations     Allocation[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([location])
+}
+
+model Resource {
+  id                Int      @id @default(autoincrement())
+  name              String
+  type              String
+  totalQuantity     Int
+  availableQuantity Int
+  unit              String?
+  location          String?
+  createdAt         DateTime @default(now())
+
+  requiredIn        RequestResource[]
+  allocations       Allocation[]
+}
+
+model RequestResource {
+  id          Int      @id @default(autoincrement())
+  requestId   Int
+  resourceId  Int
+  quantity    Int
+
+  request     EmergencyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  resource    Resource         @relation(fields: [resourceId], references: [id])
+
+  @@unique([requestId, resourceId])
+}
+
+model Allocation {
+  id          Int              @id @default(autoincrement())
+  requestId   Int
+  resourceId  Int
+  responderId Int
+  quantity    Int
+  status      AllocationStatus @default(RESERVED)
+  allocatedAt DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  request     EmergencyRequest @relation(fields: [requestId], references: [id])
+  resource    Resource         @relation(fields: [resourceId], references: [id])
+  responder   User             @relation("ResponderAllocations", fields: [responderId], references: [id])
+
+  @@index([requestId])
+  @@index([resourceId])
+  @@index([responderId])
+}
