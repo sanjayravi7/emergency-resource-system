@@ -220,7 +220,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   void matchRequest(String id) {
     final request = firstWhereOrNull(requests, (r) => r.id == id);
-    if (request == null || request.status != RequestStatus.pending) return;
+    if (request == null || request.status != RequestStatus.pending) {
+      return;
+    }
     final candidates = responders
         .where((r) =>
             r.type == request.type && r.status == ResponderStatus.available)
@@ -250,10 +252,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   void tickEta(String id) {
     final request = firstWhereOrNull(requests, (r) => r.id == id);
-    if (request == null || request.status != RequestStatus.enroute) return;
+    if (request == null || request.status != RequestStatus.enroute) {
+      return;
+    }
     Timer(const Duration(milliseconds: 900), () {
       final current = firstWhereOrNull(requests, (r) => r.id == id);
-      if (current == null || current.status != RequestStatus.enroute) return;
+      if (current == null || current.status != RequestStatus.enroute) {
+        return;
+      }
       setState(() => current.etaRemaining = (current.etaRemaining ?? 1) - 1);
       if ((current.etaRemaining ?? 0) <= 0) {
         setState(() => current.status = RequestStatus.arrived);
@@ -267,11 +273,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   void closeRequest(String id) {
     final index = requests.indexWhere((r) => r.id == id);
-    if (index == -1) return;
+    if (index == -1) {
+      return;
+    }
     final request = requests[index];
     final responder =
         firstWhereOrNull(responders, (r) => r.id == request.responder);
-    if (responder != null) responder.status = ResponderStatus.available;
+    if (responder != null) {
+      responder.status = ResponderStatus.available;
+    }
     request.status = RequestStatus.closed;
     request.totalSec = DateTime.now().difference(request.createdAt).inSeconds;
     setState(() {
@@ -282,7 +292,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   void escalate(String id) {
     final request = firstWhereOrNull(requests, (r) => r.id == id);
-    if (request == null) return;
+    if (request == null) {
+      return;
+    }
     showToast('${request.id} escalated to regional coordination.');
     setState(() => request.status = RequestStatus.pending);
     Timer(const Duration(milliseconds: 1500), () => matchRequest(id));
@@ -290,8 +302,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   void toggleResponder(String id) {
     final responder = firstWhereOrNull(responders, (r) => r.id == id);
-    if (responder == null || responder.status == ResponderStatus.enroute)
+    if (responder == null || responder.status == ResponderStatus.enroute) {
       return;
+    }
     setState(() => responder.status =
         responder.status == ResponderStatus.available
             ? ResponderStatus.off
@@ -299,7 +312,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   void showToast(String message) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message,
           style: const TextStyle(color: AppColors.text, fontSize: 13)),
@@ -1058,7 +1073,9 @@ class BoardPanel extends StatelessWidget {
 
   String _etaText(EmergencyRequest r) {
     if (r.status == RequestStatus.enroute) return '${r.etaRemaining} min';
-    if (r.status == RequestStatus.arrived) return 'on scene';
+    if (r.status == RequestStatus.arrived) {
+      return 'on scene';
+    }
     return '-';
   }
 }
@@ -1074,9 +1091,12 @@ class _MobileRequestList extends StatelessWidget {
       children: requests.map((r) {
         final meta = typeMeta(r.type);
         String etaText = '-';
-        if (r.status == RequestStatus.enroute)
+        if (r.status == RequestStatus.enroute) {
           etaText = '${r.etaRemaining} min';
-        if (r.status == RequestStatus.arrived) etaText = 'on scene';
+        }
+        if (r.status == RequestStatus.arrived) {
+          etaText = 'on scene';
+        }
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -1311,7 +1331,9 @@ class NewRequestPanel extends StatelessWidget {
                 DropdownMenuItem(value: t, child: Text(typeMeta(t).label)))
             .toList(),
         onChanged: (v) {
-          if (v != null) onTypeChanged(v);
+          if (v != null) {
+            onTypeChanged(v);
+          }
         },
       );
 
@@ -1323,7 +1345,9 @@ class NewRequestPanel extends StatelessWidget {
             .map((d) => DropdownMenuItem(value: d, child: Text(d)))
             .toList(),
         onChanged: (v) {
-          if (v != null) onDistrictChanged(v);
+          if (v != null) {
+            onDistrictChanged(v);
+          }
         },
       );
 
@@ -1336,7 +1360,9 @@ class NewRequestPanel extends StatelessWidget {
                 DropdownMenuItem(value: u, child: Text(titleCase(u.name))))
             .toList(),
         onChanged: (v) {
-          if (v != null) onUrgencyChanged(v);
+          if (v != null) {
+            onUrgencyChanged(v);
+          }
         },
       );
 }
@@ -1663,7 +1689,7 @@ class SectorMapPainter extends CustomPainter {
     Offset mapPoint(Offset p) => Offset(p.dx * scaleX, p.dy * scaleY);
 
     final linePaint = Paint()
-      ..color = const Color(0xFFC7CEE2).withOpacity(.35)
+      ..color = const Color(0xFFC7CEE2).withValues(alpha: .35)
       ..strokeWidth = 1;
     for (var i = 0; i < districts.length; i++) {
       for (var j = i + 1; j < districts.length; j++) {
@@ -1700,7 +1726,9 @@ class SectorMapPainter extends CustomPainter {
 
     for (final r in requests) {
       if (r.status != RequestStatus.pending &&
-          r.status != RequestStatus.unmatched) continue;
+          r.status != RequestStatus.unmatched) {
+        continue;
+      }
       final p =
           mapPoint(districts.firstWhere((d) => d.name == r.district).point);
       final color =
@@ -1711,7 +1739,7 @@ class SectorMapPainter extends CustomPainter {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5
-            ..color = color.withOpacity(.6));
+            ..color = color.withValues(alpha: .6));
       canvas.drawCircle(p, 4, Paint()..color = color);
     }
   }
