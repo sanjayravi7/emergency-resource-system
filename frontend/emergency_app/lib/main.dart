@@ -1323,7 +1323,7 @@ class NewRequestPanel extends StatelessWidget {
   }
 
   Widget _typeDropdown(double width) => DropdownButtonFormField<ResourceType>(
-        value: selectedType,
+        initialValue: selectedType,
         isExpanded: true,
         decoration: fieldDecoration(),
         items: ResourceType.values
@@ -1338,7 +1338,7 @@ class NewRequestPanel extends StatelessWidget {
       );
 
   Widget _districtDropdown(double width) => DropdownButtonFormField<String>(
-        value: selectedDistrict,
+        initialValue: selectedDistrict,
         isExpanded: true,
         decoration: fieldDecoration(),
         items: districts
@@ -1352,7 +1352,7 @@ class NewRequestPanel extends StatelessWidget {
       );
 
   Widget _urgencyDropdown(double width) => DropdownButtonFormField<Urgency>(
-        value: selectedUrgency,
+        initialValue: selectedUrgency,
         isExpanded: true,
         decoration: fieldDecoration(),
         items: Urgency.values
@@ -1711,8 +1711,9 @@ class SectorMapPainter extends CustomPainter {
     }
 
     final byDistrict = <String, List<Responder>>{};
-    for (final r in responders)
+    for (final r in responders) {
       byDistrict.putIfAbsent(r.district, () => []).add(r);
+    }
     byDistrict.forEach((name, grouped) {
       final base = mapPoint(districts.firstWhere((d) => d.name == name).point);
       for (var i = 0; i < grouped.length; i++) {
