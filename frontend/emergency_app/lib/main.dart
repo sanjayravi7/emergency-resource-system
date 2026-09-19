@@ -162,6 +162,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   int reqSeq = 2280;
   late Timer clockTimer;
   late Timer incomingTimer;
+  final List<Timer> _pendingTimers = [];
   DateTime now = DateTime.now();
 
   @override
@@ -183,6 +184,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   void dispose() {
     clockTimer.cancel();
     incomingTimer.cancel();
+    for (final t in _pendingTimers) {
+      t.cancel();
+    }
+    _pendingTimers.clear();
     super.dispose();
   }
 
@@ -214,8 +219,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         createdAt: DateTime.now());
     setState(() => requests.insert(0, request));
     if (!silent) showToast('${request.id} received - searching for a match...');
-    Timer(Duration(milliseconds: 1300 + random.nextInt(700)),
-        () => matchRequest(request.id));
+    final t = Timer(Duration(milliseconds: 1300 + random.nextInt(700)), () {
+      if (!mounted) return;
+      matchRequest(request.id);
+    });
+    _pendingTimers.add(t);
   }
 
   void matchRequest(String id) {
@@ -255,7 +263,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (request == null || request.status != RequestStatus.enroute) {
       return;
     }
-    Timer(const Duration(milliseconds: 900), () {
+    final t = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
       final current = firstWhereOrNull(requests, (r) => r.id == id);
       if (current == null || current.status != RequestStatus.enroute) {
         return;
@@ -264,11 +273,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       if ((current.etaRemaining ?? 0) <= 0) {
         setState(() => current.status = RequestStatus.arrived);
         showToast('${current.id} - responder arrived on scene.');
-        Timer(const Duration(milliseconds: 2600), () => closeRequest(id));
+        final t2 =
+            Timer(const Duration(milliseconds: 2600), () => closeRequest(id));
+        _pendingTimers.add(t2);
       } else {
         tickEta(id);
       }
     });
+    _pendingTimers.add(t);
   }
 
   void closeRequest(String id) {
