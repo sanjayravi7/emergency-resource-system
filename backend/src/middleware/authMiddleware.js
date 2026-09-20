@@ -1,37 +1,24 @@
-const jwt = require("jsonwebtoken");
-const env = require("../config/env");
+const jwt = require('jsonwebtoken');
+const prisma = require('../config/prisma');
+const { JWT_SECRET } = require('../config/env');
 
-function authMiddleware(req, res, next) {
+const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return res.status(401).json({
-        success: false,
-        message: "Authorization token required",
-      });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
     }
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
 
-    const [type, token] = authHeader.split(" ");
-
-    if (type !== "Bearer" || !token) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid authorization format",
-      });
+    if (!user || !user.isActive) {
+      return res.status(401).json({ success: false, message: 'User is inactive or does not exist' });
     }
-
-    const decoded = jwt.verify(token, env.jwtSecret);
-
-    req.user = decoded;
-
+    req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired token",
-    });
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
   }
-}
-
-module.exports = authMiddleware;
+};
+module.exports = authenticate;
