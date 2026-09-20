@@ -54,7 +54,6 @@ enum AllocationStatus {
 
 // ======================================================
 // USER
-// Created LIVE by the application
 // ======================================================
 
 model User {
@@ -66,11 +65,12 @@ model User {
 
   role UserRole @default(REQUESTER)
 
-  isActive     Boolean   @default(true)
-  lastActiveAt DateTime?
-
+  location  String?
   latitude  Float?
   longitude Float?
+
+  isActive     Boolean   @default(true)
+  lastActiveAt DateTime?
 
   responderStatus ResponderStatus @default(OFFLINE)
 
@@ -82,11 +82,14 @@ model User {
   allocations Allocation[] @relation("ResponderAllocations")
 
   responderResources ResponderResource[]
+
+  @@index([role])
+  @@index([responderStatus])
+  @@index([isActive])
 }
 
 // ======================================================
 // EMERGENCY REQUEST
-// Created LIVE by users
 // ======================================================
 
 model EmergencyRequest {
@@ -97,14 +100,12 @@ model EmergencyRequest {
   emergencyType String
   description   String
 
-  location String
-
+  location  String
   latitude  Float?
   longitude Float?
 
-  priority Priority @default(MEDIUM)
-
-  status RequestStatus @default(PENDING)
+  priority Priority      @default(MEDIUM)
+  status   RequestStatus @default(PENDING)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -123,43 +124,51 @@ model EmergencyRequest {
 
 // ======================================================
 // RESOURCE
-// Predefined resource types
 //
+// Master/resource inventory.
 // Example:
 // Ambulance
 // Fire Truck
 // Oxygen Cylinder
 // First Aid Kit
-// Rescue Vehicle
 // ======================================================
 
 model Resource {
   id Int @id @default(autoincrement())
 
-  name String  @unique
+  name String @unique
   type String
-  unit String?
+
+  totalQuantity     Int @default(0)
+  availableQuantity Int @default(0)
+
+  unit     String?
+  location String?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   requiredIn RequestResource[]
 
   responderResources ResponderResource[]
 
   allocations Allocation[]
+
+  @@index([type])
+  @@index([location])
 }
 
 // ======================================================
 // RESPONDER RESOURCE
 //
-// LIVE inventory belonging to a responder.
+// Actual resource assigned to a particular responder.
 //
 // Example:
-//
-// Responder: Rahul
-// Resource: Ambulance
-// Total: 2
-// Available: 1
+// Responder = Rahul
+// Resource = Ambulance
+// Total = 2
+// Available = 1
+// Status = BUSY
 // ======================================================
 
 model ResponderResource {
@@ -190,12 +199,6 @@ model ResponderResource {
 
 // ======================================================
 // RESOURCES REQUIRED BY AN EMERGENCY
-//
-// Example:
-//
-// Emergency #10
-// Ambulance = 1
-// Oxygen Cylinder = 2
 // ======================================================
 
 model RequestResource {
@@ -217,20 +220,20 @@ model RequestResource {
 // ======================================================
 // ALLOCATION
 //
-// Created LIVE when a responder/resource is assigned
-// to an emergency.
+// Connects:
+// Emergency Request
+// + Responder
+// + Resource
+// + Quantity
 // ======================================================
 
 model Allocation {
   id Int @id @default(autoincrement())
 
-  requestId Int
-
+  requestId           Int
+  resourceId          Int
+  responderId         Int
   responderResourceId Int
-
-  responderId Int
-
-  resourceId Int
 
   quantity Int
 
@@ -241,15 +244,15 @@ model Allocation {
 
   request EmergencyRequest @relation(fields: [requestId], references: [id])
 
-  responderResource ResponderResource @relation(fields: [responderResourceId], references: [id])
+  resource Resource @relation(fields: [resourceId], references: [id])
 
   responder User @relation("ResponderAllocations", fields: [responderId], references: [id])
 
-  resource Resource @relation(fields: [resourceId], references: [id])
+  responderResource ResponderResource @relation(fields: [responderResourceId], references: [id])
 
   @@index([requestId])
-  @@index([responderResourceId])
-  @@index([responderId])
   @@index([resourceId])
+  @@index([responderId])
+  @@index([responderResourceId])
   @@index([status])
 }
