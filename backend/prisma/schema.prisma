@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 // ======================================================
 // ENUMS
 // ======================================================
@@ -53,90 +52,80 @@ enum AllocationStatus {
   CANCELLED
 }
 
-
 // ======================================================
 // USER
-// All users are created LIVE by the application.
+// Created LIVE by the application
 // ======================================================
 
 model User {
-  id              Int              @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
+  name     String
+  email    String  @unique
+  password String
+  phone    String?
 
-  name            String
-  email           String           @unique
-  password        String
-  phone           String?
+  role UserRole @default(REQUESTER)
 
-  role            UserRole         @default(REQUESTER)
+  isActive     Boolean   @default(true)
+  lastActiveAt DateTime?
 
-  // General account activity
-  isActive        Boolean          @default(true)
-  lastActiveAt    DateTime?
+  latitude  Float?
+  longitude Float?
 
-  // Used mainly for responders
-  latitude        Float?
-  longitude       Float?
+  responderStatus ResponderStatus @default(OFFLINE)
 
-  responderStatus ResponderStatus  @default(OFFLINE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  requests EmergencyRequest[]
 
-  // Relations
-  requests        EmergencyRequest[]
-
-  allocations     Allocation[]     @relation("ResponderAllocations")
+  allocations Allocation[] @relation("ResponderAllocations")
 
   responderResources ResponderResource[]
 }
 
-
 // ======================================================
 // EMERGENCY REQUEST
-// Created LIVE when a user reports an emergency.
+// Created LIVE by users
 // ======================================================
 
 model EmergencyRequest {
-  id                  Int             @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  requesterId         Int
+  requesterId Int
 
-  emergencyType       String
-  description         String
+  emergencyType String
+  description   String
 
-  location            String
-  latitude            Float?
-  longitude           Float?
+  location String
 
-  priority            Priority        @default(MEDIUM)
+  latitude  Float?
+  longitude Float?
 
-  status              RequestStatus   @default(PENDING)
+  priority Priority @default(MEDIUM)
 
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  status RequestStatus @default(PENDING)
 
-  // Relations
-  requester           User            @relation(
-    fields: [requesterId],
-    references: [id]
-  )
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  requiredResources   RequestResource[]
+  requester User @relation(fields: [requesterId], references: [id])
 
-  allocations         Allocation[]
+  requiredResources RequestResource[]
 
+  allocations Allocation[]
+
+  @@index([requesterId])
   @@index([status])
   @@index([priority])
   @@index([location])
-  @@index([requesterId])
 }
 
-
 // ======================================================
-// RESOURCE TYPE
-// PREDEFINED RESOURCE TYPES
+// RESOURCE
+// Predefined resource types
 //
-// Examples:
+// Example:
 // Ambulance
 // Fire Truck
 // Oxygen Cylinder
@@ -145,67 +134,53 @@ model EmergencyRequest {
 // ======================================================
 
 model Resource {
-  id          Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  name        String    @unique
-  type        String
+  name String  @unique
+  type String
+  unit String?
 
-  unit        String?
+  createdAt DateTime @default(now())
 
-  createdAt   DateTime  @default(now())
+  requiredIn RequestResource[]
 
-  // Relations
-  requiredIn          RequestResource[]
+  responderResources ResponderResource[]
 
-  responderResources  ResponderResource[]
-
-  allocations         Allocation[]
+  allocations Allocation[]
 }
-
 
 // ======================================================
 // RESPONDER RESOURCE
 //
-// This is the LIVE resource inventory belonging to
-// a responder.
+// LIVE inventory belonging to a responder.
 //
 // Example:
 //
-// Rahul
-//   ├── Ambulance → quantity 1
-//   └── First Aid Kit → quantity 5
-//
-// If Rahul goes OFFLINE, these resources should not
-// be available for new allocation.
+// Responder: Rahul
+// Resource: Ambulance
+// Total: 2
+// Available: 1
 // ======================================================
 
 model ResponderResource {
-  id                Int             @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  responderId       Int
-  resourceId        Int
+  responderId Int
+  resourceId  Int
 
-  totalQuantity     Int             @default(0)
-  availableQuantity Int             @default(0)
+  totalQuantity     Int @default(0)
+  availableQuantity Int @default(0)
 
-  status            ResourceStatus  @default(UNAVAILABLE)
+  status ResourceStatus @default(UNAVAILABLE)
 
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  // Relations
-  responder         User            @relation(
-    fields: [responderId],
-    references: [id],
-    onDelete: Cascade
-  )
+  responder User @relation(fields: [responderId], references: [id], onDelete: Cascade)
 
-  resource          Resource        @relation(
-    fields: [resourceId],
-    references: [id]
-  )
+  resource Resource @relation(fields: [resourceId], references: [id])
 
-  allocations       Allocation[]
+  allocations Allocation[]
 
   @@unique([responderId, resourceId])
   @@index([responderId])
@@ -213,40 +188,31 @@ model ResponderResource {
   @@index([status])
 }
 
-
 // ======================================================
 // RESOURCES REQUIRED BY AN EMERGENCY
 //
 // Example:
 //
 // Emergency #10
-//   Ambulance → 1
-//   Oxygen Cylinder → 2
+// Ambulance = 1
+// Oxygen Cylinder = 2
 // ======================================================
 
 model RequestResource {
-  id          Int               @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  requestId   Int
-  resourceId  Int
-  quantity    Int
+  requestId  Int
+  resourceId Int
+  quantity   Int
 
-  request     EmergencyRequest  @relation(
-    fields: [requestId],
-    references: [id],
-    onDelete: Cascade
-  )
+  request EmergencyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
-  resource    Resource          @relation(
-    fields: [resourceId],
-    references: [id]
-  )
+  resource Resource @relation(fields: [resourceId], references: [id])
 
   @@unique([requestId, resourceId])
   @@index([requestId])
   @@index([resourceId])
 }
-
 
 // ======================================================
 // ALLOCATION
@@ -256,52 +222,30 @@ model RequestResource {
 // ======================================================
 
 model Allocation {
-  id                  Int                @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  requestId           Int
+  requestId Int
 
   responderResourceId Int
 
-  responderId         Int
+  responderId Int
 
-  resourceId          Int
+  resourceId Int
 
-  quantity            Int
+  quantity Int
 
-  status              AllocationStatus   @default(RESERVED)
+  status AllocationStatus @default(RESERVED)
 
-  allocatedAt         DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  allocatedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
+  request EmergencyRequest @relation(fields: [requestId], references: [id])
 
-  // Emergency
-  request             EmergencyRequest   @relation(
-    fields: [requestId],
-    references: [id]
-  )
+  responderResource ResponderResource @relation(fields: [responderResourceId], references: [id])
 
+  responder User @relation("ResponderAllocations", fields: [responderId], references: [id])
 
-  // Exact responder resource being used
-  responderResource   ResponderResource  @relation(
-    fields: [responderResourceId],
-    references: [id]
-  )
-
-
-  // Responder
-  responder           User               @relation(
-    "ResponderAllocations",
-    fields: [responderId],
-    references: [id]
-  )
-
-
-  // Resource type
-  resource            Resource           @relation(
-    fields: [resourceId],
-    references: [id]
-  )
-
+  resource Resource @relation(fields: [resourceId], references: [id])
 
   @@index([requestId])
   @@index([responderResourceId])
