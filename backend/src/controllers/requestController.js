@@ -48,12 +48,20 @@ exports.getAllRequests = async (req, res, next) => {
 
 exports.acceptRequest = async (req, res, next) => {
   try {
-    if (req.user.responderStatus !== 'AVAILABLE') {
-      return res.status(400).json({ success: false, message: 'Responder is not available' });
-    }
-    const request = await requestService.acceptEmergencyRequest(req.user.id, req.params.id);
+    const request = await requestService.acceptEmergencyRequest(
+      req.user.id,
+      req.params.id
+    );
+
     res.json({ success: true, request });
   } catch (error) {
+    if (error.message === 'Responder is not available to accept') {
+      return res.status(400).json({
+        success: false,
+        message: 'Responder is not available',
+      });
+    }
+
     next(error);
   }
 };

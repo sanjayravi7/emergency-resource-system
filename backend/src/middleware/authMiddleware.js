@@ -1,7 +1,8 @@
 const jwt = require("jsonwebtoken");
 const env = require("../config/env");
+const prisma = require("../config/prisma");
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
 
@@ -23,7 +24,34 @@ function authMiddleware(req, res, next) {
 
     const decoded = jwt.verify(token, env.JWT_SECRET);
 
-    req.user = decoded;
+    const user = await prisma.user.findUnique({
+      where: {
+        id: Number(decoded.userId),
+      },
+      select: {
+        id: true,
+        isActive: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "User is inactive",
+      });
+    }
+
+    req.user = {
+      ...decoded,
+      id: decoded.userId,
+    };
 
     next();
   } catch (error) {
