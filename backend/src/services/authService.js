@@ -1,40 +1,166 @@
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const prisma = require('../config/prisma');
-const { JWT_SECRET } = require('../config/env');
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
-exports.registerUser = async (data) => {
-  const { name, email, password, phone } = data;
-  const hashedPassword = await bcrypt.hash(password, 10);
+const prisma = require("../config/prisma");
+const env = require("../config/env");
+
+const SALT_ROUNDS = 10;
+
+function createToken(user) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      role: user.role,
+    },
+    env.JWT_SECRET,
+    {
+      expiresIn: env.JWT_EXPIRES_IN,
+    }
+  );
+}
+
+async function registerUser({
+  name,
+  email,
+  password,
+  phone,
+  location,
+  role,
+}) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+  });
+
+  if (existingUser) {
+    throw new Error("EMAIL_ALREADY_EXISTS");
+  }
+
+  const hashedPassword = await bcrypt.hash(
+    password,
+    SALT_ROUNDS
+  );
+
+  // Public registration can create only requester/responder.
+  // ADMIN should be created separately.
+  const userRole =
+    role === "RESPONDER" ? "RESPONDER" : "REQUESTER";
 
   const user = await prisma.user.create({
     data: {
-      name,
-      email,
+      name: name.trim(),
+      email: normalizedEmail,
       password: hashedPassword,
-      phone,
-      role: 'REQUESTER' // Force REQUESTER on registration
-    }
+      phone: phone || null,
+      location: location || null,
+      role: userRole,
+    },
   });
 
-  const { password: _, ...userWithoutPassword } = user;
-  return userWithoutPassword;
-};
+  const token = createToken(user);
 
-exports.loginUser = async (data) => {
-  const { email, password } = data;
-  const user = await prisma.user.findUnique({ where: { email } });
-  
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    throw new Error('Invalid credentials');
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      location: user.location,
+      latitude: user.latitude,
+      longitude: user.longitude,
+      isActive: user.isActive,
+      lastActiveAt: user.lastActiveAt,
+      responderStatus: user.responderStatus,
+      createdAt: user.createdAt,
+    },
+    token,
+  };
+}
+
+async function loginUser({ email, password }) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const user = await prisma.user.findUnique({
+    where: {
+      email: normalizedEmail,
+    },
+  });
+
+  if (!user) {
+    throw new Error("INVALID_CREDENTIALS");
   }
-  
+
   if (!user.isActive) {
-    throw new Error('User is inactive');
+    throw new Error("ACCOUNT_INACTIVE");
   }
 
-  const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
-  const { password: _, ...userWithoutPassword } = user;
-  
-  return { token, user: userWithoutPassword };
+  const passwordValid = await bcrypt.compare(
+    password,
+    user.password
+  );
+
+  if (!passwordValid) {
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: {
+      id: user.id,
+    },
+    data: {
+      lastActiveAt: new Date(),
+    },
+  });
+
+  const token = createToken(updatedUser);
+
+  return {
+    user: {
+      id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      phone: updatedUser.phone,
+      role: updatedUser.role,
+      location: updatedUser.location,
+      latitude: updatedUser.latitude,
+      longitude: updatedUser.longitude,
+      isActive: updatedUser.isActive,
+      lastActiveAt: updatedUser.lastActiveAt,
+      responderStatus: updatedUser.responderStatus,
+    },
+    token,
+  };
+}
+
+async function getCurrentUser(userId) {
+  return prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      location: true,
+      latitude: true,
+      longitude: true,
+      isActive: true,
+      lastActiveAt: true,
+      responderStatus: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
+module.exports = {
+  registerUser,
+  loginUser,
+  getCurrentUser,
 };

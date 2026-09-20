@@ -9,7 +9,7 @@ async function syncRequestStatus(tx, requestId) {
     where: { id: requestId },
     include: { requiredResources: true, allocations: true }
   });
-  
+
   if (!request) return;
 
   const requiredAmounts = {};
@@ -24,21 +24,21 @@ async function syncRequestStatus(tx, requestId) {
     }
   }
 
-  let allFulfilled = true;
+  let allFulfilled = request.requiredResources.length > 0;
   let partial = false;
 
   for (const resId in requiredAmounts) {
     const required = requiredAmounts[resId];
     const allocated = allocatedAmounts[resId] || 0;
-    
+
     if (allocated > 0) {
       partial = true;
     }
-    if (allocated < required) {
-      allFulfilled = false;
-    }
-  }
 
+   if (allocated < required) {
+     allFulfilled = false;
+    }
+}
   let newStatus = request.status;
   if (allFulfilled) {
     newStatus = 'COMPLETED';
@@ -58,17 +58,26 @@ exports.createAllocation = async (responderId, data) => {
   const { requestId, responderResourceId, resourceId, quantity } = data;
   if (!quantity || quantity <= 0) throw new Error('Quantity must be greater than 0');
 
-  return await prisma.(async (tx) => {
-    const reqInstance = await tx.emergencyRequest.findUnique({ where: { id: Number(requestId) }});
+  return await prisma.$transaction(async (tx) => {
+    const reqInstance = await tx.emergencyRequest.findUnique({ where: { id: Number(requestId) } });
     if (!reqInstance || reqInstance.status === 'CANCELLED' || reqInstance.status === 'COMPLETED') {
       throw new Error('Request is invalid or already closed');
     }
 
-    const respResource = await tx.responderResource.findUnique({ where: { id: Number(responderResourceId) } });
+    // SELECT FOR UPDATE acquires a row-level lock so concurrent transactions
+    // must wait — preventing double-spend of availableQuantity.
+    const locked = await tx.$queryRaw`
+      SELECT id, "responderId", "resourceId", "availableQuantity"
+      FROM "ResponderResource"
+      WHERE id = ${Number(responderResourceId)}
+      FOR UPDATE
+    `;
+
+    const respResource = locked[0];
     if (!respResource) throw new Error('Responder resource not found');
     if (respResource.responderId !== responderId) throw new Error('Responder mismatch: unauthorized');
     if (respResource.resourceId !== resourceId) throw new Error('Resource mismatch');
-    
+
     if (respResource.availableQuantity < quantity) {
       throw new Error('Not enough available quantity');
     }
@@ -92,15 +101,16 @@ exports.createAllocation = async (responderId, data) => {
     await syncRequestStatus(tx, Number(requestId));
 
     return allocation;
-  });
+  }, { isolationLevel: 'Serializable' });
 };
 
+
 exports.updateAllocationStatus = async (responderId, allocationId, status) => {
-  return await prisma.(async (tx) => {
+  return await prisma.$transaction(async (tx) => {
     const allocation = await tx.allocation.findUnique({ where: { id: Number(allocationId) } });
     if (!allocation) throw new Error('Allocation not found');
     if (allocation.responderId !== responderId) throw new Error('Unauthorized');
-    
+
     if (allocation.status === 'CANCELLED') throw new Error('Already cancelled');
 
     if (status === 'CANCELLED') {
