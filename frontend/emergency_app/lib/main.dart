@@ -576,7 +576,48 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       requests.where((r) => r.status == RequestStatus.enroute).length;
   int get unmatchedCount =>
       requests.where((r) => r.status == RequestStatus.unmatched).length;
+  Future<void> submitRequestToBackend() async {
+  try {
+    int resourceId;
 
+    switch (selectedType) {
+      case ResourceType.ambulance:
+        resourceId = 14;
+        break;
+
+      case ResourceType.blood:
+        // No Blood resource currently exists in the database.
+        throw Exception('Blood resource is not configured in the database');
+
+      case ResourceType.volunteer:
+        // No Volunteer resource currently exists in the database.
+        throw Exception('Volunteer resource is not configured in the database');
+    }
+
+    final priority = switch (selectedUrgency) {
+      Urgency.critical => 'CRITICAL',
+      Urgency.high => 'HIGH',
+      Urgency.standard => 'MEDIUM',
+    };
+
+    await ApiService.createRequest(
+  emergencyType: selectedType.name.toUpperCase(),
+  description:
+      'Emergency ${selectedType.name} request from $selectedDistrict',
+  location: selectedDistrict,
+  priority: priority,
+  resourceId: resourceId,
+  quantity: 1,
+);
+    showToast('Emergency request created successfully');
+
+    setView(ConsoleView.board);
+  } catch (error) {
+    showToast(
+      'Request failed: ${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
   void setView(ConsoleView view) => setState(() => activeView = view);
 
   @override
@@ -657,10 +698,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             onTypeChanged: (v) => setState(() => selectedType = v),
             onDistrictChanged: (v) => setState(() => selectedDistrict = v),
             onUrgencyChanged: (v) => setState(() => selectedUrgency = v),
-            onSubmit: () {
-              addRequest(selectedType, selectedDistrict, selectedUrgency);
-              setView(ConsoleView.board);
-            },
+            onSubmit: submitRequestToBackend,
           ),
         if (activeView == ConsoleView.responders)
           RespondersPanel(
