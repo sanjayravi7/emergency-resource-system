@@ -319,7 +319,45 @@ class Responder {
   String district;
   ResponderStatus status;
 }
+class BackendResponder {
+  const BackendResponder({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.status,
+    this.phone,
+    this.location,
+    this.latitude,
+    this.longitude,
+    this.lastActiveAt,
+  });
 
+  final int id;
+  final String name;
+  final String email;
+  final String status;
+  final String? phone;
+  final String? location;
+  final double? latitude;
+  final double? longitude;
+  final DateTime? lastActiveAt;
+
+  factory BackendResponder.fromJson(Map<String, dynamic> json) {
+    return BackendResponder(
+      id: (json['id'] as num).toInt(),
+      name: json['name']?.toString() ?? 'Unknown responder',
+      email: json['email']?.toString() ?? '',
+      status: json['responderStatus']?.toString() ?? 'OFFLINE',
+      phone: json['phone']?.toString(),
+      location: json['location']?.toString(),
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      lastActiveAt: DateTime.tryParse(
+        json['lastActiveAt']?.toString() ?? '',
+      ),
+    );
+  }
+}
 class EmergencyRequest {
   EmergencyRequest(
       {required this.id,
@@ -398,7 +436,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   final requests = <EmergencyRequest>[];
   final logEntries = <EmergencyRequest>[];
   final resources = <BackendResource>[];
+  final backendResponders = <BackendResponder>[];
   final random = Random();
+
 
   ConsoleView activeView = ConsoleView.board;
   ResourceType selectedType = ResourceType.ambulance;
@@ -416,6 +456,7 @@ void initState() {
 
   loadRequestsFromBackend();
   loadResourcesFromBackend();
+  loadRespondersFromBackend();
 
   clockTimer = Timer.periodic(
     const Duration(seconds: 1),
@@ -435,12 +476,7 @@ void dispose() {
   super.dispose();
 }
 
-  void _seed() {
-    addRequest(ResourceType.ambulance, 'Old Town', Urgency.critical,
-        silent: true);
-    addRequest(ResourceType.volunteer, 'Eastgate', Urgency.standard,
-        silent: true);
-  }
+ 
 
   String newId() {
     reqSeq += 3;
@@ -749,6 +785,32 @@ Future<void> loadResourcesFromBackend() async {
     );
   }
 }
+Future<void> loadRespondersFromBackend() async {
+  try {
+    final backendResponders = await ApiService.getResponders();
+
+    final loadedResponders = backendResponders.map((item) {
+      return BackendResponder.fromJson(
+        Map<String, dynamic>.from(item as Map),
+      );
+    }).toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      this.backendResponders
+        ..clear()
+        ..addAll(loadedResponders);
+    });
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Failed to load responders: '
+      '${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
   Future<void> submitRequestToBackend() async {
   try {
     int resourceId;
@@ -876,17 +938,16 @@ setView(ConsoleView.board);
             onSubmit: submitRequestToBackend,
           ),
         if (activeView == ConsoleView.responders) ...[
-          RespondersPanel(
-            responders: responders,
-            onToggle: toggleResponder,
+          BackendRespondersPanel(
+            responders: backendResponders,
             isMobile: isMobile,
-            ),
-            const SizedBox(height: 22),
-            ResourceCatalogPanel(
-                resources: resources,
-                isMobile: isMobile,
-                  ),
-          ],
+          ),
+          const SizedBox(height: 22),
+          ResourceCatalogPanel(
+           resources: resources,
+           isMobile: isMobile,
+          ),
+        ],
         if (activeView == ConsoleView.log)
           LogPanel(logEntries: logEntries, isMobile: isMobile),
         const SizedBox(height: 22),
@@ -1933,6 +1994,143 @@ class RespondersPanel extends StatelessWidget {
     );
   }
 }
+class BackendRespondersPanel extends StatelessWidget {
+  const BackendRespondersPanel({
+    super.key,
+    required this.responders,
+    this.isMobile = false,
+  });
+
+  final List<BackendResponder> responders;
+  final bool isMobile;
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'AVAILABLE':
+        return AppColors.teal;
+      case 'BUSY':
+        return AppColors.amber;
+      default:
+        return AppColors.textFaint;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Panel(
+      title: 'LIVE RESPONDERS',
+      hint: 'Responders loaded from PostgreSQL',
+      child: responders.isEmpty
+          ? const EmptyState('No responders found in the database.')
+          : Padding(
+              padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
+              child: Column(
+                children: responders.map((r) {
+                  final statusColor = _statusColor(r.status);
+
+                  return Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 14 : 16,
+                      vertical: 12,
+                    ),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: AppColors.border,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${r.name}  •  ID ${r.id}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                r.email,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.textFaint,
+                                ),
+                              ),
+                              if (r.location != null &&
+                                  r.location!.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  r.location!,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: AppColors.textDim,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        Text(
+                          r.status,
+                          style: monoStyle(
+                            size: 11,
+                            color: statusColor,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+    );
+  }
+}
+class BackendRespondersPanel extends StatelessWidget {
+  const BackendRespondersPanel({
+    super.key,
+    required this.responders,
+    this.isMobile = false,
+  });
+
+  final List<BackendResponder> responders;
+  final bool isMobile;
+
+  Color statusColor(String status) {
+    switch (status) {
+      case 'AVAILABLE':
+        return AppColors.teal;
+      case 'BUSY':
+        return AppColors.amber;
+      default:
+        return AppColors.textFaint;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Panel(
+      title: 'LIVE RESPONDERS',
+      hint: 'Responders loaded from PostgreSQL',
+      child: responders.isEmpty
+          ? const EmptyState('No responders found in the database.')
+          : Column(
+              children: responders.map((r) {
+                return Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 14 : 16,
+                    vertical: 12,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: AppColors.border),
+                   
 class ResourceCatalogPanel extends StatelessWidget {
   const ResourceCatalogPanel({
     super.key,

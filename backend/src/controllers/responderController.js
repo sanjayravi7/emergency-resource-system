@@ -19,3 +19,27 @@ exports.updateLocation = async (req, res, next) => {
     next(error);
   }
 };
+exports.getResponders = async (req, res, next) => {
+  try {
+    const responders = await responderService.getResponders();
+
+    res.json({
+      success: true,
+      responders,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+exports.getAllResources = async (req, res, next) => {
+  try {
+    const resources = await responderResourceService.getAllResources();
+
+    res.json({
+      success: true,
+      resources,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

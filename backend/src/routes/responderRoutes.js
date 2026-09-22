@@ -4,6 +4,12 @@ const responderController = require('../controllers/responderController');
 const authenticate = require('../middleware/authMiddleware');
 const authorizeRoles = require('../middleware/roleMiddleware');
 
+router.get(
+  "/",
+  authenticate,
+  responderController.getResponders
+);
+
 router.patch(
   "/status",
   authenticate,

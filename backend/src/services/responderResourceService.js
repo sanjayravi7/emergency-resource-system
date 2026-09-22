@@ -49,3 +49,29 @@ exports.deleteResource = async (responderId, id) => {
     where: { id: Number(id) }
   });
 };
+exports.getAllResources = async () => {
+  return await prisma.responderResource.findMany({
+    include: {
+      responder: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          responderStatus: true,
+        },
+      },
+      resource: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          unit: true,
+          location: true,
+        },
+      },
+    },
+    orderBy: {
+      id: "asc",
+    },
+  });
+};

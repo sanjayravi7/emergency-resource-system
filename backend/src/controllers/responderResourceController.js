@@ -35,3 +35,15 @@ exports.deleteResource = async (req, res, next) => {
     next(error);
   }
 };
+exports.getAllResources = async (req, res, next) => {
+  try {
+    const resources = await responderResourceService.getAllResources();
+
+    res.json({
+      success: true,
+      resources,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

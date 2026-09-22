@@ -21,3 +21,27 @@ exports.updateResponderLocation = async (userId, location, latitude, longitude) 
     }
   });
 };
+
+exports.getResponders = async () => {
+  return await prisma.user.findMany({
+    where: {
+      role: 'RESPONDER',
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      location: true,
+      latitude: true,
+      longitude: true,
+      responderStatus: true,
+      lastActiveAt: true,
+      isActive: true,
+    },
+    orderBy: {
+      id: 'asc',
+    },
+  });
+};
