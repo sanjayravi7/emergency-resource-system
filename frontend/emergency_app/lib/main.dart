@@ -432,13 +432,16 @@ class BackendResponder {
   }
 }
 class EmergencyRequest {
-  EmergencyRequest(
-      {required this.id,
-      required this.type,
-      required this.district,
-      required this.urgency,
-      required this.createdAt,
-      this.status = RequestStatus.pending});
+  EmergencyRequest({
+    required this.id,
+    required this.type,
+    required this.district,
+    required this.urgency,
+    required this.createdAt,
+    this.status = RequestStatus.pending,
+    this.resourceId,
+    this.requiredQuantity,
+  });
   final String id;
   final ResourceType type;
   final String district;
@@ -454,8 +457,8 @@ class EmergencyRequest {
   int? allocationId;
   int? allocatedQuantity;
   int? responderResourceId;
-int? resourceId;
-int? requiredQuantity;
+  int? resourceId;
+  int? requiredQuantity;
 }
 
 class DispatchConsolePage extends StatefulWidget {
@@ -887,13 +890,16 @@ Future<void> loadAllocationsFromBackend() async {
         request.responderResourceId = null;
 
         final matches = backendAllocations.where((item) {
-          final allocation =
-              Map<String, dynamic>.from(item as Map);
+          final allocation = Map<String, dynamic>.from(item as Map);
 
-          return (allocation['requestId'] as num?)?.toInt() ==
-              int.tryParse(
-                request.id.replaceFirst('DB-', ''),
-              );
+          final sameRequest =
+              (allocation['requestId'] as num?)?.toInt() ==
+              int.tryParse(request.id.replaceFirst('DB-', ''));
+
+          final active =
+              allocation['status']?.toString().toUpperCase() != 'CANCELLED';
+
+          return sameRequest && active;
         }).toList();
 
         if (matches.isEmpty) continue;
@@ -953,54 +959,60 @@ Future<void> allocateRequestFromBackend(String displayId) async {
       throw Exception('Invalid database request ID');
     }
 
-final requestId = int.parse(match.group(1)!);
+    final requestId = int.parse(match.group(1)!);
 
-final request = firstWhereOrNull(
-  requests,
-  (r) => r.id == displayId,
-);
+    final request = firstWhereOrNull(
+      requests,
+      (r) => r.id == displayId,
+    );
 
-if (request == null) {
-  throw Exception('Request not found');
-}
+    if (request == null) {
+      throw Exception('Request not found');
+    }
 
-if (ApiService.currentUserId == null) {
-  throw Exception('Logged-in responder ID not available');
-}
+    if (ApiService.currentUserId == null) {
+      throw Exception('Logged-in responder ID not available');
+    }
 
-final resourceId = request.resourceId;
+    final resourceId = request.resourceId;
 
-if (resourceId == null) {
-  throw Exception('Requested resource information not available');
-}
+    if (resourceId == null) {
+      throw Exception('Requested resource information not available');
+    }
 
-final quantity = request.requiredQuantity ?? 1;
+    final requiredQuantity = request.requiredQuantity ?? 1;
+    final allocatedQuantity = request.allocatedQuantity ?? 0;
+    final quantity = requiredQuantity - allocatedQuantity;
 
-final matchingResources = responderResources.where(
-  (item) =>
-      item.responderId == ApiService.currentUserId &&
-      item.resourceId == resourceId &&
-      item.availableQuantity >= quantity,
-).toList();
+    if (quantity <= 0) {
+      throw Exception('All required resources have already been allocated');
+    }
 
-if (matchingResources.isEmpty) {
-  throw Exception(
-    'You do not have enough available inventory for this request',
-  );
-}
+    final matchingResources = responderResources.where(
+      (item) =>
+          item.responderId == ApiService.currentUserId &&
+          item.resourceId == resourceId &&
+          item.availableQuantity >= quantity,
+    ).toList();
 
-final responderResource = matchingResources.first;
+    if (matchingResources.isEmpty) {
+      throw Exception(
+        'You do not have enough available inventory for this request',
+      );
+    }
+
+    final responderResource = matchingResources.first;
 
     await ApiService.createAllocation(
       requestId: requestId,
       responderResourceId: responderResource.id,
-resourceId: resourceId,
-quantity: quantity,
-);
+      resourceId: resourceId,
+      quantity: quantity,
+    );
 
-showToast(
-  '$displayId allocated using ${responderResource.resourceName}',
-);
+    showToast(
+      '$displayId allocated using ${responderResource.resourceName}',
+    );
 
     await loadRequestsFromBackend();
     await loadResponderResourcesFromBackend();
@@ -1036,6 +1048,7 @@ Future<void> cancelAllocationFromBackend(
 
     await loadRequestsFromBackend();
     await loadResponderResourcesFromBackend();
+    await loadAllocationsFromBackend();
   } catch (error) {
     if (!mounted) return;
 
