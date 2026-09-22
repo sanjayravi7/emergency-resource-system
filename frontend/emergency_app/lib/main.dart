@@ -454,8 +454,8 @@ class EmergencyRequest {
   int? allocationId;
   int? allocatedQuantity;
   int? responderResourceId;
-  int? resourceId;
-  int? requiredQuantity;
+int? resourceId;
+int? requiredQuantity;
 }
 
 class DispatchConsolePage extends StatefulWidget {
@@ -953,54 +953,54 @@ Future<void> allocateRequestFromBackend(String displayId) async {
       throw Exception('Invalid database request ID');
     }
 
-    final requestId = int.parse(match.group(1)!);
+final requestId = int.parse(match.group(1)!);
 
-    final request = firstWhereOrNull(
-      requests,
-      (r) => r.id == displayId,
-    );
+final request = firstWhereOrNull(
+  requests,
+  (r) => r.id == displayId,
+);
 
-    if (request == null) {
-      throw Exception('Request not found');
-    }
+if (request == null) {
+  throw Exception('Request not found');
+}
 
-    if (ApiService.currentUserId == null) {
-      throw Exception('Logged-in responder ID not available');
-    }
+if (ApiService.currentUserId == null) {
+  throw Exception('Logged-in responder ID not available');
+}
 
-    final resourceId = request.resourceId;
+final resourceId = request.resourceId;
 
-    if (resourceId == null) {
-      throw Exception('Requested resource information not available');
-    }
+if (resourceId == null) {
+  throw Exception('Requested resource information not available');
+}
 
-    final quantity = request.requiredQuantity ?? 1;
+final quantity = request.requiredQuantity ?? 1;
 
-    final matchingResources = responderResources.where(
-      (item) =>
-          item.responderId == ApiService.currentUserId &&
-          item.resourceId == resourceId &&
-          item.availableQuantity >= quantity,
-    ).toList();
+final matchingResources = responderResources.where(
+  (item) =>
+      item.responderId == ApiService.currentUserId &&
+      item.resourceId == resourceId &&
+      item.availableQuantity >= quantity,
+).toList();
 
-    if (matchingResources.isEmpty) {
-      throw Exception(
-        'You do not have enough available inventory for this request',
-      );
-    }
+if (matchingResources.isEmpty) {
+  throw Exception(
+    'You do not have enough available inventory for this request',
+  );
+}
 
-    final responderResource = matchingResources.first;
+final responderResource = matchingResources.first;
 
     await ApiService.createAllocation(
       requestId: requestId,
       responderResourceId: responderResource.id,
-      resourceId: resourceId,
-      quantity: quantity,
-    );
+resourceId: resourceId,
+quantity: quantity,
+);
 
-    showToast(
-      '$displayId allocated using ${responderResource.resourceName}',
-    );
+showToast(
+  '$displayId allocated using ${responderResource.resourceName}',
+);
 
     await loadRequestsFromBackend();
     await loadResponderResourcesFromBackend();
@@ -1033,6 +1033,7 @@ Future<void> cancelAllocationFromBackend(
     );
 
     showToast('Allocation cancelled successfully');
+
     await loadRequestsFromBackend();
     await loadResponderResourcesFromBackend();
   } catch (error) {

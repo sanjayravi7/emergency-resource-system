@@ -40,10 +40,18 @@ async function syncRequestStatus(tx, requestId) {
     }
 }
   let newStatus = request.status;
+
   if (allFulfilled) {
     newStatus = 'COMPLETED';
   } else if (partial) {
     newStatus = 'PARTIALLY_ALLOCATED';
+  } else if (
+    request.status === 'COMPLETED' ||
+    request.status === 'PARTIALLY_ALLOCATED'
+  ) {
+    // All allocations were cancelled.
+    // Reopen the request so a responder can allocate again.
+    newStatus = 'ACCEPTED';
   }
 
   if (newStatus !== request.status) {
