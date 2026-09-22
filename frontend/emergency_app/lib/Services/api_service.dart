@@ -71,7 +71,7 @@ class ApiService {
     return body;
   }
 
-  static Future<List<dynamic>> getMyRequests() async {
+   static Future<List<dynamic>> getMyRequests() async {
     final response = await http.get(
       Uri.parse('$baseUrl/requests/my'),
       headers: _headers,
@@ -84,5 +84,22 @@ class ApiService {
     }
 
     return body['requests'] ?? [];
+  }
+
+  static Future<List<dynamic>> getResources() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/resources'),
+      headers: _headers,
+    );
+
+    final body = jsonDecode(response.body);
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        body['message'] ?? 'Failed to load resources',
+      );
+    }
+
+    return body['resources'] ?? [];
   }
 }

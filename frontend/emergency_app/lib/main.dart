@@ -276,7 +276,38 @@ class ResourceMeta {
   final Color bg;
   final Color color;
 }
+class BackendResource {
+  const BackendResource({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.totalQuantity,
+    required this.availableQuantity,
+    this.unit,
+    this.location,
+  });
 
+  final int id;
+  final String name;
+  final String type;
+  final int totalQuantity;
+  final int availableQuantity;
+  final String? unit;
+  final String? location;
+
+  factory BackendResource.fromJson(Map<String, dynamic> json) {
+    return BackendResource(
+      id: (json['id'] as num).toInt(),
+      name: json['name']?.toString() ?? 'Unknown resource',
+      type: json['type']?.toString() ?? '',
+      totalQuantity: (json['totalQuantity'] as num?)?.toInt() ?? 0,
+      availableQuantity:
+          (json['availableQuantity'] as num?)?.toInt() ?? 0,
+      unit: json['unit']?.toString(),
+      location: json['location']?.toString(),
+    );
+  }
+}
 class Responder {
   Responder(
       {required this.id,
@@ -366,6 +397,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   final requests = <EmergencyRequest>[];
   final logEntries = <EmergencyRequest>[];
+  final resources = <BackendResource>[];
   final random = Random();
 
   ConsoleView activeView = ConsoleView.board;
@@ -379,30 +411,29 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   DateTime now = DateTime.now();
 
   @override
-  void initState() {
-    super.initState();
-    _seed();
-    clockTimer = Timer.periodic(const Duration(seconds: 1),
-        (_) => setState(() => now = DateTime.now()));
-    incomingTimer = Timer.periodic(const Duration(seconds: 14), (_) {
-      if (requests.length < 5 && random.nextDouble() < 0.5) {
-        final types = ResourceType.values;
-        addRequest(types[random.nextInt(types.length)],
-            districts[random.nextInt(districts.length)].name, Urgency.standard);
-      }
-    });
+void initState() {
+  super.initState();
+
+  loadRequestsFromBackend();
+  loadResourcesFromBackend();
+
+  clockTimer = Timer.periodic(
+    const Duration(seconds: 1),
+    (_) => setState(() => now = DateTime.now()),
+  );
+}
+
+ @override
+void dispose() {
+  clockTimer.cancel();
+
+  for (final t in _pendingTimers) {
+    t.cancel();
   }
 
-  @override
-  void dispose() {
-    clockTimer.cancel();
-    incomingTimer.cancel();
-    for (final t in _pendingTimers) {
-      t.cancel();
-    }
-    _pendingTimers.clear();
-    super.dispose();
-  }
+  _pendingTimers.clear();
+  super.dispose();
+}
 
   void _seed() {
     addRequest(ResourceType.ambulance, 'Old Town', Urgency.critical,
@@ -576,6 +607,148 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       requests.where((r) => r.status == RequestStatus.enroute).length;
   int get unmatchedCount =>
       requests.where((r) => r.status == RequestStatus.unmatched).length;
+  Future<void> loadRequestsFromBackend() async {
+  try {
+    final backendRequests = await ApiService.getMyRequests();
+
+    final activeRequests = <EmergencyRequest>[];
+    final closedRequests = <EmergencyRequest>[];
+
+    for (final item in backendRequests) {
+      final data = Map<String, dynamic>.from(item as Map);
+
+      final requiredResources =
+          (data['requiredResources'] as List<dynamic>?) ?? [];
+
+      ResourceType type = ResourceType.ambulance;
+
+      final emergencyType =
+          (data['emergencyType'] ?? '').toString().toUpperCase();
+
+      if (emergencyType == 'BLOOD') {
+        type = ResourceType.blood;
+      } else if (emergencyType == 'VOLUNTEER') {
+        type = ResourceType.volunteer;
+      } else if (emergencyType == 'AMBULANCE') {
+        type = ResourceType.ambulance;
+      } else if (requiredResources.isNotEmpty) {
+        final resource =
+            Map<String, dynamic>.from(requiredResources.first as Map);
+
+        final resourceId = resource['resourceId'];
+
+        if (resourceId == 14) {
+          type = ResourceType.ambulance;
+        }
+      }
+
+      Urgency urgency = Urgency.standard;
+
+      switch ((data['priority'] ?? 'MEDIUM').toString()) {
+        case 'CRITICAL':
+          urgency = Urgency.critical;
+          break;
+        case 'HIGH':
+          urgency = Urgency.high;
+          break;
+        case 'MEDIUM':
+        default:
+          urgency = Urgency.standard;
+          break;
+      }
+
+      RequestStatus status;
+
+      switch ((data['status'] ?? 'PENDING').toString()) {
+        case 'COMPLETED':
+        case 'CANCELLED':
+          status = RequestStatus.closed;
+          break;
+
+        case 'ACCEPTED':
+        case 'IN_PROGRESS':
+          status = RequestStatus.enroute;
+          break;
+
+        case 'PARTIALLY_ALLOCATED':
+        case 'PENDING':
+        default:
+          status = RequestStatus.pending;
+          break;
+      }
+
+      final request = EmergencyRequest(
+        id: 'DB-${data['id']}',
+        type: type,
+        district: data['location']?.toString() ?? 'Unknown',
+        urgency: urgency,
+        createdAt: DateTime.tryParse(
+              data['createdAt']?.toString() ?? '',
+            ) ??
+            DateTime.now(),
+        status: status,
+      );
+
+      if (status == RequestStatus.closed) {
+        closedRequests.add(request);
+      } else {
+        activeRequests.add(request);
+      }
+    }
+
+    activeRequests.sort(
+      (a, b) => b.createdAt.compareTo(a.createdAt),
+    );
+
+    closedRequests.sort(
+      (a, b) => b.createdAt.compareTo(a.createdAt),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      requests
+        ..clear()
+        ..addAll(activeRequests);
+
+      logEntries
+        ..clear()
+        ..addAll(closedRequests);
+    });
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Failed to load requests: ${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
+Future<void> loadResourcesFromBackend() async {
+  try {
+    final backendResources = await ApiService.getResources();
+
+    final loadedResources = backendResources.map((item) {
+      return BackendResource.fromJson(
+        Map<String, dynamic>.from(item as Map),
+      );
+    }).toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      resources
+        ..clear()
+        ..addAll(loadedResources);
+    });
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Failed to load resources: '
+      '${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
   Future<void> submitRequestToBackend() async {
   try {
     int resourceId;
@@ -609,9 +782,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   resourceId: resourceId,
   quantity: 1,
 );
-    showToast('Emergency request created successfully');
+   showToast('Emergency request created successfully');
 
-    setView(ConsoleView.board);
+await loadRequestsFromBackend();
+
+setView(ConsoleView.board);
   } catch (error) {
     showToast(
       'Request failed: ${error.toString().replaceFirst('Exception: ', '')}',
@@ -700,11 +875,18 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             onUrgencyChanged: (v) => setState(() => selectedUrgency = v),
             onSubmit: submitRequestToBackend,
           ),
-        if (activeView == ConsoleView.responders)
+        if (activeView == ConsoleView.responders) ...[
           RespondersPanel(
-              responders: responders,
-              onToggle: toggleResponder,
-              isMobile: isMobile),
+            responders: responders,
+            onToggle: toggleResponder,
+            isMobile: isMobile,
+            ),
+            const SizedBox(height: 22),
+            ResourceCatalogPanel(
+                resources: resources,
+                isMobile: isMobile,
+                  ),
+          ],
         if (activeView == ConsoleView.log)
           LogPanel(logEntries: logEntries, isMobile: isMobile),
         const SizedBox(height: 22),
@@ -1751,7 +1933,72 @@ class RespondersPanel extends StatelessWidget {
     );
   }
 }
+class ResourceCatalogPanel extends StatelessWidget {
+  const ResourceCatalogPanel({
+    super.key,
+    required this.resources,
+    this.isMobile = false,
+  });
 
+  final List<BackendResource> resources;
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Panel(
+      title: 'RESOURCE CATALOG',
+      hint: 'Live resources from PostgreSQL',
+      child: resources.isEmpty
+          ? const EmptyState('No resources found in the database.')
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: resources.map((resource) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: AppColors.border),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            resource.name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          'ID ${resource.id}',
+                          style: monoStyle(
+                            size: 11,
+                            color: AppColors.textFaint,
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        Text(
+                          '${resource.availableQuantity}/${resource.totalQuantity}',
+                          style: monoStyle(
+                            size: 12,
+                            color: AppColors.textDim,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+    );
+  }
+}
 // ── Log Panel ──────────────────────────────────────────────────────────────────
 
 class LogPanel extends StatelessWidget {
