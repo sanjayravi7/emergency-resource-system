@@ -118,4 +118,20 @@ class ApiService {
 
     return body['responders'] ?? [];
   }
+  static Future<List<dynamic>> getResponderResources() async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/responder-resources'),
+    headers: _headers,
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      body['message'] ?? 'Failed to load responder resources',
+    );
+  }
+
+  return body['resources'] ?? [];
+}
 }

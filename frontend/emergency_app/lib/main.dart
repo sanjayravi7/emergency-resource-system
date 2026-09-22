@@ -319,6 +319,72 @@ class Responder {
   String district;
   ResponderStatus status;
 }
+class BackendResponderResource {
+  const BackendResponderResource({
+    required this.id,
+    required this.responderId,
+    required this.resourceId,
+    required this.totalQuantity,
+    required this.availableQuantity,
+    required this.status,
+    required this.responderName,
+    required this.responderEmail,
+    required this.responderStatus,
+    required this.resourceName,
+    required this.resourceType,
+    this.unit,
+    this.location,
+  });
+
+  final int id;
+  final int responderId;
+  final int resourceId;
+  final int totalQuantity;
+  final int availableQuantity;
+  final String status;
+
+  final String responderName;
+  final String responderEmail;
+  final String responderStatus;
+
+  final String resourceName;
+  final String resourceType;
+  final String? unit;
+  final String? location;
+
+  factory BackendResponderResource.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final responder =
+        Map<String, dynamic>.from(json['responder'] ?? {});
+    final resource =
+        Map<String, dynamic>.from(json['resource'] ?? {});
+
+    return BackendResponderResource(
+      id: (json['id'] as num).toInt(),
+      responderId: (json['responderId'] as num).toInt(),
+      resourceId: (json['resourceId'] as num).toInt(),
+      totalQuantity: (json['totalQuantity'] as num?)?.toInt() ?? 0,
+      availableQuantity:
+          (json['availableQuantity'] as num?)?.toInt() ?? 0,
+      status: json['status']?.toString() ?? 'UNAVAILABLE',
+
+      responderName:
+          responder['name']?.toString() ?? 'Unknown responder',
+      responderEmail:
+          responder['email']?.toString() ?? '',
+      responderStatus:
+          responder['responderStatus']?.toString() ?? 'OFFLINE',
+
+      resourceName:
+          resource['name']?.toString() ?? 'Unknown resource',
+      resourceType:
+          resource['type']?.toString() ?? '',
+      unit: resource['unit']?.toString(),
+      location: resource['location']?.toString(),
+    );
+  }
+}
 class BackendResponder {
   const BackendResponder({
     required this.id,
@@ -437,6 +503,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   final logEntries = <EmergencyRequest>[];
   final resources = <BackendResource>[];
   final backendResponders = <BackendResponder>[];
+  final responderResources = <BackendResponderResource>[];
   final random = Random();
 
 
@@ -457,6 +524,7 @@ void initState() {
   loadRequestsFromBackend();
   loadResourcesFromBackend();
   loadRespondersFromBackend();
+  loadResponderResourcesFromBackend();
 
   clockTimer = Timer.periodic(
     const Duration(seconds: 1),
@@ -811,6 +879,33 @@ Future<void> loadRespondersFromBackend() async {
     );
   }
 }
+Future<void> loadResponderResourcesFromBackend() async {
+  try {
+    final backendResources =
+        await ApiService.getResponderResources();
+
+    final loadedResources = backendResources.map((item) {
+      return BackendResponderResource.fromJson(
+        Map<String, dynamic>.from(item as Map),
+      );
+    }).toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      responderResources
+        ..clear()
+        ..addAll(loadedResources);
+    });
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Failed to load responder resources: '
+      '${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
   Future<void> submitRequestToBackend() async {
   try {
     int resourceId;
@@ -941,13 +1036,21 @@ setView(ConsoleView.board);
           BackendRespondersPanel(
             responders: backendResponders,
             isMobile: isMobile,
-          ),
-          const SizedBox(height: 22),
-          ResourceCatalogPanel(
-           resources: resources,
-           isMobile: isMobile,
-          ),
-        ],
+            ),
+
+            const SizedBox(height: 22),
+
+              ResponderResourcesPanel(
+               resources: responderResources,
+            ),
+
+              const SizedBox(height: 22),
+
+            ResourceCatalogPanel(
+              resources: resources,
+              isMobile: isMobile,
+              ),
+            ],
         if (activeView == ConsoleView.log)
           LogPanel(logEntries: logEntries, isMobile: isMobile),
         const SizedBox(height: 22),
@@ -1883,117 +1986,6 @@ class _FieldLabel extends StatelessWidget {
 }
 
 // ── Responders Panel ───────────────────────────────────────────────────────────
-
-class RespondersPanel extends StatelessWidget {
-  const RespondersPanel(
-      {super.key,
-      required this.responders,
-      required this.onToggle,
-      this.isMobile = false});
-  final List<Responder> responders;
-  final ValueChanged<String> onToggle;
-  final bool isMobile;
-
-  @override
-  Widget build(BuildContext context) {
-    return Panel(
-      title: 'RESPONDER ROSTER',
-      hint: 'Toggle duty status to affect live matching',
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
-        child: Column(
-          children: responders.map((r) {
-            return Container(
-              padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 14 : 16, vertical: isMobile ? 12 : 10),
-              decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.border))),
-              child: isMobile
-                  ? Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(r.id,
-                                  style: monoStyle(
-                                      size: 13,
-                                      color: AppColors.text,
-                                      weight: FontWeight.w600)),
-                              const SizedBox(height: 3),
-                              Text(r.district,
-                                  style: const TextStyle(
-                                      fontSize: 12, color: AppColors.textDim)),
-                            ],
-                          ),
-                        ),
-                        Text(responderStatusLabel(r.status),
-                            style: monoStyle(
-                                size: 11,
-                                color: responderStatusColor(r.status))),
-                        const SizedBox(width: 12),
-                        OutlinedButton(
-                          onPressed: r.status == ResponderStatus.enroute
-                              ? null
-                              : () => onToggle(r.id),
-                          style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4)),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                          child: Text(
-                              r.status == ResponderStatus.off
-                                  ? 'Set available'
-                                  : r.status == ResponderStatus.available
-                                      ? 'Set off duty'
-                                      : '-',
-                              style: const TextStyle(fontSize: 11.5)),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        SizedBox(
-                            width: 70,
-                            child: Text(r.id,
-                                style: monoStyle(
-                                    size: 12.5, color: AppColors.text))),
-                        SizedBox(
-                            width: 140,
-                            child: Text(r.district,
-                                style: const TextStyle(
-                                    fontSize: 12.5, color: AppColors.textDim))),
-                        SizedBox(
-                            width: 110,
-                            child: Text(responderStatusLabel(r.status),
-                                style: monoStyle(
-                                    size: 11.5,
-                                    color: responderStatusColor(r.status)))),
-                        const Spacer(),
-                        OutlinedButton(
-                          onPressed: r.status == ResponderStatus.enroute
-                              ? null
-                              : () => onToggle(r.id),
-                          style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4))),
-                          child: Text(r.status == ResponderStatus.off
-                              ? 'Set available'
-                              : r.status == ResponderStatus.available
-                                  ? 'Set off duty'
-                                  : '-'),
-                        ),
-                      ],
-                    ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-}
 class BackendRespondersPanel extends StatelessWidget {
   const BackendRespondersPanel({
     super.key,
@@ -2004,7 +1996,7 @@ class BackendRespondersPanel extends StatelessWidget {
   final List<BackendResponder> responders;
   final bool isMobile;
 
-  Color _statusColor(String status) {
+  Color statusColor(String status) {
     switch (status) {
       case 'AVAILABLE':
         return AppColors.teal;
@@ -2021,12 +2013,14 @@ class BackendRespondersPanel extends StatelessWidget {
       title: 'LIVE RESPONDERS',
       hint: 'Responders loaded from PostgreSQL',
       child: responders.isEmpty
-          ? const EmptyState('No responders found in the database.')
+          ? const EmptyState(
+              'No responders found in the database.',
+            )
           : Padding(
               padding: const EdgeInsets.fromLTRB(0, 6, 0, 0),
               child: Column(
                 children: responders.map((r) {
-                  final statusColor = _statusColor(r.status);
+                  final color = statusColor(r.status);
 
                   return Container(
                     padding: EdgeInsets.symmetric(
@@ -2044,7 +2038,8 @@ class BackendRespondersPanel extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
                             children: [
                               Text(
                                 '${r.name}  •  ID ${r.id}',
@@ -2079,7 +2074,7 @@ class BackendRespondersPanel extends StatelessWidget {
                           r.status,
                           style: monoStyle(
                             size: 11,
-                            color: statusColor,
+                            color: color,
                             weight: FontWeight.w600,
                           ),
                         ),
@@ -2092,45 +2087,6 @@ class BackendRespondersPanel extends StatelessWidget {
     );
   }
 }
-class BackendRespondersPanel extends StatelessWidget {
-  const BackendRespondersPanel({
-    super.key,
-    required this.responders,
-    this.isMobile = false,
-  });
-
-  final List<BackendResponder> responders;
-  final bool isMobile;
-
-  Color statusColor(String status) {
-    switch (status) {
-      case 'AVAILABLE':
-        return AppColors.teal;
-      case 'BUSY':
-        return AppColors.amber;
-      default:
-        return AppColors.textFaint;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Panel(
-      title: 'LIVE RESPONDERS',
-      hint: 'Responders loaded from PostgreSQL',
-      child: responders.isEmpty
-          ? const EmptyState('No responders found in the database.')
-          : Column(
-              children: responders.map((r) {
-                return Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 14 : 16,
-                    vertical: 12,
-                  ),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: AppColors.border),
-                   
 class ResourceCatalogPanel extends StatelessWidget {
   const ResourceCatalogPanel({
     super.key,
@@ -2147,7 +2103,9 @@ class ResourceCatalogPanel extends StatelessWidget {
       title: 'RESOURCE CATALOG',
       hint: 'Live resources from PostgreSQL',
       child: resources.isEmpty
-          ? const EmptyState('No resources found in the database.')
+          ? const EmptyState(
+              'No resources found in the database.',
+            )
           : Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -2159,7 +2117,9 @@ class ResourceCatalogPanel extends StatelessWidget {
                     ),
                     decoration: const BoxDecoration(
                       border: Border(
-                        bottom: BorderSide(color: AppColors.border),
+                        bottom: BorderSide(
+                          color: AppColors.border,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -2186,6 +2146,89 @@ class ResourceCatalogPanel extends StatelessWidget {
                           style: monoStyle(
                             size: 12,
                             color: AppColors.textDim,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+    );
+  }
+}
+class ResponderResourcesPanel extends StatelessWidget {
+  const ResponderResourcesPanel({
+    super.key,
+    required this.resources,
+  });
+
+  final List<BackendResponderResource> resources;
+
+  @override
+  Widget build(BuildContext context) {
+    return Panel(
+      title: 'RESPONDER INVENTORY',
+      hint: 'Live inventory from PostgreSQL',
+      child: resources.isEmpty
+          ? const EmptyState(
+              'No responder resources found in the database.',
+            )
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: resources.map((item) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: AppColors.border,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${item.responderName}  •  ID ${item.responderId}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.resourceName,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textDim,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${item.availableQuantity}/${item.totalQuantity}',
+                          style: monoStyle(
+                            size: 12,
+                            color: AppColors.textDim,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          item.status,
+                          style: monoStyle(
+                            size: 11,
+                            color: AppColors.textDim,
+                            weight: FontWeight.w600,
                           ),
                         ),
                       ],
