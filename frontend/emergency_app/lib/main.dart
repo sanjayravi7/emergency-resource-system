@@ -454,6 +454,8 @@ class EmergencyRequest {
   int? allocationId;
   int? allocatedQuantity;
   int? responderResourceId;
+int? resourceId;
+int? requiredQuantity;
 }
 
 class DispatchConsolePage extends StatefulWidget {
@@ -745,6 +747,19 @@ void dispose() {
 
       final requiredResources =
           (data['requiredResources'] as List<dynamic>?) ?? [];
+      int? backendResourceId;
+      int requiredQuantity = 1;
+
+      if (requiredResources.isNotEmpty) {
+        final resource =
+            Map<String, dynamic>.from(requiredResources.first as Map);
+
+        backendResourceId =
+            (resource['resourceId'] as num?)?.toInt();
+
+        requiredQuantity =
+            (resource['quantity'] as num?)?.toInt() ?? 1;
+      }
 
       ResourceType type = ResourceType.ambulance;
 
@@ -816,6 +831,8 @@ void dispose() {
             ) ??
             DateTime.now(),
         status: status,
+        resourceId: backendResourceId,
+        requiredQuantity: requiredQuantity,
       );
 
       if (status == RequestStatus.closed) {
@@ -936,47 +953,54 @@ Future<void> allocateRequestFromBackend(String displayId) async {
       throw Exception('Invalid database request ID');
     }
 
-    final currentUserId = ApiService.currentUserId;
+final requestId = int.parse(match.group(1)!);
 
-    if (currentUserId == null) {
-      throw Exception('Current responder is not available');
-    }
+final request = firstWhereOrNull(
+  requests,
+  (r) => r.id == displayId,
+);
 
-    final requestIndex = requests.indexWhere(
-      (request) => request.id == displayId,
-    );
+if (request == null) {
+  throw Exception('Request not found');
+}
 
-    if (requestIndex == -1) {
-      throw Exception('Emergency request not found');
-    }
+if (ApiService.currentUserId == null) {
+  throw Exception('Logged-in responder ID not available');
+}
 
-    final request = requests[requestIndex];
-    final expectedResourceType = request.type.name.toUpperCase();
-    final availableResources = responderResources.where((resource) {
-      final resourceName = resource.resourceName.toUpperCase();
-      final resourceType = resource.resourceType.toUpperCase();
+final resourceId = request.resourceId;
 
-      return resource.responderId == currentUserId &&
-          resource.availableQuantity > 0 &&
-          (resourceName.contains(expectedResourceType) ||
-              resourceType == expectedResourceType);
-    });
+if (resourceId == null) {
+  throw Exception('Requested resource information not available');
+}
 
-    if (availableResources.isEmpty) {
-      throw Exception('No matching responder resource is available');
-    }
+final quantity = request.requiredQuantity ?? 1;
 
-    final responderResource = availableResources.first;
-    final requestId = int.parse(match.group(1)!);
+final matchingResources = responderResources.where(
+  (item) =>
+      item.responderId == ApiService.currentUserId &&
+      item.resourceId == resourceId &&
+      item.availableQuantity >= quantity,
+).toList();
+
+if (matchingResources.isEmpty) {
+  throw Exception(
+    'You do not have enough available inventory for this request',
+  );
+}
+
+final responderResource = matchingResources.first;
 
     await ApiService.createAllocation(
       requestId: requestId,
       responderResourceId: responderResource.id,
-      resourceId: responderResource.resourceId,
-      quantity: 1,
-    );
+resourceId: resourceId,
+quantity: quantity,
+);
 
-    showToast('Resource allocated to $displayId successfully');
+showToast(
+  '$displayId allocated using ${responderResource.resourceName}',
+);
 
     await loadRequestsFromBackend();
     await loadResponderResourcesFromBackend();
@@ -1995,6 +2019,7 @@ class _MobileRequestList extends StatelessWidget {
     required this.onAllocate,
     required this.onCancelAllocation,
   });
+
 
   final List<EmergencyRequest> requests;
   final ValueChanged<String> onEscalate;
