@@ -437,12 +437,15 @@ class EmergencyRequest {
   final String district;
   final Urgency urgency;
   final DateTime createdAt;
-  RequestStatus status;
-  String? responder;
-  double? distanceKm;
-  int? etaMin;
-  int? etaRemaining;
-  int? totalSec;
+ RequestStatus status;
+String? responder;
+double? distanceKm;
+int? etaMin;
+int? etaRemaining;
+int? totalSec;
+
+int? resourceId;
+int? requiredQuantity;
 }
 
 class DispatchConsolePage extends StatefulWidget {
@@ -726,6 +729,19 @@ void dispose() {
 
       final requiredResources =
           (data['requiredResources'] as List<dynamic>?) ?? [];
+      int? backendResourceId;
+      int requiredQuantity = 1;
+
+      if (requiredResources.isNotEmpty) {
+        final resource =
+            Map<String, dynamic>.from(requiredResources.first as Map);
+
+        backendResourceId =
+            (resource['resourceId'] as num?)?.toInt();
+
+        requiredQuantity =
+            (resource['quantity'] as num?)?.toInt() ?? 1;
+      }
 
       ResourceType type = ResourceType.ambulance;
 
@@ -794,6 +810,8 @@ void dispose() {
             ) ??
             DateTime.now(),
         status: status,
+        resourceId: backendResourceId,
+        requiredQuantity: requiredQuantity,
       );
 
       if (status == RequestStatus.closed) {
@@ -851,6 +869,74 @@ Future<void> acceptRequestFromBackend(String displayId) async {
 
     showToast(
       'Accept failed: '
+      '${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
+Future<void> allocateRequestFromBackend(String displayId) async {
+  try {
+    final match = RegExp(r'^DB-(\d+)$').firstMatch(displayId);
+
+    if (match == null) {
+      throw Exception('Invalid database request ID');
+    }
+
+    final requestId = int.parse(match.group(1)!);
+
+    final request = firstWhereOrNull(
+      requests,
+      (r) => r.id == displayId,
+    );
+
+    if (request == null) {
+      throw Exception('Request not found');
+    }
+
+    if (ApiService.currentUserId == null) {
+      throw Exception('Logged-in responder ID not available');
+    }
+
+    final resourceId = request.resourceId;
+
+    if (resourceId == null) {
+      throw Exception('Requested resource information not available');
+    }
+
+    final quantity = request.requiredQuantity ?? 1;
+
+    final matchingResources = responderResources.where(
+      (item) =>
+          item.responderId == ApiService.currentUserId &&
+          item.resourceId == resourceId &&
+          item.availableQuantity >= quantity,
+    ).toList();
+
+    if (matchingResources.isEmpty) {
+      throw Exception(
+        'You do not have enough available inventory for this request',
+      );
+    }
+
+    final responderResource = matchingResources.first;
+
+    await ApiService.createAllocation(
+      requestId: requestId,
+      responderResourceId: responderResource.id,
+      resourceId: resourceId,
+      quantity: quantity,
+    );
+
+    showToast(
+      '$displayId allocated using ${responderResource.resourceName}',
+    );
+
+    await loadRequestsFromBackend();
+    await loadResponderResourcesFromBackend();
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Allocation failed: '
       '${error.toString().replaceFirst('Exception: ', '')}',
     );
   }
@@ -1634,12 +1720,14 @@ class BoardPanel extends StatelessWidget {
     required this.requests,
     required this.onEscalate,
     required this.onAccept,
+    required this.onAllocate,
     this.isMobile = false,
   });
 
   final List<EmergencyRequest> requests;
   final ValueChanged<String> onEscalate;
   final ValueChanged<String> onAccept;
+  final ValueChanged<String> onAllocate;
   final bool isMobile;
 
   @override
@@ -1652,9 +1740,10 @@ class BoardPanel extends StatelessWidget {
               'No active requests. Submit one from "New request."')
           : isMobile
               ? _MobileRequestList(
-                   requests: requests,
-                   onEscalate: onEscalate,
-                   onAccept: onAccept,
+                    requests: requests,
+                    onEscalate: onEscalate,
+                    onAccept: onAccept,
+                    onAllocate: onAllocate,
                   )
   
               : SingleChildScrollView(
@@ -1759,11 +1848,15 @@ class _MobileRequestList extends StatelessWidget {
     required this.requests,
     required this.onEscalate,
     required this.onAccept,
+    required this.onAllocate,
   });
+
 
   final List<EmergencyRequest> requests;
   final ValueChanged<String> onEscalate;
   final ValueChanged<String> onAccept;
+  final ValueChanged<String> onAllocate;
+
 
   @override
   Widget build(BuildContext context) {
