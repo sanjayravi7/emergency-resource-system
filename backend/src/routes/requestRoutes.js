@@ -1,18 +1,40 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const requestController = require('../controllers/requestController');
-const authenticate = require('../middleware/authMiddleware');
-const authorizeRoles = require('../middleware/roleMiddleware');
 
-// Requester
-router.post('/', authenticate, authorizeRoles('REQUESTER', 'ADMIN'), requestController.createRequest);
-router.get('/my', authenticate, authorizeRoles('REQUESTER'), requestController.getMyRequests);
-router.get('/:id', authenticate, requestController.getRequestById);
-router.patch('/:id/cancel', authenticate, authorizeRoles('REQUESTER'), requestController.cancelMyRequest);
+const requestController = require("../controllers/requestController");
+const authenticate = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
-// Responder & Admin
-router.get('/', authenticate, authorizeRoles('RESPONDER', 'ADMIN'), requestController.getAllRequests);
-router.patch('/:id/accept', authenticate, authorizeRoles('RESPONDER'), requestController.acceptRequest);
-router.patch('/:id/status', authenticate, authorizeRoles('RESPONDER', 'ADMIN'), requestController.updateRequestStatus);
+// REQUESTER creates an emergency
+router.post(
+  "/",
+  authenticate,
+  authorizeRoles("REQUESTER"),
+  requestController.createRequest
+);
+
+// REQUESTER sees their own requests
+router.get(
+  "/my",
+  authenticate,
+  authorizeRoles("REQUESTER"),
+  requestController.getMyRequests
+);
+
+// RESPONDER accepts an emergency
+router.patch(
+  "/:id/accept",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  requestController.acceptRequest
+);
+
+// REQUESTER cancels their own request
+router.patch(
+  "/:id/cancel",
+  authenticate,
+  authorizeRoles("REQUESTER"),
+  requestController.cancelMyRequest
+);
 
 module.exports = router;
