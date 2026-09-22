@@ -6,13 +6,25 @@ const authorizeRoles = require('../middleware/roleMiddleware');
 
 router.use(authenticate, authorizeRoles('RESPONDER', 'ADMIN'));
 
-router.get('/my', allocationController.getMyAllocations);
 router.post(
   "/",
   authenticate,
   authorizeRoles("RESPONDER"),
   allocationController.createAllocation
 );
-router.patch('/:id/status', allocationController.updateAllocationStatus);
+
+router.get(
+  "/my",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  allocationController.getMyAllocations
+);
+
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  allocationController.updateAllocationStatus
+);
 
 module.exports = router;

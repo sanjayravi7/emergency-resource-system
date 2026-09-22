@@ -37,7 +37,10 @@ class ApiService {
     }
 
     token = body['data']['token'];
-    currentRole = body['data']['user']['role'];
+    currentUserId =
+        (body['data']['user']['id'] as num).toInt();
+    currentRole =
+        body['data']['user']['role'];
 
     return body;
   }
@@ -168,6 +171,74 @@ static Future<Map<String, dynamic>> acceptEmergencyRequest(
   if (response.statusCode != 200) {
     throw Exception(
       body['message'] ?? 'Failed to accept emergency request',
+    );
+  }
+
+  return body;
+}
+
+static Future<Map<String, dynamic>> createAllocation({
+  required int requestId,
+  required int responderResourceId,
+  required int resourceId,
+  required int quantity,
+}) async {
+  final response = await http.post(
+    Uri.parse('$baseUrl/allocations'),
+    headers: _headers,
+    body: jsonEncode({
+      'requestId': requestId,
+      'responderResourceId': responderResourceId,
+      'resourceId': resourceId,
+      'quantity': quantity,
+    }),
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 201) {
+    throw Exception(
+      body['message'] ?? 'Failed to create allocation',
+    );
+  }
+
+  return body;
+}
+
+static Future<List<dynamic>> getMyAllocations() async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/allocations/my'),
+    headers: _headers,
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      body['message'] ?? 'Failed to load allocations',
+    );
+  }
+
+  return body['allocations'] ?? [];
+}
+
+static Future<Map<String, dynamic>> updateAllocationStatus({
+  required int allocationId,
+  required String status,
+}) async {
+  final response = await http.patch(
+    Uri.parse('$baseUrl/allocations/$allocationId/status'),
+    headers: _headers,
+    body: jsonEncode({
+      'status': status,
+    }),
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      body['message'] ?? 'Failed to update allocation status',
     );
   }
 
