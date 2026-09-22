@@ -153,4 +153,22 @@ static Future<List<dynamic>> getAllRequests() async {
 
   return body['requests'] ?? [];
 }
+static Future<Map<String, dynamic>> acceptEmergencyRequest(
+  int requestId,
+) async {
+  final response = await http.patch(
+    Uri.parse('$baseUrl/requests/$requestId/accept'),
+    headers: _headers,
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      body['message'] ?? 'Failed to accept emergency request',
+    );
+  }
+
+  return body;
+}
 }

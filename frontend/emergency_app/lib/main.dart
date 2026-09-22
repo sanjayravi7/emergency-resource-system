@@ -720,7 +720,7 @@ void dispose() {
 
     final activeRequests = <EmergencyRequest>[];
     final closedRequests = <EmergencyRequest>[];
-    
+
     for (final item in backendRequests) {
       final data = Map<String, dynamic>.from(item as Map);
 
@@ -827,6 +827,31 @@ void dispose() {
 
     showToast(
       'Failed to load requests: ${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
+Future<void> acceptRequestFromBackend(String displayId) async {
+  try {
+    // Flutter displays database IDs like DB-12.
+    final match = RegExp(r'^DB-(\d+)$').firstMatch(displayId);
+
+    if (match == null) {
+      throw Exception('Invalid database request ID');
+    }
+
+    final requestId = int.parse(match.group(1)!);
+
+    await ApiService.acceptEmergencyRequest(requestId);
+
+    showToast('$displayId accepted successfully');
+
+    await loadRequestsFromBackend();
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Accept failed: '
+      '${error.toString().replaceFirst('Exception: ', '')}',
     );
   }
 }
@@ -1023,7 +1048,10 @@ setView(ConsoleView.board);
       children: [
         if (activeView == ConsoleView.board)
           BoardPanel(
-              requests: requests, onEscalate: escalate, isMobile: isMobile),
+            requests: requests,
+            onEscalate: escalate,
+            onAccept: acceptRequestFromBackend,
+            isMobile: isMobile),
         if (activeView == ConsoleView.newRequest)
           NewRequestPanel(
             selectedType: selectedType,
@@ -1601,13 +1629,17 @@ class Panel extends StatelessWidget {
 // ── Board Panel ────────────────────────────────────────────────────────────────
 
 class BoardPanel extends StatelessWidget {
-  const BoardPanel(
-      {super.key,
-      required this.requests,
-      required this.onEscalate,
-      this.isMobile = false});
+  const BoardPanel({
+    super.key,
+    required this.requests,
+    required this.onEscalate,
+    required this.onAccept,
+    this.isMobile = false,
+  });
+
   final List<EmergencyRequest> requests;
   final ValueChanged<String> onEscalate;
+  final ValueChanged<String> onAccept;
   final bool isMobile;
 
   @override
@@ -1619,7 +1651,12 @@ class BoardPanel extends StatelessWidget {
           ? const EmptyState(
               'No active requests. Submit one from "New request."')
           : isMobile
-              ? _MobileRequestList(requests: requests, onEscalate: onEscalate)
+              ? _MobileRequestList(
+                   requests: requests,
+                   onEscalate: onEscalate,
+                   onAccept: onAccept,
+                  )
+  
               : SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
@@ -1663,19 +1700,44 @@ class BoardPanel extends StatelessWidget {
                                       color: (r.etaRemaining ?? 99) <= 2
                                           ? AppColors.amber
                                           : AppColors.textDim))),
-                              DataCell(r.status == RequestStatus.unmatched
-                                  ? OutlinedButton(
-                                      onPressed: () => onEscalate(r.id),
-                                      style: OutlinedButton.styleFrom(
-                                          foregroundColor: AppColors.red,
-                                          side: const BorderSide(
-                                              color: AppColors.red),
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(4))),
-                                      child: const Text('Escalate',
-                                          style: TextStyle(fontSize: 11)))
-                                  : const SizedBox.shrink()),
+                              DataCell(
+  ApiService.currentRole == 'RESPONDER' &&
+          r.status == RequestStatus.pending
+      ? OutlinedButton(
+          onPressed: () => onAccept(r.id),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.teal,
+            side: const BorderSide(
+              color: AppColors.teal,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          child: const Text(
+            'Accept',
+            style: TextStyle(fontSize: 11),
+          ),
+        )
+      : r.status == RequestStatus.unmatched
+          ? OutlinedButton(
+              onPressed: () => onEscalate(r.id),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.red,
+                side: const BorderSide(
+                  color: AppColors.red,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              child: const Text(
+                'Escalate',
+                style: TextStyle(fontSize: 11),
+              ),
+            )
+          : const SizedBox.shrink(),
+),
                             ]))
                         .toList(),
                   ),
@@ -1693,9 +1755,15 @@ class BoardPanel extends StatelessWidget {
 }
 
 class _MobileRequestList extends StatelessWidget {
-  const _MobileRequestList({required this.requests, required this.onEscalate});
+  const _MobileRequestList({
+    required this.requests,
+    required this.onEscalate,
+    required this.onAccept,
+  });
+
   final List<EmergencyRequest> requests;
   final ValueChanged<String> onEscalate;
+  final ValueChanged<String> onAccept;
 
   @override
   Widget build(BuildContext context) {
@@ -1759,6 +1827,30 @@ class _MobileRequestList extends StatelessWidget {
                   Expanded(child: _InfoChip(label: 'ETA', value: etaText)),
                 ],
               ),
+              if (ApiService.currentRole == 'RESPONDER' &&
+    r.status == RequestStatus.pending) ...[
+  const SizedBox(height: 10),
+  SizedBox(
+    width: double.infinity,
+    child: OutlinedButton(
+      onPressed: () => onAccept(r.id),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.teal,
+        side: const BorderSide(
+          color: AppColors.teal,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(5),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+      ),
+      child: const Text(
+        'Accept Emergency',
+        style: TextStyle(fontSize: 12),
+      ),
+    ),
+  ),
+],
               if (r.status == RequestStatus.unmatched) ...[
                 const SizedBox(height: 10),
                 SizedBox(
