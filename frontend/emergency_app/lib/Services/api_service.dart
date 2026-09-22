@@ -6,6 +6,8 @@ class ApiService {
 
   static String? token;
 
+  static int? currentUserId;
+
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
