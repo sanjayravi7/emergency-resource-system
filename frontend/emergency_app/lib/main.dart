@@ -261,7 +261,14 @@ enum Urgency { critical, high, standard }
 
 enum ResponderStatus { available, enroute, off }
 
-enum RequestStatus { pending, enroute, arrived, unmatched, closed }
+enum RequestStatus {
+  pending,
+  enroute,
+  partiallyAllocated,
+  arrived,
+  unmatched,
+  closed,
+}
 
 class District {
   const District(this.name, this.point);
@@ -437,15 +444,18 @@ class EmergencyRequest {
   final String district;
   final Urgency urgency;
   final DateTime createdAt;
- RequestStatus status;
-String? responder;
-double? distanceKm;
-int? etaMin;
-int? etaRemaining;
-int? totalSec;
+  RequestStatus status;
+  String? responder;
+  double? distanceKm;
+  int? etaMin;
+  int? etaRemaining;
+  int? totalSec;
 
-int? resourceId;
-int? requiredQuantity;
+  int? allocationId;
+  int? allocatedQuantity;
+  int? responderResourceId;
+  int? resourceId;
+  int? requiredQuantity;
 }
 
 class DispatchConsolePage extends StatefulWidget {
@@ -524,15 +534,23 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 void initState() {
   super.initState();
 
-  loadRequestsFromBackend();
-  loadResourcesFromBackend();
-  loadRespondersFromBackend();
-  loadResponderResourcesFromBackend();
+  loadInitialBackendData();
 
   clockTimer = Timer.periodic(
     const Duration(seconds: 1),
     (_) => setState(() => now = DateTime.now()),
   );
+}
+
+Future<void> loadInitialBackendData() async {
+  await loadRequestsFromBackend();
+  await loadResourcesFromBackend();
+  await loadRespondersFromBackend();
+  await loadResponderResourcesFromBackend();
+
+  if (ApiService.currentRole == 'RESPONDER') {
+    await loadAllocationsFromBackend();
+  }
 }
 
  @override
@@ -794,6 +812,9 @@ void dispose() {
           break;
 
         case 'PARTIALLY_ALLOCATED':
+          status = RequestStatus.partiallyAllocated;
+          break;
+
         case 'PENDING':
         default:
           status = RequestStatus.pending;
@@ -845,6 +866,57 @@ void dispose() {
 
     showToast(
       'Failed to load requests: ${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
+Future<void> loadAllocationsFromBackend() async {
+  if (ApiService.currentRole != 'RESPONDER') {
+    return;
+  }
+
+  try {
+    final backendAllocations =
+        await ApiService.getMyAllocations();
+
+    if (!mounted) return;
+
+    setState(() {
+      for (final request in requests) {
+        request.allocationId = null;
+        request.allocatedQuantity = null;
+        request.responderResourceId = null;
+
+        final matches = backendAllocations.where((item) {
+          final allocation =
+              Map<String, dynamic>.from(item as Map);
+
+          return (allocation['requestId'] as num?)?.toInt() ==
+              int.tryParse(
+                request.id.replaceFirst('DB-', ''),
+              );
+        }).toList();
+
+        if (matches.isEmpty) continue;
+
+        final allocation =
+            Map<String, dynamic>.from(matches.last as Map);
+
+        request.allocationId =
+            (allocation['id'] as num?)?.toInt();
+
+        request.allocatedQuantity =
+            (allocation['quantity'] as num?)?.toInt();
+
+        request.responderResourceId =
+            (allocation['responderResourceId'] as num?)?.toInt();
+      }
+    });
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Failed to load allocations: '
+      '${error.toString().replaceFirst('Exception: ', '')}',
     );
   }
 }
@@ -932,11 +1004,42 @@ Future<void> allocateRequestFromBackend(String displayId) async {
 
     await loadRequestsFromBackend();
     await loadResponderResourcesFromBackend();
+    await loadAllocationsFromBackend();
   } catch (error) {
     if (!mounted) return;
 
     showToast(
       'Allocation failed: '
+      '${error.toString().replaceFirst('Exception: ', '')}',
+    );
+  }
+}
+Future<void> cancelAllocationFromBackend(
+  String displayId,
+) async {
+  try {
+    final request = requests.firstWhere(
+      (r) => r.id == displayId,
+    );
+
+    if (request.allocationId == null) {
+      showToast('No allocation found for $displayId');
+      return;
+    }
+
+    await ApiService.updateAllocationStatus(
+      allocationId: request.allocationId!,
+      status: 'CANCELLED',
+    );
+
+    showToast('Allocation cancelled successfully');
+    await loadRequestsFromBackend();
+    await loadResponderResourcesFromBackend();
+  } catch (error) {
+    if (!mounted) return;
+
+    showToast(
+      'Cancel failed: '
       '${error.toString().replaceFirst('Exception: ', '')}',
     );
   }
@@ -1137,7 +1240,10 @@ setView(ConsoleView.board);
             requests: requests,
             onEscalate: escalate,
             onAccept: acceptRequestFromBackend,
-            isMobile: isMobile),
+            onAllocate: allocateRequestFromBackend,
+            onCancelAllocation: cancelAllocationFromBackend,
+            isMobile: isMobile,
+          ),
         if (activeView == ConsoleView.newRequest)
           NewRequestPanel(
             selectedType: selectedType,
@@ -1721,6 +1827,7 @@ class BoardPanel extends StatelessWidget {
     required this.onEscalate,
     required this.onAccept,
     required this.onAllocate,
+    required this.onCancelAllocation,
     this.isMobile = false,
   });
 
@@ -1728,6 +1835,7 @@ class BoardPanel extends StatelessWidget {
   final ValueChanged<String> onEscalate;
   final ValueChanged<String> onAccept;
   final ValueChanged<String> onAllocate;
+  final ValueChanged<String> onCancelAllocation;
   final bool isMobile;
 
   @override
@@ -1740,11 +1848,12 @@ class BoardPanel extends StatelessWidget {
               'No active requests. Submit one from "New request."')
           : isMobile
               ? _MobileRequestList(
-                    requests: requests,
-                    onEscalate: onEscalate,
-                    onAccept: onAccept,
-                    onAllocate: onAllocate,
-                  )
+                  requests: requests,
+                  onEscalate: onEscalate,
+                  onAccept: onAccept,
+                  onAllocate: onAllocate,
+                  onCancelAllocation: onCancelAllocation,
+                )
   
               : SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -1790,43 +1899,101 @@ class BoardPanel extends StatelessWidget {
                                           ? AppColors.amber
                                           : AppColors.textDim))),
                               DataCell(
-  ApiService.currentRole == 'RESPONDER' &&
-          r.status == RequestStatus.pending
-      ? OutlinedButton(
-          onPressed: () => onAccept(r.id),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.teal,
-            side: const BorderSide(
-              color: AppColors.teal,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          child: const Text(
-            'Accept',
-            style: TextStyle(fontSize: 11),
-          ),
-        )
-      : r.status == RequestStatus.unmatched
-          ? OutlinedButton(
-              onPressed: () => onEscalate(r.id),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.red,
-                side: const BorderSide(
-                  color: AppColors.red,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              child: const Text(
-                'Escalate',
-                style: TextStyle(fontSize: 11),
-              ),
-            )
-          : const SizedBox.shrink(),
-),
+                                ApiService.currentRole == 'RESPONDER' &&
+                                        r.allocationId != null
+                                    ? OutlinedButton(
+                                        onPressed: () =>
+                                            onCancelAllocation(r.id),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.red,
+                                          side: const BorderSide(
+                                            color: AppColors.red,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Cancel',
+                                          style: TextStyle(fontSize: 11),
+                                        ),
+                                      )
+                                    : ApiService.currentRole == 'RESPONDER' &&
+                                            r.status == RequestStatus.pending
+                                        ? OutlinedButton(
+                                            onPressed: () => onAccept(r.id),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: AppColors.teal,
+                                              side: const BorderSide(
+                                                color: AppColors.teal,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Accept',
+                                              style: TextStyle(fontSize: 11),
+                                            ),
+                                          )
+                                        : ApiService.currentRole ==
+                                                    'RESPONDER' &&
+                                                (r.status ==
+                                                        RequestStatus.enroute ||
+                                                    r.status ==
+                                                        RequestStatus
+                                                            .partiallyAllocated)
+                                            ? OutlinedButton(
+                                                onPressed: () =>
+                                                    onAllocate(r.id),
+                                                style:
+                                                    OutlinedButton.styleFrom(
+                                                  foregroundColor:
+                                                      AppColors.teal,
+                                                  side: const BorderSide(
+                                                    color: AppColors.teal,
+                                                  ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  'Allocate',
+                                                  style:
+                                                      TextStyle(fontSize: 11),
+                                                ),
+                                              )
+                                            : r.status ==
+                                                    RequestStatus.unmatched
+                                                ? OutlinedButton(
+                                                    onPressed: () =>
+                                                        onEscalate(r.id),
+                                                    style: OutlinedButton
+                                                        .styleFrom(
+                                                      foregroundColor:
+                                                          AppColors.red,
+                                                      side: const BorderSide(
+                                                        color: AppColors.red,
+                                                      ),
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                                4),
+                                                      ),
+                                                    ),
+                                                    child: const Text(
+                                                      'Escalate',
+                                                      style: TextStyle(
+                                                          fontSize: 11),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink(),
+                              ),
                             ]))
                         .toList(),
                   ),
@@ -1849,6 +2016,7 @@ class _MobileRequestList extends StatelessWidget {
     required this.onEscalate,
     required this.onAccept,
     required this.onAllocate,
+    required this.onCancelAllocation,
   });
 
 
@@ -1856,7 +2024,7 @@ class _MobileRequestList extends StatelessWidget {
   final ValueChanged<String> onEscalate;
   final ValueChanged<String> onAccept;
   final ValueChanged<String> onAllocate;
-
+  final ValueChanged<String> onCancelAllocation;
 
   @override
   Widget build(BuildContext context) {
@@ -1944,6 +2112,54 @@ class _MobileRequestList extends StatelessWidget {
     ),
   ),
 ],
+              if (ApiService.currentRole == 'RESPONDER' &&
+                  (r.status == RequestStatus.enroute ||
+                      r.status == RequestStatus.partiallyAllocated)) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => onAllocate(r.id),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.blue,
+                      side: const BorderSide(
+                        color: AppColors.blue,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    child: const Text(
+                      'Allocate Resource',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+              if (ApiService.currentRole == 'RESPONDER' &&
+                  r.allocationId != null) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => onCancelAllocation(r.id),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.red,
+                      side: const BorderSide(
+                        color: AppColors.red,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancel Allocation',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                  ),
+                ),
+              ],
               if (r.status == RequestStatus.unmatched) ...[
                 const SizedBox(height: 10),
                 SizedBox(
@@ -2709,6 +2925,8 @@ PillColors statusColors(RequestStatus s) => switch (s) {
         const PillColors(AppColors.amberDim, AppColors.amber),
       RequestStatus.enroute =>
         const PillColors(Color(0xFFE7EDFB), AppColors.blue),
+      RequestStatus.partiallyAllocated =>
+        const PillColors(Color(0xFFE7EDFB), AppColors.blue),
       RequestStatus.arrived =>
         const PillColors(AppColors.tealDim, AppColors.teal),
       RequestStatus.unmatched =>
@@ -2720,6 +2938,7 @@ PillColors statusColors(RequestStatus s) => switch (s) {
 String statusLabel(RequestStatus s) => switch (s) {
       RequestStatus.pending => 'Pending',
       RequestStatus.enroute => 'En route',
+      RequestStatus.partiallyAllocated => 'PARTIAL',
       RequestStatus.arrived => 'Arrived',
       RequestStatus.unmatched => 'Unmatched',
       RequestStatus.closed => 'Closed',
