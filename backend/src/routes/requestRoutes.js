@@ -13,7 +13,15 @@ router.post(
   requestController.createRequest
 );
 
-// REQUESTER sees their own requests
+// RESPONDER views all emergency requests
+router.get(
+  "/",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  requestController.getAllRequests
+);
+
+// REQUESTER views their own requests
 router.get(
   "/my",
   authenticate,

@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 class ApiService {
   static const String baseUrl = 'http://localhost:5000/api';
 
+  
   static String? token;
+  static String? currentRole;
 
   static Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -33,6 +35,7 @@ class ApiService {
     }
 
     token = body['data']['token'];
+    currentRole = body['data']['user']['role'];
 
     return body;
   }
@@ -133,5 +136,21 @@ class ApiService {
   }
 
   return body['resources'] ?? [];
+}
+static Future<List<dynamic>> getAllRequests() async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/requests'),
+    headers: _headers,
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      body['message'] ?? 'Failed to load all requests',
+    );
+  }
+
+  return body['requests'] ?? [];
 }
 }

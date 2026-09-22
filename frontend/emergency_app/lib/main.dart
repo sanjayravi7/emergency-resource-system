@@ -713,11 +713,14 @@ void dispose() {
       requests.where((r) => r.status == RequestStatus.unmatched).length;
   Future<void> loadRequestsFromBackend() async {
   try {
-    final backendRequests = await ApiService.getMyRequests();
+    final backendRequests =
+        ApiService.currentRole == 'RESPONDER'
+            ? await ApiService.getAllRequests()
+            : await ApiService.getMyRequests();
 
     final activeRequests = <EmergencyRequest>[];
     final closedRequests = <EmergencyRequest>[];
-
+    
     for (final item in backendRequests) {
       final data = Map<String, dynamic>.from(item as Map);
 
