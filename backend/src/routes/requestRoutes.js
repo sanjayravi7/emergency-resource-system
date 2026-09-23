@@ -12,11 +12,24 @@ router.post(
   authorizeRoles("REQUESTER"),
   requestController.createRequest
 );
+// RESPONDER views all emergency requests
+router.get(
+  "/",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  requestController.getAllRequests
+);
 router.get(
   "/compatible",
   authenticate,
   authorizeRoles("RESPONDER"),
   requestController.getCompatibleRequests
+);
+router.get(
+  "/my",
+  authenticate,
+  authorizeRoles("REQUESTER"),
+  requestController.getMyRequests
 );
 
 // RESPONDER views all emergency requests

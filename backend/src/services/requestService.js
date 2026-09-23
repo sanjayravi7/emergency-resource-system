@@ -247,3 +247,89 @@ exports.updateRequestStatus = async (requestId, status) => {
     data: { status }
   });
 };
+exports.getCompatibleRequestsForResponder = async (responderId) => {
+  const responder = await prisma.user.findUnique({
+    where: {
+      id: Number(responderId),
+    },
+    select: {
+      id: true,
+      role: true,
+      isActive: true,
+      responderStatus: true,
+    },
+  });
+
+  if (
+    !responder ||
+    responder.role !== 'RESPONDER' ||
+    !responder.isActive ||
+    responder.responderStatus !== 'AVAILABLE'
+  ) {
+    return [];
+  }
+
+  const activeEmergency = await prisma.emergencyRequest.findFirst({
+    where: {
+      acceptedById: Number(responderId),
+      status: {
+        in: [
+          'ACCEPTED',
+          'IN_PROGRESS',
+          'PARTIALLY_ALLOCATED',
+        ],
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  // One active emergency per responder.
+  if (activeEmergency) {
+    return [];
+  }
+
+  const responderResources = await prisma.responderResource.findMany({
+    where: {
+      responderId: Number(responderId),
+      status: 'AVAILABLE',
+      availableQuantity: {
+        gt: 0,
+      },
+    },
+  });
+
+  const requests = await prisma.emergencyRequest.findMany({
+    where: {
+      status: 'PENDING',
+    },
+    include: {
+      requiredResources: true,
+    },
+    orderBy: [
+      {
+        priority: 'desc',
+      },
+      {
+        createdAt: 'asc',
+      },
+    ],
+  });
+
+  return requests.filter((request) => {
+    if (!request.requiredResources.length) {
+      return false;
+    }
+
+    return request.requiredResources.every((required) => {
+      const matchingResource = responderResources.find(
+        (resource) =>
+          resource.resourceId === required.resourceId &&
+          resource.availableQuantity >= required.quantity
+      );
+
+      return !!matchingResource;
+    });
+  });
+};

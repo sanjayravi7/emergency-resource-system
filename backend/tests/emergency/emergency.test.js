@@ -152,9 +152,11 @@ describe("Emergency Request Lifecycle", () => {
   // =====================================================
 
  test("✅ RESPONDER can accept a PENDING emergency", async () => {
+  const resourceName = `Test Fire Resource ${Date.now()}`;
+
   const resource = await prisma.resource.create({
     data: {
-      name: "Test Fire Resource",
+      name: resourceName,
       type: "FIRE",
       totalQuantity: 10,
       availableQuantity: 10,
@@ -226,6 +228,19 @@ describe("Emergency Request Lifecycle", () => {
   });
 
   expect(updatedResponder.responderStatus).toBe("BUSY");
+
+  // Cleanup in dependency order.
+  await prisma.requestResource.deleteMany({
+    where: {
+      requestId: emergency.id,
+    },
+  });
+
+  await prisma.emergencyRequest.delete({
+    where: {
+      id: emergency.id,
+    },
+  });
 
   await prisma.responderResource.delete({
     where: {
