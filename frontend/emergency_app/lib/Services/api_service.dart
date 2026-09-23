@@ -77,33 +77,7 @@ class ApiService {
   }
 
   return body;
-} async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/requests'),
-      headers: _headers,
-      body: jsonEncode({
-        'emergencyType': emergencyType,
-        'description': description,
-        'location': location,
-        'priority': priority,
-        'requiredResources': [
-          {
-            'resourceId': resourceId,
-            'quantity': quantity,
-          }
-        ],
-      }),
-    );
-
-    final body = jsonDecode(response.body);
-
-    if (response.statusCode != 201) {
-      throw Exception(body['message'] ?? 'Failed to create request');
-    }
-
-    return body;
-  }
-
+}
    static Future<List<dynamic>> getMyRequests() async {
     final response = await http.get(
       Uri.parse('$baseUrl/requests/my'),

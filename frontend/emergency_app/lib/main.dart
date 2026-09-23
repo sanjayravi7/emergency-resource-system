@@ -764,28 +764,18 @@ void dispose() {
             (resource['quantity'] as num?)?.toInt() ?? 1;
       }
 
-      ResourceType type = ResourceType.ambulance;
+     ResourceType type = ResourceType.ambulance;
 
-      final emergencyType =
-          (data['emergencyType'] ?? '').toString().toUpperCase();
+final emergencyType =
+    (data['emergencyType'] ?? '').toString().toUpperCase();
 
-      if (emergencyType == 'BLOOD') {
-        type = ResourceType.blood;
-      } else if (emergencyType == 'VOLUNTEER') {
-        type = ResourceType.volunteer;
-      } else if (emergencyType == 'AMBULANCE') {
-        type = ResourceType.ambulance;
-      } else if (requiredResources.isNotEmpty) {
-        final resource =
-            Map<String, dynamic>.from(requiredResources.first as Map);
-
-        final resourceId = resource['resourceId'];
-
-        if (resourceId == 14) {
-          type = ResourceType.ambulance;
-        }
-      }
-
+if (emergencyType == 'BLOOD') {
+  type = ResourceType.blood;
+} else if (emergencyType == 'VOLUNTEER') {
+  type = ResourceType.volunteer;
+} else if (emergencyType == 'AMBULANCE') {
+  type = ResourceType.ambulance;
+}
       Urgency urgency = Urgency.standard;
 
       switch ((data['priority'] ?? 'MEDIUM').toString()) {
@@ -1137,23 +1127,28 @@ Future<void> loadResponderResourcesFromBackend() async {
     );
   }
 }
-  Future<void> submitRequestToBackend() async {
+ Future<void> submitRequestToBackend() async {
   try {
-    int resourceId;
+    BackendResource? selectedResource;
 
-    switch (selectedType) {
-      case ResourceType.ambulance:
-       selectedResource.id
+    // Find an available resource from PostgreSQL
+    // matching the resource type selected in the UI.
+    for (final resource in resources) {
+      if (resource.type.toUpperCase() ==
+              selectedType.name.toUpperCase() &&
+          resource.availableQuantity > 0) {
+        selectedResource = resource;
         break;
-
-      case ResourceType.blood:
-        // No Blood resource currently exists in the database.
-        throw Exception('Blood resource is not configured in the database');
-
-      case ResourceType.volunteer:
-        // No Volunteer resource currently exists in the database.
-        throw Exception('Volunteer resource is not configured in the database');
+      }
     }
+
+    if (selectedResource == null) {
+      throw Exception(
+        'No available ${selectedType.name} resource found in the database',
+      );
+    }
+
+    final resourceId = selectedResource.id;
 
     final priority = switch (selectedUrgency) {
       Urgency.critical => 'CRITICAL',
@@ -1162,19 +1157,26 @@ Future<void> loadResponderResourcesFromBackend() async {
     };
 
     await ApiService.createRequest(
-  emergencyType: selectedType.name.toUpperCase(),
-  description:
-      'Emergency ${selectedType.name} request from $selectedDistrict',
-  location: selectedDistrict,
-  priority: priority,
-  resourceId: resourceId,
-  quantity: 1,
-);
-   showToast('Emergency request created successfully');
+      emergencyType: selectedType.name.toUpperCase(),
+      description:
+          'Emergency ${selectedType.name} request from $selectedDistrict',
+      location: selectedDistrict,
+      priority: priority,
+      latitude: null,
+      longitude: null,
+      requiredResources: [
+        {
+          'resourceId': resourceId,
+          'quantity': 1,
+        }
+      ],
+    );
 
-await loadRequestsFromBackend();
+    showToast('Emergency request created successfully');
 
-setView(ConsoleView.board);
+    await loadRequestsFromBackend();
+
+    setView(ConsoleView.board);
   } catch (error) {
     showToast(
       'Request failed: ${error.toString().replaceFirst('Exception: ', '')}',
@@ -2349,38 +2351,25 @@ class NewRequestPanel extends StatelessWidget {
     );
   }
 
-  Widget _typeDropdown(double width) => DropdownButtonFormField<ResourceType>(
-        initialValue: selectedType,
-        isExpanded: true,
-        decoration: fieldDecoration(),
-        items: resources.map(
-      (resource) => DropdownMenuItem<int>(
-        value: resource.id,
-        child: Text(resource.name),
-      ),
-    )
-    .toList(),
-        onChanged: (v) {
-          if (v != null) {
-            onTypeChanged(v);
-          }
-        },
-      );
-
-  Widget _districtDropdown(double width) => DropdownButtonFormField<String>(
-        initialValue: selectedDistrict,
-        isExpanded: true,
-        decoration: fieldDecoration(),
-        items: districts
-            .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-            .toList(),
-        onChanged: (v) {
-          if (v != null) {
-            onDistrictChanged(v);
-          }
-        },
-      );
-
+  Widget _typeDropdown(double width) =>
+    DropdownButtonFormField<ResourceType>(
+      initialValue: selectedType,
+      isExpanded: true,
+      decoration: fieldDecoration(),
+      items: ResourceType.values
+          .map(
+            (type) => DropdownMenuItem<ResourceType>(
+              value: type,
+              child: Text(titleCase(type.name)),
+            ),
+          )
+          .toList(),
+      onChanged: (v) {
+        if (v != null) {
+          onTypeChanged(v);
+        }
+      },
+    );
   Widget _urgencyDropdown(double width) => DropdownButtonFormField<Urgency>(
         initialValue: selectedUrgency,
         isExpanded: true,

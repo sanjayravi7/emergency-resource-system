@@ -68,6 +68,7 @@ model User {
   isActive     Boolean   @default(true)
   lastActiveAt DateTime?
 
+  location  String?
   latitude  Float?
   longitude Float?
 
