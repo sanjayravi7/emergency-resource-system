@@ -46,13 +46,38 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> createRequest({
-    required String emergencyType,
-    required String description,
-    required String location,
-    required String priority,
-    required int resourceId,
-    required int quantity,
-  }) async {
+  required String emergencyType,
+  required String description,
+  required String location,
+  required String priority,
+  required double? latitude,
+  required double? longitude,
+  required List<Map<String, int>> requiredResources,
+}) async {
+  final response = await http.post(
+    Uri.parse('$baseUrl/requests'),
+    headers: _headers,
+    body: jsonEncode({
+      'emergencyType': emergencyType,
+      'description': description,
+      'location': location,
+      'priority': priority,
+      'latitude': latitude,
+      'longitude': longitude,
+      'requiredResources': requiredResources,
+    }),
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 201) {
+    throw Exception(
+      body['message'] ?? 'Failed to create request',
+    );
+  }
+
+  return body;
+} async {
     final response = await http.post(
       Uri.parse('$baseUrl/requests'),
       headers: _headers,

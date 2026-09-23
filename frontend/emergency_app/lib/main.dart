@@ -1143,7 +1143,7 @@ Future<void> loadResponderResourcesFromBackend() async {
 
     switch (selectedType) {
       case ResourceType.ambulance:
-        resourceId = 14;
+       selectedResource.id
         break;
 
       case ResourceType.blood:
@@ -2353,10 +2353,13 @@ class NewRequestPanel extends StatelessWidget {
         initialValue: selectedType,
         isExpanded: true,
         decoration: fieldDecoration(),
-        items: ResourceType.values
-            .map((t) =>
-                DropdownMenuItem(value: t, child: Text(typeMeta(t).label)))
-            .toList(),
+        items: resources.map(
+      (resource) => DropdownMenuItem<int>(
+        value: resource.id,
+        child: Text(resource.name),
+      ),
+    )
+    .toList(),
         onChanged: (v) {
           if (v != null) {
             onTypeChanged(v);

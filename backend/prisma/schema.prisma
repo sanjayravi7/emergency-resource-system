@@ -65,12 +65,11 @@ model User {
 
   role UserRole @default(REQUESTER)
 
-  location  String?
-  latitude  Float?
-  longitude Float?
-
   isActive     Boolean   @default(true)
   lastActiveAt DateTime?
+
+  latitude  Float?
+  longitude Float?
 
   responderStatus ResponderStatus @default(OFFLINE)
 
@@ -83,9 +82,7 @@ model User {
 
   responderResources ResponderResource[]
 
-  @@index([role])
-  @@index([responderStatus])
-  @@index([isActive])
+  acceptedRequests EmergencyRequest[] @relation("AcceptedRequests")
 }
 
 // ======================================================
@@ -100,17 +97,24 @@ model EmergencyRequest {
   emergencyType String
   description   String
 
-  location  String
+  location String
+
   latitude  Float?
   longitude Float?
 
-  priority Priority      @default(MEDIUM)
-  status   RequestStatus @default(PENDING)
+  priority Priority @default(MEDIUM)
+
+  status RequestStatus @default(PENDING)
+
+  acceptedById Int?
+  acceptedAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   requester User @relation(fields: [requesterId], references: [id])
+
+  acceptedBy User? @relation("AcceptedRequests", fields: [acceptedById], references: [id])
 
   requiredResources RequestResource[]
 
@@ -120,6 +124,7 @@ model EmergencyRequest {
   @@index([status])
   @@index([priority])
   @@index([location])
+  @@index([acceptedById])
 }
 
 // ======================================================
