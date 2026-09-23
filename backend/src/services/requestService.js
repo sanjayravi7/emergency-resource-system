@@ -50,25 +50,193 @@ exports.getAllRequests = async () => {
     include: { requiredResources: true }
   });
 };
+exports.getCompatibleRequestsForResponder = async (responderId) => {
+  const activeEmergency =
+    await prisma.emergencyRequest.findFirst({
+      where: {
+        acceptedById: Number(responderId),
+        status: {
+          in: [
+            'ACCEPTED',
+            'IN_PROGRESS',
+            'PARTIALLY_ALLOCATED',
+          ],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
 
+  if (activeEmergency) {
+    return [];
+  }
+
+  const responderResources =
+    await prisma.responderResource.findMany({
+      where: {
+        responderId: Number(responderId),
+        status: 'AVAILABLE',
+        availableQuantity: {
+          gt: 0,
+        },
+      },
+    });
+
+  const requests =
+    await prisma.emergencyRequest.findMany({
+      where: {
+        status: 'PENDING',
+      },
+      include: {
+        requiredResources: true,
+      },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+  return requests.filter((request) => {
+    if (!request.requiredResources.length) {
+      return false;
+    }
+
+    return request.requiredResources.every(
+      (required) => {
+        const resource =
+          responderResources.find(
+            (item) =>
+              item.resourceId === required.resourceId,
+          );
+
+        return (
+          resource &&
+          resource.availableQuantity >=
+            required.quantity
+        );
+      },
+    );
+  });
+};
 exports.acceptEmergencyRequest = async (responderId, requestId) => {
-  const request = await this.getRequestById(requestId);
-  if (request.status !== 'PENDING') {
-    throw new Error('Only PENDING requests can be accepted');
-  }
+  return await prisma.$transaction(async (tx) => {
+    const request = await tx.emergencyRequest.findUnique({
+      where: { id: Number(requestId) },
+      include: {
+        requiredResources: true,
+      },
+    });
 
-  // Ensure responder is available
-  const user = await prisma.user.findUnique({ where: { id: responderId } });
-  if (user.role !== 'RESPONDER') {
-    throw new Error('Only responders can accept emergencies');
-  }
-  if (user.responderStatus !== 'AVAILABLE') {
-    throw new Error('Responder is not available to accept');
-  }
+    if (!request) {
+      throw new Error('Request not found');
+    }
 
-  return await prisma.emergencyRequest.update({
-    where: { id: Number(requestId) },
-    data: { status: 'ACCEPTED' }
+    if (request.status !== 'PENDING') {
+      throw new Error('Only PENDING requests can be accepted');
+    }
+
+    const responder = await tx.user.findUnique({
+      where: { id: Number(responderId) },
+    });
+
+    if (!responder || responder.role !== 'RESPONDER') {
+      throw new Error('Only responders can accept emergencies');
+    }
+
+    if (!responder.isActive) {
+      throw new Error('Responder is inactive');
+    }
+
+    if (responder.responderStatus !== 'AVAILABLE') {
+      throw new Error('Responder is not available to accept');
+    }
+
+    // ----------------------------------------------------
+    // RULE 1: One active emergency per responder
+    // ----------------------------------------------------
+    const activeEmergency = await tx.emergencyRequest.findFirst({
+      where: {
+        acceptedById: Number(responderId),
+        status: {
+          in: ['ACCEPTED', 'IN_PROGRESS', 'PARTIALLY_ALLOCATED'],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (activeEmergency) {
+      throw new Error(
+        'Responder already has an active emergency',
+      );
+    }
+
+    // ----------------------------------------------------
+    // RULE 2: Responder must have the required resources
+    // ----------------------------------------------------
+    if (!request.requiredResources.length) {
+      throw new Error(
+        'Request has no required resource',
+      );
+    }
+
+    const responderResources =
+      await tx.responderResource.findMany({
+        where: {
+          responderId: Number(responderId),
+          status: 'AVAILABLE',
+          availableQuantity: {
+            gt: 0,
+          },
+        },
+      });
+
+    for (const required of request.requiredResources) {
+      const matching = responderResources.find(
+        (resource) =>
+          resource.resourceId === required.resourceId &&
+          resource.availableQuantity >= required.quantity,
+      );
+
+      if (!matching) {
+        throw new Error(
+          'Responder does not have the required resource available',
+        );
+      }
+    }
+
+    // ----------------------------------------------------
+    // ACCEPT REQUEST
+    // ----------------------------------------------------
+    const updatedRequest =
+      await tx.emergencyRequest.update({
+        where: {
+          id: Number(requestId),
+        },
+        data: {
+          status: 'ACCEPTED',
+          acceptedById: Number(responderId),
+          acceptedAt: new Date(),
+        },
+        include: {
+          requiredResources: true,
+        },
+      });
+
+    // Responder becomes BUSY
+    await tx.user.update({
+      where: {
+        id: Number(responderId),
+      },
+      data: {
+        responderStatus: 'BUSY',
+        lastActiveAt: new Date(),
+      },
+    });
+
+    return updatedRequest;
   });
 };
 

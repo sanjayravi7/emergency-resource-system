@@ -738,10 +738,9 @@ void dispose() {
   Future<void> loadRequestsFromBackend() async {
   try {
     final backendRequests =
-        ApiService.currentRole == 'RESPONDER'
-            ? await ApiService.getAllRequests()
-            : await ApiService.getMyRequests();
-
+    ApiService.currentRole == 'RESPONDER'
+        ? await ApiService.getCompatibleRequests()
+        : await ApiService.getMyRequests();
     final activeRequests = <EmergencyRequest>[];
     final closedRequests = <EmergencyRequest>[];
 
