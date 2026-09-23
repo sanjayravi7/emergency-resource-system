@@ -128,7 +128,7 @@ class ApiService {
   }
   static Future<List<dynamic>> getResponderResources() async {
   final response = await http.get(
-    Uri.parse('$baseUrl/responder-resources'),
+    Uri.parse('$baseUrl/responder-resources/my'),
     headers: _headers,
   );
 
