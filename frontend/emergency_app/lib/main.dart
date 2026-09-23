@@ -2370,6 +2370,25 @@ class NewRequestPanel extends StatelessWidget {
         }
       },
     );
+    Widget _districtDropdown(double width) =>
+    DropdownButtonFormField<String>(
+      initialValue: selectedDistrict,
+      isExpanded: true,
+      decoration: fieldDecoration(),
+      items: districts
+          .map(
+            (d) => DropdownMenuItem<String>(
+              value: d,
+              child: Text(d),
+            ),
+          )
+          .toList(),
+      onChanged: (v) {
+        if (v != null) {
+          onDistrictChanged(v);
+        }
+      },
+    );
   Widget _urgencyDropdown(double width) => DropdownButtonFormField<Urgency>(
         initialValue: selectedUrgency,
         isExpanded: true,
