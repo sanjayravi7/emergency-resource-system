@@ -157,6 +157,22 @@ class ApiService {
 
   return body['resources'] ?? [];
 }
+static Future<List<dynamic>> getCompatibleRequests() async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/requests/compatible'),
+    headers: _headers,
+  );
+
+  final body = jsonDecode(response.body);
+
+  if (response.statusCode != 200) {
+    throw Exception(
+      body['message'] ?? 'Failed to load compatible requests',
+    );
+  }
+
+  return body['requests'] ?? [];
+}
 static Future<List<dynamic>> getAllRequests() async {
   final response = await http.get(
     Uri.parse('$baseUrl/requests'),

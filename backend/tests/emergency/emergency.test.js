@@ -152,6 +152,27 @@ describe("Emergency Request Lifecycle", () => {
   // =====================================================
 
  test("✅ RESPONDER can accept a PENDING emergency", async () => {
+  const resource = await prisma.resource.create({
+    data: {
+      name: "Test Fire Resource",
+      type: "FIRE",
+      totalQuantity: 10,
+      availableQuantity: 10,
+      unit: "unit",
+      location: "Thrissur",
+    },
+  });
+
+  const responderResource = await prisma.responderResource.create({
+    data: {
+      responderId: responder.id,
+      resourceId: resource.id,
+      totalQuantity: 5,
+      availableQuantity: 5,
+      status: "AVAILABLE",
+    },
+  });
+
   const emergency = await prisma.emergencyRequest.create({
     data: {
       requesterId: requester.id,
@@ -160,6 +181,14 @@ describe("Emergency Request Lifecycle", () => {
       location: "Thrissur",
       priority: "HIGH",
       status: "PENDING",
+      requiredResources: {
+        create: [
+          {
+            resourceId: resource.id,
+            quantity: 1,
+          },
+        ],
+      },
     },
   });
 
@@ -178,7 +207,7 @@ describe("Emergency Request Lifecycle", () => {
     .patch(`/api/requests/${emergency.id}/accept`)
     .set("Authorization", `Bearer ${responderToken}`);
 
-  expect([200, 204]).toContain(res.statusCode);
+  expect(res.statusCode).toBe(200);
 
   const updated = await prisma.emergencyRequest.findUnique({
     where: {
@@ -187,6 +216,28 @@ describe("Emergency Request Lifecycle", () => {
   });
 
   expect(updated.status).toBe("ACCEPTED");
+  expect(updated.acceptedById).toBe(responder.id);
+  expect(updated.acceptedAt).not.toBeNull();
+
+  const updatedResponder = await prisma.user.findUnique({
+    where: {
+      id: responder.id,
+    },
+  });
+
+  expect(updatedResponder.responderStatus).toBe("BUSY");
+
+  await prisma.responderResource.delete({
+    where: {
+      id: responderResource.id,
+    },
+  });
+
+  await prisma.resource.delete({
+    where: {
+      id: resource.id,
+    },
+  });
 });
 
   test("❌ REQUESTER cannot accept an emergency", async () => {
