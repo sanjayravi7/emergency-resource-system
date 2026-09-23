@@ -549,7 +549,11 @@ Future<void> loadInitialBackendData() async {
   await loadRequestsFromBackend();
   await loadResourcesFromBackend();
   await loadRespondersFromBackend();
-  await loadResponderResourcesFromBackend();
+
+  if (ApiService.currentRole == 'RESPONDER' ||
+      ApiService.currentRole == 'ADMIN') {
+    await loadResponderResourcesFromBackend();
+  }
 
   if (ApiService.currentRole == 'RESPONDER') {
     await loadAllocationsFromBackend();
