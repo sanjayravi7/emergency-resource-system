@@ -74,25 +74,6 @@ exports.updateRequestStatus = async (req, res, next) => {
     next(error);
   }
 };
-exports.getCompatibleRequests = async (
-  req,
-  res,
-  next
-) => {
-  try {
-    const requests =
-      await requestService.getCompatibleRequestsForResponder(
-        req.user.id
-      );
-
-    res.json({
-      success: true,
-      requests,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 exports.getCompatibleRequests = async (req, res, next) => {
   try {
     const requests =
