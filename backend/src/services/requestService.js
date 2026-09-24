@@ -2,19 +2,21 @@ const prisma = require('../config/prisma');
 
 exports.createEmergencyRequest = async (userId, data) => {
   const { requiredResources, ...requestData } = data;
-  
+
   return await prisma.emergencyRequest.create({
     data: {
       ...requestData,
       requesterId: userId,
-      requiredResources: requiredResources ? {
-        create: requiredResources.map(r => ({
-          resourceId: r.resourceId,
-          quantity: r.quantity
-        }))
-      } : undefined
+      requiredResources: requiredResources
+        ? {
+            create: requiredResources.map((r) => ({
+              resourceId: r.resourceId,
+              quantity: r.quantity,
+            })),
+          }
+        : undefined,
     },
-    {
+    include: {
       requiredResources: true,
       requester: {
         select: {
@@ -24,14 +26,24 @@ exports.createEmergencyRequest = async (userId, data) => {
           phone: true,
         },
       },
-    }
+    },
   });
 };
 
 exports.getRequestsByUser = async (userId) => {
-  return await prisma.emergencyRequest.findMany({ 
+  return await prisma.emergencyRequest.findMany({
     where: { requesterId: userId },
-    include: { requiredResources: true }
+    include: {
+      requiredResources: true,
+      requester: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
   });
 };
 
@@ -110,14 +122,14 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
       },
       include: {
   requiredResources: true,
-   requester: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
+  requester: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+    },
+  },
 },
       orderBy: [
         { priority: 'desc' },
