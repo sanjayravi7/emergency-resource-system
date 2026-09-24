@@ -83,80 +83,97 @@ exports.getAllRequests = async () => {
   });
 };
 exports.getCompatibleRequestsForResponder = async (responderId) => {
-  const activeEmergency =
-    await prisma.emergencyRequest.findFirst({
-      where: {
-        acceptedById: Number(responderId),
-        status: {
-          in: [
-            'ACCEPTED',
-            'IN_PROGRESS',
-            'PARTIALLY_ALLOCATED',
-          ],
-        },
+  // ----------------------------------------------------
+  // RULE: responder must be an active, available RESPONDER
+  // ----------------------------------------------------
+  const responder = await prisma.user.findUnique({
+    where: {
+      id: Number(responderId),
+    },
+    select: {
+      id: true,
+      role: true,
+      isActive: true,
+      responderStatus: true,
+    },
+  });
+
+  if (
+    !responder ||
+    responder.role !== 'RESPONDER' ||
+    !responder.isActive ||
+    responder.responderStatus !== 'AVAILABLE'
+  ) {
+    return [];
+  }
+
+  // ----------------------------------------------------
+  // RULE: one active emergency per responder
+  // ----------------------------------------------------
+  const activeEmergency = await prisma.emergencyRequest.findFirst({
+    where: {
+      acceptedById: Number(responderId),
+      status: {
+        in: ['ACCEPTED', 'IN_PROGRESS', 'PARTIALLY_ALLOCATED'],
       },
-      select: {
-        id: true,
-      },
-    });
+    },
+    select: {
+      id: true,
+    },
+  });
 
   if (activeEmergency) {
     return [];
   }
 
-  const responderResources =
-    await prisma.responderResource.findMany({
-      where: {
-        responderId: Number(responderId),
-        status: 'AVAILABLE',
-        availableQuantity: {
-          gt: 0,
+  // ----------------------------------------------------
+  // RULE: responder must have available matching resources
+  // ----------------------------------------------------
+  const responderResources = await prisma.responderResource.findMany({
+    where: {
+      responderId: Number(responderId),
+      status: 'AVAILABLE',
+      availableQuantity: {
+        gt: 0,
+      },
+    },
+  });
+
+  const requests = await prisma.emergencyRequest.findMany({
+    where: {
+      status: 'PENDING',
+    },
+    include: {
+      requiredResources: true,
+      requester: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
         },
       },
-    });
-
-  const requests =
-    await prisma.emergencyRequest.findMany({
-      where: {
-        status: 'PENDING',
-      },
-      include: {
-  requiredResources: true,
-  requester: {
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
     },
-  },
-},
-      orderBy: [
-        { priority: 'desc' },
-        { createdAt: 'asc' },
-      ],
-    });
+    orderBy: [
+      { priority: 'desc' },
+      { createdAt: 'asc' },
+    ],
+  });
 
   return requests.filter((request) => {
     if (!request.requiredResources.length) {
       return false;
     }
 
-    return request.requiredResources.every(
-      (required) => {
-        const resource =
-          responderResources.find(
-            (item) =>
-              item.resourceId === required.resourceId,
-          );
+    return request.requiredResources.every((required) => {
+      const matchingResource = responderResources.find(
+        (resource) =>
+          resource.resourceId === required.resourceId &&
+          resource.availableQuantity >= required.quantity,
+      );
 
-        return (
-          resource &&
-          resource.availableQuantity >=
-            required.quantity
-        );
-      },
-    );
+      return !!matchingResource;
+    });
   });
 };
 exports.acceptEmergencyRequest = async (responderId, requestId) => {
@@ -285,91 +302,5 @@ exports.updateRequestStatus = async (requestId, status) => {
   return await prisma.emergencyRequest.update({
     where: { id: Number(requestId) },
     data: { status }
-  });
-};
-exports.getCompatibleRequestsForResponder = async (responderId) => {
-  const responder = await prisma.user.findUnique({
-    where: {
-      id: Number(responderId),
-    },
-    select: {
-      id: true,
-      role: true,
-      isActive: true,
-      responderStatus: true,
-    },
-  });
-
-  if (
-    !responder ||
-    responder.role !== 'RESPONDER' ||
-    !responder.isActive ||
-    responder.responderStatus !== 'AVAILABLE'
-  ) {
-    return [];
-  }
-
-  const activeEmergency = await prisma.emergencyRequest.findFirst({
-    where: {
-      acceptedById: Number(responderId),
-      status: {
-        in: [
-          'ACCEPTED',
-          'IN_PROGRESS',
-          'PARTIALLY_ALLOCATED',
-        ],
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  // One active emergency per responder.
-  if (activeEmergency) {
-    return [];
-  }
-
-  const responderResources = await prisma.responderResource.findMany({
-    where: {
-      responderId: Number(responderId),
-      status: 'AVAILABLE',
-      availableQuantity: {
-        gt: 0,
-      },
-    },
-  });
-
-  const requests = await prisma.emergencyRequest.findMany({
-    where: {
-      status: 'PENDING',
-    },
-    include: {
-      requiredResources: true,
-    },
-    orderBy: [
-      {
-        priority: 'desc',
-      },
-      {
-        createdAt: 'asc',
-      },
-    ],
-  });
-
-  return requests.filter((request) => {
-    if (!request.requiredResources.length) {
-      return false;
-    }
-
-    return request.requiredResources.every((required) => {
-      const matchingResource = responderResources.find(
-        (resource) =>
-          resource.resourceId === required.resourceId &&
-          resource.availableQuantity >= required.quantity
-      );
-
-      return !!matchingResource;
-    });
   });
 };

@@ -442,6 +442,8 @@ class EmergencyRequest {
     this.resourceId,
     this.requiredQuantity,
     this.requesterName,
+    this.requesterEmail,
+    this.requesterPhone,
   });
 
   final String id;
@@ -774,9 +776,12 @@ void dispose() {
         requiredQuantity =
             (resource['quantity'] as num?)?.toInt() ?? 1;
       }
-        // The backend may send the requester either as a nested user object
-      // or as a flat name field, so handle both shapes.
+        // The backend sends the requester as a nested user object
+      // (id, name, email, phone). Fall back to a flat requesterName
+      // field if it is ever sent that way instead.
       String? requesterName;
+      String? requesterEmail;
+      String? requesterPhone;
 
       final requesterData = data['requester'];
 
@@ -785,11 +790,20 @@ void dispose() {
 
         final name = requester['name']?.toString().trim();
         final email = requester['email']?.toString().trim();
+        final phone = requester['phone']?.toString().trim();
 
         if (name != null && name.isNotEmpty) {
           requesterName = name;
         } else if (email != null && email.isNotEmpty) {
           requesterName = email;
+        }
+
+        if (email != null && email.isNotEmpty) {
+          requesterEmail = email;
+        }
+
+        if (phone != null && phone.isNotEmpty) {
+          requesterPhone = phone;
         }
       }
 
@@ -800,6 +814,9 @@ void dispose() {
           requesterName = flatName;
         }
       }
+
+      requesterEmail ??= data['requesterEmail']?.toString();
+      requesterPhone ??= data['requesterPhone']?.toString();
 
      ResourceType type = ResourceType.ambulance;
 
@@ -850,11 +867,6 @@ if (emergencyType == 'BLOOD') {
           status = RequestStatus.pending;
           break;
       }
-      final requester =
-    data['requester'] is Map
-        ? Map<String, dynamic>.from(data['requester'] as Map)
-        : <String, dynamic>{};
-
       final request = EmergencyRequest(
         id: 'DB-${data['id']}',
         type: type,
@@ -867,11 +879,9 @@ if (emergencyType == 'BLOOD') {
         resourceId: backendResourceId,
         requiredQuantity: requiredQuantity,
         requesterName: requesterName,
+        requesterEmail: requesterEmail,
+        requesterPhone: requesterPhone,
       );
-
-      request.requesterName = requester['name']?.toString();
-      request.requesterEmail = requester['email']?.toString();
-      request.requesterPhone = requester['phone']?.toString();
 
       if (status == RequestStatus.closed) {
         closedRequests.add(request);
@@ -1939,12 +1949,36 @@ class BoardPanel extends StatelessWidget {
                                   style: monoStyle(
                                       size: 12.5, color: AppColors.textDim))),
                               DataCell(
-                                Text(
-                                  r.requesterName ?? 'Unknown requester',
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    color: AppColors.textDim,
-                                  ),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      r.requesterName ?? 'Unknown requester',
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textDim,
+                                      ),
+                                    ),
+                                    if ((r.requesterEmail ?? '').isNotEmpty)
+                                      Text(
+                                        r.requesterEmail!,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textFaint,
+                                        ),
+                                      ),
+                                    if ((r.requesterPhone ?? '').isNotEmpty)
+                                      Text(
+                                        r.requesterPhone!,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textFaint,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                               DataCell(ResourceLabel(type: r.type)),
@@ -2147,6 +2181,22 @@ class _MobileRequestList extends StatelessWidget {
                       child: _InfoChip(label: 'District', value: r.district)),
                 ],
               ),
+              if ((r.requesterEmail ?? '').isNotEmpty ||
+                  (r.requesterPhone ?? '').isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _InfoChip(
+                            label: 'Email',
+                            value: r.requesterEmail ?? '-')),
+                    Expanded(
+                        child: _InfoChip(
+                            label: 'Phone',
+                            value: r.requesterPhone ?? '-')),
+                  ],
+                ),
+              ],
               const SizedBox(height: 4),
               Row(
                 children: [
