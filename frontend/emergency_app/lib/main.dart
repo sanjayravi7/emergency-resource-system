@@ -441,13 +441,22 @@ class EmergencyRequest {
     this.status = RequestStatus.pending,
     this.resourceId,
     this.requiredQuantity,
+    this.requesterName,
   });
+
   final String id;
   final ResourceType type;
   final String district;
+  final String? requesterName;
   final Urgency urgency;
   final DateTime createdAt;
+
   RequestStatus status;
+
+  String? requesterName;
+  String? requesterEmail;
+  String? requesterPhone;
+
   String? responder;
   double? distanceKm;
   int? etaMin;
@@ -766,6 +775,32 @@ void dispose() {
         requiredQuantity =
             (resource['quantity'] as num?)?.toInt() ?? 1;
       }
+        // The backend may send the requester either as a nested user object
+      // or as a flat name field, so handle both shapes.
+      String? requesterName;
+
+      final requesterData = data['requester'];
+
+      if (requesterData is Map) {
+        final requester = Map<String, dynamic>.from(requesterData);
+
+        final name = requester['name']?.toString().trim();
+        final email = requester['email']?.toString().trim();
+
+        if (name != null && name.isNotEmpty) {
+          requesterName = name;
+        } else if (email != null && email.isNotEmpty) {
+          requesterName = email;
+        }
+      }
+
+      if (requesterName == null) {
+        final flatName = data['requesterName']?.toString().trim();
+
+        if (flatName != null && flatName.isNotEmpty) {
+          requesterName = flatName;
+        }
+      }
 
      ResourceType type = ResourceType.ambulance;
 
@@ -816,20 +851,28 @@ if (emergencyType == 'BLOOD') {
           status = RequestStatus.pending;
           break;
       }
+      final requester =
+    data['requester'] is Map
+        ? Map<String, dynamic>.from(data['requester'] as Map)
+        : <String, dynamic>{};
 
       final request = EmergencyRequest(
         id: 'DB-${data['id']}',
         type: type,
         district: data['location']?.toString() ?? 'Unknown',
         urgency: urgency,
-        createdAt: DateTime.tryParse(
-              data['createdAt']?.toString() ?? '',
-            ) ??
+        createdAt:
+            DateTime.tryParse(data['createdAt']?.toString() ?? '') ??
             DateTime.now(),
         status: status,
         resourceId: backendResourceId,
         requiredQuantity: requiredQuantity,
+        requesterName: requesterName,
       );
+
+      request.requesterName = requester['name']?.toString();
+      request.requesterEmail = requester['email']?.toString();
+      request.requesterPhone = requester['phone']?.toString();
 
       if (status == RequestStatus.closed) {
         closedRequests.add(request);
@@ -1882,6 +1925,7 @@ class BoardPanel extends StatelessWidget {
                         const TextStyle(fontSize: 13, color: AppColors.text),
                     columns: const [
                       DataColumn(label: Text('ID')),
+                       DataColumn(label: Text('Requester')),
                       DataColumn(label: Text('Resource')),
                       DataColumn(label: Text('District')),
                       DataColumn(label: Text('Distance')),
@@ -1895,6 +1939,15 @@ class BoardPanel extends StatelessWidget {
                               DataCell(Text(r.id,
                                   style: monoStyle(
                                       size: 12.5, color: AppColors.textDim))),
+                              DataCell(
+                                Text(
+                                  r.requesterName ?? 'Unknown requester',
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    color: AppColors.textDim,
+                                  ),
+                                ),
+                              ),
                               DataCell(ResourceLabel(type: r.type)),
                               DataCell(Text(r.district)),
                               DataCell(Text(
@@ -2088,11 +2141,11 @@ class _MobileRequestList extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                      child: _InfoChip(label: 'District', value: r.district)),
-                  Expanded(
                       child: _InfoChip(
-                          label: 'Responder',
-                          value: r.responder ?? 'unassigned')),
+                          label: 'Requester',
+                          value: r.requesterName ?? 'Unknown requester')),
+                  Expanded(
+                      child: _InfoChip(label: 'District', value: r.district)),
                 ],
               ),
               const SizedBox(height: 4),
@@ -2100,11 +2153,21 @@ class _MobileRequestList extends StatelessWidget {
                 children: [
                   Expanded(
                       child: _InfoChip(
+                          label: 'Responder',
+                          value: r.responder ?? 'unassigned')),
+                  Expanded(
+                      child: _InfoChip(
                           label: 'Distance',
                           value: r.distanceKm == null
                               ? '-'
                               : '${r.distanceKm!.toStringAsFixed(1)} km')),
+                 ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
                   Expanded(child: _InfoChip(label: 'ETA', value: etaText)),
+                  const Expanded(child: SizedBox()),
                 ],
               ),
               if (ApiService.currentRole == 'RESPONDER' &&

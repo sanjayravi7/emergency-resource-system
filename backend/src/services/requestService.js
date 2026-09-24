@@ -14,7 +14,17 @@ exports.createEmergencyRequest = async (userId, data) => {
         }))
       } : undefined
     },
-    include: { requiredResources: true }
+    {
+      requiredResources: true,
+      requester: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    }
   });
 };
 
@@ -99,8 +109,16 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
         status: 'PENDING',
       },
       include: {
-        requiredResources: true,
-      },
+  requiredResources: true,
+   requester: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+},
       orderBy: [
         { priority: 'desc' },
         { createdAt: 'asc' },
