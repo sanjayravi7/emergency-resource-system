@@ -447,12 +447,11 @@ class EmergencyRequest {
   final String id;
   final ResourceType type;
   final String district;
-  final String? requesterName;
+  
   final Urgency urgency;
   final DateTime createdAt;
 
   RequestStatus status;
-
   String? requesterName;
   String? requesterEmail;
   String? requesterPhone;
