@@ -47,7 +47,17 @@ exports.cancelEmergencyRequest = async (userId, id) => {
 
 exports.getAllRequests = async () => {
   return await prisma.emergencyRequest.findMany({
-    include: { requiredResources: true }
+    include: {
+      requiredResources: true,
+      requester: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
   });
 };
 exports.getCompatibleRequestsForResponder = async (responderId) => {

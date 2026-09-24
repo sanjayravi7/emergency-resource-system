@@ -47,8 +47,26 @@ exports.deactivateUser = async (req, res, next) => {
 
 exports.getAllRequests = async (req, res, next) => {
   try {
-    const requests = await prisma.emergencyRequest.findMany();
-    res.json({ success: true, requests });
+    const requests = await prisma.emergencyRequest.findMany({
+  where: {
+    status: 'PENDING',
+  },
+  include: {
+    requiredResources: true,
+    requester: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+      },
+    },
+  },
+  orderBy: [
+    { priority: 'desc' },
+    { createdAt: 'asc' },
+  ],
+});
   } catch (error) {
     next(error);
   }
