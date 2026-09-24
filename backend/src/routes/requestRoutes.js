@@ -21,6 +21,14 @@ router.get(
   requestController.getCompatibleRequests
 );
 
+// RESPONDER views the emergencies they already accepted
+router.get(
+  "/assigned",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  requestController.getAssignedRequests
+);
+
 // REQUESTER views their own requests
 router.get(
   "/my",

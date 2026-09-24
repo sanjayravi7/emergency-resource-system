@@ -1,56 +1,158 @@
 const prisma = require('../config/prisma');
 
-exports.createEmergencyRequest = async (userId, data) => {
-  const { requiredResources, ...requestData } = data;
+const {
+  validateEmergencyRequestInput,
+  normalizeRequiredResources,
+} = require('../validators/requestValidator');
 
-  return await prisma.emergencyRequest.create({
-    data: {
-      ...requestData,
-      requesterId: userId,
-      requiredResources: requiredResources
-        ? {
-            create: requiredResources.map((r) => ({
-              resourceId: r.resourceId,
-              quantity: r.quantity,
-            })),
-          }
-        : undefined,
-    },
+// ------------------------------------------------------------------
+// Shared include shape.
+//
+// Every request returned to Flutter carries:
+//  - the requester (id, name, email, phone)
+//  - the assigned responder (once accepted)
+//  - the required resources WITH the resource catalog row
+//  - the allocations made against the request
+// ------------------------------------------------------------------
+const requesterSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+};
+
+const responderSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  responderStatus: true,
+  location: true,
+};
+
+const requestInclude = {
+  requiredResources: {
     include: {
-      requiredResources: true,
-      requester: {
+      resource: true,
+    },
+  },
+  requester: {
+    select: requesterSelect,
+  },
+  acceptedBy: {
+    select: responderSelect,
+  },
+  allocations: {
+    include: {
+      resource: {
         select: {
           id: true,
           name: true,
-          email: true,
+          type: true,
+          unit: true,
+        },
+      },
+      responder: {
+        select: {
+          id: true,
+          name: true,
           phone: true,
         },
+      },
+    },
+  },
+};
+
+exports.requestInclude = requestInclude;
+
+// ------------------------------------------------------------------
+// CREATE
+//
+// Backend is the final authority:
+//  - the requester must be authenticated (route level)
+//  - resource ids must exist in PostgreSQL
+//  - resources must be ACTIVE
+//  - quantities must be positive whole numbers
+//  - quantity cannot exceed the catalog availability
+// ------------------------------------------------------------------
+exports.createEmergencyRequest = async (userId, data) => {
+  const validationError = validateEmergencyRequestInput(data);
+
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  const requiredResources = normalizeRequiredResources(data.requiredResources);
+
+  const resourceIds = requiredResources.map((r) => r.resourceId);
+
+  const resources = await prisma.resource.findMany({
+    where: {
+      id: {
+        in: resourceIds,
       },
     },
   });
-};
 
-exports.getRequestsByUser = async (userId) => {
-  return await prisma.emergencyRequest.findMany({
-    where: { requesterId: userId },
-    include: {
-      requiredResources: true,
-      requester: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-        },
+  const resourceById = new Map(resources.map((r) => [r.id, r]));
+
+  for (const required of requiredResources) {
+    const resource = resourceById.get(required.resourceId);
+
+    if (!resource) {
+      throw new Error(`Resource ${required.resourceId} does not exist`);
+    }
+
+    if (resource.isActive === false) {
+      throw new Error(`Resource "${resource.name}" is not active`);
+    }
+
+    if (resource.availableQuantity <= 0) {
+      throw new Error(`Resource "${resource.name}" is out of stock`);
+    }
+
+    if (required.quantity > resource.availableQuantity) {
+      throw new Error(
+        `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
+      );
+    }
+  }
+
+  return await prisma.emergencyRequest.create({
+    data: {
+      emergencyType: String(data.emergencyType).trim(),
+      description: String(data.description).trim(),
+      location: String(data.location).trim(),
+      latitude: typeof data.latitude === 'number' ? data.latitude : null,
+      longitude: typeof data.longitude === 'number' ? data.longitude : null,
+      priority: data.priority ? String(data.priority) : 'MEDIUM',
+      requesterId: userId,
+      requiredResources: {
+        create: requiredResources.map((r) => ({
+          resourceId: r.resourceId,
+          quantity: r.quantity,
+        })),
       },
     },
+    include: requestInclude,
+  });
+};
+
+// ------------------------------------------------------------------
+// READ
+// ------------------------------------------------------------------
+exports.getRequestsByUser = async (userId) => {
+  return await prisma.emergencyRequest.findMany({
+    where: { requesterId: Number(userId) },
+    include: requestInclude,
+    orderBy: { createdAt: 'desc' },
   });
 };
 
 exports.getRequestById = async (id) => {
-  const request = await prisma.emergencyRequest.findUnique({ 
+  const request = await prisma.emergencyRequest.findUnique({
     where: { id: Number(id) },
-    include: { requiredResources: true }
+    include: requestInclude,
   });
   if (!request) throw new Error('Request not found');
   return request;
@@ -60,7 +162,7 @@ exports.cancelEmergencyRequest = async (userId, id) => {
   const request = await this.getRequestById(id);
   if (request.requesterId !== userId) throw new Error('Unauthorized: You can only cancel your own requests');
   if (request.status !== 'PENDING') throw new Error('Only PENDING requests can be cancelled');
-  
+
   return await prisma.emergencyRequest.update({
     where: { id: Number(id) },
     data: { status: 'CANCELLED' }
@@ -69,19 +171,26 @@ exports.cancelEmergencyRequest = async (userId, id) => {
 
 exports.getAllRequests = async () => {
   return await prisma.emergencyRequest.findMany({
-    include: {
-      requiredResources: true,
-      requester: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-        },
-      },
-    },
+    include: requestInclude,
+    orderBy: { createdAt: 'desc' },
   });
 };
+
+/**
+ * Requests this responder has accepted (their own workload).
+ * Used by the dispatch board after acceptance, because an accepted
+ * request correctly disappears from the compatible PENDING list.
+ */
+exports.getAssignedRequestsForResponder = async (responderId) => {
+  return await prisma.emergencyRequest.findMany({
+    where: {
+      acceptedById: Number(responderId),
+    },
+    include: requestInclude,
+    orderBy: { createdAt: 'desc' },
+  });
+};
+
 exports.getCompatibleRequestsForResponder = async (responderId) => {
   // ----------------------------------------------------
   // RULE: responder must be an active, available RESPONDER
@@ -143,17 +252,7 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
     where: {
       status: 'PENDING',
     },
-    include: {
-      requiredResources: true,
-      requester: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-        },
-      },
-    },
+    include: requestInclude,
     orderBy: [
       { priority: 'desc' },
       { createdAt: 'asc' },

@@ -48,25 +48,39 @@ exports.deactivateUser = async (req, res, next) => {
 exports.getAllRequests = async (req, res, next) => {
   try {
     const requests = await prisma.emergencyRequest.findMany({
-  where: {
-    status: 'PENDING',
-  },
-  include: {
-    requiredResources: true,
-    requester: {
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
+      include: {
+        requiredResources: {
+          include: {
+            resource: true,
+          },
+        },
+        requester: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        acceptedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            responderStatus: true,
+          },
+        },
       },
-    },
-  },
-  orderBy: [
-    { priority: 'desc' },
-    { createdAt: 'asc' },
-  ],
-});
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    // The response was previously never sent, which left the admin
+    // dashboard hanging.
+    res.json({ success: true, requests });
   } catch (error) {
     next(error);
   }

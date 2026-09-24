@@ -1,10 +1,24 @@
 const requestService = require('../services/requestService');
 
+// Errors raised by request validation are client errors (400),
+// not server errors. Everything else keeps the existing behaviour.
+const isValidationError = (message) =>
+  /required|invalid|quantity|duplicate|does not exist|not active|out of stock|available|latitude|longitude|priority/i.test(
+    message || ''
+  );
+
 exports.createRequest = async (req, res, next) => {
   try {
     const request = await requestService.createEmergencyRequest(req.user.id, req.body);
     res.status(201).json({ success: true, request });
   } catch (error) {
+    if (isValidationError(error.message)) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     next(error);
   }
 };
@@ -70,6 +84,19 @@ exports.updateRequestStatus = async (req, res, next) => {
   try {
     const request = await requestService.updateRequestStatus(req.params.id, req.body.status);
     res.json({ success: true, request });
+  } catch (error) {
+    next(error);
+  }
+};
+exports.getAssignedRequests = async (req, res, next) => {
+  try {
+    const requests =
+      await requestService.getAssignedRequestsForResponder(req.user.id);
+
+    res.json({
+      success: true,
+      requests,
+    });
   } catch (error) {
     next(error);
   }
