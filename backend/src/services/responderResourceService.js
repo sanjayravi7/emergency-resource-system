@@ -19,6 +19,7 @@ const responderResourceInclude = {
       id: true,
       name: true,
       type: true,
+      mode: true,
       unit: true,
       location: true,
       isActive: true,
@@ -64,7 +65,7 @@ function normaliseActor(actor) {
   return actor;
 }
 
-function mutationData(data, existing, responder) {
+function mutationData(data, existing, responder, resourceMode) {
   validateStatus(data.status);
   validateBoolean(data.isEnabled, 'isEnabled');
 
@@ -82,20 +83,31 @@ function mutationData(data, existing, responder) {
     data.isEnabled === undefined ? existing.isEnabled : data.isEnabled;
 
   let status = data.status === undefined ? existing.status : data.status;
-  // Zero inventory is never currently available, even if a stale client
-  // submits AVAILABLE. An explicit UNAVAILABLE/BUSY choice is otherwise kept.
-  if (availableQuantity === 0) {
-    status = 'UNAVAILABLE';
-  } else if (
-    data.status === undefined &&
-    isEnabled &&
-    availableQuantity > 0 &&
-    (data.isEnabled === true ||
-      (data.availableQuantity !== undefined && existing.status === 'UNAVAILABLE'))
-  ) {
-    // Readiness SAVE and a restock from zero should make stock usable without
-    // relying on the responder's previous overall status.
-    status = 'AVAILABLE';
+
+  if (resourceMode === 'SERVICE') {
+    // SERVICE resources are reusable responder capabilities: selection means
+    // capability only. Quantity is not a signal of availability, so it never
+    // drives this status column for SERVICE rows.
+    if (data.status === undefined) {
+      status = isEnabled ? 'AVAILABLE' : 'UNAVAILABLE';
+    }
+  } else {
+    // CONSUMABLE: selection means capability + inventory. Zero inventory is
+    // never currently available, even if a stale client submits AVAILABLE.
+    // An explicit UNAVAILABLE/BUSY choice is otherwise kept.
+    if (availableQuantity === 0) {
+      status = 'UNAVAILABLE';
+    } else if (
+      data.status === undefined &&
+      isEnabled &&
+      availableQuantity > 0 &&
+      (data.isEnabled === true ||
+        (data.availableQuantity !== undefined && existing.status === 'UNAVAILABLE'))
+    ) {
+      // Readiness SAVE and a restock from zero should make stock usable
+      // without relying on the responder's previous overall status.
+      status = 'AVAILABLE';
+    }
   }
 
   return { totalQuantity, availableQuantity, isEnabled, status, responder };
@@ -144,8 +156,13 @@ exports.addResource = async (actorInput, data) => {
     }
 
     let status = data.status || 'UNAVAILABLE';
-    if (availableQuantity === 0) status = 'UNAVAILABLE';
-    else if (data.status === undefined && isEnabled) status = 'AVAILABLE';
+    if (catalogResource.mode === 'SERVICE') {
+      // Reusable responder capability: selection alone determines status.
+      if (data.status === undefined) status = isEnabled ? 'AVAILABLE' : 'UNAVAILABLE';
+    } else {
+      if (availableQuantity === 0) status = 'UNAVAILABLE';
+      else if (data.status === undefined && isEnabled) status = 'AVAILABLE';
+    }
 
     const created = await tx.responderResource.create({
       data: {
@@ -182,15 +199,21 @@ exports.updateResource = async (actorInput, id, data) => {
       throw new Error('You can only manage your own resources');
     }
 
-    const responder = await tx.user.findUnique({
-      where: { id: existing.responderId },
-      select: { id: true, role: true },
-    });
+    const [responder, catalogResource] = await Promise.all([
+      tx.user.findUnique({
+        where: { id: existing.responderId },
+        select: { id: true, role: true },
+      }),
+      tx.resource.findUnique({
+        where: { id: existing.resourceId },
+        select: { mode: true },
+      }),
+    ]);
     if (!responder || responder.role !== 'RESPONDER') {
       throw new Error('Responder not found');
     }
 
-    const next = mutationData(data, existing, responder);
+    const next = mutationData(data, existing, responder, catalogResource?.mode);
     const updated = await tx.responderResource.update({
       where: { id: resourceRowId },
       data: {

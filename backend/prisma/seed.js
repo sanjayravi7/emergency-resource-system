@@ -28,10 +28,15 @@ const DEV_PASSWORD = 'Test@12345';
 // seeded responder account - the id is never assumed to exist.
 const PREFERRED_RESPONDER_ID = 49;
 
+// SERVICE resources are reusable responder capabilities (unlimited sequential
+// use, gated only by the responder's current availability). CONSUMABLE
+// resources are spent from inventory. These example names are seed data
+// only - no service code branches on a resource name or type string.
 const RESOURCES = [
   {
     name: 'Ambulance',
     type: 'AMBULANCE',
+    mode: 'SERVICE',
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'vehicle',
@@ -39,8 +44,39 @@ const RESOURCES = [
     lowStockThreshold: 2,
   },
   {
+    name: 'Volunteer',
+    type: 'VOLUNTEER',
+    mode: 'SERVICE',
+    totalQuantity: 10,
+    availableQuantity: 10,
+    unit: 'person',
+    location: 'Community Hall',
+    lowStockThreshold: 2,
+  },
+  {
+    name: 'Fire Resource',
+    type: 'FIRE',
+    mode: 'SERVICE',
+    totalQuantity: 10,
+    availableQuantity: 10,
+    unit: 'unit',
+    location: 'Fire Station 1',
+    lowStockThreshold: 2,
+  },
+  {
+    name: 'Rescue Boat',
+    type: 'RESCUE_BOAT',
+    mode: 'SERVICE',
+    totalQuantity: 5,
+    availableQuantity: 5,
+    unit: 'vessel',
+    location: 'Harbor Station',
+    lowStockThreshold: 1,
+  },
+  {
     name: 'Blood',
     type: 'BLOOD',
+    mode: 'CONSUMABLE',
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'unit',
@@ -50,6 +86,7 @@ const RESOURCES = [
   {
     name: 'Oxygen',
     type: 'OXYGEN',
+    mode: 'CONSUMABLE',
     totalQuantity: 20,
     availableQuantity: 20,
     unit: 'cylinder',
@@ -57,22 +94,24 @@ const RESOURCES = [
     lowStockThreshold: 4,
   },
   {
-    name: 'Fire Resource',
-    type: 'FIRE',
-    totalQuantity: 10,
-    availableQuantity: 10,
-    unit: 'unit',
-    location: 'Fire Station 1',
-    lowStockThreshold: 2,
+    name: 'Water',
+    type: 'WATER',
+    mode: 'CONSUMABLE',
+    totalQuantity: 50,
+    availableQuantity: 50,
+    unit: 'bottle',
+    location: 'Central Depot',
+    lowStockThreshold: 10,
   },
   {
-    name: 'Volunteer',
-    type: 'VOLUNTEER',
-    totalQuantity: 10,
-    availableQuantity: 10,
-    unit: 'person',
-    location: 'Community Hall',
-    lowStockThreshold: 2,
+    name: 'Medicine',
+    type: 'MEDICINE',
+    mode: 'CONSUMABLE',
+    totalQuantity: 30,
+    availableQuantity: 30,
+    unit: 'kit',
+    location: 'Central Pharmacy',
+    lowStockThreshold: 5,
   },
 ];
 
@@ -91,6 +130,7 @@ async function upsertResources() {
       // resource is usable (active, typed, measurable).
       update: {
         type: resource.type,
+        mode: resource.mode,
         unit: resource.unit,
         location: resource.location,
         lowStockThreshold: resource.lowStockThreshold,
@@ -178,11 +218,17 @@ async function upsertResponderInventory(responderId, resources) {
   // situation that hides a pending request from the dispatch board), running
   // the seed again puts the inventory back into a known-good AVAILABLE state.
   const capabilities = {
-    Ambulance: { totalQuantity: 5, availableQuantity: 5 },
+    // SERVICE resources: quantity is irrelevant (never decremented). Kept at
+    // 1/1 so the responder still shows a non-zero inventory row.
+    Ambulance: { totalQuantity: 1, availableQuantity: 1 },
+    'Fire Resource': { totalQuantity: 1, availableQuantity: 1 },
+    Volunteer: { totalQuantity: 1, availableQuantity: 1 },
+    'Rescue Boat': { totalQuantity: 1, availableQuantity: 1 },
+    // CONSUMABLE resources: real spendable inventory.
     Blood: { totalQuantity: 10, availableQuantity: 10 },
     Oxygen: { totalQuantity: 10, availableQuantity: 10 },
-    'Fire Resource': { totalQuantity: 10, availableQuantity: 10 },
-    Volunteer: { totalQuantity: 10, availableQuantity: 10 },
+    Water: { totalQuantity: 20, availableQuantity: 20 },
+    Medicine: { totalQuantity: 15, availableQuantity: 15 },
   };
 
   const inventory = [];

@@ -103,7 +103,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     setState(() {
       final line = lines[index];
       final resource = resourceById(line.resourceId);
-      final maxQuantity = resource?.availableQuantity ?? 1;
+      final maxQuantity = resource?.effectiveAvailableCount ?? 1;
 
       var next = line.quantity + delta;
       if (next < 1) next = 1;
@@ -155,15 +155,19 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       }
 
       if (resource.isOutOfStock) {
-        return '${resource.name} is out of stock';
+        return resource.isService
+            ? 'No responders are currently available for ${resource.name}'
+            : '${resource.name} is out of stock';
       }
 
       if (line.quantity <= 0) {
         return 'Quantity must be greater than 0';
       }
 
-      if (line.quantity > resource.availableQuantity) {
-        return 'Only ${resource.availableQuantity} ${resource.name} available';
+      if (line.quantity > resource.effectiveAvailableCount) {
+        return resource.isService
+            ? 'Only ${resource.effectiveAvailableCount} responders available for ${resource.name}'
+            : 'Only ${resource.effectiveAvailableCount} ${resource.name} available';
       }
 
       if (!ids.add(resource.id)) {
@@ -553,8 +557,9 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
             setState(() {
               line.resourceId = value;
               final picked = resourceById(value);
-              if (picked != null && line.quantity > picked.availableQuantity) {
-                line.quantity = picked.availableQuantity;
+              if (picked != null &&
+                  line.quantity > picked.effectiveAvailableCount) {
+                line.quantity = picked.effectiveAvailableCount;
               }
               if (line.quantity < 1) line.quantity = 1;
               errorMessage = null;

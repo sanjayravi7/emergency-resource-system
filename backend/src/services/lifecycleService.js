@@ -47,11 +47,23 @@ async function syncResponderAvailability(tx, responderId) {
   if (activeEmergency || unfinishedAllocation) {
     responderStatus = 'BUSY';
   } else if (responder.isActive) {
+    // A capability is "usable" when it is enabled and its catalog resource is
+    // active. SERVICE resources are reusable responder capabilities: they are
+    // never depleted, so quantity is irrelevant. CONSUMABLE resources still
+    // require real spendable inventory.
     const usableEnabledResource = await tx.responderResource.findFirst({
       where: {
-        responderId: numericResponderId,
-        isEnabled: true,
-        availableQuantity: { gt: 0 },
+        AND: [
+          { responderId: numericResponderId },
+          { isEnabled: true },
+          { resource: { isActive: true } },
+          {
+            OR: [
+              { resource: { mode: 'SERVICE' } },
+              { availableQuantity: { gt: 0 } },
+            ],
+          },
+        ],
       },
       select: { id: true },
     });

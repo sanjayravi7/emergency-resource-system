@@ -281,6 +281,12 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     final unit = resource.unit == null || resource.unit!.isEmpty
         ? 'unit'
         : resource.unit!;
+    // SERVICE resources (e.g. Ambulance, Volunteer) are a reusable
+    // responder capability: selection is the checkbox alone, there is no
+    // inventory to size. CONSUMABLE resources (e.g. Blood) still pair the
+    // checkbox with the quantity the responder is carrying. This branches
+    // strictly on resource.mode, coming from the backend.
+    final isService = resource.isService;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -307,20 +313,24 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                         style: const TextStyle(
                             fontSize: 13.5, fontWeight: FontWeight.w600)),
                     Text(
-                      row == null
-                          ? 'No responder inventory assigned'
-                          : '$available / ${row.totalQuantity} $unit · ${row.status}',
+                      isService
+                          ? 'Reusable capability · no inventory to track'
+                          : row == null
+                              ? 'No responder inventory assigned'
+                              : '$available / ${row.totalQuantity} $unit · ${row.status}',
                       style: const TextStyle(
                           fontSize: 11.5, color: AppColors.textFaint),
                     ),
                   ],
                 ),
               ),
-              Text('$available $unit',
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textDim)),
+              if (!isService)
+                Text('$available $unit',
+                    style: const TextStyle(
+                        fontSize: 12.5, color: AppColors.textDim)),
             ],
           ),
-          if (_showQuantityControls && row != null)
+          if (!isService && _showQuantityControls && row != null)
             Padding(
               padding: const EdgeInsets.only(left: 48, right: 6, bottom: 4),
               child: Row(

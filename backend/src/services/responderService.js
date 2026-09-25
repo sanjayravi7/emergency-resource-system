@@ -1,4 +1,6 @@
 const prisma = require('../config/prisma');
+const { runSerializableTransaction } = require('./transactionService');
+const { syncResponderAvailability } = require('./lifecycleService');
 
 exports.updateResponderStatus = async (userId, status) =>
   prisma.user.update({
@@ -35,13 +37,30 @@ exports.heartbeat = async (userId) => {
   });
 };
 
+// Logging out signals "stop matching me" but must never hide committed work:
+// the authoritative helper runs immediately afterwards, so a responder with
+// an active emergency or an unfinished (RESERVED/DISPATCHED) allocation is
+// correctly reported back as BUSY instead of a misleading OFFLINE.
 exports.logoutResponder = async (userId) =>
-  prisma.user.update({
-    where: { id: Number(userId) },
-    data: {
-      responderStatus: 'OFFLINE',
-      lastActiveAt: new Date(),
-    },
+  runSerializableTransaction(async (tx) => {
+    const numericUserId = Number(userId);
+    const responder = await tx.user.findUnique({
+      where: { id: numericUserId },
+      select: { id: true, role: true },
+    });
+    if (!responder || responder.role !== 'RESPONDER') {
+      throw new Error('Responder not found');
+    }
+
+    await tx.user.update({
+      where: { id: numericUserId },
+      data: {
+        responderStatus: 'OFFLINE',
+        lastActiveAt: new Date(),
+      },
+    });
+
+    return syncResponderAvailability(tx, numericUserId);
   });
 
 exports.getResponders = async () =>

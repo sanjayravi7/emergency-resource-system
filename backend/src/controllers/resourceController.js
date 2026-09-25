@@ -30,6 +30,15 @@ exports.getAllResources = async (req, res, next) => {
   }
 };
 
+exports.getResourceAvailability = async (req, res, next) => {
+  try {
+    const resources = await resourceService.getResourceAvailability();
+    res.json({ success: true, resources });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getLowStockResources = async (req, res, next) => {
   try {
     const resources = await resourceService.getLowStockResources();

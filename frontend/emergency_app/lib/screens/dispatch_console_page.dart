@@ -129,10 +129,32 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     try {
       final data = await ApiService.getResources(includeInactive: isAdmin);
 
-      final loaded = data
+      var loaded = data
           .map((item) =>
               BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
           .toList();
+
+      // Merge in live availability ("N responders available" for SERVICE,
+      // real inventory for CONSUMABLE) so the requester form never has to
+      // guess or hardcode a count. Best-effort: if this call fails the
+      // catalog still loads with its own (already correct for CONSUMABLE)
+      // numbers.
+      try {
+        final availabilityData = await ApiService.getResourceAvailability();
+        final availabilityRows = availabilityData
+            .map((item) => ResourceAvailability.fromJson(
+                Map<String, dynamic>.from(item as Map)))
+            .toList();
+        final availabilityById = <int, ResourceAvailability>{
+          for (final row in availabilityRows) row.id: row,
+        };
+        loaded = loaded
+            .map((resource) =>
+                resource.withAvailability(availabilityById[resource.id]))
+            .toList();
+      } catch (_) {
+        // Non-fatal: fall back to the plain catalog numbers.
+      }
 
       if (!mounted) return;
 

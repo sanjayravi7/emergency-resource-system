@@ -117,7 +117,7 @@ exports.createAllocation = async (responderId, data) => {
 
     const catalogResource = await tx.resource.findUnique({
       where: { id: resourceId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, mode: true },
     });
     if (!catalogResource || !catalogResource.isActive) {
       throw new Error('Resource is not active');
@@ -145,21 +145,29 @@ exports.createAllocation = async (responderId, data) => {
         `Allocation exceeds the remaining required quantity (${outstanding} left)`
       );
     }
-    if (responderResource.availableQuantity < quantity) {
-      throw new Error('Not enough available quantity');
-    }
 
-    const remainingAvailableQuantity =
-      responderResource.availableQuantity - quantity;
-    await tx.responderResource.update({
-      where: { id: responderResourceId },
-      data: {
-        availableQuantity: remainingAvailableQuantity,
-        // Availability status follows actual stock. It is deliberately not a
-        // durable willingness flag; isEnabled remains unchanged.
-        ...(remainingAvailableQuantity === 0 ? { status: 'UNAVAILABLE' } : {}),
-      },
-    });
+    if (catalogResource.mode === 'CONSUMABLE') {
+      if (responderResource.availableQuantity < quantity) {
+        throw new Error('Not enough available quantity');
+      }
+
+      const remainingAvailableQuantity =
+        responderResource.availableQuantity - quantity;
+      await tx.responderResource.update({
+        where: { id: responderResourceId },
+        data: {
+          availableQuantity: remainingAvailableQuantity,
+          // Availability status follows actual stock. It is deliberately not a
+          // durable willingness flag; isEnabled remains unchanged.
+          ...(remainingAvailableQuantity === 0 ? { status: 'UNAVAILABLE' } : {}),
+        },
+      });
+    }
+    // SERVICE resources are reusable responder capabilities: no quantity
+    // check and no inventory decrement. The responder can provide the same
+    // SERVICE resource unlimited sequential times; their only limitation is
+    // current availability (enforced by responderStatus/BUSY tracking), not
+    // a lifetime-use counter.
 
     const allocation = await tx.allocation.create({
       data: {
@@ -200,27 +208,36 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
     }
 
     if (status === 'CANCELLED') {
-      const responderResource = await lockResponderResource(
-        tx,
-        allocation.responderResourceId
-      );
-      if (!responderResource) throw new Error('Responder resource not found');
-
-      const restoredQuantity =
-        responderResource.availableQuantity + allocation.quantity;
-      if (restoredQuantity > responderResource.totalQuantity) {
-        throw new Error('Inventory restoration would exceed total quantity');
-      }
-
-      await tx.responderResource.update({
-        where: { id: allocation.responderResourceId },
-        data: {
-          availableQuantity: restoredQuantity,
-          ...(responderResource.isEnabled && restoredQuantity > 0
-            ? { status: 'AVAILABLE' }
-            : {}),
-        },
+      const resourceRow = await tx.resource.findUnique({
+        where: { id: allocation.resourceId },
+        select: { mode: true },
       });
+
+      // SERVICE allocations never decremented inventory, so cancelling one
+      // must never "restore" inventory either - that would fabricate stock.
+      if (!resourceRow || resourceRow.mode === 'CONSUMABLE') {
+        const responderResource = await lockResponderResource(
+          tx,
+          allocation.responderResourceId
+        );
+        if (!responderResource) throw new Error('Responder resource not found');
+
+        const restoredQuantity =
+          responderResource.availableQuantity + allocation.quantity;
+        if (restoredQuantity > responderResource.totalQuantity) {
+          throw new Error('Inventory restoration would exceed total quantity');
+        }
+
+        await tx.responderResource.update({
+          where: { id: allocation.responderResourceId },
+          data: {
+            availableQuantity: restoredQuantity,
+            ...(responderResource.isEnabled && restoredQuantity > 0
+              ? { status: 'AVAILABLE' }
+              : {}),
+          },
+        });
+      }
     }
 
     const updated = await tx.allocation.update({

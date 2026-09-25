@@ -55,6 +55,64 @@ exports.getResourceById = async (id) => {
 };
 
 /**
+ * Availability for every active resource, shaped for the requester UI.
+ *
+ * - SERVICE resources are reusable responder capabilities: availability is
+ *   the count of active, currently AVAILABLE responders with that exact
+ *   resource enabled. Quantity never applies.
+ * - CONSUMABLE resources are spent from inventory: availability is the
+ *   current catalog availableQuantity. Responder counts never apply.
+ *
+ * Business logic branches on Resource.mode only - never on name/type.
+ */
+exports.getResourceAvailability = async () => {
+  const resources = await prisma.resource.findMany({
+    where: { isActive: true },
+    orderBy: [{ name: 'asc' }],
+  });
+
+  return Promise.all(
+    resources.map(async (resource) => {
+      if (resource.mode === 'SERVICE') {
+        const availableResponders = await prisma.responderResource.count({
+          where: {
+            resourceId: resource.id,
+            isEnabled: true,
+            responder: {
+              role: 'RESPONDER',
+              isActive: true,
+              responderStatus: 'AVAILABLE',
+            },
+          },
+        });
+
+        return {
+          id: resource.id,
+          name: resource.name,
+          type: resource.type,
+          mode: resource.mode,
+          unit: resource.unit,
+          availableResponders,
+          // Never expose a misleading quantity for a reusable capability.
+          availableQuantity: null,
+        };
+      }
+
+      return {
+        id: resource.id,
+        name: resource.name,
+        type: resource.type,
+        mode: resource.mode,
+        unit: resource.unit,
+        // Never expose a misleading responder count for a consumable.
+        availableResponders: null,
+        availableQuantity: resource.availableQuantity,
+      };
+    })
+  );
+};
+
+/**
  * Low-stock visibility: availableQuantity <= lowStockThreshold.
  * Uses a raw query because the comparison is column-to-column.
  */

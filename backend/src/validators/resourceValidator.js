@@ -3,6 +3,8 @@
  * These are pure functions so they can be unit tested without a database.
  */
 
+const VALID_RESOURCE_MODES = ["SERVICE", "CONSUMABLE"];
+
 function isNonNegativeInteger(value) {
   return Number.isInteger(value) && value >= 0;
 }
@@ -83,6 +85,14 @@ function validateResourceInput(data, options = {}, existing = null) {
     return "isActive must be a boolean";
   }
 
+  if (data.mode !== undefined) {
+    if (!VALID_RESOURCE_MODES.includes(String(data.mode))) {
+      return `Invalid mode. Valid modes: ${VALID_RESOURCE_MODES.join(", ")}`;
+    }
+  } else if (!partial) {
+    // Default handled by normalizeResourceInput / the Prisma column default.
+  }
+
   return null;
 }
 
@@ -100,6 +110,10 @@ function normalizeResourceInput(data, options = {}) {
 
   if (data.type !== undefined) {
     normalized.type = String(data.type).trim();
+  }
+
+  if (data.mode !== undefined) {
+    normalized.mode = String(data.mode);
   }
 
   if (data.totalQuantity !== undefined) {
@@ -137,6 +151,7 @@ function normalizeResourceInput(data, options = {}) {
 }
 
 module.exports = {
+  VALID_RESOURCE_MODES,
   validateResourceInput,
   normalizeResourceInput,
 };
