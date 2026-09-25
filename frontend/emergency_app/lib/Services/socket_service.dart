@@ -33,6 +33,19 @@ class SocketService {
       StreamController<SocketConnectionState>.broadcast();
   bool _disposed = false;
 
+  static const List<String> _serverEventNames = <String>[
+    'socket.authenticated',
+    'socket.error',
+    'socket.invalidated',
+    'request.created',
+    'request.updated',
+    'allocation.updated',
+    'responder.availability',
+    'responder.location.start',
+    'responder.location.update',
+    'responder.location.stop',
+  ];
+
   Stream<RealtimeEvent> get events => _events.stream;
   Stream<SocketConnectionState> get connectionStates => _connection.stream;
   bool get isConnected => _socket?.connected == true;
@@ -75,18 +88,9 @@ class SocketService {
       ));
     });
 
-    for (final name in <String>[
-      'socket.authenticated',
-      'socket.error',
-      'request.created',
-      'request.updated',
-      'allocation.updated',
-      'responder.availability',
-      'responder.location.start',
-      'responder.location.update',
-      'responder.location.stop',
-    ]) {
+    for (final name in _serverEventNames) {
       socket.on(name, (dynamic value) {
+        if (_disposed) return;
         final payload = value is Map
             ? Map<String, dynamic>.from(value)
             : <String, dynamic>{'value': value};
@@ -104,7 +108,11 @@ class SocketService {
     _socket = null;
     if (socket != null) {
       // Dropping the socket after disconnect also drops its listener graph;
-      // the next authenticated session creates one clean socket instance.
+      // remove our named event handlers first so a forced logout/deactivation
+      // cannot leave stale callbacks around if the package delays teardown.
+      for (final name in _serverEventNames) {
+        socket.off(name);
+      }
       socket.disconnect();
     }
     _connection.add(const SocketConnectionState(connected: false));

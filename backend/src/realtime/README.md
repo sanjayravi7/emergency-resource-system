@@ -7,6 +7,13 @@ fresh PostgreSQL snapshot through the Socket.IO instance created by
 
 ## Events
 
+- `socket.authenticated`: `{ userId, role, timestamp }` confirms the current
+  database-derived identity.
+- `socket.invalidated`: `{ code, message, timestamp }` is emitted before a
+  connected socket is closed because PostgreSQL no longer considers the user
+  active/valid.
+- `socket.error`: `{ code, message, ... }` reports rejected protected socket
+  actions such as forbidden room joins or rate-limited GPS updates.
 - `request.created`: `{ requestId, emergencyType, location, latitude,
   longitude, priority, requiredResources, requester, createdAt, request }`.
   It is sent only to the `user:{id}` rooms of compatible active responders,
@@ -21,15 +28,23 @@ fresh PostgreSQL snapshot through the Socket.IO instance created by
   `responder.location.stop`: `{ requestId, responderId, latitude,
   longitude, timestamp }` where coordinates are present for update.
 
-`socket.authenticated` confirms the database-derived identity. Clients may
-request `request.subscribe`, but membership is checked against PostgreSQL.
-A requester can subscribe only to their own request, and a responder only to a
-request assigned to them. Admin subscriptions are allowed for operational
-visibility.
+Clients may request `request.subscribe`, but membership is checked against
+PostgreSQL. A requester can subscribe only to their own request, and a
+responder only to a request assigned to them. Admin subscriptions are allowed
+for operational visibility.
 
 Location updates are validated against the authenticated responder's current
 assignment and an active request. They are broadcast only through the
-authorized request room. The latest coordinate is persisted to `User` at most
-once every ten seconds; high-frequency movement remains a Socket.IO concern.
+authorized request room. High-frequency movement remains a Socket.IO concern;
+PostgreSQL stores only the throttled latest coordinate on `User`. The defaults
+are configurable with:
+
+- `SOCKET_LOCATION_MAX_UPDATES_PER_WINDOW` (default `10`)
+- `SOCKET_LOCATION_RATE_WINDOW_MS` (default `1000`)
+- `SOCKET_LOCATION_PERSIST_INTERVAL_MS` (default `10000`)
+- `SOCKET_SESSION_REVALIDATE_MS` (default `30000`)
+
 Terminal request snapshots emit a location stop event and subsequent location
-updates are rejected.
+updates are rejected. Connected sockets periodically re-read the database user
+row and also revalidate before protected socket actions, so deactivated users
+cannot keep using a previously valid JWT session indefinitely.

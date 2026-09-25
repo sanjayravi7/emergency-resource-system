@@ -424,9 +424,13 @@ class BoardPanel extends StatelessWidget {
                       ),
                     if (liveLocations[request.id] != null)
                       Text(
-                        'LIVE · ${liveLocations[request.id]!.latitude.toStringAsFixed(5)}, ${liveLocations[request.id]!.longitude.toStringAsFixed(5)}',
-                        style: const TextStyle(
-                            fontSize: 10.5, color: AppColors.teal),
+                        '${liveLocations[request.id]!.isLive ? 'LIVE' : 'LAST'} · ${liveLocations[request.id]!.latitude.toStringAsFixed(5)}, ${liveLocations[request.id]!.longitude.toStringAsFixed(5)}',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: liveLocations[request.id]!.isLive
+                              ? AppColors.teal
+                              : AppColors.textFaint,
+                        ),
                       ),
                   ],
                 ),
@@ -589,7 +593,9 @@ class _RequestCard extends StatelessWidget {
           if (liveLocation != null) ...[
             const SizedBox(height: 6),
             InfoChip(
-              label: 'Live responder position',
+              label: liveLocation!.isLive
+                  ? 'Live responder position'
+                  : 'Last responder position',
               value:
                   '${liveLocation!.latitude.toStringAsFixed(5)}, ${liveLocation!.longitude.toStringAsFixed(5)} · updated ${formatDateTime(liveLocation!.updatedAt)}',
             ),

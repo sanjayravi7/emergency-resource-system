@@ -72,4 +72,27 @@ describe('Socket room and location authorization', () => {
     prisma.emergencyRequest.findFirst.mockResolvedValue(null);
     await expect(requestForResponder(55, 21)).resolves.toBeNull();
   });
+
+  test('an inactive database user invalidates an already-connected socket before protected actions', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      ...user(20, 'RESPONDER'),
+      isActive: false,
+    });
+
+    const socket = {
+      user: user(20, 'RESPONDER'),
+      emit: jest.fn(),
+      disconnect: jest.fn(),
+      data: {},
+    };
+
+    await expect(canSubscribe(socket, 55)).resolves.toBe(false);
+    expect(socket.emit).toHaveBeenCalledWith(
+      'socket.invalidated',
+      expect.objectContaining({ code: 'USER_INACTIVE' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+    expect(prisma.emergencyRequest.findUnique).not.toHaveBeenCalled();
+  });
 });
