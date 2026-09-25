@@ -68,6 +68,8 @@ class BackendResource {
     required this.lowStockThreshold,
     this.unit,
     this.location,
+    this.mode = 'CONSUMABLE',
+    this.availableResponders,
   });
 
   final int id;
@@ -80,16 +82,66 @@ class BackendResource {
   final String? unit;
   final String? location;
 
-  bool get isOutOfStock => availableQuantity <= 0;
+  /// SERVICE (reusable responder capability, e.g. Ambulance) or CONSUMABLE
+  /// (spent from inventory, e.g. Blood). Always comes from the backend -
+  /// never inferred from `name`/`type` here.
+  final String mode;
 
-  bool get isLowStock => !isOutOfStock && availableQuantity <= lowStockThreshold;
+  /// Only meaningful for SERVICE resources: the live count of active,
+  /// AVAILABLE responders with this exact resource enabled, as returned by
+  /// GET /api/resources/availability. Null until that endpoint has been
+  /// merged in (see [withAvailability]).
+  final int? availableResponders;
+
+  bool get isService => mode == 'SERVICE';
+
+  /// Returns a copy with the live availability numbers from
+  /// GET /api/resources/availability merged in. CONSUMABLE resources keep
+  /// their catalog `availableQuantity` (already authoritative); SERVICE
+  /// resources gain the live responder count.
+  BackendResource withAvailability(ResourceAvailability? availability) {
+    if (availability == null) return this;
+    return BackendResource(
+      id: id,
+      name: name,
+      type: type,
+      totalQuantity: totalQuantity,
+      availableQuantity: isService
+          ? availableQuantity
+          : (availability.availableQuantity ?? availableQuantity),
+      isActive: isActive,
+      lowStockThreshold: lowStockThreshold,
+      unit: unit,
+      location: location,
+      mode: mode,
+      availableResponders: availability.availableResponders,
+    );
+  }
+
+  /// Unified "how many can I request right now" count: a responder count
+  /// for SERVICE resources, real inventory for CONSUMABLE resources. Never
+  /// hardcoded - both halves come straight from the backend.
+  int get effectiveAvailableCount =>
+      isService ? (availableResponders ?? 0) : availableQuantity;
+
+  bool get isOutOfStock => effectiveAvailableCount <= 0;
+
+  bool get isLowStock =>
+      !isService && !isOutOfStock && availableQuantity <= lowStockThreshold;
 
   bool get isSelectable => isActive && !isOutOfStock;
 
-  /// "10 / 10 vehicle" or "Out of stock"
+  /// "10 / 10 vehicle", "4 responders available" or "Out of stock"
   String get availabilityLabel {
     if (!isActive) return 'Inactive';
-    if (isOutOfStock) return 'Out of stock';
+    if (isOutOfStock) {
+      return isService ? 'No responders available' : 'Out of stock';
+    }
+
+    if (isService) {
+      final count = effectiveAvailableCount;
+      return '$count responder${count == 1 ? '' : 's'} available';
+    }
 
     final suffix = (unit == null || unit!.isEmpty) ? 'available' : unit!;
     return '$availableQuantity / $totalQuantity $suffix';
@@ -97,7 +149,14 @@ class BackendResource {
 
   String get shortAvailability {
     if (!isActive) return 'inactive';
-    if (isOutOfStock) return 'out of stock';
+    if (isOutOfStock) {
+      return isService ? 'no responders available' : 'out of stock';
+    }
+
+    if (isService) {
+      final count = effectiveAvailableCount;
+      return '$count responder${count == 1 ? '' : 's'} available';
+    }
 
     final suffix = (unit == null || unit!.isEmpty) ? 'available' : '$unit available';
     return '$availableQuantity $suffix';
@@ -116,6 +175,65 @@ class BackendResource {
       lowStockThreshold: _asInt(json['lowStockThreshold'], fallback: 1),
       unit: _asTrimmedString(json['unit']),
       location: _asTrimmedString(json['location']),
+      // Older backends without the ResourceMode migration still work: a
+      // missing mode is treated as CONSUMABLE, matching the database default.
+      mode: _asTrimmedString(json['mode']) ?? 'CONSUMABLE',
+    );
+  }
+}
+
+/// One row from GET /api/resources/availability: the live "N responders
+/// available" / "N units available" numbers shown to requesters. Both
+/// numbers are computed by PostgreSQL/Prisma - this class only parses them.
+class ResourceAvailability {
+  const ResourceAvailability({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.mode,
+    this.unit,
+    this.availableResponders,
+    this.availableQuantity,
+  });
+
+  final int id;
+  final String name;
+  final String type;
+  final String mode;
+  final String? unit;
+
+  /// SERVICE only - count of active, AVAILABLE responders with this
+  /// resource enabled. Null for CONSUMABLE resources.
+  final int? availableResponders;
+
+  /// CONSUMABLE only - current catalog inventory. Null for SERVICE
+  /// resources.
+  final int? availableQuantity;
+
+  bool get isService => mode == 'SERVICE';
+
+  /// "4 responders available" or "18 units available", straight from the
+  /// backend - never a hardcoded count.
+  String get label {
+    if (isService) {
+      final count = availableResponders ?? 0;
+      return '$count responder${count == 1 ? '' : 's'} available';
+    }
+
+    final count = availableQuantity ?? 0;
+    final suffix = (unit == null || unit!.isEmpty) ? 'units' : unit!;
+    return '$count $suffix available';
+  }
+
+  factory ResourceAvailability.fromJson(Map<String, dynamic> json) {
+    return ResourceAvailability(
+      id: _asInt(json['id']),
+      name: json['name']?.toString() ?? 'Unknown resource',
+      type: json['type']?.toString() ?? '',
+      mode: _asTrimmedString(json['mode']) ?? 'CONSUMABLE',
+      unit: _asTrimmedString(json['unit']),
+      availableResponders: _asIntOrNull(json['availableResponders']),
+      availableQuantity: _asIntOrNull(json['availableQuantity']),
     );
   }
 }

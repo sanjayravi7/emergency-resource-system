@@ -57,13 +57,19 @@ exports.createEmergencyRequest = async (userId, data) => {
     if (!resource.isActive) {
       throw new Error(`Resource "${resource.name}" is not active`);
     }
-    if (resource.availableQuantity <= 0) {
-      throw new Error(`Resource "${resource.name}" is out of stock`);
-    }
-    if (required.quantity > resource.availableQuantity) {
-      throw new Error(
-        `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
-      );
+
+    // SERVICE resources are reusable responder capabilities, not inventory.
+    // Their availability is a function of responder capacity at
+    // matching/acceptance time, never a static catalog quantity.
+    if (resource.mode === 'CONSUMABLE') {
+      if (resource.availableQuantity <= 0) {
+        throw new Error(`Resource "${resource.name}" is out of stock`);
+      }
+      if (required.quantity > resource.availableQuantity) {
+        throw new Error(
+          `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
+        );
+      }
     }
   }
 
@@ -146,7 +152,7 @@ exports.cancelEmergencyRequest = async (userId, id) => {
 
     for (const candidate of candidates) {
       const lockedAllocations = await tx.$queryRaw`
-        SELECT id, "responderId", "responderResourceId", quantity, status
+        SELECT id, "responderId", "responderResourceId", "resourceId", quantity, status
         FROM "Allocation"
         WHERE id = ${candidate.id}
         FOR UPDATE
@@ -159,30 +165,40 @@ exports.cancelEmergencyRequest = async (userId, id) => {
         continue;
       }
 
-      const lockedResources = await tx.$queryRaw`
-        SELECT id, "availableQuantity", "totalQuantity", "isEnabled", status
-        FROM "ResponderResource"
-        WHERE id = ${allocation.responderResourceId}
-        FOR UPDATE
-      `;
-      const responderResource = lockedResources[0];
-      if (!responderResource) throw new Error('Responder resource not found');
-
-      const restoredQuantity =
-        responderResource.availableQuantity + allocation.quantity;
-      if (restoredQuantity > responderResource.totalQuantity) {
-        throw new Error('Inventory restoration would exceed total quantity');
-      }
-
-      await tx.responderResource.update({
-        where: { id: allocation.responderResourceId },
-        data: {
-          availableQuantity: restoredQuantity,
-          ...(responderResource.isEnabled && restoredQuantity > 0
-            ? { status: 'AVAILABLE' }
-            : {}),
-        },
+      const allocationResource = await tx.resource.findUnique({
+        where: { id: allocation.resourceId },
+        select: { mode: true },
       });
+
+      // Restore inventory only for CONSUMABLE allocations that were not
+      // DELIVERED. SERVICE allocations never decremented inventory, so
+      // cancelling them must never fabricate stock.
+      if (!allocationResource || allocationResource.mode === 'CONSUMABLE') {
+        const lockedResources = await tx.$queryRaw`
+          SELECT id, "availableQuantity", "totalQuantity", "isEnabled", status
+          FROM "ResponderResource"
+          WHERE id = ${allocation.responderResourceId}
+          FOR UPDATE
+        `;
+        const responderResource = lockedResources[0];
+        if (!responderResource) throw new Error('Responder resource not found');
+
+        const restoredQuantity =
+          responderResource.availableQuantity + allocation.quantity;
+        if (restoredQuantity > responderResource.totalQuantity) {
+          throw new Error('Inventory restoration would exceed total quantity');
+        }
+
+        await tx.responderResource.update({
+          where: { id: allocation.responderResourceId },
+          data: {
+            availableQuantity: restoredQuantity,
+            ...(responderResource.isEnabled && restoredQuantity > 0
+              ? { status: 'AVAILABLE' }
+              : {}),
+          },
+        });
+      }
       await tx.allocation.update({
         where: { id: allocation.id },
         data: { status: 'CANCELLED' },
@@ -242,14 +258,14 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   });
   if (activeEmergency) return [];
 
-  // A capability must explicitly be enabled and presently available. Joining
-  // the resource catalog ensures a disabled catalog resource cannot match.
+  // A capability must explicitly be enabled. Joining the resource catalog
+  // ensures a disabled/inactive catalog resource can never match. Quantity
+  // and status are only meaningful for CONSUMABLE resources, so they are
+  // evaluated per-mode below rather than filtered out of this query.
   const responderResources = await prisma.responderResource.findMany({
     where: {
       responderId: numericResponderId,
       isEnabled: true,
-      status: 'AVAILABLE',
-      availableQuantity: { gt: 0 },
       resource: { isActive: true },
     },
     select: {
@@ -257,6 +273,7 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
       availableQuantity: true,
       status: true,
       isEnabled: true,
+      resource: { select: { mode: true, isActive: true } },
     },
   });
 
@@ -270,13 +287,25 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
     if (!request.requiredResources.length) return false;
 
     return request.requiredResources.every((required) => {
+      if (!required.resource.isActive) return false;
+
       // Strict integer resourceId matching; names/types are never used.
-      const matchingResource = responderResources.find(
-        (resource) =>
-          resource.resourceId === required.resourceId &&
-          resource.availableQuantity >= required.quantity
+      const candidate = responderResources.find(
+        (resource) => resource.resourceId === required.resourceId
       );
-      return Boolean(matchingResource && required.resource.isActive);
+      if (!candidate || !candidate.resource.isActive) return false;
+
+      if (candidate.resource.mode === 'SERVICE') {
+        // Reusable capability: isEnabled + active resource is sufficient.
+        // Quantity/status never gate a SERVICE match.
+        return true;
+      }
+
+      // CONSUMABLE: the responder must have real, available inventory.
+      return (
+        candidate.status === 'AVAILABLE' &&
+        candidate.availableQuantity >= required.quantity
+      );
     });
   });
 };
@@ -341,7 +370,8 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     // made after GET /compatible cannot race this acceptance.
     const responderResources = await tx.$queryRaw`
       SELECT rr.id, rr."resourceId", rr."availableQuantity", rr.status,
-             rr."isEnabled", resource."isActive" AS "resourceIsActive"
+             rr."isEnabled", resource."isActive" AS "resourceIsActive",
+             resource."mode" AS "resourceMode"
       FROM "ResponderResource" AS rr
       INNER JOIN "Resource" AS resource ON resource.id = rr."resourceId"
       WHERE rr."responderId" = ${numericResponderId}
@@ -349,14 +379,22 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     `;
 
     for (const required of requiredResources) {
-      const matching = responderResources.find(
-        (resource) =>
-          resource.resourceId === required.resourceId &&
-          resource.isEnabled === true &&
+      const matching = responderResources.find((resource) => {
+        if (resource.resourceId !== required.resourceId) return false;
+        if (!resource.isEnabled || !resource.resourceIsActive) return false;
+
+        if (resource.resourceMode === 'SERVICE') {
+          // Reusable capability: no quantity ceiling and no dependence on
+          // the ResponderResource.status column (that column only tracks
+          // consumable stock availability).
+          return true;
+        }
+
+        return (
           resource.status === 'AVAILABLE' &&
-          resource.resourceIsActive === true &&
           resource.availableQuantity >= required.quantity
-      );
+        );
+      });
       if (!matching) {
         throw new Error('Responder does not have the required resource available');
       }

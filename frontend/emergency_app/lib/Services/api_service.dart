@@ -272,6 +272,26 @@ class ApiService {
     return body['resources'] ?? [];
   }
 
+  /// Live availability for every active resource. SERVICE resources come
+  /// back with `availableResponders` (a responder count); CONSUMABLE
+  /// resources come back with `availableQuantity` (real inventory). The UI
+  /// never computes either number itself - PostgreSQL is the source of
+  /// truth for both.
+  static Future<List<dynamic>> getResourceAvailability() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/resources/availability'),
+      headers: _headers,
+    );
+
+    final body = _decode(response);
+
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to load resource availability');
+    }
+
+    return body['resources'] ?? [];
+  }
+
   static Future<List<dynamic>> getLowStockResources() async {
     final response = await http.get(
       Uri.parse('$baseUrl/resources/low-stock'),

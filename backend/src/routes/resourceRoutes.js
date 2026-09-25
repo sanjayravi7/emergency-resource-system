@@ -8,6 +8,16 @@ const authorizeRoles = require('../middleware/roleMiddleware');
 // Requesters/responders only receive ACTIVE resources (see controller).
 router.get('/', authenticate, resourceController.getAllResources);
 
+// Live availability for every active resource (SERVICE -> responder count,
+// CONSUMABLE -> inventory). Every authenticated role may read it; requesters
+// use it to show "N responders available" / "N units available" while
+// building a request. Declared before '/:id' so it is not swallowed by it.
+router.get(
+  '/availability',
+  authenticate,
+  resourceController.getResourceAvailability
+);
+
 // Low stock overview (ADMIN). Declared before '/:id' so it is not
 // swallowed by the id route.
 router.get(

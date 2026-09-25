@@ -45,6 +45,15 @@ enum ResourceStatus {
   UNAVAILABLE
 }
 
+// SERVICE resources (e.g. Ambulance, Volunteer, Fire Resource, Rescue Boat)
+// are reusable responder capabilities. CONSUMABLE resources (e.g. Blood,
+// Oxygen, Water, Medicine) are spent from inventory. Business logic must
+// branch on this column and never infer mode from a resource name.
+enum ResourceMode {
+  SERVICE
+  CONSUMABLE
+}
+
 enum AllocationStatus {
   RESERVED
   DISPATCHED
@@ -144,6 +153,12 @@ model Resource {
 
   name String @unique
   type String
+
+  // Defaults to CONSUMABLE so every existing resource keeps its current
+  // inventory-driven behaviour. totalQuantity and availableQuantity remain
+  // required for CONSUMABLE inventory tracking; SERVICE resources are
+  // reusable responder capabilities and are not decremented on allocation.
+  mode ResourceMode @default(CONSUMABLE)
 
   totalQuantity     Int @default(0)
   availableQuantity Int @default(0)
