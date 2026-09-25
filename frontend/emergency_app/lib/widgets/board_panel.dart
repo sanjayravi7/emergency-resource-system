@@ -20,6 +20,8 @@ class BoardPanel extends StatelessWidget {
     this.onAccept,
     this.onAllocate,
     this.onCancelRequest,
+    this.onDispatchAllocation,
+    this.onConfirmReceipt,
     this.isMobile = false,
   });
 
@@ -34,6 +36,8 @@ class BoardPanel extends StatelessWidget {
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onAllocate;
   final void Function(EmergencyRequest request)? onCancelRequest;
+  final void Function(AllocationLine allocation)? onDispatchAllocation;
+  final void Function(AllocationLine allocation)? onConfirmReceipt;
   final bool isMobile;
 
   bool _canAccept(EmergencyRequest request) =>
@@ -53,6 +57,27 @@ class BoardPanel extends StatelessWidget {
       role == 'REQUESTER' &&
       onCancelRequest != null &&
       request.canBeCancelledByRequester;
+
+  List<AllocationLine> _dispatchable(EmergencyRequest request) => request.allocations
+      .where((allocation) =>
+          role == 'RESPONDER' &&
+          allocation.responderId == currentUserId &&
+          allocation.isReserved)
+      .toList(growable: false);
+
+  List<AllocationLine> _receivable(EmergencyRequest request) => request.allocations
+      .where((allocation) =>
+          role == 'REQUESTER' && allocation.isDispatched)
+      .toList(growable: false);
+
+  String? _allocationStateText(EmergencyRequest request, int resourceId) {
+    final statuses = request.allocations
+        .where((allocation) => allocation.resourceId == resourceId)
+        .map((allocation) => allocation.status)
+        .toSet()
+        .join(' / ');
+    return statuses.isEmpty ? null : statuses;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +133,45 @@ class BoardPanel extends StatelessWidget {
           child: const Text('Allocate', style: TextStyle(fontSize: 12)),
         ),
       );
+    }
+
+    if (onDispatchAllocation != null) {
+      for (final allocation in _dispatchable(request)) {
+        actions.add(
+          OutlinedButton(
+            onPressed: () => onDispatchAllocation!(allocation),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.blue,
+              side: const BorderSide(color: AppColors.blue),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            child: Text('Dispatch ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
+          ),
+        );
+      }
+    }
+
+    if (onConfirmReceipt != null) {
+      for (final allocation in _receivable(request)) {
+        actions.add(
+          FilledButton(
+            onPressed: () => onConfirmReceipt!(allocation),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.teal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            child: Text('Confirm received ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
+          ),
+        );
+      }
     }
 
     if (_canCancel(request)) {
@@ -235,8 +299,9 @@ class BoardPanel extends StatelessWidget {
                             name: line.resourceName,
                             type: line.resourceType,
                             quantity: line.quantity,
-                            trailingText:
-                                allocated > 0 ? '$allocated allocated' : null,
+                            trailingText: allocated > 0
+                                ? '$allocated allocated · ${_allocationStateText(request, line.resourceId) ?? ''}'
+                                : _allocationStateText(request, line.resourceId),
                           );
                         }).toList(),
                 ),
@@ -317,6 +382,14 @@ class _RequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final requester = request.requester;
+    String? allocationStateText(int resourceId) {
+      final statuses = request.allocations
+          .where((allocation) => allocation.resourceId == resourceId)
+          .map((allocation) => allocation.status)
+          .toSet()
+          .join(' / ');
+      return statuses.isEmpty ? null : statuses;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -407,8 +480,8 @@ class _RequestCard extends StatelessWidget {
                 type: line.resourceType,
                 quantity: line.quantity,
                 trailingText: request.allocatedFor(line.resourceId) > 0
-                    ? '${request.allocatedFor(line.resourceId)} allocated'
-                    : null,
+                    ? '${request.allocatedFor(line.resourceId)} allocated · ${allocationStateText(line.resourceId) ?? ''}'
+                    : allocationStateText(line.resourceId),
               ),
             ),
           const SizedBox(height: 8),

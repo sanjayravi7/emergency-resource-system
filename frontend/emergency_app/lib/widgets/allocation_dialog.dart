@@ -16,6 +16,7 @@ class AllocationDialog extends StatefulWidget {
     required this.inventoryProvider,
     required this.onAllocate,
     required this.onCancelAllocation,
+    required this.onDispatchAllocation,
   });
 
   final int requestId;
@@ -30,6 +31,7 @@ class AllocationDialog extends StatefulWidget {
   }) onAllocate;
 
   final Future<bool> Function(int allocationId) onCancelAllocation;
+  final Future<void> Function(AllocationLine allocation) onDispatchAllocation;
 
   @override
   State<AllocationDialog> createState() => _AllocationDialogState();
@@ -95,6 +97,13 @@ class _AllocationDialogState extends State<AllocationDialog> {
     }
   }
 
+  Future<void> dispatchAllocation(AllocationLine allocation) async {
+    setState(() => busy = true);
+    await widget.onDispatchAllocation(allocation);
+    if (!mounted) return;
+    setState(() => busy = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = request;
@@ -150,15 +159,36 @@ class _AllocationDialogState extends State<AllocationDialog> {
                                   style: const TextStyle(fontSize: 12),
                                 ),
                               ),
-                              TextButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => cancelAllocation(allocation.id),
-                                style: TextButton.styleFrom(
-                                    foregroundColor: AppColors.red),
-                                child: const Text('Cancel',
-                                    style: TextStyle(fontSize: 12)),
-                              ),
+                              if (allocation.isReserved)
+                                TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => dispatchAllocation(allocation),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.blue),
+                                  child: const Text('Dispatch',
+                                      style: TextStyle(fontSize: 12)),
+                                )
+                              else if (allocation.isDispatched)
+                                const Text('Awaiting receipt',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.amber))
+                              else if (allocation.isDelivered)
+                                const Text('Receipt confirmed',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.teal)),
+                              if (!allocation.isDelivered)
+                                TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => cancelAllocation(allocation.id),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.red),
+                                  child: const Text('Cancel',
+                                      style: TextStyle(fontSize: 12)),
+                                ),
                             ],
                           ),
                         ),

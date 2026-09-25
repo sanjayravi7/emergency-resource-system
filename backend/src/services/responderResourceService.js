@@ -1,9 +1,9 @@
 const prisma = require('../config/prisma');
+const { runSerializableTransaction } = require('./transactionService');
+const { syncResponderAvailability } = require('./lifecycleService');
 
 const VALID_RESOURCE_STATUSES = ['AVAILABLE', 'BUSY', 'UNAVAILABLE'];
 
-// Shared shape so responder inventory always carries the readable
-// responder + resource information (name, type, unit, location).
 const responderResourceInclude = {
   responder: {
     select: {
@@ -26,90 +26,210 @@ const responderResourceInclude = {
   },
 };
 
-const validateStatus = (status) => {
+function toInteger(value, field) {
+  const number = Number(value);
+  if (!Number.isInteger(number)) throw new Error(`${field} must be an integer`);
+  return number;
+}
+
+function validateStatus(status) {
   if (status === undefined) return;
   if (!VALID_RESOURCE_STATUSES.includes(status)) {
     throw new Error(
       `Invalid status. Valid statuses: ${VALID_RESOURCE_STATUSES.join(', ')}`
     );
   }
-};
+}
 
-const validateQuantities = (total, available) => {
-  if (total !== undefined && total < 0) throw new Error('Total quantity must be >= 0');
-  if (available !== undefined && available < 0) throw new Error('Available quantity must be >= 0');
-  if (total !== undefined && available !== undefined && available > total) {
+function validateBoolean(value, field) {
+  if (value !== undefined && typeof value !== 'boolean') {
+    throw new Error(`${field} must be a boolean`);
+  }
+}
+
+function validateQuantities(total, available) {
+  if (!Number.isInteger(total) || total < 0) {
+    throw new Error('Total quantity must be a non-negative integer');
+  }
+  if (!Number.isInteger(available) || available < 0) {
+    throw new Error('Available quantity must be a non-negative integer');
+  }
+  if (available > total) {
     throw new Error('Available quantity cannot exceed total quantity');
   }
-};
+}
 
-exports.getResourcesByResponder = async (responderId) => {
-  return await prisma.responderResource.findMany({
+function normaliseActor(actor) {
+  if (typeof actor === 'number') return { id: actor, role: 'RESPONDER' };
+  return actor;
+}
+
+function mutationData(data, existing, responder) {
+  validateStatus(data.status);
+  validateBoolean(data.isEnabled, 'isEnabled');
+
+  const totalQuantity =
+    data.totalQuantity === undefined
+      ? existing.totalQuantity
+      : toInteger(data.totalQuantity, 'Total quantity');
+  const availableQuantity =
+    data.availableQuantity === undefined
+      ? existing.availableQuantity
+      : toInteger(data.availableQuantity, 'Available quantity');
+  validateQuantities(totalQuantity, availableQuantity);
+
+  const isEnabled =
+    data.isEnabled === undefined ? existing.isEnabled : data.isEnabled;
+
+  let status = data.status === undefined ? existing.status : data.status;
+  // Zero inventory is never currently available, even if a stale client
+  // submits AVAILABLE. An explicit UNAVAILABLE/BUSY choice is otherwise kept.
+  if (availableQuantity === 0) {
+    status = 'UNAVAILABLE';
+  } else if (
+    data.status === undefined &&
+    isEnabled &&
+    availableQuantity > 0 &&
+    (data.isEnabled === true ||
+      (data.availableQuantity !== undefined && existing.status === 'UNAVAILABLE'))
+  ) {
+    // Readiness SAVE and a restock from zero should make stock usable without
+    // relying on the responder's previous overall status.
+    status = 'AVAILABLE';
+  }
+
+  return { totalQuantity, availableQuantity, isEnabled, status, responder };
+}
+
+exports.getResourcesByResponder = async (responderId) =>
+  prisma.responderResource.findMany({
     where: { responderId: Number(responderId) },
     include: responderResourceInclude,
     orderBy: { id: 'asc' },
   });
-};
 
-exports.addResource = async (responderId, data) => {
-  const total = data.totalQuantity || 0;
-  const avail = data.availableQuantity || 0;
-  validateQuantities(total, avail);
-  validateStatus(data.status);
+exports.addResource = async (actorInput, data) => {
+  const actor = normaliseActor(actorInput);
+  const resourceId = toInteger(data.resourceId, 'resourceId');
+  if (resourceId <= 0) throw new Error('A valid resourceId is required');
 
-  const resourceId = Number(data.resourceId);
+  const targetResponderId =
+    actor.role === 'ADMIN' && data.responderId !== undefined
+      ? toInteger(data.responderId, 'responderId')
+      : Number(actor.id);
 
-  if (!Number.isInteger(resourceId) || resourceId <= 0) {
-    throw new Error('A valid resourceId is required');
+  if (actor.role !== 'ADMIN' && targetResponderId !== Number(actor.id)) {
+    throw new Error('You can only manage your own resources');
   }
 
-  const resource = await prisma.resource.findUnique({
-    where: { id: resourceId },
-  });
-
-  if (!resource) throw new Error('Resource not found');
-
-  return await prisma.responderResource.create({
-    data: {
-      ...data,
-      resourceId,
-      responderId
-    },
-    include: responderResourceInclude,
-  });
-};
-
-exports.updateResource = async (responderId, id, data) => {
-  const resource = await prisma.responderResource.findUnique({ where: { id: Number(id) } });
-  if (!resource) throw new Error('Resource not found');
-  if (resource.responderId !== responderId) throw new Error('You can only manage your own resources');
-
-  const newTotal = data.totalQuantity !== undefined ? data.totalQuantity : resource.totalQuantity;
-  const newAvail = data.availableQuantity !== undefined ? data.availableQuantity : resource.availableQuantity;
-  validateQuantities(newTotal, newAvail);
+  const totalQuantity =
+    data.totalQuantity === undefined ? 0 : toInteger(data.totalQuantity, 'Total quantity');
+  const availableQuantity =
+    data.availableQuantity === undefined
+      ? 0
+      : toInteger(data.availableQuantity, 'Available quantity');
+  const isEnabled = data.isEnabled === undefined ? false : data.isEnabled;
+  validateBoolean(isEnabled, 'isEnabled');
   validateStatus(data.status);
+  validateQuantities(totalQuantity, availableQuantity);
 
-  return await prisma.responderResource.update({
-    where: { id: Number(id) },
-    data,
+  return runSerializableTransaction(async (tx) => {
+    const [catalogResource, responder] = await Promise.all([
+      tx.resource.findUnique({ where: { id: resourceId } }),
+      tx.user.findUnique({ where: { id: targetResponderId } }),
+    ]);
+    if (!catalogResource) throw new Error('Resource not found');
+    if (!responder || responder.role !== 'RESPONDER') {
+      throw new Error('Responder not found');
+    }
+
+    let status = data.status || 'UNAVAILABLE';
+    if (availableQuantity === 0) status = 'UNAVAILABLE';
+    else if (data.status === undefined && isEnabled) status = 'AVAILABLE';
+
+    const created = await tx.responderResource.create({
+      data: {
+        responderId: targetResponderId,
+        resourceId,
+        totalQuantity,
+        availableQuantity,
+        isEnabled,
+        status,
+      },
+      include: responderResourceInclude,
+    });
+
+    await syncResponderAvailability(tx, targetResponderId);
+    return created;
+  });
+};
+
+exports.updateResource = async (actorInput, id, data) => {
+  const actor = normaliseActor(actorInput);
+  const resourceRowId = toInteger(id, 'resource id');
+
+  return runSerializableTransaction(async (tx) => {
+    const locked = await tx.$queryRaw`
+      SELECT id, "responderId", "resourceId", "totalQuantity", "availableQuantity",
+             "isEnabled", status
+      FROM "ResponderResource"
+      WHERE id = ${resourceRowId}
+      FOR UPDATE
+    `;
+    const existing = locked[0];
+    if (!existing) throw new Error('Resource not found');
+    if (actor.role !== 'ADMIN' && existing.responderId !== Number(actor.id)) {
+      throw new Error('You can only manage your own resources');
+    }
+
+    const responder = await tx.user.findUnique({
+      where: { id: existing.responderId },
+      select: { id: true, role: true },
+    });
+    if (!responder || responder.role !== 'RESPONDER') {
+      throw new Error('Responder not found');
+    }
+
+    const next = mutationData(data, existing, responder);
+    const updated = await tx.responderResource.update({
+      where: { id: resourceRowId },
+      data: {
+        totalQuantity: next.totalQuantity,
+        availableQuantity: next.availableQuantity,
+        isEnabled: next.isEnabled,
+        status: next.status,
+      },
+      include: responderResourceInclude,
+    });
+
+    await syncResponderAvailability(tx, existing.responderId);
+    return updated;
+  });
+};
+
+exports.deleteResource = async (actorInput, id) => {
+  const actor = normaliseActor(actorInput);
+  const resourceRowId = toInteger(id, 'resource id');
+
+  return runSerializableTransaction(async (tx) => {
+    const existing = await tx.responderResource.findUnique({
+      where: { id: resourceRowId },
+    });
+    if (!existing) throw new Error('Resource not found');
+    if (actor.role !== 'ADMIN' && existing.responderId !== Number(actor.id)) {
+      throw new Error('You can only manage your own resources');
+    }
+
+    const deleted = await tx.responderResource.delete({
+      where: { id: resourceRowId },
+    });
+    await syncResponderAvailability(tx, existing.responderId);
+    return deleted;
+  });
+};
+
+exports.getAllResources = async () =>
+  prisma.responderResource.findMany({
     include: responderResourceInclude,
+    orderBy: { id: 'asc' },
   });
-};
-
-exports.deleteResource = async (responderId, id) => {
-  const resource = await prisma.responderResource.findUnique({ where: { id: Number(id) } });
-  if (!resource) throw new Error('Resource not found');
-  if (resource.responderId !== responderId) throw new Error('You can only manage your own resources');
-
-  return await prisma.responderResource.delete({
-    where: { id: Number(id) }
-  });
-};
-exports.getAllResources = async () => {
-  return await prisma.responderResource.findMany({
-    include: responderResourceInclude,
-    orderBy: {
-      id: "asc",
-    },
-  });
-};

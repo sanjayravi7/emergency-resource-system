@@ -4,26 +4,34 @@ const allocationController = require('../controllers/allocationController');
 const authenticate = require('../middleware/authMiddleware');
 const authorizeRoles = require('../middleware/roleMiddleware');
 
-router.use(authenticate, authorizeRoles('RESPONDER', 'ADMIN'));
+// The requester may only confirm receipt of an allocation on their own
+// emergency. Ownership is enforced again by the service transaction.
+router.patch(
+  '/:id/received',
+  authenticate,
+  authorizeRoles('REQUESTER'),
+  allocationController.confirmReceived
+);
 
 router.post(
-  "/",
+  '/',
   authenticate,
-  authorizeRoles("RESPONDER"),
+  authorizeRoles('RESPONDER'),
   allocationController.createAllocation
 );
 
 router.get(
-  "/my",
+  '/my',
   authenticate,
-  authorizeRoles("RESPONDER"),
+  authorizeRoles('RESPONDER'),
   allocationController.getMyAllocations
 );
 
+// A responder may dispatch or cancel only an allocation they own.
 router.patch(
-  "/:id/status",
+  '/:id/status',
   authenticate,
-  authorizeRoles("RESPONDER"),
+  authorizeRoles('RESPONDER'),
   allocationController.updateAllocationStatus
 );
 

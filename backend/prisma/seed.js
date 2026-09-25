@@ -201,6 +201,7 @@ async function upsertResponderInventory(responderId, resources) {
       update: {
         totalQuantity: capability.totalQuantity,
         availableQuantity: capability.availableQuantity,
+        isEnabled: true,
         status: 'AVAILABLE',
       },
       create: {
@@ -208,6 +209,7 @@ async function upsertResponderInventory(responderId, resources) {
         resourceId: resource.id,
         totalQuantity: capability.totalQuantity,
         availableQuantity: capability.availableQuantity,
+        isEnabled: true,
         status: 'AVAILABLE',
       },
     });

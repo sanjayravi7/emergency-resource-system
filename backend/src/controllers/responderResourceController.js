@@ -11,16 +11,22 @@ exports.getMyResources = async (req, res, next) => {
 
 exports.addResource = async (req, res, next) => {
   try {
-    const resource = await responderResourceService.addResource(req.user.id, req.body);
+    const resource = await responderResourceService.addResource(req.user, req.body);
     res.status(201).json({ success: true, resource });
   } catch (error) {
     next(error);
   }
 };
 
+// PATCH is the responder readiness endpoint. A responder can only update its
+// own row; ADMIN keeps the route's established management access.
 exports.updateResource = async (req, res, next) => {
   try {
-    const resource = await responderResourceService.updateResource(req.user.id, req.params.id, req.body);
+    const resource = await responderResourceService.updateResource(
+      req.user,
+      req.params.id,
+      req.body
+    );
     res.json({ success: true, resource });
   } catch (error) {
     next(error);
@@ -29,20 +35,17 @@ exports.updateResource = async (req, res, next) => {
 
 exports.deleteResource = async (req, res, next) => {
   try {
-    await responderResourceService.deleteResource(req.user.id, req.params.id);
+    await responderResourceService.deleteResource(req.user, req.params.id);
     res.json({ success: true, message: 'Deleted successfully' });
   } catch (error) {
     next(error);
   }
 };
+
 exports.getAllResources = async (req, res, next) => {
   try {
     const resources = await responderResourceService.getAllResources();
-
-    res.json({
-      success: true,
-      resources,
-    });
+    res.json({ success: true, resources });
   } catch (error) {
     next(error);
   }
