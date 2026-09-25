@@ -3,9 +3,9 @@ import 'package:http/http.dart' as http;
 
 /// Thin HTTP data layer for the ERAS backend.
 ///
-/// Every screen goes through this class, so real-time transport (for example
-/// Socket.IO, which is already a backend dependency) can later push into the
-/// same reload methods without rewriting the UI.
+/// Every HTTP mutation still goes through this class. Socket.IO push events
+/// call the same reload methods without becoming a second lifecycle state
+/// machine.
 class ApiService {
   /// Override for a native simulator when needed:
   ///   flutter run --dart-define=ERAS_API_BASE_URL=http://10.0.2.2:5000/api

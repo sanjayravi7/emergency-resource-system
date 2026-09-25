@@ -5,6 +5,23 @@ const {
 } = require('../validators/requestValidator');
 const { runSerializableTransaction } = require('./transactionService');
 const { ACTIVE_REQUEST_STATUSES, syncResponderAvailability } = require('./lifecycleService');
+const {
+  emitAllocationsForRequest,
+  emitRequestCreated,
+  emitRequestUpdated,
+  emitResponderAvailability,
+} = require('../realtime/eventEmitters');
+const { getIO } = require('../realtime/socketEvents');
+
+async function emitAfterCommit(callback) {
+  try {
+    await callback();
+  } catch (error) {
+    // A socket/database read failure after a successful REST commit must not
+    // turn a committed mutation into a misleading HTTP failure.
+    console.error('Realtime emission failed:', error.message);
+  }
+}
 
 const requesterSelect = {
   id: true,
@@ -20,6 +37,8 @@ const responderSelect = {
   phone: true,
   responderStatus: true,
   location: true,
+  latitude: true,
+  longitude: true,
 };
 
 // Every board response is database-backed and carries the resource IDs needed
@@ -73,7 +92,7 @@ exports.createEmergencyRequest = async (userId, data) => {
     }
   }
 
-  return prisma.emergencyRequest.create({
+  const created = await prisma.emergencyRequest.create({
     data: {
       emergencyType: String(data.emergencyType).trim(),
       description: String(data.description).trim(),
@@ -91,6 +110,27 @@ exports.createEmergencyRequest = async (userId, data) => {
     },
     include: requestInclude,
   });
+
+  // Matching is evaluated only after PostgreSQL has committed the request.
+  // The same compatibility implementation used by GET /compatible is reused
+  // here; the event never grants acceptance or persistence authority.
+  await emitAfterCommit(async () => {
+    if (!getIO()) return;
+    const responders = await prisma.user.findMany({
+      where: { role: 'RESPONDER', isActive: true },
+      select: { id: true },
+    });
+    const compatibleResponderIds = [];
+    for (const responder of responders) {
+      const compatible = await exports.getCompatibleRequestsForResponder(responder.id);
+      if (compatible.some((candidate) => candidate.id === created.id)) {
+        compatibleResponderIds.push(responder.id);
+      }
+    }
+    await emitRequestCreated(created, compatibleResponderIds);
+  });
+
+  return created;
 };
 
 exports.getRequestsByUser = async (userId) =>
@@ -121,7 +161,7 @@ exports.cancelEmergencyRequest = async (userId, id) => {
     throw new Error('Request not found');
   }
 
-  return runSerializableTransaction(async (tx) => {
+  const cancelled = await runSerializableTransaction(async (tx) => {
     const lockedRequests = await tx.$queryRaw`
       SELECT id, "requesterId", "acceptedById", status
       FROM "EmergencyRequest"
@@ -218,6 +258,15 @@ exports.cancelEmergencyRequest = async (userId, id) => {
 
     return cancelled;
   });
+
+  await emitAfterCommit(async () => {
+    await emitRequestUpdated(requestId);
+    await emitAllocationsForRequest(requestId);
+    const accepted = cancelled.acceptedById;
+    if (accepted) await emitResponderAvailability(accepted);
+  });
+
+  return cancelled;
 };
 
 exports.getAllRequests = async () =>
@@ -317,7 +366,7 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     throw new Error('Request not found');
   }
 
-  return runSerializableTransaction(async (tx) => {
+  const acceptedRequest = await runSerializableTransaction(async (tx) => {
     // Retain explicit row locks for acceptance. The user lock serializes two
     // different requests racing to be accepted by one responder.
     const lockedRequests = await tx.$queryRaw`
@@ -418,10 +467,20 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
 
     return updatedRequest;
   });
+
+  await emitAfterCommit(async () => {
+    await emitRequestUpdated(numericRequestId, [numericResponderId]);
+    await emitResponderAvailability(numericResponderId);
+  });
+
+  return acceptedRequest;
 };
 
-exports.updateRequestStatus = async (requestId, status) =>
-  prisma.emergencyRequest.update({
+exports.updateRequestStatus = async (requestId, status) => {
+  const updated = await prisma.emergencyRequest.update({
     where: { id: Number(requestId) },
     data: { status },
   });
+  await emitAfterCommit(() => emitRequestUpdated(Number(requestId)));
+  return updated;
+};

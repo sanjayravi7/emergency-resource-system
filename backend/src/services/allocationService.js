@@ -4,6 +4,18 @@ const {
   syncRequestStatus,
   syncResponderAvailability,
 } = require('./lifecycleService');
+const {
+  emitAllocationUpdated,
+  emitResponderAvailability,
+} = require('../realtime/eventEmitters');
+
+async function emitAfterCommit(callback) {
+  try {
+    await callback();
+  } catch (error) {
+    console.error('Realtime emission failed:', error.message);
+  }
+}
 
 exports.getAllocationsByResponder = async (responderId) => {
   return prisma.allocation.findMany({
@@ -75,7 +87,7 @@ exports.createAllocation = async (responderId, data) => {
     throw new Error('Quantity must be greater than 0');
   }
 
-  return runSerializableTransaction(async (tx) => {
+  const createdAllocation = await runSerializableTransaction(async (tx) => {
     // Lock the request first. This serializes remaining-quantity calculation
     // across allocations, including allocations from separate resource rows.
     const lockedRequests = await tx.$queryRaw`
@@ -185,6 +197,13 @@ exports.createAllocation = async (responderId, data) => {
 
     return allocation;
   });
+
+  await emitAfterCommit(async () => {
+    await emitAllocationUpdated(createdAllocation.id);
+    await emitResponderAvailability(createdAllocation.responderId);
+  });
+
+  return createdAllocation;
 };
 
 exports.updateAllocationStatus = async (responderId, allocationId, status) => {
@@ -196,7 +215,7 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
     );
   }
 
-  return runSerializableTransaction(async (tx) => {
+  const updatedAllocation = await runSerializableTransaction(async (tx) => {
     const allocation = await lockAllocation(tx, numericAllocationId);
     if (!allocation) throw new Error('Allocation not found');
     if (allocation.responderId !== Number(responderId)) {
@@ -261,12 +280,19 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
     await syncResponderAvailability(tx, allocation.responderId);
     return updated;
   });
+
+  await emitAfterCommit(async () => {
+    await emitAllocationUpdated(updatedAllocation.id);
+    await emitResponderAvailability(updatedAllocation.responderId);
+  });
+
+  return updatedAllocation;
 };
 
 exports.confirmAllocationReceived = async (requesterId, allocationId) => {
   const numericAllocationId = asPositiveInteger(allocationId, 'allocationId');
 
-  return runSerializableTransaction(async (tx) => {
+  const receivedAllocation = await runSerializableTransaction(async (tx) => {
     const allocation = await lockAllocation(tx, numericAllocationId);
     if (!allocation) throw new Error('Allocation not found');
 
@@ -300,6 +326,13 @@ exports.confirmAllocationReceived = async (requesterId, allocationId) => {
     await syncResponderAvailability(tx, allocation.responderId);
     return updated;
   });
+
+  await emitAfterCommit(async () => {
+    await emitAllocationUpdated(receivedAllocation.id);
+    await emitResponderAvailability(receivedAllocation.responderId);
+  });
+
+  return receivedAllocation;
 };
 
 // Exported for focused service tests and for other lifecycle callers.

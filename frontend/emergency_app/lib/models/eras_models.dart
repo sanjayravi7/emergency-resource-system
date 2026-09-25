@@ -250,6 +250,8 @@ class UserSummary {
     this.phone,
     this.responderStatus,
     this.location,
+    this.latitude,
+    this.longitude,
   });
 
   final int id;
@@ -258,6 +260,8 @@ class UserSummary {
   final String? phone;
   final String? responderStatus;
   final String? location;
+  final double? latitude;
+  final double? longitude;
 
   static UserSummary? fromJson(dynamic value) {
     if (value is! Map) return null;
@@ -276,6 +280,34 @@ class UserSummary {
       phone: _asTrimmedString(json['phone']),
       responderStatus: _asTrimmedString(json['responderStatus']),
       location: _asTrimmedString(json['location']),
+      latitude: _asDoubleOrNull(json['latitude']),
+      longitude: _asDoubleOrNull(json['longitude']),
+    );
+  }
+}
+
+class LiveResponderLocation {
+  const LiveResponderLocation({
+    required this.requestId,
+    required this.responderId,
+    required this.latitude,
+    required this.longitude,
+    required this.updatedAt,
+  });
+
+  final int requestId;
+  final int responderId;
+  final double latitude;
+  final double longitude;
+  final DateTime updatedAt;
+
+  factory LiveResponderLocation.fromJson(Map<String, dynamic> json) {
+    return LiveResponderLocation(
+      requestId: _asInt(json['requestId']),
+      responderId: _asInt(json['responderId']),
+      latitude: _asDoubleOrNull(json['latitude']) ?? 0,
+      longitude: _asDoubleOrNull(json['longitude']) ?? 0,
+      updatedAt: _asDate(json['timestamp']) ?? DateTime.now(),
     );
   }
 }

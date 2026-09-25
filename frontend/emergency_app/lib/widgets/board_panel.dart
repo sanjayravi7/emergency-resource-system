@@ -23,6 +23,10 @@ class BoardPanel extends StatelessWidget {
     this.onDispatchAllocation,
     this.onMarkDelivered,
     this.onConfirmReceipt,
+    this.onStartLocationSharing,
+    this.onStopLocationSharing,
+    this.liveLocations = const <int, LiveResponderLocation>{},
+    this.sharingRequestId,
     this.isMobile = false,
   });
 
@@ -40,6 +44,10 @@ class BoardPanel extends StatelessWidget {
   final void Function(AllocationLine allocation)? onDispatchAllocation;
   final void Function(AllocationLine allocation)? onMarkDelivered;
   final void Function(AllocationLine allocation)? onConfirmReceipt;
+  final Future<void> Function(EmergencyRequest request)? onStartLocationSharing;
+  final Future<void> Function(int? requestId)? onStopLocationSharing;
+  final Map<int, LiveResponderLocation> liveLocations;
+  final int? sharingRequestId;
   final bool isMobile;
 
   bool _canAccept(EmergencyRequest request) =>
@@ -103,6 +111,7 @@ class BoardPanel extends StatelessWidget {
                       .map((request) => _RequestCard(
                             request: request,
                             actions: _actions(request),
+                            liveLocation: liveLocations[request.id],
                           ))
                       .toList(),
                 )
@@ -218,6 +227,39 @@ class BoardPanel extends StatelessWidget {
           ),
           child: const Text('Cancel', style: TextStyle(fontSize: 12)),
         ),
+      );
+    }
+
+    final assignedToCurrentResponder =
+        role == 'RESPONDER' &&
+        request.acceptedBy?.id == currentUserId &&
+        request.isOpen;
+    if (assignedToCurrentResponder && onStartLocationSharing != null) {
+      final isSharing = sharingRequestId == request.id ||
+          liveLocations.containsKey(request.id);
+      actions.add(
+        isSharing && onStopLocationSharing != null
+            ? OutlinedButton(
+                onPressed: () => onStopLocationSharing!(request.id),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.amber,
+                  side: const BorderSide(color: AppColors.amber),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: const Text('Stop live location',
+                    style: TextStyle(fontSize: 12)),
+              )
+            : FilledButton(
+                onPressed: () => onStartLocationSharing!(request),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.blue,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: const Text('Share live location',
+                    style: TextStyle(fontSize: 12)),
+              ),
       );
     }
 
@@ -380,6 +422,12 @@ class BoardPanel extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 10.5, color: AppColors.textFaint),
                       ),
+                    if (liveLocations[request.id] != null)
+                      Text(
+                        'LIVE · ${liveLocations[request.id]!.latitude.toStringAsFixed(5)}, ${liveLocations[request.id]!.longitude.toStringAsFixed(5)}',
+                        style: const TextStyle(
+                            fontSize: 10.5, color: AppColors.teal),
+                      ),
                   ],
                 ),
               ),
@@ -404,10 +452,15 @@ class BoardPanel extends StatelessWidget {
 }
 
 class _RequestCard extends StatelessWidget {
-  const _RequestCard({required this.request, required this.actions});
+  const _RequestCard({
+    required this.request,
+    required this.actions,
+    this.liveLocation,
+  });
 
   final EmergencyRequest request;
   final List<Widget> actions;
+  final LiveResponderLocation? liveLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -533,6 +586,14 @@ class _RequestCard extends StatelessWidget {
               ),
             ],
           ),
+          if (liveLocation != null) ...[
+            const SizedBox(height: 6),
+            InfoChip(
+              label: 'Live responder position',
+              value:
+                  '${liveLocation!.latitude.toStringAsFixed(5)}, ${liveLocation!.longitude.toStringAsFixed(5)} · updated ${formatDateTime(liveLocation!.updatedAt)}',
+            ),
+          ],
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: actions),
