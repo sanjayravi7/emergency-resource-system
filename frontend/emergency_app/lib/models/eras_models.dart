@@ -293,6 +293,7 @@ class LiveResponderLocation {
     required this.latitude,
     required this.longitude,
     required this.updatedAt,
+    this.isLive = true,
   });
 
   final int requestId;
@@ -300,6 +301,7 @@ class LiveResponderLocation {
   final double latitude;
   final double longitude;
   final DateTime updatedAt;
+  final bool isLive;
 
   factory LiveResponderLocation.fromJson(Map<String, dynamic> json) {
     return LiveResponderLocation(
@@ -308,8 +310,18 @@ class LiveResponderLocation {
       latitude: _asDoubleOrNull(json['latitude']) ?? 0,
       longitude: _asDoubleOrNull(json['longitude']) ?? 0,
       updatedAt: _asDate(json['timestamp']) ?? DateTime.now(),
+      isLive: true,
     );
   }
+
+  LiveResponderLocation asNotLive() => LiveResponderLocation(
+        requestId: requestId,
+        responderId: responderId,
+        latitude: latitude,
+        longitude: longitude,
+        updatedAt: updatedAt,
+        isLive: false,
+      );
 }
 
 class BackendResponder {
