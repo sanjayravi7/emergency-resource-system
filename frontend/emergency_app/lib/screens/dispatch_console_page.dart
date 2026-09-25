@@ -13,6 +13,7 @@ import '../widgets/new_request_panel.dart';
 import '../widgets/resource_panels.dart';
 import '../widgets/sector_map.dart';
 import 'login_screen.dart';
+import 'responder_readiness_page.dart';
 
 /// Single place where the app talks to the backend.
 ///
@@ -20,7 +21,9 @@ import 'login_screen.dart';
 /// the UI always shows what PostgreSQL contains. A push transport (Socket.IO)
 /// could later call the very same reload methods.
 class DispatchConsolePage extends StatefulWidget {
-  const DispatchConsolePage({super.key});
+  const DispatchConsolePage({super.key, this.readinessSuccess = false});
+
+  final bool readinessSuccess;
 
   @override
   State<DispatchConsolePage> createState() => _DispatchConsolePageState();
@@ -48,6 +51,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   Timer? clockTimer;
   Timer? refreshTimer;
+  Timer? heartbeatTimer;
 
   String? get role => ApiService.currentRole;
   bool get isRequester => role == 'REQUESTER';
@@ -74,12 +78,29 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       const Duration(seconds: 20),
       (_) => refreshAll(silent: true),
     );
+
+    if (isResponder) {
+      // Best-effort activity signal only; a missed request does not flip the
+      // responder's status or disturb assigned emergencies.
+      ApiService.responderHeartbeat().catchError((_) {});
+      heartbeatTimer = Timer.periodic(
+        const Duration(seconds: 60),
+        (_) => ApiService.responderHeartbeat().catchError((_) {}),
+      );
+    }
+
+    if (widget.readinessSuccess) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showToast('You are now available for selected resources.');
+      });
+    }
   }
 
   @override
   void dispose() {
     clockTimer?.cancel();
     refreshTimer?.cancel();
+    heartbeatTimer?.cancel();
     super.dispose();
   }
 
@@ -291,7 +312,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         backgroundColor: AppColors.surface,
         title: const Text('Cancel request'),
         content: Text(
-          'Cancel ${request.displayId}? Only PENDING requests can be cancelled.',
+          'Cancel ${request.displayId}? Reserved or dispatched resources will be released, while delivered resources remain delivered.',
           style: const TextStyle(fontSize: 13),
         ),
         actions: [
@@ -368,8 +389,44 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadRequests();
     await loadMyInventory();
     await loadResources();
+    await loadResponders();
 
     return success;
+  }
+
+  Future<void> dispatchAllocation(AllocationLine allocation) async {
+    try {
+      await ApiService.updateAllocationStatus(
+        allocationId: allocation.id,
+        status: 'DISPATCHED',
+      );
+      showToast('${allocation.resourceName} dispatched');
+    } catch (error) {
+      showToast('Dispatch failed: ${_clean(error)}');
+    }
+
+    await loadRequests();
+    await loadMyInventory();
+    await loadResponders();
+  }
+
+  Future<void> confirmReceipt(AllocationLine allocation) async {
+    try {
+      await ApiService.confirmAllocationReceived(allocation.id);
+      showToast('Resource receipt confirmed');
+    } catch (error) {
+      showToast('Receipt confirmation failed: ${_clean(error)}');
+    }
+
+    await loadRequests();
+    await loadResponders();
+  }
+
+  Future<void> editMyHelpTypes() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const ResponderReadinessPage()),
+    );
+    if (mounted) await refreshAll(silent: true);
   }
 
   Future<void> saveResource(BackendResource? existing) async {
@@ -420,6 +477,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         inventoryProvider: () => myInventory,
         onAllocate: allocateResource,
         onCancelAllocation: cancelAllocation,
+        onDispatchAllocation: dispatchAllocation,
       ),
     );
   }
@@ -429,8 +487,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         firstWhereOrNull(pendingCompatible, (r) => r.id == id);
   }
 
-  void logout() {
-    ApiService.logout();
+  Future<void> logout() async {
+    await ApiService.logout();
+    if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
@@ -611,7 +670,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         children.add(
           ResponderResourcesPanel(
             resources: myInventory,
-            title: 'MY INVENTORY',
+            title: 'MY HELP TYPES',
+            onEditHelpTypes: editMyHelpTypes,
           ),
         );
       }
@@ -656,6 +716,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           emptyMessage:
               'Accept a compatible request below to start working on it.',
           onAllocate: openAllocationDialog,
+          onDispatchAllocation: dispatchAllocation,
           isMobile: isMobile,
         ),
       );
@@ -690,6 +751,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               ? 'No active requests. Submit one from "New".'
               : 'No active requests in the database.',
           onCancelRequest: isRequester ? cancelRequest : null,
+          onConfirmReceipt: isRequester ? confirmReceipt : null,
           isMobile: isMobile,
         ),
       );

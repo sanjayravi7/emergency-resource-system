@@ -212,6 +212,7 @@ class BackendResponderResource {
     required this.totalQuantity,
     required this.availableQuantity,
     required this.status,
+    required this.isEnabled,
     required this.responderName,
     required this.responderEmail,
     required this.responderStatus,
@@ -230,6 +231,9 @@ class BackendResponderResource {
   /// AVAILABLE | BUSY | UNAVAILABLE
   final String status;
 
+  /// Durable willingness/qualification, independent from current status.
+  final bool isEnabled;
+
   final String responderName;
   final String responderEmail;
   final String responderStatus;
@@ -239,7 +243,8 @@ class BackendResponderResource {
   final String? unit;
   final String? location;
 
-  bool get isAvailable => status == 'AVAILABLE' && availableQuantity > 0;
+  bool get isAvailable =>
+      isEnabled && status == 'AVAILABLE' && availableQuantity > 0;
 
   factory BackendResponderResource.fromJson(Map<String, dynamic> json) {
     final responder = _asMap(json['responder']);
@@ -252,6 +257,7 @@ class BackendResponderResource {
       totalQuantity: _asInt(json['totalQuantity']),
       availableQuantity: _asInt(json['availableQuantity']),
       status: json['status']?.toString() ?? 'UNAVAILABLE',
+      isEnabled: json['isEnabled'] == true,
       responderName:
           _asTrimmedString(responder['name']) ?? 'Unknown responder',
       responderEmail: _asTrimmedString(responder['email']) ?? '',
@@ -329,6 +335,9 @@ class AllocationLine {
   final DateTime? allocatedAt;
 
   bool get isActive => status != 'CANCELLED';
+  bool get isReserved => status == 'RESERVED';
+  bool get isDispatched => status == 'DISPATCHED';
+  bool get isDelivered => status == 'DELIVERED';
 
   factory AllocationLine.fromJson(Map<String, dynamic> json) {
     final resource = _asMap(json['resource']);
@@ -454,7 +463,8 @@ class EmergencyRequest {
   bool get isOpen =>
       status != RequestStatus.completed && status != RequestStatus.cancelled;
 
-  bool get canBeCancelledByRequester => status == RequestStatus.pending;
+  bool get canBeCancelledByRequester =>
+      status != RequestStatus.completed && status != RequestStatus.cancelled;
 
   List<AllocationLine> get activeAllocations =>
       allocations.where((a) => a.isActive).toList(growable: false);

@@ -395,16 +395,26 @@ class ResponderResourcesPanel extends StatelessWidget {
     super.key,
     required this.resources,
     this.title = 'RESPONDER INVENTORY',
+    this.onEditHelpTypes,
   });
 
   final List<BackendResponderResource> resources;
   final String title;
+  final VoidCallback? onEditHelpTypes;
 
   @override
   Widget build(BuildContext context) {
     return Panel(
       title: title,
       hint: 'ResponderResource rows from PostgreSQL',
+      trailing: onEditHelpTypes == null
+          ? null
+          : TextButton.icon(
+              onPressed: onEditHelpTypes,
+              icon: const Icon(Icons.tune, size: 15),
+              label: const Text('EDIT MY HELP TYPES',
+                  style: TextStyle(fontSize: 11)),
+            ),
       child: resources.isEmpty
           ? const EmptyState(
               'No inventory rows for this responder yet. Inventory is loaded '
@@ -483,6 +493,17 @@ class ResponderResourcesPanel extends StatelessWidget {
                                 size: 13,
                                 color: AppColors.text,
                                 weight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            item.isEnabled ? 'ENABLED' : 'DISABLED',
+                            style: monoStyle(
+                              size: 9.5,
+                              color: item.isEnabled
+                                  ? AppColors.teal
+                                  : AppColors.textFaint,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                           const SizedBox(height: 3),
                           Container(

@@ -1,7 +1,12 @@
 const prisma = require('../config/prisma');
+const { runSerializableTransaction } = require('./transactionService');
+const {
+  syncRequestStatus,
+  syncResponderAvailability,
+} = require('./lifecycleService');
 
 exports.getAllocationsByResponder = async (responderId) => {
-  return await prisma.allocation.findMany({
+  return prisma.allocation.findMany({
     where: { responderId: Number(responderId) },
     include: {
       resource: {
@@ -18,6 +23,7 @@ exports.getAllocationsByResponder = async (responderId) => {
           emergencyType: true,
           location: true,
           status: true,
+          requester: { select: { id: true, name: true, phone: true } },
         },
       },
     },
@@ -25,225 +31,247 @@ exports.getAllocationsByResponder = async (responderId) => {
   });
 };
 
-/**
- * PostgreSQL aborts the losing side of a Serializable conflict with
- * SQLSTATE 40001 / 40P01 (Prisma surfaces it as P2034). The safe and standard
- * answer is to retry the whole transaction: the concurrency guarantees are
- * unchanged (Serializable + SELECT ... FOR UPDATE), but the caller gets the
- * real business error ("Not enough available quantity") instead of a
- * database-level serialization message.
- */
-function isRetryableTransactionError(error) {
-  if (!error) return false;
-  if (error.code === 'P2034') return true;
-
-  return /40001|40P01|could not serialize|deadlock detected/i.test(
-    error.message || ''
-  );
+function asPositiveInteger(value, field) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error(`${field} must be a positive integer`);
+  }
+  return number;
 }
 
-async function runSerializableTransaction(callback, retries = 5) {
-  let lastError;
+async function lockAllocation(tx, allocationId) {
+  const locked = await tx.$queryRaw`
+    SELECT id, "requestId", "resourceId", "responderId", "responderResourceId",
+           quantity, status
+    FROM "Allocation"
+    WHERE id = ${allocationId}
+    FOR UPDATE
+  `;
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await prisma.$transaction(callback, {
-        isolationLevel: 'Serializable',
-      });
-    } catch (error) {
-      if (!isRetryableTransactionError(error)) {
-        throw error;
-      }
-
-      lastError = error;
-
-      // Small staggered back-off before retrying.
-      await new Promise((resolve) =>
-        setTimeout(resolve, 10 * (attempt + 1) + Math.floor(Math.random() * 10))
-      );
-    }
-  }
-
-  throw lastError;
+  return locked[0] || null;
 }
 
-async function syncRequestStatus(tx, requestId) {
-  const request = await tx.emergencyRequest.findUnique({
-    where: { id: requestId },
-    include: { requiredResources: true, allocations: true }
-  });
+async function lockResponderResource(tx, responderResourceId) {
+  const locked = await tx.$queryRaw`
+    SELECT id, "responderId", "resourceId", "totalQuantity", "availableQuantity",
+           "isEnabled", status
+    FROM "ResponderResource"
+    WHERE id = ${responderResourceId}
+    FOR UPDATE
+  `;
 
-  if (!request) return;
-
-  const requiredAmounts = {};
-  for (const rr of request.requiredResources) {
-    requiredAmounts[rr.resourceId] = rr.quantity;
-  }
-
-  const allocatedAmounts = {};
-  for (const alloc of request.allocations) {
-    if (alloc.status !== 'CANCELLED') {
-      allocatedAmounts[alloc.resourceId] = (allocatedAmounts[alloc.resourceId] || 0) + alloc.quantity;
-    }
-  }
-
-  let allFulfilled = request.requiredResources.length > 0;
-  let partial = false;
-
-  for (const resId in requiredAmounts) {
-    const required = requiredAmounts[resId];
-    const allocated = allocatedAmounts[resId] || 0;
-
-    if (allocated > 0) {
-      partial = true;
-    }
-
-   if (allocated < required) {
-     allFulfilled = false;
-    }
-}
-  let newStatus = request.status;
-
-  if (allFulfilled) {
-    newStatus = 'COMPLETED';
-  } else if (partial) {
-    newStatus = 'PARTIALLY_ALLOCATED';
-  } else if (
-    request.status === 'COMPLETED' ||
-    request.status === 'PARTIALLY_ALLOCATED'
-  ) {
-    // All allocations were cancelled.
-    // Reopen the request so a responder can allocate again.
-    newStatus = 'ACCEPTED';
-  }
-
-  if (newStatus !== request.status) {
-    await tx.emergencyRequest.update({
-      where: { id: requestId },
-      data: { status: newStatus }
-    });
-  }
+  return locked[0] || null;
 }
 
 exports.createAllocation = async (responderId, data) => {
-  const { requestId, responderResourceId, resourceId, quantity } = data;
-  if (!quantity || quantity <= 0) throw new Error('Quantity must be greater than 0');
+  const requestId = asPositiveInteger(data.requestId, 'requestId');
+  const responderResourceId = asPositiveInteger(
+    data.responderResourceId,
+    'responderResourceId'
+  );
+  const resourceId = asPositiveInteger(data.resourceId, 'resourceId');
+  const quantity = Number(data.quantity);
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error('Quantity must be greater than 0');
+  }
 
-  return await runSerializableTransaction(async (tx) => {
-    const reqInstance = await tx.emergencyRequest.findUnique({ where: { id: Number(requestId) } });
-    if (!reqInstance || reqInstance.status === 'CANCELLED' || reqInstance.status === 'COMPLETED') {
+  return runSerializableTransaction(async (tx) => {
+    // Lock the request first. This serializes remaining-quantity calculation
+    // across allocations, including allocations from separate resource rows.
+    const lockedRequests = await tx.$queryRaw`
+      SELECT id, status, "acceptedById"
+      FROM "EmergencyRequest"
+      WHERE id = ${requestId}
+      FOR UPDATE
+    `;
+    const requestRow = lockedRequests[0];
+
+    if (
+      !requestRow ||
+      requestRow.status === 'CANCELLED' ||
+      requestRow.status === 'COMPLETED'
+    ) {
       throw new Error('Request is invalid or already closed');
     }
 
-    // SELECT FOR UPDATE acquires a row-level lock so concurrent transactions
-    // must wait — preventing double-spend of availableQuantity.
-    const locked = await tx.$queryRaw`
-      SELECT id, "responderId", "resourceId", "availableQuantity"
-      FROM "ResponderResource"
-      WHERE id = ${Number(responderResourceId)}
+    // Keep SELECT FOR UPDATE protection for the inventory that will be spent.
+    const responderResource = await lockResponderResource(tx, responderResourceId);
+    if (!responderResource) throw new Error('Responder resource not found');
+    if (responderResource.responderId !== Number(responderId)) {
+      throw new Error('Responder mismatch: unauthorized');
+    }
+    if (responderResource.resourceId !== resourceId) {
+      throw new Error('Resource mismatch');
+    }
+
+    // Lock the required line too; it makes the request-resource requirement
+    // part of the same protected state transition.
+    const lockedRequired = await tx.$queryRaw`
+      SELECT id, quantity
+      FROM "RequestResource"
+      WHERE "requestId" = ${requestId} AND "resourceId" = ${resourceId}
       FOR UPDATE
     `;
+    const required = lockedRequired[0];
+    if (!required) throw new Error('Resource is not required by this request');
 
-    const respResource = locked[0];
-    if (!respResource) throw new Error('Responder resource not found');
-    if (respResource.responderId !== responderId) throw new Error('Responder mismatch: unauthorized');
-    if (respResource.resourceId !== resourceId) throw new Error('Resource mismatch');
-
-    // The resource must actually be required by this emergency, and each
-    // required resource is allocated independently of the others.
-    const required = await tx.requestResource.findFirst({
-      where: {
-        requestId: Number(requestId),
-        resourceId: Number(resourceId),
-      },
+    const catalogResource = await tx.resource.findUnique({
+      where: { id: resourceId },
+      select: { id: true, isActive: true },
     });
-
-    if (!required) {
-      throw new Error('Resource is not required by this request');
+    if (!catalogResource || !catalogResource.isActive) {
+      throw new Error('Resource is not active');
     }
 
     const existingAllocations = await tx.allocation.findMany({
       where: {
-        requestId: Number(requestId),
-        resourceId: Number(resourceId),
-        status: {
-          not: 'CANCELLED',
-        },
+        requestId,
+        resourceId,
+        status: { not: 'CANCELLED' },
       },
-      select: {
-        quantity: true,
-      },
+      select: { quantity: true },
     });
-
     const alreadyAllocated = existingAllocations.reduce(
       (sum, allocation) => sum + allocation.quantity,
       0
     );
-
     const outstanding = required.quantity - alreadyAllocated;
 
     if (outstanding <= 0) {
       throw new Error('This resource is already fully allocated');
     }
-
     if (quantity > outstanding) {
       throw new Error(
         `Allocation exceeds the remaining required quantity (${outstanding} left)`
       );
     }
-
-    if (respResource.availableQuantity < quantity) {
+    if (responderResource.availableQuantity < quantity) {
       throw new Error('Not enough available quantity');
     }
 
+    const remainingAvailableQuantity =
+      responderResource.availableQuantity - quantity;
     await tx.responderResource.update({
-      where: { id: Number(responderResourceId) },
-      data: { availableQuantity: respResource.availableQuantity - quantity }
+      where: { id: responderResourceId },
+      data: {
+        availableQuantity: remainingAvailableQuantity,
+        // Availability status follows actual stock. It is deliberately not a
+        // durable willingness flag; isEnabled remains unchanged.
+        ...(remainingAvailableQuantity === 0 ? { status: 'UNAVAILABLE' } : {}),
+      },
     });
 
     const allocation = await tx.allocation.create({
       data: {
-        requestId: Number(requestId),
-        responderResourceId: Number(responderResourceId),
-        responderId,
-        resourceId: Number(resourceId),
+        requestId,
+        responderResourceId,
+        responderId: Number(responderId),
+        resourceId,
         quantity,
-        status: 'RESERVED'
-      }
+        status: 'RESERVED',
+      },
     });
 
-    await syncRequestStatus(tx, Number(requestId));
+    await syncRequestStatus(tx, requestId);
+    await syncResponderAvailability(tx, responderId);
 
     return allocation;
   });
 };
 
-
 exports.updateAllocationStatus = async (responderId, allocationId, status) => {
-  return await prisma.$transaction(async (tx) => {
-    const allocation = await tx.allocation.findUnique({ where: { id: Number(allocationId) } });
-    if (!allocation) throw new Error('Allocation not found');
-    if (allocation.responderId !== responderId) throw new Error('Unauthorized');
+  const numericAllocationId = asPositiveInteger(allocationId, 'allocationId');
 
+  if (!['DISPATCHED', 'CANCELLED'].includes(status)) {
+    throw new Error('Responders may only dispatch or cancel an allocation');
+  }
+
+  return runSerializableTransaction(async (tx) => {
+    const allocation = await lockAllocation(tx, numericAllocationId);
+    if (!allocation) throw new Error('Allocation not found');
+    if (allocation.responderId !== Number(responderId)) {
+      throw new Error('Unauthorized');
+    }
     if (allocation.status === 'CANCELLED') throw new Error('Already cancelled');
+    if (allocation.status === 'DELIVERED') throw new Error('Already delivered');
+
+    if (status === 'DISPATCHED' && allocation.status !== 'RESERVED') {
+      throw new Error('Only RESERVED allocations can be dispatched');
+    }
 
     if (status === 'CANCELLED') {
-      // Return inventory
-      const respResource = await tx.responderResource.findUnique({ where: { id: allocation.responderResourceId } });
-      if (respResource) {
-        await tx.responderResource.update({
-          where: { id: allocation.responderResourceId },
-          data: { availableQuantity: respResource.availableQuantity + allocation.quantity }
-        });
+      const responderResource = await lockResponderResource(
+        tx,
+        allocation.responderResourceId
+      );
+      if (!responderResource) throw new Error('Responder resource not found');
+
+      const restoredQuantity =
+        responderResource.availableQuantity + allocation.quantity;
+      if (restoredQuantity > responderResource.totalQuantity) {
+        throw new Error('Inventory restoration would exceed total quantity');
       }
+
+      await tx.responderResource.update({
+        where: { id: allocation.responderResourceId },
+        data: {
+          availableQuantity: restoredQuantity,
+          ...(responderResource.isEnabled && restoredQuantity > 0
+            ? { status: 'AVAILABLE' }
+            : {}),
+        },
+      });
     }
 
     const updated = await tx.allocation.update({
-      where: { id: Number(allocationId) },
-      data: { status }
+      where: { id: numericAllocationId },
+      data: { status },
     });
 
     await syncRequestStatus(tx, allocation.requestId);
+    await syncResponderAvailability(tx, allocation.responderId);
     return updated;
   });
 };
+
+exports.confirmAllocationReceived = async (requesterId, allocationId) => {
+  const numericAllocationId = asPositiveInteger(allocationId, 'allocationId');
+
+  return runSerializableTransaction(async (tx) => {
+    const allocation = await lockAllocation(tx, numericAllocationId);
+    if (!allocation) throw new Error('Allocation not found');
+
+    const lockedRequests = await tx.$queryRaw`
+      SELECT id, "requesterId", status
+      FROM "EmergencyRequest"
+      WHERE id = ${allocation.requestId}
+      FOR UPDATE
+    `;
+    const request = lockedRequests[0];
+    if (!request) throw new Error('Emergency request not found');
+    if (request.requesterId !== Number(requesterId)) {
+      throw new Error('Unauthorized');
+    }
+    if (allocation.status === 'CANCELLED') {
+      throw new Error('Cancelled allocations cannot be received');
+    }
+    if (allocation.status === 'DELIVERED') {
+      throw new Error('Receipt has already been confirmed');
+    }
+    if (allocation.status !== 'DISPATCHED') {
+      throw new Error('Only DISPATCHED allocations can be confirmed as received');
+    }
+
+    const updated = await tx.allocation.update({
+      where: { id: numericAllocationId },
+      data: { status: 'DELIVERED' },
+    });
+
+    await syncRequestStatus(tx, allocation.requestId);
+    await syncResponderAvailability(tx, allocation.responderId);
+    return updated;
+  });
+};
+
+// Exported for focused service tests and for other lifecycle callers.
+exports.syncRequestStatus = syncRequestStatus;

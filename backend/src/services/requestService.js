@@ -1,36 +1,11 @@
 const prisma = require('../config/prisma');
-
 const {
   validateEmergencyRequestInput,
   normalizeRequiredResources,
 } = require('../validators/requestValidator');
+const { runSerializableTransaction } = require('./transactionService');
+const { ACTIVE_REQUEST_STATUSES, syncResponderAvailability } = require('./lifecycleService');
 
-// ------------------------------------------------------------------
-// Development-only diagnostics.
-//
-// These logs make it possible to see exactly WHY a pending request is
-// or is not offered to a responder (see GET /api/requests/compatible).
-// They are completely silent in production so they never leak PII or
-// add noise to real deployments.
-// ------------------------------------------------------------------
-const IS_DEV = process.env.NODE_ENV !== 'production';
-
-const diag = (...args) => {
-  if (IS_DEV) {
-    // eslint-disable-next-line no-console
-    console.log(...args);
-  }
-};
-
-// ------------------------------------------------------------------
-// Shared include shape.
-//
-// Every request returned to Flutter carries:
-//  - the requester (id, name, email, phone)
-//  - the assigned responder (once accepted)
-//  - the required resources WITH the resource catalog row
-//  - the allocations made against the request
-// ------------------------------------------------------------------
 const requesterSelect = {
   id: true,
   name: true,
@@ -47,87 +22,44 @@ const responderSelect = {
   location: true,
 };
 
+// Every board response is database-backed and carries the resource IDs needed
+// by the frontend. Resource labels are display-only; matching never uses them.
 const requestInclude = {
-  requiredResources: {
-    include: {
-      resource: true,
-    },
-  },
-  requester: {
-    select: requesterSelect,
-  },
-  acceptedBy: {
-    select: responderSelect,
-  },
+  requiredResources: { include: { resource: true } },
+  requester: { select: requesterSelect },
+  acceptedBy: { select: responderSelect },
   allocations: {
     include: {
       resource: {
-        select: {
-          id: true,
-          name: true,
-          type: true,
-          unit: true,
-        },
+        select: { id: true, name: true, type: true, unit: true },
       },
-      responder: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-        },
-      },
+      responder: { select: { id: true, name: true, phone: true } },
     },
   },
 };
 
 exports.requestInclude = requestInclude;
 
-// ------------------------------------------------------------------
-// CREATE
-//
-// Backend is the final authority:
-//  - the requester must be authenticated (route level)
-//  - resource ids must exist in PostgreSQL
-//  - resources must be ACTIVE
-//  - quantities must be positive whole numbers
-//  - quantity cannot exceed the catalog availability
-// ------------------------------------------------------------------
 exports.createEmergencyRequest = async (userId, data) => {
   const validationError = validateEmergencyRequestInput(data);
-
-  if (validationError) {
-    throw new Error(validationError);
-  }
+  if (validationError) throw new Error(validationError);
 
   const requiredResources = normalizeRequiredResources(data.requiredResources);
-
-  const resourceIds = requiredResources.map((r) => r.resourceId);
-
+  const resourceIds = requiredResources.map((resource) => resource.resourceId);
   const resources = await prisma.resource.findMany({
-    where: {
-      id: {
-        in: resourceIds,
-      },
-    },
+    where: { id: { in: resourceIds } },
   });
-
-  const resourceById = new Map(resources.map((r) => [r.id, r]));
+  const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
 
   for (const required of requiredResources) {
     const resource = resourceById.get(required.resourceId);
-
-    if (!resource) {
-      throw new Error(`Resource ${required.resourceId} does not exist`);
-    }
-
-    if (resource.isActive === false) {
+    if (!resource) throw new Error(`Resource ${required.resourceId} does not exist`);
+    if (!resource.isActive) {
       throw new Error(`Resource "${resource.name}" is not active`);
     }
-
     if (resource.availableQuantity <= 0) {
       throw new Error(`Resource "${resource.name}" is out of stock`);
     }
-
     if (required.quantity > resource.availableQuantity) {
       throw new Error(
         `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
@@ -135,7 +67,7 @@ exports.createEmergencyRequest = async (userId, data) => {
     }
   }
 
-  return await prisma.emergencyRequest.create({
+  return prisma.emergencyRequest.create({
     data: {
       emergencyType: String(data.emergencyType).trim(),
       description: String(data.description).trim(),
@@ -145,9 +77,9 @@ exports.createEmergencyRequest = async (userId, data) => {
       priority: data.priority ? String(data.priority) : 'MEDIUM',
       requesterId: userId,
       requiredResources: {
-        create: requiredResources.map((r) => ({
-          resourceId: r.resourceId,
-          quantity: r.quantity,
+        create: requiredResources.map((resource) => ({
+          resourceId: resource.resourceId,
+          quantity: resource.quantity,
         })),
       },
     },
@@ -155,16 +87,12 @@ exports.createEmergencyRequest = async (userId, data) => {
   });
 };
 
-// ------------------------------------------------------------------
-// READ
-// ------------------------------------------------------------------
-exports.getRequestsByUser = async (userId) => {
-  return await prisma.emergencyRequest.findMany({
+exports.getRequestsByUser = async (userId) =>
+  prisma.emergencyRequest.findMany({
     where: { requesterId: Number(userId) },
     include: requestInclude,
     orderBy: { createdAt: 'desc' },
   });
-};
 
 exports.getRequestById = async (id) => {
   const request = await prisma.emergencyRequest.findUnique({
@@ -175,314 +103,287 @@ exports.getRequestById = async (id) => {
   return request;
 };
 
-exports.cancelEmergencyRequest = async (userId, id) => {
-  const request = await this.getRequestById(id);
-  if (request.requesterId !== userId) throw new Error('Unauthorized: You can only cancel your own requests');
-  if (request.status !== 'PENDING') throw new Error('Only PENDING requests can be cancelled');
-
-  return await prisma.emergencyRequest.update({
-    where: { id: Number(id) },
-    data: { status: 'CANCELLED' }
-  });
-};
-
-exports.getAllRequests = async () => {
-  return await prisma.emergencyRequest.findMany({
-    include: requestInclude,
-    orderBy: { createdAt: 'desc' },
-  });
-};
-
 /**
- * Requests this responder has accepted (their own workload).
- * Used by the dispatch board after acceptance, because an accepted
- * request correctly disappears from the compatible PENDING list.
+ * Cancel is a cleanup transaction, not only a request flag update. Every
+ * reservation or dispatch is converted to CANCELLED exactly once and its
+ * inventory is restored exactly once. Delivered allocations are deliberately
+ * left untouched because those units have already left the responder.
  */
-exports.getAssignedRequestsForResponder = async (responderId) => {
-  return await prisma.emergencyRequest.findMany({
-    where: {
-      acceptedById: Number(responderId),
-    },
-    include: requestInclude,
-    orderBy: { createdAt: 'desc' },
-  });
-};
-
-exports.getCompatibleRequestsForResponder = async (responderId) => {
-  // ----------------------------------------------------
-  // RULE: responder must be an active, available RESPONDER
-  // ----------------------------------------------------
-  const responder = await prisma.user.findUnique({
-    where: {
-      id: Number(responderId),
-    },
-    select: {
-      id: true,
-      role: true,
-      isActive: true,
-      responderStatus: true,
-    },
-  });
-
-  diag('\n[COMPATIBILITY]');
-  diag(`Responder: ${responderId}`);
-
-  if (!responder) {
-    diag('Result: NONE (responder not found)');
-    return [];
+exports.cancelEmergencyRequest = async (userId, id) => {
+  const requestId = Number(id);
+  if (!Number.isInteger(requestId) || requestId <= 0) {
+    throw new Error('Request not found');
   }
 
-  diag(`  role=${responder.role} isActive=${responder.isActive} responderStatus=${responder.responderStatus}`);
+  return runSerializableTransaction(async (tx) => {
+    const lockedRequests = await tx.$queryRaw`
+      SELECT id, "requesterId", "acceptedById", status
+      FROM "EmergencyRequest"
+      WHERE id = ${requestId}
+      FOR UPDATE
+    `;
+    const request = lockedRequests[0];
+    if (!request) throw new Error('Request not found');
+    if (request.requesterId !== Number(userId)) {
+      throw new Error('Unauthorized: You can only cancel your own requests');
+    }
+    if (request.status === 'CANCELLED') {
+      throw new Error('Request has already been cancelled');
+    }
+    if (request.status === 'COMPLETED') {
+      throw new Error('Completed requests cannot be cancelled');
+    }
+
+    const candidates = await tx.allocation.findMany({
+      where: {
+        requestId,
+        status: { in: ['RESERVED', 'DISPATCHED'] },
+      },
+      select: { id: true },
+    });
+    const affectedResponders = new Set();
+    if (request.acceptedById) affectedResponders.add(request.acceptedById);
+
+    for (const candidate of candidates) {
+      const lockedAllocations = await tx.$queryRaw`
+        SELECT id, "responderId", "responderResourceId", quantity, status
+        FROM "Allocation"
+        WHERE id = ${candidate.id}
+        FOR UPDATE
+      `;
+      const allocation = lockedAllocations[0];
+      if (
+        !allocation ||
+        (allocation.status !== 'RESERVED' && allocation.status !== 'DISPATCHED')
+      ) {
+        continue;
+      }
+
+      const lockedResources = await tx.$queryRaw`
+        SELECT id, "availableQuantity", "totalQuantity", "isEnabled", status
+        FROM "ResponderResource"
+        WHERE id = ${allocation.responderResourceId}
+        FOR UPDATE
+      `;
+      const responderResource = lockedResources[0];
+      if (!responderResource) throw new Error('Responder resource not found');
+
+      const restoredQuantity =
+        responderResource.availableQuantity + allocation.quantity;
+      if (restoredQuantity > responderResource.totalQuantity) {
+        throw new Error('Inventory restoration would exceed total quantity');
+      }
+
+      await tx.responderResource.update({
+        where: { id: allocation.responderResourceId },
+        data: {
+          availableQuantity: restoredQuantity,
+          ...(responderResource.isEnabled && restoredQuantity > 0
+            ? { status: 'AVAILABLE' }
+            : {}),
+        },
+      });
+      await tx.allocation.update({
+        where: { id: allocation.id },
+        data: { status: 'CANCELLED' },
+      });
+      affectedResponders.add(allocation.responderId);
+    }
+
+    const cancelled = await tx.emergencyRequest.update({
+      where: { id: requestId },
+      data: { status: 'CANCELLED' },
+      include: requestInclude,
+    });
+
+    for (const responderId of affectedResponders) {
+      await syncResponderAvailability(tx, responderId);
+    }
+
+    return cancelled;
+  });
+};
+
+exports.getAllRequests = async () =>
+  prisma.emergencyRequest.findMany({
+    include: requestInclude,
+    orderBy: { createdAt: 'desc' },
+  });
+
+exports.getAssignedRequestsForResponder = async (responderId) =>
+  prisma.emergencyRequest.findMany({
+    where: { acceptedById: Number(responderId) },
+    include: requestInclude,
+    orderBy: { createdAt: 'desc' },
+  });
+
+exports.getCompatibleRequestsForResponder = async (responderId) => {
+  const numericResponderId = Number(responderId);
+  const responder = await prisma.user.findUnique({
+    where: { id: numericResponderId },
+    select: { id: true, role: true, isActive: true, responderStatus: true },
+  });
 
   if (
+    !responder ||
     responder.role !== 'RESPONDER' ||
     !responder.isActive ||
     responder.responderStatus !== 'AVAILABLE'
   ) {
-    diag(
-      'Result: NONE (responder is not an active, AVAILABLE RESPONDER)'
-    );
     return [];
   }
 
-  // ----------------------------------------------------
-  // RULE: one active emergency per responder
-  // ----------------------------------------------------
   const activeEmergency = await prisma.emergencyRequest.findFirst({
     where: {
-      acceptedById: Number(responderId),
-      status: {
-        in: ['ACCEPTED', 'IN_PROGRESS', 'PARTIALLY_ALLOCATED'],
-      },
+      acceptedById: numericResponderId,
+      status: { in: ACTIVE_REQUEST_STATUSES },
     },
-    select: {
-      id: true,
-    },
+    select: { id: true },
   });
+  if (activeEmergency) return [];
 
-  if (activeEmergency) {
-    diag(
-      `Result: NONE (responder already has active emergency #${activeEmergency.id})`
-    );
-    return [];
-  }
-
-  diag('  activeEmergency=none');
-
-  // ----------------------------------------------------
-  // RULE: responder must have available matching resources
-  // ----------------------------------------------------
+  // A capability must explicitly be enabled and presently available. Joining
+  // the resource catalog ensures a disabled catalog resource cannot match.
   const responderResources = await prisma.responderResource.findMany({
     where: {
-      responderId: Number(responderId),
+      responderId: numericResponderId,
+      isEnabled: true,
       status: 'AVAILABLE',
-      availableQuantity: {
-        gt: 0,
-      },
+      availableQuantity: { gt: 0 },
+      resource: { isActive: true },
     },
-  });
-
-  diag('Responder inventory (AVAILABLE):');
-  if (!responderResources.length) {
-    diag('  (none)');
-  }
-  responderResources.forEach((r) => {
-    diag(
-      `  resourceId=${r.resourceId} available=${r.availableQuantity} status=${r.status}`
-    );
+    select: {
+      resourceId: true,
+      availableQuantity: true,
+      status: true,
+      isEnabled: true,
+    },
   });
 
   const requests = await prisma.emergencyRequest.findMany({
-    where: {
-      status: 'PENDING',
-    },
+    where: { status: 'PENDING' },
     include: requestInclude,
-    orderBy: [
-      { priority: 'desc' },
-      { createdAt: 'asc' },
-    ],
+    orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
   });
 
-  const compatible = requests.filter((request) => {
-    diag(`Request: ${request.id}`);
+  return requests.filter((request) => {
+    if (!request.requiredResources.length) return false;
 
-    if (!request.requiredResources.length) {
-      diag(`Request ${request.id} rejected: no required resources`);
-      return false;
-    }
-
-    diag('Required:');
-    request.requiredResources.forEach((required) => {
-      diag(
-        `  resourceId=${required.resourceId} quantity=${required.quantity}`
-      );
-    });
-
-    let rejection = null;
-
-    const ok = request.requiredResources.every((required) => {
-      // Compatibility is decided ONLY by integer resourceId + quantity.
+    return request.requiredResources.every((required) => {
+      // Strict integer resourceId matching; names/types are never used.
       const matchingResource = responderResources.find(
         (resource) =>
           resource.resourceId === required.resourceId &&
           resource.availableQuantity >= required.quantity
       );
-
-      if (!matchingResource) {
-        const owned = responderResources.find(
-          (resource) => resource.resourceId === required.resourceId
-        );
-
-        if (!owned) {
-          rejection = `resourceId ${required.resourceId} missing from responder inventory`;
-        } else {
-          rejection =
-            `resourceId ${required.resourceId} insufficient ` +
-            `(need ${required.quantity}, have ${owned.availableQuantity} available, status ${owned.status})`;
-        }
-      }
-
-      return !!matchingResource;
+      return Boolean(matchingResource && required.resource.isActive);
     });
-
-    if (ok) {
-      diag(`Result:\n  COMPATIBLE (request ${request.id})`);
-    } else {
-      diag(`Request ${request.id} rejected:\n${rejection}`);
-    }
-
-    return ok;
   });
-
-  diag(`\nCompatible request ids: [${compatible.map((r) => r.id).join(', ')}]`);
-
-  return compatible;
 };
+
 exports.acceptEmergencyRequest = async (responderId, requestId) => {
-  return await prisma.$transaction(async (tx) => {
-    const request = await tx.emergencyRequest.findUnique({
-      where: { id: Number(requestId) },
-      include: {
-        requiredResources: true,
-      },
-    });
+  const numericResponderId = Number(responderId);
+  const numericRequestId = Number(requestId);
+  if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
+    throw new Error('Request not found');
+  }
 
-    if (!request) {
-      throw new Error('Request not found');
-    }
-
-    if (request.status !== 'PENDING') {
+  return runSerializableTransaction(async (tx) => {
+    // Retain explicit row locks for acceptance. The user lock serializes two
+    // different requests racing to be accepted by one responder.
+    const lockedRequests = await tx.$queryRaw`
+      SELECT id, status
+      FROM "EmergencyRequest"
+      WHERE id = ${numericRequestId}
+      FOR UPDATE
+    `;
+    const requestRow = lockedRequests[0];
+    if (!requestRow) throw new Error('Request not found');
+    if (requestRow.status !== 'PENDING') {
       throw new Error('Only PENDING requests can be accepted');
     }
 
-    const responder = await tx.user.findUnique({
-      where: { id: Number(responderId) },
-    });
-
+    const lockedResponders = await tx.$queryRaw`
+      SELECT id, role, "isActive", "responderStatus"
+      FROM "User"
+      WHERE id = ${numericResponderId}
+      FOR UPDATE
+    `;
+    const responder = lockedResponders[0];
     if (!responder || responder.role !== 'RESPONDER') {
       throw new Error('Only responders can accept emergencies');
     }
-
-    if (!responder.isActive) {
-      throw new Error('Responder is inactive');
-    }
-
+    if (!responder.isActive) throw new Error('Responder is inactive');
     if (responder.responderStatus !== 'AVAILABLE') {
       throw new Error('Responder is not available to accept');
     }
 
-    // ----------------------------------------------------
-    // RULE 1: One active emergency per responder
-    // ----------------------------------------------------
     const activeEmergency = await tx.emergencyRequest.findFirst({
       where: {
-        acceptedById: Number(responderId),
-        status: {
-          in: ['ACCEPTED', 'IN_PROGRESS', 'PARTIALLY_ALLOCATED'],
-        },
+        acceptedById: numericResponderId,
+        status: { in: ACTIVE_REQUEST_STATUSES },
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
-
     if (activeEmergency) {
-      throw new Error(
-        'Responder already has an active emergency',
-      );
+      throw new Error('Responder already has an active emergency');
     }
 
-    // ----------------------------------------------------
-    // RULE 2: Responder must have the required resources
-    // ----------------------------------------------------
-    if (!request.requiredResources.length) {
-      throw new Error(
-        'Request has no required resource',
-      );
+    const requiredResources = await tx.requestResource.findMany({
+      where: { requestId: numericRequestId },
+      select: { resourceId: true, quantity: true },
+    });
+    if (!requiredResources.length) {
+      throw new Error('Request has no required resource');
     }
 
-    const responderResources =
-      await tx.responderResource.findMany({
-        where: {
-          responderId: Number(responderId),
-          status: 'AVAILABLE',
-          availableQuantity: {
-            gt: 0,
-          },
-        },
-      });
+    // Lock all capability rows before the compatibility re-check so changes
+    // made after GET /compatible cannot race this acceptance.
+    const responderResources = await tx.$queryRaw`
+      SELECT rr.id, rr."resourceId", rr."availableQuantity", rr.status,
+             rr."isEnabled", resource."isActive" AS "resourceIsActive"
+      FROM "ResponderResource" AS rr
+      INNER JOIN "Resource" AS resource ON resource.id = rr."resourceId"
+      WHERE rr."responderId" = ${numericResponderId}
+      FOR UPDATE OF rr, resource
+    `;
 
-    for (const required of request.requiredResources) {
+    for (const required of requiredResources) {
       const matching = responderResources.find(
         (resource) =>
           resource.resourceId === required.resourceId &&
-          resource.availableQuantity >= required.quantity,
+          resource.isEnabled === true &&
+          resource.status === 'AVAILABLE' &&
+          resource.resourceIsActive === true &&
+          resource.availableQuantity >= required.quantity
       );
-
       if (!matching) {
-        throw new Error(
-          'Responder does not have the required resource available',
-        );
+        throw new Error('Responder does not have the required resource available');
       }
     }
 
-    // ----------------------------------------------------
-    // ACCEPT REQUEST
-    // ----------------------------------------------------
-    const updatedRequest =
-      await tx.emergencyRequest.update({
-        where: {
-          id: Number(requestId),
-        },
-        data: {
-          status: 'ACCEPTED',
-          acceptedById: Number(responderId),
-          acceptedAt: new Date(),
-        },
-        include: {
-          requiredResources: true,
-        },
-      });
-
-    // Responder becomes BUSY
-    await tx.user.update({
-      where: {
-        id: Number(responderId),
-      },
+    const updatedRequest = await tx.emergencyRequest.update({
+      where: { id: numericRequestId },
       data: {
-        responderStatus: 'BUSY',
-        lastActiveAt: new Date(),
+        status: 'ACCEPTED',
+        acceptedById: numericResponderId,
+        acceptedAt: new Date(),
       },
+      include: requestInclude,
     });
+
+    await tx.user.update({
+      where: { id: numericResponderId },
+      data: { lastActiveAt: new Date() },
+    });
+    await syncResponderAvailability(tx, numericResponderId);
 
     return updatedRequest;
   });
 };
 
-exports.updateRequestStatus = async (requestId, status) => {
-  // Can add state machine rules here
-  return await prisma.emergencyRequest.update({
+exports.updateRequestStatus = async (requestId, status) =>
+  prisma.emergencyRequest.update({
     where: { id: Number(requestId) },
-    data: { status }
+    data: { status },
   });
-};

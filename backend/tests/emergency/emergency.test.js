@@ -171,6 +171,7 @@ describe("Emergency Request Lifecycle", () => {
       resourceId: resource.id,
       totalQuantity: 5,
       availableQuantity: 5,
+      isEnabled: true,
       status: "AVAILABLE",
     },
   });
@@ -428,7 +429,7 @@ describe("Emergency Request Lifecycle", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  test("❌ Cannot cancel an already ACCEPTED emergency", async () => {
+  test("✅ REQUESTER can cancel an active ACCEPTED emergency", async () => {
     const emergency = await prisma.emergencyRequest.create({
       data: {
         requesterId: requester.id,
@@ -444,10 +445,8 @@ describe("Emergency Request Lifecycle", () => {
       .patch(`/api/requests/${emergency.id}/cancel`)
       .set("Authorization", `Bearer ${requesterToken}`);
 
-    expect(res.statusCode).toBe(500);
-    expect(res.body.message).toContain(
-      "Only PENDING requests can be cancelled"
-    );
+    expect(res.statusCode).toBe(200);
+    expect(res.body.request.status).toBe("CANCELLED");
   });
 
   test("❌ Cannot cancel an already CANCELLED emergency twice", async () => {
@@ -473,8 +472,6 @@ describe("Emergency Request Lifecycle", () => {
       .set("Authorization", `Bearer ${requesterToken}`);
 
     expect(second.statusCode).toBe(500);
-    expect(second.body.message).toContain(
-      "Only PENDING requests can be cancelled"
-    );
+    expect(second.body.message).toContain("already been cancelled");
   });
 });

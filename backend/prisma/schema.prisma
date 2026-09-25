@@ -195,6 +195,10 @@ model ResponderResource {
   totalQuantity     Int @default(0)
   availableQuantity Int @default(0)
 
+  // A responder's durable willingness/qualification for this resource.
+  // `status` represents current availability only and is not a capability flag.
+  isEnabled Boolean @default(false)
+
   status ResourceStatus @default(UNAVAILABLE)
 
   createdAt DateTime @default(now())

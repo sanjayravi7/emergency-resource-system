@@ -4,23 +4,34 @@ const responderController = require('../controllers/responderController');
 const authenticate = require('../middleware/authMiddleware');
 const authorizeRoles = require('../middleware/roleMiddleware');
 
-router.get(
-  "/",
-  authenticate,
-  responderController.getResponders
-);
+router.get('/', authenticate, responderController.getResponders);
 
 router.patch(
-  "/status",
+  '/status',
   authenticate,
-  authorizeRoles("RESPONDER"),
+  authorizeRoles('RESPONDER'),
   responderController.updateStatus
 );
 
 router.patch(
-  "/location",
+  '/location',
   authenticate,
-  authorizeRoles("RESPONDER"),
+  authorizeRoles('RESPONDER'),
   responderController.updateLocation
 );
+
+router.post(
+  '/heartbeat',
+  authenticate,
+  authorizeRoles('RESPONDER'),
+  responderController.heartbeat
+);
+
+router.post(
+  '/logout',
+  authenticate,
+  authorizeRoles('RESPONDER'),
+  responderController.logout
+);
+
 module.exports = router;

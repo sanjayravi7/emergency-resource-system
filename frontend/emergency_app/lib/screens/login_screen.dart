@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../Services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'dispatch_console_page.dart';
+import 'responder_readiness_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,10 +41,29 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute<void>(builder: (_) => const DispatchConsolePage()),
-      );
+      if (ApiService.isResponder) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+            builder: (readinessContext) => ResponderReadinessPage(
+              onSaved: () {
+                Navigator.of(readinessContext).pushReplacement(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DispatchConsolePage(
+                      readinessSuccess: true,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const DispatchConsolePage()),
+        );
+      }
     } catch (error) {
       if (mounted) {
         setState(() {

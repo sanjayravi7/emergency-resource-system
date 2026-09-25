@@ -7,11 +7,13 @@ import 'package:http/http.dart' as http;
 /// Socket.IO, which is already a backend dependency) can later push into the
 /// same reload methods without rewriting the UI.
 class ApiService {
-  /// Override at build time:
+  /// Override for a native simulator when needed:
   ///   flutter run --dart-define=ERAS_API_BASE_URL=http://10.0.2.2:5000/api
+  /// Web builds use the same-origin API by default so the browser never calls
+  /// a sandbox-localhost address.
   static const String baseUrl = String.fromEnvironment(
     'ERAS_API_BASE_URL',
-    defaultValue: 'http://localhost:5000/api',
+    defaultValue: '/api',
   );
 
   static String? token;
@@ -80,11 +82,23 @@ class ApiService {
     return body;
   }
 
-  static void logout() {
-    token = null;
-    currentRole = null;
-    currentUserId = null;
-    currentUserName = null;
+  /// Mark a responder offline before clearing the local session. A failed
+  /// network call must never strand the UI, so local credentials are cleared
+  /// in all cases and no emergency/allocation is altered by logout.
+  static Future<void> logout() async {
+    try {
+      if (isResponder && token != null) {
+        await http.post(
+          Uri.parse('$baseUrl/responders/logout'),
+          headers: _headers,
+        );
+      }
+    } finally {
+      token = null;
+      currentRole = null;
+      currentUserId = null;
+      currentUserName = null;
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -364,6 +378,60 @@ class ApiService {
     return body['resources'] ?? [];
   }
 
+  static Future<Map<String, dynamic>> createResponderResource(
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/responder-resources'),
+      headers: _headers,
+      body: jsonEncode(data),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 201) {
+      _fail(body, 'Failed to add responder resource');
+    }
+    return body;
+  }
+
+  static Future<Map<String, dynamic>> updateResponderResource(
+    int responderResourceId,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/responder-resources/$responderResourceId'),
+      headers: _headers,
+      body: jsonEncode(data),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to update help type');
+    }
+    return body;
+  }
+
+  static Future<void> setResponderStatus(String status) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/responders/status'),
+      headers: _headers,
+      body: jsonEncode(<String, dynamic>{'status': status}),
+    );
+    if (response.statusCode != 200) {
+      _fail(_decode(response), 'Failed to update responder status');
+    }
+  }
+
+  /// Lightweight activity signal; a failed heartbeat intentionally has no
+  /// local availability side effect.
+  static Future<void> responderHeartbeat() async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/responders/heartbeat'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) {
+      _fail(_decode(response), 'Heartbeat failed');
+    }
+  }
+
   // ---------------------------------------------------------------------
   // ALLOCATIONS
   // ---------------------------------------------------------------------
@@ -427,6 +495,20 @@ class ApiService {
       _fail(body, 'Failed to update allocation status');
     }
 
+    return body;
+  }
+
+  static Future<Map<String, dynamic>> confirmAllocationReceived(
+    int allocationId,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/allocations/$allocationId/received'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to confirm resource receipt');
+    }
     return body;
   }
 }

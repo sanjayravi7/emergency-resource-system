@@ -13,25 +13,41 @@ exports.updateStatus = async (req, res, next) => {
 exports.updateLocation = async (req, res, next) => {
   try {
     const { location, latitude, longitude } = req.body;
-    const user = await responderService.updateResponderLocation(req.user.id, location, latitude, longitude);
+    const user = await responderService.updateResponderLocation(
+      req.user.id,
+      location,
+      latitude,
+      longitude
+    );
     res.json({ success: true, user });
   } catch (error) {
     next(error);
   }
 };
-exports.getResponders = async (req, res, next) => {
-  try {
-    const responders = await responderService.getResponders();
 
-    res.json({
-      success: true,
-      responders,
-    });
+exports.heartbeat = async (req, res, next) => {
+  try {
+    const user = await responderService.heartbeat(req.user.id);
+    res.json({ success: true, user });
   } catch (error) {
     next(error);
   }
 };
-// NOTE: the responder-resource catalog is served by
-// responderResourceController.getAllResources
-// (GET /api/responder-resources). A duplicate copy used to live here and
-// referenced an undefined service, so it could only ever throw.
+
+exports.logout = async (req, res, next) => {
+  try {
+    await responderService.logoutResponder(req.user.id);
+    res.json({ success: true, message: 'Responder is offline' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getResponders = async (req, res, next) => {
+  try {
+    const responders = await responderService.getResponders();
+    res.json({ success: true, responders });
+  } catch (error) {
+    next(error);
+  }
+};
