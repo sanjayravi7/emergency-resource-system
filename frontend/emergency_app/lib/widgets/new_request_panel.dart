@@ -24,9 +24,10 @@ class NewRequestPayload {
 }
 
 class _DraftLine {
-  _DraftLine({this.resourceId, this.quantity = 1});
+  _DraftLine();
+
   int? resourceId;
-  int quantity;
+  int quantity = 1;
 }
 
 /// Requester form. Every selectable resource comes from
