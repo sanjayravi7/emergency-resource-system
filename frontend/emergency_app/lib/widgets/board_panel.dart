@@ -21,6 +21,7 @@ class BoardPanel extends StatelessWidget {
     this.onAllocate,
     this.onCancelRequest,
     this.onDispatchAllocation,
+    this.onMarkDelivered,
     this.onConfirmReceipt,
     this.isMobile = false,
   });
@@ -37,6 +38,7 @@ class BoardPanel extends StatelessWidget {
   final void Function(EmergencyRequest request)? onAllocate;
   final void Function(EmergencyRequest request)? onCancelRequest;
   final void Function(AllocationLine allocation)? onDispatchAllocation;
+  final void Function(AllocationLine allocation)? onMarkDelivered;
   final void Function(AllocationLine allocation)? onConfirmReceipt;
   final bool isMobile;
 
@@ -63,6 +65,15 @@ class BoardPanel extends StatelessWidget {
           role == 'RESPONDER' &&
           allocation.responderId == currentUserId &&
           allocation.isReserved)
+      .toList(growable: false);
+
+  // Responder-side delivery fallback: the responder may complete their own
+  // DISPATCHED allocation when the requester never confirms receipt.
+  List<AllocationLine> _deliverable(EmergencyRequest request) => request.allocations
+      .where((allocation) =>
+          role == 'RESPONDER' &&
+          allocation.responderId == currentUserId &&
+          allocation.isDispatched)
       .toList(growable: false);
 
   List<AllocationLine> _receivable(EmergencyRequest request) => request.allocations
@@ -149,6 +160,25 @@ class BoardPanel extends StatelessWidget {
               ),
             ),
             child: Text('Dispatch ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
+          ),
+        );
+      }
+    }
+
+    if (onMarkDelivered != null) {
+      for (final allocation in _deliverable(request)) {
+        actions.add(
+          FilledButton(
+            onPressed: () => onMarkDelivered!(allocation),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.teal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            child: Text('Mark Delivered · ${allocation.resourceName}',
                 style: const TextStyle(fontSize: 12)),
           ),
         );

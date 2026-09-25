@@ -27,7 +27,9 @@ router.get(
   allocationController.getMyAllocations
 );
 
-// A responder may dispatch or cancel only an allocation they own.
+// A responder may dispatch, deliver, or cancel only an allocation they own.
+// DELIVERED is the responder-side fallback for a requester who never
+// confirms receipt: it is valid only from DISPATCHED.
 router.patch(
   '/:id/status',
   authenticate,
