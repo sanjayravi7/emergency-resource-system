@@ -19,6 +19,7 @@ const responderResourceInclude = {
       id: true,
       name: true,
       type: true,
+      mode: true,
       unit: true,
       location: true,
       isActive: true,

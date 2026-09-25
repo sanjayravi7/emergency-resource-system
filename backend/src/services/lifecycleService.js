@@ -51,7 +51,19 @@ async function syncResponderAvailability(tx, responderId) {
       where: {
         responderId: numericResponderId,
         isEnabled: true,
-        availableQuantity: { gt: 0 },
+        resource: {
+          isActive: true,
+        },
+        OR: [
+          // A service is a capability, not a finite inventory count. A
+          // selected service remains usable for another sequential request.
+          { resource: { mode: 'SERVICE' } },
+          {
+            resource: { mode: 'CONSUMABLE' },
+            status: 'AVAILABLE',
+            availableQuantity: { gt: 0 },
+          },
+        ],
       },
       select: { id: true },
     });

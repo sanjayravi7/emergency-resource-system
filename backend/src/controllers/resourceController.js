@@ -9,6 +9,15 @@ exports.createResource = async (req, res, next) => {
   }
 };
 
+exports.getResourceAvailability = async (req, res, next) => {
+  try {
+    const resources = await resourceService.getResourceAvailability();
+    res.json({ success: true, resources });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getAllResources = async (req, res, next) => {
   try {
     // ADMIN sees the full catalog (including deactivated resources) so it can

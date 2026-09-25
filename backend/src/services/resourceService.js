@@ -24,6 +24,46 @@ exports.createResource = async (data) => {
 // `activeOnly` is used for requesters/responders so inactive
 // resources are never offered for selection.
 // ----------------------------------------------------------
+exports.getResourceAvailability = async () => {
+  const resources = await prisma.resource.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      mode: true,
+      unit: true,
+      availableQuantity: true,
+      responderResources: {
+        where: {
+          isEnabled: true,
+          responder: {
+            role: 'RESPONDER',
+            isActive: true,
+            responderStatus: 'AVAILABLE',
+          },
+        },
+        select: { responderId: true },
+      },
+    },
+    orderBy: { name: 'asc' },
+  });
+
+  return resources.map((resource) => ({
+    id: resource.id,
+    name: resource.name,
+    type: resource.type,
+    mode: resource.mode,
+    unit: resource.unit,
+    availableResponders:
+      resource.mode === 'SERVICE'
+        ? resource.responderResources.length
+        : null,
+    availableQuantity:
+      resource.mode === 'CONSUMABLE' ? resource.availableQuantity : null,
+  }));
+};
+
 exports.getAllResources = async (options = {}) => {
   const { activeOnly = false, type, search } = options;
 
@@ -63,6 +103,7 @@ exports.getLowStockResources = async () => {
     SELECT *
     FROM "Resource"
     WHERE "isActive" = true
+      AND "mode" = 'CONSUMABLE'
       AND "availableQuantity" <= "lowStockThreshold"
     ORDER BY "availableQuantity" ASC, "name" ASC
   `;

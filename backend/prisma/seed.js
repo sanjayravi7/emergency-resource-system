@@ -32,6 +32,7 @@ const RESOURCES = [
   {
     name: 'Ambulance',
     type: 'AMBULANCE',
+    mode: 'SERVICE',
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'vehicle',
@@ -41,6 +42,7 @@ const RESOURCES = [
   {
     name: 'Blood',
     type: 'BLOOD',
+    mode: 'CONSUMABLE',
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'unit',
@@ -50,6 +52,7 @@ const RESOURCES = [
   {
     name: 'Oxygen',
     type: 'OXYGEN',
+    mode: 'CONSUMABLE',
     totalQuantity: 20,
     availableQuantity: 20,
     unit: 'cylinder',
@@ -59,6 +62,7 @@ const RESOURCES = [
   {
     name: 'Fire Resource',
     type: 'FIRE',
+    mode: 'SERVICE',
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'unit',
@@ -68,6 +72,7 @@ const RESOURCES = [
   {
     name: 'Volunteer',
     type: 'VOLUNTEER',
+    mode: 'SERVICE',
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'person',
@@ -91,6 +96,7 @@ async function upsertResources() {
       // resource is usable (active, typed, measurable).
       update: {
         type: resource.type,
+        mode: resource.mode,
         unit: resource.unit,
         location: resource.location,
         lowStockThreshold: resource.lowStockThreshold,

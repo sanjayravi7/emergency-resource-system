@@ -272,6 +272,21 @@ class ApiService {
     return body['resources'] ?? [];
   }
 
+  static Future<List<dynamic>> getResourceAvailability() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/resources/availability'),
+      headers: _headers,
+    );
+
+    final body = _decode(response);
+
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to load resource availability');
+    }
+
+    return body['resources'] ?? [];
+  }
+
   static Future<List<dynamic>> getLowStockResources() async {
     final response = await http.get(
       Uri.parse('$baseUrl/resources/low-stock'),

@@ -45,6 +45,11 @@ enum ResourceStatus {
   UNAVAILABLE
 }
 
+enum ResourceMode {
+  SERVICE
+  CONSUMABLE
+}
+
 enum AllocationStatus {
   RESERVED
   DISPATCHED
@@ -144,6 +149,7 @@ model Resource {
 
   name String @unique
   type String
+  mode ResourceMode @default(CONSUMABLE)
 
   totalQuantity     Int @default(0)
   availableQuantity Int @default(0)

@@ -127,12 +127,28 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   Future<void> loadResources({bool silent = false}) async {
     try {
-      final data = await ApiService.getResources(includeInactive: isAdmin);
+      final results = await Future.wait<List<dynamic>>(<Future<List<dynamic>>>[
+        ApiService.getResources(includeInactive: isAdmin),
+        ApiService.getResourceAvailability(),
+      ]);
+      final availabilityById = <int, Map<String, dynamic>>{
+        for (final item in results[1])
+          (item as Map)['id'] as int: Map<String, dynamic>.from(item),
+      };
 
-      final loaded = data
-          .map((item) =>
-              BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
-          .toList();
+      final loaded = results[0].map((item) {
+        final json = Map<String, dynamic>.from(item as Map);
+        final id = (json['id'] as num?)?.toInt();
+        final availability = id == null ? null : availabilityById[id];
+        if (availability != null) {
+          json['availableResponders'] = availability['availableResponders'];
+          if (json['mode'] == 'CONSUMABLE' &&
+              availability['availableQuantity'] != null) {
+            json['availableQuantity'] = availability['availableQuantity'];
+          }
+        }
+        return BackendResource.fromJson(json);
+      }).toList();
 
       if (!mounted) return;
 

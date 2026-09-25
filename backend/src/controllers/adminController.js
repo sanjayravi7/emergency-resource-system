@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { syncResponderAvailability } = require('../services/lifecycleService');
 
 exports.getAllUsers = async (req, res, next) => {
   try {
@@ -23,9 +24,15 @@ exports.updateUserRole = async (req, res, next) => {
 
 exports.activateUser = async (req, res, next) => {
   try {
-    const user = await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: { isActive: true }
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: Number(req.params.id) },
+        data: { isActive: true },
+      });
+      if (updated.role === 'RESPONDER') {
+        return syncResponderAvailability(tx, updated.id);
+      }
+      return updated;
     });
     res.json({ success: true, user });
   } catch (error) {
@@ -35,9 +42,15 @@ exports.activateUser = async (req, res, next) => {
 
 exports.deactivateUser = async (req, res, next) => {
   try {
-    const user = await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: { isActive: false }
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: Number(req.params.id) },
+        data: { isActive: false },
+      });
+      if (updated.role === 'RESPONDER') {
+        return syncResponderAvailability(tx, updated.id);
+      }
+      return updated;
     });
     res.json({ success: true, user });
   } catch (error) {

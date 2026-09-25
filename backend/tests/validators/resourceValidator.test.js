@@ -13,12 +13,37 @@ describe("Resource validation (ADMIN catalog management)", () => {
     ).toBeNull();
   });
 
+  test("✅ accepts SERVICE and CONSUMABLE modes", () => {
+    expect(
+      validateResourceInput(
+        { name: "Ambulance", type: "AMBULANCE", mode: "SERVICE" },
+        { partial: false }
+      )
+    ).toBeNull();
+    expect(
+      validateResourceInput(
+        { name: "Blood", type: "BLOOD", mode: "CONSUMABLE" },
+        { partial: false }
+      )
+    ).toBeNull();
+  });
+
+  test("❌ rejects an unknown resource mode", () => {
+    expect(
+      validateResourceInput(
+        { name: "X", type: "Y", mode: "EQUIPMENT" },
+        { partial: false }
+      )
+    ).toMatch(/mode/i);
+  });
+
   test("✅ accepts a full create payload", () => {
     expect(
       validateResourceInput(
         {
           name: "Oxygen",
           type: "OXYGEN",
+          mode: "CONSUMABLE",
           totalQuantity: 20,
           availableQuantity: 20,
           unit: "cylinder",

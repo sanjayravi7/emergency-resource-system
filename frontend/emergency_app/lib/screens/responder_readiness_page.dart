@@ -206,8 +206,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Help types are separate from live inventory. Only enabled '
-                        'resources with available stock can receive requests.',
+                        'SERVICE selections are reusable capabilities. CONSUMABLE '
+                        'selections also require available responder inventory.',
                         style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
                       ),
                       const SizedBox(height: 16),
@@ -307,20 +307,23 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                         style: const TextStyle(
                             fontSize: 13.5, fontWeight: FontWeight.w600)),
                     Text(
-                      row == null
-                          ? 'No responder inventory assigned'
-                          : '$available / ${row.totalQuantity} $unit · ${row.status}',
+                      resource.isService
+                          ? 'SERVICE capability · ${selected ? 'enabled' : 'disabled'}'
+                          : row == null
+                              ? 'No responder inventory assigned'
+                              : '$available / ${row.totalQuantity} $unit · ${row.status}',
                       style: const TextStyle(
                           fontSize: 11.5, color: AppColors.textFaint),
                     ),
                   ],
                 ),
               ),
-              Text('$available $unit',
+              Text(
+                  resource.isService ? 'Reusable' : '$available $unit',
                   style: const TextStyle(fontSize: 12.5, color: AppColors.textDim)),
             ],
           ),
-          if (_showQuantityControls && row != null)
+          if (_showQuantityControls && row != null && !resource.isService)
             Padding(
               padding: const EdgeInsets.only(left: 48, right: 6, bottom: 4),
               child: Row(

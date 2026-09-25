@@ -212,11 +212,14 @@ class _AllocationDialogState extends State<AllocationDialog> {
     final remaining = current.remainingFor(line.resourceId);
     final inventory = inventoryFor(line.resourceId);
 
+    final isService = line.resourceMode == 'SERVICE';
     final maxQuantity = inventory == null
         ? 0
-        : (remaining < inventory.availableQuantity
+        : isService
             ? remaining
-            : inventory.availableQuantity);
+            : (remaining < inventory.availableQuantity
+                ? remaining
+                : inventory.availableQuantity);
 
     final quantity = maxQuantity <= 0 ? 0 : quantityFor(line, maxQuantity);
 
@@ -225,9 +228,11 @@ class _AllocationDialogState extends State<AllocationDialog> {
       blockedReason = 'Fully allocated';
     } else if (inventory == null) {
       blockedReason = 'You do not carry this resource';
-    } else if (inventory.status != 'AVAILABLE') {
+    } else if (!inventory.isEnabled) {
+      blockedReason = 'This help type is disabled';
+    } else if (!isService && inventory.status != 'AVAILABLE') {
       blockedReason = 'Your inventory is ${inventory.status}';
-    } else if (inventory.availableQuantity <= 0) {
+    } else if (!isService && inventory.availableQuantity <= 0) {
       blockedReason = 'No units left in your inventory';
     }
 
@@ -259,8 +264,10 @@ class _AllocationDialogState extends State<AllocationDialog> {
           const SizedBox(height: 6),
           Text(
             inventory == null
-                ? 'Your inventory: none'
-                : 'Your inventory: ${inventory.availableQuantity}/${inventory.totalQuantity} (${inventory.status})',
+                ? 'Your capability: none'
+                : isService
+                    ? 'Your capability: ${inventory.isEnabled ? 'enabled' : 'disabled'} (reusable service)'
+                    : 'Your inventory: ${inventory.availableQuantity}/${inventory.totalQuantity} (${inventory.status})',
             style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),

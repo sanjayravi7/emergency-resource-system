@@ -6,6 +6,7 @@ const authorizeRoles = require('../middleware/roleMiddleware');
 
 // READ - every authenticated role can read the catalog.
 // Requesters/responders only receive ACTIVE resources (see controller).
+router.get('/availability', authenticate, resourceController.getResourceAvailability);
 router.get('/', authenticate, resourceController.getAllResources);
 
 // Low stock overview (ADMIN). Declared before '/:id' so it is not

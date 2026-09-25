@@ -103,7 +103,9 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     setState(() {
       final line = lines[index];
       final resource = resourceById(line.resourceId);
-      final maxQuantity = resource?.availableQuantity ?? 1;
+      final maxQuantity = resource?.isService == true
+          ? 1000
+          : resource?.availableQuantity ?? 1;
 
       var next = line.quantity + delta;
       if (next < 1) next = 1;
@@ -162,7 +164,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         return 'Quantity must be greater than 0';
       }
 
-      if (line.quantity > resource.availableQuantity) {
+      if (!resource.isService && line.quantity > resource.availableQuantity) {
         return 'Only ${resource.availableQuantity} ${resource.name} available';
       }
 
@@ -553,7 +555,9 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
             setState(() {
               line.resourceId = value;
               final picked = resourceById(value);
-              if (picked != null && line.quantity > picked.availableQuantity) {
+              if (picked != null &&
+                  !picked.isService &&
+                  line.quantity > picked.availableQuantity) {
                 line.quantity = picked.availableQuantity;
               }
               if (line.quantity < 1) line.quantity = 1;

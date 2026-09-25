@@ -144,8 +144,10 @@ class _ResourceRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${resource.availableQuantity}/${resource.totalQuantity}'
-                '${resource.unit == null ? '' : ' ${resource.unit}'}',
+                resource.isService
+                    ? 'SERVICE'
+                    : '${resource.availableQuantity}/${resource.totalQuantity}'
+                        '${resource.unit == null ? '' : ' ${resource.unit}'}',
                 style: monoStyle(size: 12.5, color: AppColors.textDim),
               ),
               const SizedBox(height: 4),
@@ -227,6 +229,7 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
   late final TextEditingController nameController;
   late final TextEditingController typeController;
   late final TextEditingController totalController;
+  String mode = 'CONSUMABLE';
   late final TextEditingController availableController;
   late final TextEditingController unitController;
   late final TextEditingController locationController;
@@ -238,6 +241,7 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
   void initState() {
     super.initState();
     final resource = widget.resource;
+    mode = resource?.mode ?? 'CONSUMABLE';
 
     nameController = TextEditingController(text: resource?.name ?? '');
     typeController = TextEditingController(text: resource?.type ?? '');
@@ -301,6 +305,7 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
     Navigator.of(context).pop(<String, dynamic>{
       'name': nameController.text.trim(),
       'type': typeController.text.trim(),
+      'mode': mode,
       'totalQuantity': total,
       'availableQuantity': available,
       'unit': unitController.text.trim(),
@@ -326,6 +331,18 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
             children: [
               _field('Name', nameController),
               _field('Type', typeController, hint: 'AMBULANCE, OXYGEN, FIRE…'),
+              DropdownButtonFormField<String>(
+                initialValue: mode,
+                decoration: fieldDecoration(hintText: 'Mode'),
+                items: const [
+                  DropdownMenuItem(value: 'SERVICE', child: Text('SERVICE')),
+                  DropdownMenuItem(value: 'CONSUMABLE', child: Text('CONSUMABLE')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => mode = value);
+                },
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(child: _field('Total quantity', totalController)),
@@ -488,7 +505,9 @@ class ResponderResourcesPanel extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '${item.availableQuantity} / ${item.totalQuantity}',
+                            item.resourceMode == 'SERVICE'
+                                ? 'SERVICE'
+                                : '${item.availableQuantity} / ${item.totalQuantity}',
                             style: monoStyle(
                                 size: 13,
                                 color: AppColors.text,

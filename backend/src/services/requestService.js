@@ -57,13 +57,17 @@ exports.createEmergencyRequest = async (userId, data) => {
     if (!resource.isActive) {
       throw new Error(`Resource "${resource.name}" is not active`);
     }
-    if (resource.availableQuantity <= 0) {
-      throw new Error(`Resource "${resource.name}" is out of stock`);
-    }
-    if (required.quantity > resource.availableQuantity) {
-      throw new Error(
-        `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
-      );
+    // SERVICE requests describe a capability and do not consume catalog
+    // stock. CONSUMABLE requests are still bounded by catalog inventory.
+    if (resource.mode === 'CONSUMABLE') {
+      if (resource.availableQuantity <= 0) {
+        throw new Error(`Resource "${resource.name}" is out of stock`);
+      }
+      if (required.quantity > resource.availableQuantity) {
+        throw new Error(
+          `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
+        );
+      }
     }
   }
 
@@ -146,7 +150,7 @@ exports.cancelEmergencyRequest = async (userId, id) => {
 
     for (const candidate of candidates) {
       const lockedAllocations = await tx.$queryRaw`
-        SELECT id, "responderId", "responderResourceId", quantity, status
+        SELECT id, "responderId", "resourceId", "responderResourceId", quantity, status
         FROM "Allocation"
         WHERE id = ${candidate.id}
         FOR UPDATE
@@ -159,30 +163,54 @@ exports.cancelEmergencyRequest = async (userId, id) => {
         continue;
       }
 
-      const lockedResources = await tx.$queryRaw`
-        SELECT id, "availableQuantity", "totalQuantity", "isEnabled", status
-        FROM "ResponderResource"
-        WHERE id = ${allocation.responderResourceId}
+      const lockedCatalogResources = await tx.$queryRaw`
+        SELECT id, "mode", "availableQuantity", "totalQuantity"
+        FROM "Resource"
+        WHERE id = ${allocation.resourceId}
         FOR UPDATE
       `;
-      const responderResource = lockedResources[0];
-      if (!responderResource) throw new Error('Responder resource not found');
+      const catalogResource = lockedCatalogResources[0];
+      if (!catalogResource) throw new Error('Resource not found');
 
-      const restoredQuantity =
-        responderResource.availableQuantity + allocation.quantity;
-      if (restoredQuantity > responderResource.totalQuantity) {
-        throw new Error('Inventory restoration would exceed total quantity');
+      if (catalogResource.mode === 'CONSUMABLE') {
+        const lockedResources = await tx.$queryRaw`
+          SELECT id, "availableQuantity", "totalQuantity", "isEnabled", status
+          FROM "ResponderResource"
+          WHERE id = ${allocation.responderResourceId}
+          FOR UPDATE
+        `;
+        const responderResource = lockedResources[0];
+        if (!responderResource) throw new Error('Responder resource not found');
+
+        const restoredQuantity =
+          responderResource.availableQuantity + allocation.quantity;
+        if (restoredQuantity > responderResource.totalQuantity) {
+          throw new Error('Inventory restoration would exceed total quantity');
+        }
+        if (
+          catalogResource.availableQuantity + allocation.quantity >
+          catalogResource.totalQuantity
+        ) {
+          throw new Error('Inventory restoration would exceed total quantity');
+        }
+
+        await tx.responderResource.update({
+          where: { id: allocation.responderResourceId },
+          data: {
+            availableQuantity: restoredQuantity,
+            ...(responderResource.isEnabled && restoredQuantity > 0
+              ? { status: 'AVAILABLE' }
+              : {}),
+          },
+        });
+        await tx.resource.update({
+          where: { id: allocation.resourceId },
+          data: {
+            availableQuantity:
+              catalogResource.availableQuantity + allocation.quantity,
+          },
+        });
       }
-
-      await tx.responderResource.update({
-        where: { id: allocation.responderResourceId },
-        data: {
-          availableQuantity: restoredQuantity,
-          ...(responderResource.isEnabled && restoredQuantity > 0
-            ? { status: 'AVAILABLE' }
-            : {}),
-        },
-      });
       await tx.allocation.update({
         where: { id: allocation.id },
         data: { status: 'CANCELLED' },
@@ -242,14 +270,22 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   });
   if (activeEmergency) return [];
 
-  // A capability must explicitly be enabled and presently available. Joining
-  // the resource catalog ensures a disabled catalog resource cannot match.
+  const unfinishedAllocation = await prisma.allocation.findFirst({
+    where: {
+      responderId: numericResponderId,
+      status: { in: ['RESERVED', 'DISPATCHED'] },
+    },
+    select: { id: true },
+  });
+  if (unfinishedAllocation) return [];
+
+  // A capability must explicitly be enabled. SERVICE rows are capabilities
+  // and therefore do not need a quantity or a per-row stock status. A
+  // CONSUMABLE row must have enough presently available inventory.
   const responderResources = await prisma.responderResource.findMany({
     where: {
       responderId: numericResponderId,
       isEnabled: true,
-      status: 'AVAILABLE',
-      availableQuantity: { gt: 0 },
       resource: { isActive: true },
     },
     select: {
@@ -257,6 +293,7 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
       availableQuantity: true,
       status: true,
       isEnabled: true,
+      resource: { select: { mode: true, isActive: true } },
     },
   });
 
@@ -271,11 +308,16 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
 
     return request.requiredResources.every((required) => {
       // Strict integer resourceId matching; names/types are never used.
-      const matchingResource = responderResources.find(
-        (resource) =>
-          resource.resourceId === required.resourceId &&
+      const matchingResource = responderResources.find((resource) => {
+        if (resource.resourceId !== required.resourceId || !resource.isEnabled) {
+          return false;
+        }
+        if (resource.resource.mode === 'SERVICE') return true;
+        return (
+          resource.status === 'AVAILABLE' &&
           resource.availableQuantity >= required.quantity
-      );
+        );
+      });
       return Boolean(matchingResource && required.resource.isActive);
     });
   });
@@ -329,6 +371,17 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       throw new Error('Responder already has an active emergency');
     }
 
+    const unfinishedAllocation = await tx.allocation.findFirst({
+      where: {
+        responderId: numericResponderId,
+        status: { in: ['RESERVED', 'DISPATCHED'] },
+      },
+      select: { id: true },
+    });
+    if (unfinishedAllocation) {
+      throw new Error('Responder already has unfinished work');
+    }
+
     const requiredResources = await tx.requestResource.findMany({
       where: { requestId: numericRequestId },
       select: { resourceId: true, quantity: true },
@@ -341,7 +394,8 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     // made after GET /compatible cannot race this acceptance.
     const responderResources = await tx.$queryRaw`
       SELECT rr.id, rr."resourceId", rr."availableQuantity", rr.status,
-             rr."isEnabled", resource."isActive" AS "resourceIsActive"
+             rr."isEnabled", resource."isActive" AS "resourceIsActive",
+             resource."mode" AS "resourceMode"
       FROM "ResponderResource" AS rr
       INNER JOIN "Resource" AS resource ON resource.id = rr."resourceId"
       WHERE rr."responderId" = ${numericResponderId}
@@ -349,14 +403,20 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     `;
 
     for (const required of requiredResources) {
-      const matching = responderResources.find(
-        (resource) =>
-          resource.resourceId === required.resourceId &&
-          resource.isEnabled === true &&
+      const matching = responderResources.find((resource) => {
+        if (
+          resource.resourceId !== required.resourceId ||
+          resource.isEnabled !== true ||
+          resource.resourceIsActive !== true
+        ) {
+          return false;
+        }
+        if (resource.resourceMode === 'SERVICE') return true;
+        return (
           resource.status === 'AVAILABLE' &&
-          resource.resourceIsActive === true &&
           resource.availableQuantity >= required.quantity
-      );
+        );
+      });
       if (!matching) {
         throw new Error('Responder does not have the required resource available');
       }

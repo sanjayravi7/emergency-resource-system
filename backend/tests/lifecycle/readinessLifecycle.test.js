@@ -238,6 +238,7 @@ describe('Responder readiness and delivery lifecycle', () => {
     const allocation = await createAllocation(emergency.id, bloodInventory, blood);
 
     expect(allocation.statusCode).toBe(201);
+    expect((await prisma.emergencyRequest.findUnique({ where: { id: emergency.id } })).status).toBe('IN_PROGRESS');
     expect((await prisma.user.findUnique({ where: { id: responder.id } })).responderStatus).toBe('BUSY');
   });
 
@@ -248,6 +249,7 @@ describe('Responder readiness and delivery lifecycle', () => {
     const response = await dispatch(allocation.body.allocation.id);
 
     expect(response.statusCode).toBe(200);
+    expect((await prisma.emergencyRequest.findUnique({ where: { id: emergency.id } })).status).toBe('IN_PROGRESS');
     expect((await prisma.user.findUnique({ where: { id: responder.id } })).responderStatus).toBe('BUSY');
   });
 
@@ -260,6 +262,7 @@ describe('Responder readiness and delivery lifecycle', () => {
     const response = await received(allocation.body.allocation.id);
     expect(response.statusCode).toBe(200);
     expect(response.body.message).toBe('Resource receipt confirmed');
+    expect((await prisma.emergencyRequest.findUnique({ where: { id: emergency.id } })).status).toBe('COMPLETED');
   });
 
   test('10. allocation becomes DELIVERED', async () => {
@@ -301,9 +304,11 @@ describe('Responder readiness and delivery lifecycle', () => {
     await dispatch(fireAllocation.body.allocation.id);
     await received(bloodAllocation.body.allocation.id);
 
+    expect((await prisma.emergencyRequest.findUnique({ where: { id: emergency.id } })).status).toBe('PARTIALLY_ALLOCATED');
     expect((await prisma.user.findUnique({ where: { id: responder.id } })).responderStatus).toBe('BUSY');
 
     await received(fireAllocation.body.allocation.id);
+    expect((await prisma.emergencyRequest.findUnique({ where: { id: emergency.id } })).status).toBe('COMPLETED');
     expect((await prisma.user.findUnique({ where: { id: responder.id } })).responderStatus).toBe('AVAILABLE');
   });
 

@@ -67,12 +67,23 @@ async function main() {
     select: { id: true, status: true },
   });
 
+  const unfinishedAllocation = await prisma.allocation.findFirst({
+    where: {
+      responderId: responder.id,
+      status: { in: ['RESERVED', 'DISPATCHED'] },
+    },
+    select: { id: true },
+  });
+
   console.log(
     `  activeEmergency: ${
       activeEmergency
         ? `#${activeEmergency.id} (${activeEmergency.status})`
         : 'none'
     }`
+  );
+  console.log(
+    `  unfinishedAllocation: ${unfinishedAllocation ? `#${unfinishedAllocation.id}` : 'none'}`
   );
 
   // ----------------------------------------------------------------
@@ -94,8 +105,9 @@ async function main() {
     console.log(
       `  resourceId=${row.resourceId} ` +
         `name="${row.resource.name}" type=${row.resource.type} ` +
+        `mode=${row.resource.mode} ` +
         `available=${row.availableQuantity}/${row.totalQuantity} ` +
-        `status=${row.status}`
+        `status=${row.status} enabled=${row.isEnabled}`
     );
   }
 
@@ -123,7 +135,8 @@ async function main() {
     responder.role !== 'RESPONDER' ||
     !responder.isActive ||
     responder.responderStatus !== 'AVAILABLE' ||
-    !!activeEmergency;
+    !!activeEmergency ||
+    !!unfinishedAllocation;
 
   if (responderBlocked) {
     const reasons = [];
@@ -135,6 +148,7 @@ async function main() {
     if (activeEmergency) {
       reasons.push(`already handling active emergency #${activeEmergency.id}`);
     }
+    if (unfinishedAllocation) reasons.push(`unfinished allocation #${unfinishedAllocation.id}`);
     console.log(
       `\n!! Responder-level block: ${reasons.join('; ')}.` +
         '\n!! While this is true NO pending request will be offered.\n'
@@ -169,6 +183,15 @@ async function main() {
       if (!owned) {
         compatible = false;
         reasons.push(`resourceId ${req.resourceId} missing from inventory`);
+      } else if (!owned.isEnabled) {
+        compatible = false;
+        reasons.push(`resourceId ${req.resourceId} capability is disabled`);
+      } else if (!req.resource.isActive) {
+        compatible = false;
+        reasons.push(`resourceId ${req.resourceId} is inactive`);
+      } else if (owned.resource.mode === 'SERVICE') {
+        // SERVICE resources are reusable capabilities, so quantity is not a
+        // stock gate and the row's inventory status is not consumed.
       } else if (owned.status !== 'AVAILABLE') {
         compatible = false;
         reasons.push(

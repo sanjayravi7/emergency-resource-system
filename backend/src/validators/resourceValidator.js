@@ -3,6 +3,8 @@
  * These are pure functions so they can be unit tested without a database.
  */
 
+const VALID_RESOURCE_MODES = ["SERVICE", "CONSUMABLE"];
+
 function isNonNegativeInteger(value) {
   return Number.isInteger(value) && value >= 0;
 }
@@ -42,6 +44,10 @@ function validateResourceInput(data, options = {}, existing = null) {
     if (!data.type || !String(data.type).trim()) {
       return "Resource type is required";
     }
+  }
+
+  if (data.mode !== undefined && !VALID_RESOURCE_MODES.includes(String(data.mode))) {
+    return "Resource mode must be SERVICE or CONSUMABLE";
   }
 
   const totalQuantity =
@@ -102,6 +108,10 @@ function normalizeResourceInput(data, options = {}) {
     normalized.type = String(data.type).trim();
   }
 
+  if (data.mode !== undefined) {
+    normalized.mode = String(data.mode);
+  }
+
   if (data.totalQuantity !== undefined) {
     normalized.totalQuantity = Number(data.totalQuantity);
   } else if (!partial) {
@@ -137,6 +147,7 @@ function normalizeResourceInput(data, options = {}) {
 }
 
 module.exports = {
+  VALID_RESOURCE_MODES,
   validateResourceInput,
   normalizeResourceInput,
 };

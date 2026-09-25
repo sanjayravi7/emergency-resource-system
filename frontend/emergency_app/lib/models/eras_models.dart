@@ -62,45 +62,60 @@ class BackendResource {
     required this.id,
     required this.name,
     required this.type,
+    required this.mode,
     required this.totalQuantity,
     required this.availableQuantity,
     required this.isActive,
     required this.lowStockThreshold,
     this.unit,
     this.location,
+    this.availableResponders,
   });
 
   final int id;
   final String name;
   final String type;
+  final String mode;
   final int totalQuantity;
   final int availableQuantity;
   final bool isActive;
   final int lowStockThreshold;
   final String? unit;
   final String? location;
+  final int? availableResponders;
 
-  bool get isOutOfStock => availableQuantity <= 0;
+  bool get isService => mode == 'SERVICE';
 
-  bool get isLowStock => !isOutOfStock && availableQuantity <= lowStockThreshold;
+  bool get isOutOfStock => !isService && availableQuantity <= 0;
 
-  bool get isSelectable => isActive && !isOutOfStock;
+  bool get isLowStock =>
+      !isService && !isOutOfStock && availableQuantity <= lowStockThreshold;
 
-  /// "10 / 10 vehicle" or "Out of stock"
+  bool get isSelectable => isActive && (isService || !isOutOfStock);
+
+  /// Availability for request selection comes from the availability endpoint.
   String get availabilityLabel {
     if (!isActive) return 'Inactive';
+    if (isService) {
+      return '${availableResponders ?? 0} responders available';
+    }
     if (isOutOfStock) return 'Out of stock';
 
-    final suffix = (unit == null || unit!.isEmpty) ? 'available' : unit!;
-    return '$availableQuantity / $totalQuantity $suffix';
+    final suffix = _consumableUnit;
+    return '$availableQuantity $suffix available';
   }
 
   String get shortAvailability {
     if (!isActive) return 'inactive';
+    if (isService) return '${availableResponders ?? 0} responders available';
     if (isOutOfStock) return 'out of stock';
 
-    final suffix = (unit == null || unit!.isEmpty) ? 'available' : '$unit available';
-    return '$availableQuantity $suffix';
+    return '$availableQuantity $_consumableUnit available';
+  }
+
+  String get _consumableUnit {
+    if (unit == null || unit!.isEmpty || unit == 'unit') return 'units';
+    return unit!;
   }
 
   factory BackendResource.fromJson(Map<String, dynamic> json) {
@@ -108,6 +123,7 @@ class BackendResource {
       id: _asInt(json['id']),
       name: json['name']?.toString() ?? 'Unknown resource',
       type: json['type']?.toString() ?? '',
+      mode: json['mode']?.toString() ?? 'CONSUMABLE',
       totalQuantity: _asInt(json['totalQuantity']),
       availableQuantity: _asInt(json['availableQuantity']),
       // Databases that have not run the migration yet still work: a missing
@@ -116,6 +132,7 @@ class BackendResource {
       lowStockThreshold: _asInt(json['lowStockThreshold'], fallback: 1),
       unit: _asTrimmedString(json['unit']),
       location: _asTrimmedString(json['location']),
+      availableResponders: _asIntOrNull(json['availableResponders']),
     );
   }
 }
@@ -218,6 +235,7 @@ class BackendResponderResource {
     required this.responderStatus,
     required this.resourceName,
     required this.resourceType,
+    required this.resourceMode,
     this.unit,
     this.location,
   });
@@ -240,11 +258,13 @@ class BackendResponderResource {
 
   final String resourceName;
   final String resourceType;
+  final String resourceMode;
   final String? unit;
   final String? location;
 
-  bool get isAvailable =>
-      isEnabled && status == 'AVAILABLE' && availableQuantity > 0;
+  bool get isAvailable => resourceMode == 'SERVICE'
+      ? isEnabled
+      : isEnabled && status == 'AVAILABLE' && availableQuantity > 0;
 
   factory BackendResponderResource.fromJson(Map<String, dynamic> json) {
     final responder = _asMap(json['responder']);
@@ -265,6 +285,7 @@ class BackendResponderResource {
           _asTrimmedString(responder['responderStatus']) ?? 'OFFLINE',
       resourceName: _asTrimmedString(resource['name']) ?? 'Resource',
       resourceType: _asTrimmedString(resource['type']) ?? '',
+      resourceMode: _asTrimmedString(resource['mode']) ?? 'CONSUMABLE',
       unit: _asTrimmedString(resource['unit']),
       location: _asTrimmedString(resource['location']),
     );
@@ -281,6 +302,7 @@ class RequiredResourceLine {
     required this.quantity,
     required this.resourceName,
     required this.resourceType,
+    required this.resourceMode,
     this.unit,
   });
 
@@ -288,6 +310,7 @@ class RequiredResourceLine {
   final int quantity;
   final String resourceName;
   final String resourceType;
+  final String resourceMode;
   final String? unit;
 
   String get label => '$resourceName × $quantity';
@@ -302,6 +325,7 @@ class RequiredResourceLine {
       resourceName:
           _asTrimmedString(resource['name']) ?? 'Resource #$resourceId',
       resourceType: _asTrimmedString(resource['type']) ?? '',
+      resourceMode: _asTrimmedString(resource['mode']) ?? 'CONSUMABLE',
       unit: _asTrimmedString(resource['unit']),
     );
   }
