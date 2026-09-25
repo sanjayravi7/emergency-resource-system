@@ -165,21 +165,33 @@ async function resolveDevResponder() {
 }
 
 async function upsertResponderInventory(responderId, resources) {
-  // Give the development responder capability for every seeded resource so
-  // multi-resource compatibility can actually be tested.
+  // Give the development responder capability for EVERY standard resource in
+  // the catalog so multi-resource compatibility (e.g. Blood + Fire Resource)
+  // can actually be tested end to end.
+  //
+  // Resource ids are never hardcoded - each capability is looked up by the
+  // resource NAME and the actual PostgreSQL id is used for the upsert.
+  //
+  // On re-run we intentionally RESTORE totalQuantity / availableQuantity /
+  // status. That makes the seed self-healing: if a development responder ever
+  // ends up with a depleted, UNAVAILABLE, or missing inventory row (the exact
+  // situation that hides a pending request from the dispatch board), running
+  // the seed again puts the inventory back into a known-good AVAILABLE state.
   const capabilities = {
-    Ambulance: { totalQuantity: 3, availableQuantity: 3 },
-    Blood: { totalQuantity: 5, availableQuantity: 5 },
-    Oxygen: { totalQuantity: 8, availableQuantity: 8 },
-    'Fire Resource': { totalQuantity: 6, availableQuantity: 6 },
-    Volunteer: { totalQuantity: 4, availableQuantity: 4 },
+    Ambulance: { totalQuantity: 5, availableQuantity: 5 },
+    Blood: { totalQuantity: 10, availableQuantity: 10 },
+    Oxygen: { totalQuantity: 10, availableQuantity: 10 },
+    'Fire Resource': { totalQuantity: 10, availableQuantity: 10 },
+    Volunteer: { totalQuantity: 10, availableQuantity: 10 },
   };
+
+  const inventory = [];
 
   for (const resource of resources) {
     const capability = capabilities[resource.name];
     if (!capability) continue;
 
-    await prisma.responderResource.upsert({
+    const row = await prisma.responderResource.upsert({
       where: {
         responderId_resourceId: {
           responderId,
@@ -187,6 +199,8 @@ async function upsertResponderInventory(responderId, resources) {
         },
       },
       update: {
+        totalQuantity: capability.totalQuantity,
+        availableQuantity: capability.availableQuantity,
         status: 'AVAILABLE',
       },
       create: {
@@ -197,7 +211,11 @@ async function upsertResponderInventory(responderId, resources) {
         status: 'AVAILABLE',
       },
     });
+
+    inventory.push({ resource, row });
   }
+
+  return inventory;
 }
 
 async function main() {
@@ -229,7 +247,16 @@ async function main() {
 
   const responder = await resolveDevResponder();
 
-  await upsertResponderInventory(responder.id, resources);
+  const inventory = await upsertResponderInventory(responder.id, resources);
+
+  console.log(
+    `\nResponder #${responder.id} inventory (status ${responder.responderStatus}):`
+  );
+  for (const { resource, row } of inventory) {
+    console.log(
+      `  ${resource.name.padEnd(15)} ${row.availableQuantity}/${row.totalQuantity} ${row.status}`
+    );
+  }
 
   console.log('\nDevelopment accounts (password: %s)', DEV_PASSWORD);
   console.log(`  REQUESTER #${requester.id} ${requester.email}`);

@@ -607,7 +607,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       );
 
       if (isResponder) {
-        children.add(const SizedBox(height: 22));
+        children.add(const SizedBox(height: 18));
         children.add(
           ResponderResourcesPanel(
             resources: myInventory,
@@ -628,11 +628,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
 
     return ListView(
+      // Content-driven scrolling area with compact outer padding. The extra
+      // bottom space on mobile only clears the floating bottom navigation bar.
       padding: EdgeInsets.fromLTRB(
         isMobile ? 12 : 24,
-        isMobile ? 12 : 22,
+        isMobile ? 12 : 18,
         isMobile ? 12 : 24,
-        isMobile ? 80 : 60,
+        isMobile ? 84 : 28,
       ),
       children: children,
     );
@@ -649,14 +651,16 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           requests: openRequests,
           role: role,
           currentUserId: ApiService.currentUserId,
+          emptyTitle: 'NO ACTIVE EMERGENCY',
+          emptyIcon: Icons.check_circle_outline,
           emptyMessage:
-              'No active emergency. Accept a compatible request below.',
+              'Accept a compatible request below to start working on it.',
           onAllocate: openAllocationDialog,
           isMobile: isMobile,
         ),
       );
 
-      children.add(const SizedBox(height: 22));
+      children.add(const SizedBox(height: 18));
 
       children.add(
         BoardPanel(
@@ -665,9 +669,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           requests: pendingCompatible,
           role: role,
           currentUserId: ApiService.currentUserId,
+          emptyTitle: 'NO COMPATIBLE REQUESTS',
+          emptyIcon: Icons.inbox_outlined,
           emptyMessage:
-              'No compatible pending requests right now. You must be AVAILABLE, '
-              'free of an active emergency and own every required resource.',
+              'New pending requests will appear here when your available '
+              'inventory matches every required resource.',
           onAccept: acceptRequest,
           isMobile: isMobile,
         ),
@@ -689,29 +695,43 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       );
     }
 
-    children.add(const SizedBox(height: 22));
+    children.add(const SizedBox(height: 18));
 
     children.add(
       Panel(
         title: 'SECTOR MAP',
         hint: 'Districts, responders and open requests',
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.all(16),
-              child: AspectRatio(
-                aspectRatio: isMobile ? 360 / 200 : 640 / 260,
-                child: CustomPaint(
-                  painter: SectorMapPainter(
-                    districts: kDistricts,
-                    responders: responders,
-                    requests: [...openRequests, ...pendingCompatible],
-                  ),
-                ),
+              padding: const EdgeInsets.all(12),
+              // Content-driven, but height-capped so the map never pushes the
+              // request board far below the fold on wide desktop layouts.
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final maxHeight = isMobile ? 190.0 : 230.0;
+                  final ratio = isMobile ? 360 / 200 : 640 / 260;
+                  final width = constraints.maxWidth;
+                  final height =
+                      (width / ratio).clamp(140.0, maxHeight).toDouble();
+
+                  return SizedBox(
+                    height: height,
+                    width: double.infinity,
+                    child: CustomPaint(
+                      painter: SectorMapPainter(
+                        districts: kDistricts,
+                        responders: responders,
+                        requests: [...openRequests, ...pendingCompatible],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 14),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: Wrap(
                 spacing: 12,
                 runSpacing: 6,
