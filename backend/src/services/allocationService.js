@@ -190,8 +190,10 @@ exports.createAllocation = async (responderId, data) => {
 exports.updateAllocationStatus = async (responderId, allocationId, status) => {
   const numericAllocationId = asPositiveInteger(allocationId, 'allocationId');
 
-  if (!['DISPATCHED', 'CANCELLED'].includes(status)) {
-    throw new Error('Responders may only dispatch or cancel an allocation');
+  if (!['DISPATCHED', 'DELIVERED', 'CANCELLED'].includes(status)) {
+    throw new Error(
+      'Responders may only dispatch, deliver, or cancel an allocation'
+    );
   }
 
   return runSerializableTransaction(async (tx) => {
@@ -205,6 +207,16 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
 
     if (status === 'DISPATCHED' && allocation.status !== 'RESERVED') {
       throw new Error('Only RESERVED allocations can be dispatched');
+    }
+
+    // Responder-side delivery fallback: when the requester forgets to confirm
+    // receipt, the owning responder may complete the delivery themselves.
+    // Delivery is only valid from DISPATCHED (never straight from RESERVED),
+    // and it must never touch inventory: the units were genuinely consumed.
+    // Availability is still derived below by syncResponderAvailability - a
+    // sibling RESERVED/DISPATCHED allocation keeps the responder BUSY.
+    if (status === 'DELIVERED' && allocation.status !== 'DISPATCHED') {
+      throw new Error('Only DISPATCHED allocations can be marked as delivered');
     }
 
     if (status === 'CANCELLED') {

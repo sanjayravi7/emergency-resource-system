@@ -432,6 +432,53 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadResponders();
   }
 
+  /// Responder-side delivery fallback. The requester's "Confirm received"
+  /// remains the primary flow, but if they never confirm, the responder can
+  /// complete DISPATCHED → DELIVERED themselves. The backend recomputes
+  /// availability through the lifecycle service - nothing is forced here.
+  Future<void> markAllocationDelivered(AllocationLine allocation) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Mark delivered'),
+        content: Text(
+          'Mark this resource as delivered?\n\n'
+          '${allocation.resourceName} × ${allocation.quantity} will be '
+          'marked as delivered and this allocation will be completed.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not yet'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
+            child: const Text('Mark Delivered'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ApiService.updateAllocationStatus(
+        allocationId: allocation.id,
+        status: 'DELIVERED',
+      );
+      showToast('${allocation.resourceName} marked as delivered');
+    } catch (error) {
+      showToast('Delivery failed: ${_clean(error)}');
+    }
+
+    await loadRequests();
+    await loadMyInventory();
+    await loadResponders();
+  }
+
   Future<void> confirmReceipt(AllocationLine allocation) async {
     try {
       await ApiService.confirmAllocationReceived(allocation.id);
@@ -500,6 +547,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         onAllocate: allocateResource,
         onCancelAllocation: cancelAllocation,
         onDispatchAllocation: dispatchAllocation,
+        onMarkDelivered: markAllocationDelivered,
       ),
     );
   }
@@ -739,6 +787,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               'Accept a compatible request below to start working on it.',
           onAllocate: openAllocationDialog,
           onDispatchAllocation: dispatchAllocation,
+          onMarkDelivered: markAllocationDelivered,
           isMobile: isMobile,
         ),
       );

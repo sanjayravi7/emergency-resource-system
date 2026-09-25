@@ -17,6 +17,7 @@ class AllocationDialog extends StatefulWidget {
     required this.onAllocate,
     required this.onCancelAllocation,
     required this.onDispatchAllocation,
+    required this.onMarkDelivered,
   });
 
   final int requestId;
@@ -32,6 +33,11 @@ class AllocationDialog extends StatefulWidget {
 
   final Future<bool> Function(int allocationId) onCancelAllocation;
   final Future<void> Function(AllocationLine allocation) onDispatchAllocation;
+
+  /// Responder-side fallback for DISPATCHED → DELIVERED when the requester
+  /// never confirms receipt. The caller shows its own confirmation dialog
+  /// and lets the backend lifecycle recompute availability.
+  final Future<void> Function(AllocationLine allocation) onMarkDelivered;
 
   @override
   State<AllocationDialog> createState() => _AllocationDialogState();
@@ -104,6 +110,13 @@ class _AllocationDialogState extends State<AllocationDialog> {
     setState(() => busy = false);
   }
 
+  Future<void> markDelivered(AllocationLine allocation) async {
+    setState(() => busy = true);
+    await widget.onMarkDelivered(allocation);
+    if (!mounted) return;
+    setState(() => busy = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = request;
@@ -170,12 +183,17 @@ class _AllocationDialogState extends State<AllocationDialog> {
                                       style: TextStyle(fontSize: 12)),
                                 )
                               else if (allocation.isDispatched)
-                                const Text('Awaiting receipt',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.amber))
+                                TextButton(
+                                  onPressed: busy
+                                      ? null
+                                      : () => markDelivered(allocation),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.teal),
+                                  child: const Text('Mark Delivered',
+                                      style: TextStyle(fontSize: 12)),
+                                )
                               else if (allocation.isDelivered)
-                                const Text('Receipt confirmed',
+                                const Text('Delivered',
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: AppColors.teal)),
