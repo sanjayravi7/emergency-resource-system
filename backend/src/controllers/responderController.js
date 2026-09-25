@@ -31,15 +31,7 @@ exports.getResponders = async (req, res, next) => {
     next(error);
   }
 };
-exports.getAllResources = async (req, res, next) => {
-  try {
-    const resources = await responderResourceService.getAllResources();
-
-    res.json({
-      success: true,
-      resources,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+// NOTE: the responder-resource catalog is served by
+// responderResourceController.getAllResources
+// (GET /api/responder-resources). A duplicate copy used to live here and
+// referenced an undefined service, so it could only ever throw.

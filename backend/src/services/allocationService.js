@@ -1,8 +1,71 @@
 const prisma = require('../config/prisma');
 
 exports.getAllocationsByResponder = async (responderId) => {
-  return await prisma.allocation.findMany({ where: { responderId } });
+  return await prisma.allocation.findMany({
+    where: { responderId: Number(responderId) },
+    include: {
+      resource: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          unit: true,
+        },
+      },
+      request: {
+        select: {
+          id: true,
+          emergencyType: true,
+          location: true,
+          status: true,
+        },
+      },
+    },
+    orderBy: { allocatedAt: 'desc' },
+  });
 };
+
+/**
+ * PostgreSQL aborts the losing side of a Serializable conflict with
+ * SQLSTATE 40001 / 40P01 (Prisma surfaces it as P2034). The safe and standard
+ * answer is to retry the whole transaction: the concurrency guarantees are
+ * unchanged (Serializable + SELECT ... FOR UPDATE), but the caller gets the
+ * real business error ("Not enough available quantity") instead of a
+ * database-level serialization message.
+ */
+function isRetryableTransactionError(error) {
+  if (!error) return false;
+  if (error.code === 'P2034') return true;
+
+  return /40001|40P01|could not serialize|deadlock detected/i.test(
+    error.message || ''
+  );
+}
+
+async function runSerializableTransaction(callback, retries = 5) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await prisma.$transaction(callback, {
+        isolationLevel: 'Serializable',
+      });
+    } catch (error) {
+      if (!isRetryableTransactionError(error)) {
+        throw error;
+      }
+
+      lastError = error;
+
+      // Small staggered back-off before retrying.
+      await new Promise((resolve) =>
+        setTimeout(resolve, 10 * (attempt + 1) + Math.floor(Math.random() * 10))
+      );
+    }
+  }
+
+  throw lastError;
+}
 
 async function syncRequestStatus(tx, requestId) {
   const request = await tx.emergencyRequest.findUnique({
@@ -66,7 +129,7 @@ exports.createAllocation = async (responderId, data) => {
   const { requestId, responderResourceId, resourceId, quantity } = data;
   if (!quantity || quantity <= 0) throw new Error('Quantity must be greater than 0');
 
-  return await prisma.$transaction(async (tx) => {
+  return await runSerializableTransaction(async (tx) => {
     const reqInstance = await tx.emergencyRequest.findUnique({ where: { id: Number(requestId) } });
     if (!reqInstance || reqInstance.status === 'CANCELLED' || reqInstance.status === 'COMPLETED') {
       throw new Error('Request is invalid or already closed');
@@ -85,6 +148,49 @@ exports.createAllocation = async (responderId, data) => {
     if (!respResource) throw new Error('Responder resource not found');
     if (respResource.responderId !== responderId) throw new Error('Responder mismatch: unauthorized');
     if (respResource.resourceId !== resourceId) throw new Error('Resource mismatch');
+
+    // The resource must actually be required by this emergency, and each
+    // required resource is allocated independently of the others.
+    const required = await tx.requestResource.findFirst({
+      where: {
+        requestId: Number(requestId),
+        resourceId: Number(resourceId),
+      },
+    });
+
+    if (!required) {
+      throw new Error('Resource is not required by this request');
+    }
+
+    const existingAllocations = await tx.allocation.findMany({
+      where: {
+        requestId: Number(requestId),
+        resourceId: Number(resourceId),
+        status: {
+          not: 'CANCELLED',
+        },
+      },
+      select: {
+        quantity: true,
+      },
+    });
+
+    const alreadyAllocated = existingAllocations.reduce(
+      (sum, allocation) => sum + allocation.quantity,
+      0
+    );
+
+    const outstanding = required.quantity - alreadyAllocated;
+
+    if (outstanding <= 0) {
+      throw new Error('This resource is already fully allocated');
+    }
+
+    if (quantity > outstanding) {
+      throw new Error(
+        `Allocation exceeds the remaining required quantity (${outstanding} left)`
+      );
+    }
 
     if (respResource.availableQuantity < quantity) {
       throw new Error('Not enough available quantity');
@@ -109,7 +215,7 @@ exports.createAllocation = async (responderId, data) => {
     await syncRequestStatus(tx, Number(requestId));
 
     return allocation;
-  }, { isolationLevel: 'Serializable' });
+  });
 };
 
 

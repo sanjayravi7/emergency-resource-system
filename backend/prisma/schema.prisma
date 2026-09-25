@@ -151,6 +151,14 @@ model Resource {
   unit     String?
   location String?
 
+  // Active/inactive state. Inactive resources stay in the database
+  // (history is preserved) but are hidden from requesters.
+  isActive Boolean @default(true)
+
+  // Low-stock visibility: a resource is "low stock" when
+  // availableQuantity <= lowStockThreshold.
+  lowStockThreshold Int @default(1)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -162,6 +170,7 @@ model Resource {
 
   @@index([type])
   @@index([location])
+  @@index([isActive])
 }
 
 // ======================================================
