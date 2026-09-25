@@ -14,6 +14,8 @@ class BoardPanel extends StatelessWidget {
     required this.requests,
     required this.role,
     required this.emptyMessage,
+    this.emptyTitle,
+    this.emptyIcon,
     this.currentUserId,
     this.onAccept,
     this.onAllocate,
@@ -27,6 +29,8 @@ class BoardPanel extends StatelessWidget {
   final String? role;
   final int? currentUserId;
   final String emptyMessage;
+  final String? emptyTitle;
+  final IconData? emptyIcon;
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onAllocate;
   final void Function(EmergencyRequest request)? onCancelRequest;
@@ -56,7 +60,7 @@ class BoardPanel extends StatelessWidget {
       title: title,
       hint: isMobile ? '' : hint,
       child: requests.isEmpty
-          ? EmptyState(emptyMessage)
+          ? EmptyState(emptyMessage, title: emptyTitle, icon: emptyIcon)
           : isMobile
               ? Column(
                   children: requests
@@ -132,8 +136,13 @@ class BoardPanel extends StatelessWidget {
       child: DataTable(
         headingTextStyle: tableHeadStyle(),
         dataTextStyle: const TextStyle(fontSize: 13, color: AppColors.text),
-        dataRowMinHeight: 56,
-        dataRowMaxHeight: 132,
+        // Content-driven rows kept in the compact 68-88px band; only rows with
+        // several required resources are allowed to grow a little more.
+        headingRowHeight: 40,
+        dataRowMinHeight: 64,
+        dataRowMaxHeight: 104,
+        columnSpacing: 22,
+        horizontalMargin: 16,
         columns: const [
           DataColumn(label: Text('REQUEST ID')),
           DataColumn(label: Text('REQUESTER')),

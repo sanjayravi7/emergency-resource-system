@@ -6,6 +6,23 @@ const {
 } = require('../validators/requestValidator');
 
 // ------------------------------------------------------------------
+// Development-only diagnostics.
+//
+// These logs make it possible to see exactly WHY a pending request is
+// or is not offered to a responder (see GET /api/requests/compatible).
+// They are completely silent in production so they never leak PII or
+// add noise to real deployments.
+// ------------------------------------------------------------------
+const IS_DEV = process.env.NODE_ENV !== 'production';
+
+const diag = (...args) => {
+  if (IS_DEV) {
+    // eslint-disable-next-line no-console
+    console.log(...args);
+  }
+};
+
+// ------------------------------------------------------------------
 // Shared include shape.
 //
 // Every request returned to Flutter carries:
@@ -207,12 +224,24 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
     },
   });
 
+  diag('\n[COMPATIBILITY]');
+  diag(`Responder: ${responderId}`);
+
+  if (!responder) {
+    diag('Result: NONE (responder not found)');
+    return [];
+  }
+
+  diag(`  role=${responder.role} isActive=${responder.isActive} responderStatus=${responder.responderStatus}`);
+
   if (
-    !responder ||
     responder.role !== 'RESPONDER' ||
     !responder.isActive ||
     responder.responderStatus !== 'AVAILABLE'
   ) {
+    diag(
+      'Result: NONE (responder is not an active, AVAILABLE RESPONDER)'
+    );
     return [];
   }
 
@@ -232,8 +261,13 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   });
 
   if (activeEmergency) {
+    diag(
+      `Result: NONE (responder already has active emergency #${activeEmergency.id})`
+    );
     return [];
   }
+
+  diag('  activeEmergency=none');
 
   // ----------------------------------------------------
   // RULE: responder must have available matching resources
@@ -248,6 +282,16 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
     },
   });
 
+  diag('Responder inventory (AVAILABLE):');
+  if (!responderResources.length) {
+    diag('  (none)');
+  }
+  responderResources.forEach((r) => {
+    diag(
+      `  resourceId=${r.resourceId} available=${r.availableQuantity} status=${r.status}`
+    );
+  });
+
   const requests = await prisma.emergencyRequest.findMany({
     where: {
       status: 'PENDING',
@@ -259,21 +303,60 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
     ],
   });
 
-  return requests.filter((request) => {
+  const compatible = requests.filter((request) => {
+    diag(`Request: ${request.id}`);
+
     if (!request.requiredResources.length) {
+      diag(`Request ${request.id} rejected: no required resources`);
       return false;
     }
 
-    return request.requiredResources.every((required) => {
+    diag('Required:');
+    request.requiredResources.forEach((required) => {
+      diag(
+        `  resourceId=${required.resourceId} quantity=${required.quantity}`
+      );
+    });
+
+    let rejection = null;
+
+    const ok = request.requiredResources.every((required) => {
+      // Compatibility is decided ONLY by integer resourceId + quantity.
       const matchingResource = responderResources.find(
         (resource) =>
           resource.resourceId === required.resourceId &&
-          resource.availableQuantity >= required.quantity,
+          resource.availableQuantity >= required.quantity
       );
+
+      if (!matchingResource) {
+        const owned = responderResources.find(
+          (resource) => resource.resourceId === required.resourceId
+        );
+
+        if (!owned) {
+          rejection = `resourceId ${required.resourceId} missing from responder inventory`;
+        } else {
+          rejection =
+            `resourceId ${required.resourceId} insufficient ` +
+            `(need ${required.quantity}, have ${owned.availableQuantity} available, status ${owned.status})`;
+        }
+      }
 
       return !!matchingResource;
     });
+
+    if (ok) {
+      diag(`Result:\n  COMPATIBLE (request ${request.id})`);
+    } else {
+      diag(`Request ${request.id} rejected:\n${rejection}`);
+    }
+
+    return ok;
   });
+
+  diag(`\nCompatible request ids: [${compatible.map((r) => r.id).join(', ')}]`);
+
+  return compatible;
 };
 exports.acceptEmergencyRequest = async (responderId, requestId) => {
   return await prisma.$transaction(async (tx) => {

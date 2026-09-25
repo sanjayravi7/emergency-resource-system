@@ -406,16 +406,28 @@ class ResponderResourcesPanel extends StatelessWidget {
       title: title,
       hint: 'ResponderResource rows from PostgreSQL',
       child: resources.isEmpty
-          ? const EmptyState('No responder resources found in the database.')
+          ? const EmptyState(
+              'No inventory rows for this responder yet. Inventory is loaded '
+              'from the ResponderResource table.',
+              title: 'NO INVENTORY',
+              icon: Icons.inventory_2_outlined,
+            )
           : Column(
+              mainAxisSize: MainAxisSize.min,
               children: resources.map((item) {
                 final meta = resourceMetaFor(item.resourceType.isEmpty
                     ? item.resourceName
                     : item.resourceType);
 
+                final statusColor = item.status == 'AVAILABLE'
+                    ? AppColors.teal
+                    : item.status == 'BUSY'
+                        ? AppColors.blue
+                        : AppColors.textFaint;
+
                 return Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: const BoxDecoration(
                     border:
                         Border(bottom: BorderSide(color: AppColors.border)),
@@ -432,41 +444,64 @@ class ResponderResourcesPanel extends StatelessWidget {
                         child: Icon(meta.icon, size: 16, color: meta.color),
                       ),
                       const SizedBox(width: 12),
+                      // Resource name is the primary label (nested resource
+                      // data from the backend), with the type as context.
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '${item.responderName}  •  ID ${item.responderId}',
+                              item.resourceName,
                               style: const TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w600),
+                                  fontSize: 13.5, fontWeight: FontWeight.w600),
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${item.resourceName}'
-                              '${item.unit == null ? '' : ' (${item.unit})'}',
-                              style: const TextStyle(
-                                  fontSize: 12, color: AppColors.textDim),
-                            ),
+                            if (item.resourceType.isNotEmpty ||
+                                item.unit != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                [
+                                  if (item.resourceType.isNotEmpty)
+                                    item.resourceType,
+                                  if (item.unit != null) item.unit!,
+                                ].join(' · '),
+                                style: const TextStyle(
+                                    fontSize: 11, color: AppColors.textFaint),
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                      Text(
-                        '${item.availableQuantity}/${item.totalQuantity}',
-                        style: monoStyle(size: 12.5, color: AppColors.textDim),
-                      ),
-                      const SizedBox(width: 14),
-                      Text(
-                        item.status,
-                        style: monoStyle(
-                          size: 11,
-                          color: item.status == 'AVAILABLE'
-                              ? AppColors.teal
-                              : item.status == 'BUSY'
-                                  ? AppColors.blue
-                                  : AppColors.textFaint,
-                          weight: FontWeight.w600,
-                        ),
+                      // Available / Total
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${item.availableQuantity} / ${item.totalQuantity}',
+                            style: monoStyle(
+                                size: 13,
+                                color: AppColors.text,
+                                weight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 3),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: .12),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              item.status,
+                              style: monoStyle(
+                                size: 10,
+                                color: statusColor,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

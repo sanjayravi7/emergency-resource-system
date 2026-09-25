@@ -72,21 +72,56 @@ class Panel extends StatelessWidget {
   }
 }
 
+/// Compact empty-state block. It is content-driven (no fixed / viewport
+/// height) so a panel with nothing to show never turns into a giant blank
+/// region. An optional [title] + [icon] give important empty states (for
+/// example "NO COMPATIBLE REQUESTS") a clear, but still small, header.
 class EmptyState extends StatelessWidget {
-  const EmptyState(this.text, {super.key});
+  const EmptyState(this.text, {super.key, this.title, this.icon});
+
   final String text;
+  final String? title;
+  final IconData? icon;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(32),
-        child: Center(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 13, color: AppColors.textFaint),
-            textAlign: TextAlign.center,
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 22, color: AppColors.textFaint),
+                const SizedBox(height: 8),
+              ],
+              if (title != null) ...[
+                Text(
+                  title!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .6,
+                    color: AppColors.textDim,
+                  ),
+                ),
+                const SizedBox(height: 5),
+              ],
+              Text(
+                text,
+                style:
+                    const TextStyle(fontSize: 12.5, color: AppColors.textFaint, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class LegendItem extends StatelessWidget {
