@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../Services/api_service.dart';
+import '../Services/socket_service.dart';
 import '../theme/app_theme.dart';
 import 'dispatch_console_page.dart';
 import 'responder_readiness_page.dart';
@@ -38,6 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
         emailController.text.trim(),
         passwordController.text,
       );
+      SocketService.instance.connect();
 
       if (!mounted) return;
 

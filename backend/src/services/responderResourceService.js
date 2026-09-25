@@ -1,6 +1,15 @@
 const prisma = require('../config/prisma');
 const { runSerializableTransaction } = require('./transactionService');
 const { syncResponderAvailability } = require('./lifecycleService');
+const { emitResponderAvailability } = require('../realtime/eventEmitters');
+
+async function emitAfterCommit(callback) {
+  try {
+    await callback();
+  } catch (error) {
+    console.error('Realtime emission failed:', error.message);
+  }
+}
 
 const VALID_RESOURCE_STATUSES = ['AVAILABLE', 'BUSY', 'UNAVAILABLE'];
 
@@ -145,7 +154,7 @@ exports.addResource = async (actorInput, data) => {
   validateStatus(data.status);
   validateQuantities(totalQuantity, availableQuantity);
 
-  return runSerializableTransaction(async (tx) => {
+  const createdResource = await runSerializableTransaction(async (tx) => {
     const [catalogResource, responder] = await Promise.all([
       tx.resource.findUnique({ where: { id: resourceId } }),
       tx.user.findUnique({ where: { id: targetResponderId } }),
@@ -179,13 +188,16 @@ exports.addResource = async (actorInput, data) => {
     await syncResponderAvailability(tx, targetResponderId);
     return created;
   });
+
+  await emitAfterCommit(() => emitResponderAvailability(targetResponderId));
+  return createdResource;
 };
 
 exports.updateResource = async (actorInput, id, data) => {
   const actor = normaliseActor(actorInput);
   const resourceRowId = toInteger(id, 'resource id');
 
-  return runSerializableTransaction(async (tx) => {
+  const updatedResource = await runSerializableTransaction(async (tx) => {
     const locked = await tx.$queryRaw`
       SELECT id, "responderId", "resourceId", "totalQuantity", "availableQuantity",
              "isEnabled", status
@@ -228,13 +240,16 @@ exports.updateResource = async (actorInput, id, data) => {
     await syncResponderAvailability(tx, existing.responderId);
     return updated;
   });
+
+  await emitAfterCommit(() => emitResponderAvailability(updatedResource.responderId));
+  return updatedResource;
 };
 
 exports.deleteResource = async (actorInput, id) => {
   const actor = normaliseActor(actorInput);
   const resourceRowId = toInteger(id, 'resource id');
 
-  return runSerializableTransaction(async (tx) => {
+  const deletedResource = await runSerializableTransaction(async (tx) => {
     const existing = await tx.responderResource.findUnique({
       where: { id: resourceRowId },
     });
@@ -249,6 +264,9 @@ exports.deleteResource = async (actorInput, id) => {
     await syncResponderAvailability(tx, existing.responderId);
     return deleted;
   });
+
+  await emitAfterCommit(() => emitResponderAvailability(deletedResource.responderId));
+  return deletedResource;
 };
 
 exports.getAllResources = async () =>
