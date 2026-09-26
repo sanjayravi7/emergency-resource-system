@@ -1,6 +1,5 @@
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/widgets/sector_map.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
