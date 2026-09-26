@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/eras_models.dart';
+import '../services/active_route_controller.dart';
+import '../services/route_service.dart';
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
 
@@ -156,17 +158,46 @@ class OperationalMapMarkerBuilder {
   }
 }
 
+/// Stable id of the single "responder → emergency" road route polyline.
+const PolylineId kActiveRoutePolylineId = PolylineId('active-route');
+
+/// Builds the Google Maps polyline for a computed road route.
+///
+/// The geometry is Google's own decoded `encodedPolyline`, so the rendered
+/// line follows real roads. ERAS never draws a straight connector between the
+/// two markers.
+Polyline buildRoutePolyline(RoutePlan route, {bool isUpdating = false}) {
+  return Polyline(
+    polylineId: kActiveRoutePolylineId,
+    points: route.points
+        .map((point) => LatLng(point.latitude, point.longitude))
+        .toList(growable: false),
+    color: isUpdating ? AppColors.blue.withValues(alpha: .55) : AppColors.blue,
+    width: 5,
+  );
+}
+
 class OperationalGoogleMap extends StatefulWidget {
   const OperationalGoogleMap({
     super.key,
     required this.requests,
     required this.liveLocations,
     this.isMobile = false,
+    this.routeService,
+    this.routingEnabled = true,
   });
 
   final List<EmergencyRequest> requests;
   final Map<int, LiveResponderLocation> liveLocations;
   final bool isMobile;
+
+  /// Road-routing backend. Defaults to the authenticated ERAS endpoint
+  /// (`POST /api/routes/compute`, Google Routes API server side). Injectable
+  /// so widget tests never perform a network call.
+  final RouteService? routeService;
+
+  /// Allows hosts (and tests) to disable routing entirely.
+  final bool routingEnabled;
 
   @override
   State<OperationalGoogleMap> createState() => _OperationalGoogleMapState();
@@ -182,6 +213,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   GoogleMapController? _controller;
   bool _initialCameraApplied = false;
   final Set<String> _autoFittedResponderMarkers = <String>{};
+  late final ActiveRouteController _routeController;
 
   List<OperationalMapMarkerSnapshot> get _snapshots =>
       _markerBuilder.buildSnapshots(
@@ -194,8 +226,36 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
       .toList(growable: false);
 
   @override
+  void initState() {
+    super.initState();
+    _routeController = ActiveRouteController(
+      routeService: widget.routeService ?? const BackendRouteService(),
+    );
+    _routeController.addListener(_onRouteChanged);
+    _syncRoute();
+  }
+
+  void _onRouteChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  /// Part E/F: the controller decides whether this board state may have a
+  /// route at all and whether the throttle allows a new Routes API request.
+  void _syncRoute() {
+    if (!widget.routingEnabled) return;
+    unawaited(
+      _routeController.sync(
+        requests: widget.requests,
+        liveLocations: widget.liveLocations,
+      ),
+    );
+  }
+
+  @override
   void didUpdateWidget(covariant OperationalGoogleMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncRoute();
     if (_controller == null) return;
 
     final oldResponderMarkerIds = _markerBuilder
@@ -223,6 +283,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
 
   @override
   void dispose() {
+    _routeController.removeListener(_onRouteChanged);
+    _routeController.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -232,6 +294,11 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     final snapshots = _snapshots;
     final markers = snapshots.map((snapshot) => snapshot.toMarker()).toSet();
     final textOnlyOpenRequests = _textOnlyOpenRequests;
+    final route = _routeController.route;
+    final polylines = <Polyline>{
+      if (route != null)
+        buildRoutePolyline(route, isUpdating: _routeController.isUpdating),
+    };
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -253,6 +320,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                     GoogleMap(
                       initialCameraPosition: _initialCamera(snapshots),
                       markers: markers,
+                      polylines: polylines,
                       mapToolbarEnabled: false,
                       myLocationButtonEnabled: false,
                       zoomControlsEnabled: !widget.isMobile,
@@ -268,8 +336,25 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                       child: _MapControls(
                         onCenterEmergency: _centerOnEmergency,
                         onFitPins: markers.isEmpty ? null : _fitAllPins,
+                        // The user keeps full pan/zoom control: the camera is
+                        // only moved by these explicit buttons, never by an
+                        // incoming responder GPS update.
+                        onFitRoute: route == null ? null : _fitRoute,
                       ),
                     ),
+                    if (route != null ||
+                        _routeController.isUpdating ||
+                        _routeController.errorMessage != null)
+                      Positioned(
+                        right: 12,
+                        top: 12,
+                        child: RouteInfoCard(
+                          route: route,
+                          isUpdating: _routeController.isUpdating,
+                          errorMessage: _routeController.errorMessage,
+                          onRetry: () => unawaited(_routeController.refresh()),
+                        ),
+                      ),
                     if (markers.isEmpty)
                       const Positioned.fill(
                         child: IgnorePointer(
@@ -285,17 +370,31 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Wrap(
+                  Wrap(
                     spacing: 12,
                     runSpacing: 6,
                     children: [
-                      LegendItem(color: AppColors.red, label: 'Active emergency'),
-                      LegendItem(color: AppColors.amber, label: 'Pending request'),
-                      LegendItem(color: AppColors.teal, label: 'LIVE responder'),
-                      LegendItem(
+                      const LegendItem(
+                        color: AppColors.red,
+                        label: 'Active emergency',
+                      ),
+                      const LegendItem(
+                        color: AppColors.amber,
+                        label: 'Pending request',
+                      ),
+                      const LegendItem(
+                        color: AppColors.teal,
+                        label: 'LIVE responder',
+                      ),
+                      const LegendItem(
                         color: AppColors.blue,
                         label: 'LAST KNOWN responder',
                       ),
+                      if (route != null)
+                        const LegendItem(
+                          color: AppColors.blue,
+                          label: 'Road route (Google Routes API)',
+                        ),
                     ],
                   ),
                   if (textOnlyOpenRequests.isNotEmpty) ...[
@@ -376,6 +475,24 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     await controller.animateCamera(CameraUpdate.newLatLngZoom(focus, 15));
   }
 
+  /// Part G: frames the whole road route — both endpoints *and* the polyline
+  /// geometry, so a curved route is never clipped by a two-point bounding box.
+  Future<void> _fitRoute() async {
+    final controller = _controller;
+    final route = _routeController.route;
+    if (controller == null || route == null) return;
+
+    final positions = <LatLng>[
+      LatLng(route.origin.latitude, route.origin.longitude),
+      LatLng(route.destination.latitude, route.destination.longitude),
+      for (final point in route.points) LatLng(point.latitude, point.longitude),
+    ];
+
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(_boundsFor(positions), 64),
+    );
+  }
+
   Future<void> _fitAllPins() async {
     final controller = _controller;
     if (controller == null) return;
@@ -430,10 +547,12 @@ class _MapControls extends StatelessWidget {
   const _MapControls({
     required this.onCenterEmergency,
     required this.onFitPins,
+    this.onFitRoute,
   });
 
   final Future<void> Function() onCenterEmergency;
   final Future<void> Function()? onFitPins;
+  final Future<void> Function()? onFitRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -476,6 +595,158 @@ class _MapControls extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
               ),
             ),
+            TextButton.icon(
+              onPressed:
+                  onFitRoute == null ? null : () => unawaited(onFitRoute!()),
+              icon: const Icon(Icons.route_rounded, size: 16),
+              label: const Text('Fit route'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.teal,
+                textStyle: const TextStyle(fontSize: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "RESPONDER → EMERGENCY" card with the real road distance and Google's own
+/// traffic-aware ETA.
+///
+/// It also carries the two non-blocking states required by Part E: a subtle
+/// "Updating route…" hint while a newer route is being computed (the previous
+/// route stays on the map) and an error line when a recalculation failed.
+class RouteInfoCard extends StatelessWidget {
+  const RouteInfoCard({
+    super.key,
+    required this.route,
+    this.isUpdating = false,
+    this.errorMessage,
+    this.onRetry,
+  });
+
+  final RoutePlan? route;
+  final bool isUpdating;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final plan = route;
+    final error = errorMessage;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: .94),
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: .08),
+          ),
+        ],
+      ),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 240),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'RESPONDER → EMERGENCY',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .8,
+                color: AppColors.textDim,
+              ),
+            ),
+            const SizedBox(height: 6),
+            if (plan != null) ...[
+              Text(
+                'Distance: ${plan.distanceLabel}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'ETA: ${plan.etaLabel}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.teal,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Google Routes API · driving, traffic aware',
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.3,
+                  color: AppColors.textFaint,
+                ),
+              ),
+            ] else if (!isUpdating && error == null)
+              const Text(
+                'No road route yet.',
+                style: TextStyle(fontSize: 12, color: AppColors.textDim),
+              ),
+            if (isUpdating) ...[
+              const SizedBox(height: 6),
+              const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 11,
+                    height: 11,
+                    child: CircularProgressIndicator(strokeWidth: 1.8),
+                  ),
+                  SizedBox(width: 7),
+                  Text(
+                    'Updating route…',
+                    style: TextStyle(fontSize: 11, color: AppColors.textDim),
+                  ),
+                ],
+              ),
+            ],
+            if (error != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                error,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  height: 1.3,
+                  color: AppColors.amber,
+                ),
+              ),
+              if (onRetry != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: onRetry,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.blue,
+                      textStyle: const TextStyle(fontSize: 11),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Retry route'),
+                  ),
+                ),
+            ],
           ],
         ),
       ),

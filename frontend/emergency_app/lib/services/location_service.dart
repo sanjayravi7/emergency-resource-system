@@ -245,6 +245,40 @@ class PlacesApiDisabledException implements LocationServiceException {
   String toString() => userMessage;
 }
 
+/// Whether a Google error [message] is a *reverse geocoding authorization*
+/// failure rather than a "no result" answer.
+///
+/// The Maps JavaScript Geocoder reports an unauthorized key/origin as
+/// `GEOCODER_GEOCODE: REQUEST_DENIED: The webpage is not allowed to use the
+/// geocoder.` That means one of three Google Cloud settings is wrong:
+///   1. the Geocoding API is not enabled on the project,
+///   2. the browser key's *API restrictions* do not include the Geocoding API,
+///   3. the page origin is not an allowed HTTP referrer for that key.
+///
+/// `ZERO_RESULTS` and similar "Google answered, but had nothing" cases are
+/// deliberately not matched: they are not authorization problems.
+bool isGeocodingApiDeniedError(String message) {
+  final text = message.toLowerCase();
+  if (text.contains('not allowed to use the geocoder')) return true;
+  if (text.contains('geocoder_geocode') && text.contains('request_denied')) {
+    return true;
+  }
+  if (text.contains('geocoding api') &&
+      (text.contains('disabled') || text.contains('has not been used'))) {
+    return true;
+  }
+  if (text.contains('referernotallowedmaperror')) return true;
+  if (text.contains('apitargetblockedmaperror')) return true;
+  return false;
+}
+
+/// Actionable guidance appended to a denied reverse-geocoding error. The raw
+/// Google error text is always shown next to it — the failure is never hidden.
+const String kGeocodingApiDeniedHint =
+    ' Google denied the Geocoding API request for this browser key/origin: '
+    'enable the Geocoding API, add it to the key API restrictions and '
+    'allow this page origin as an HTTP referrer.';
+
 /// Whether a Google error [message] means the Places API (New) is disabled,
 /// not yet used, or not authorized for this project/key.
 bool isPlacesApiDisabledError(String message) {
@@ -255,6 +289,16 @@ bool isPlacesApiDisabledError(String message) {
   if (text.contains('permission_denied')) return true;
   if (text.contains('apitargetblockedmaperror')) return true;
   if (text.contains('is not authorized to use this service')) return true;
+  // The Places API (New) surface reports a key whose API restrictions do not
+  // include it as, verbatim:
+  //   "Requests to this API places.googleapis.com method
+  //    google.maps.places.v1.Places.AutocompletePlaces are blocked."
+  // Note this text contains "api places.googleapis.com", not "places api",
+  // so it needs its own match.
+  if (text.contains('places.googleapis.com') && text.contains('blocked')) {
+    return true;
+  }
+  if (text.contains('google.maps.places.v1')) return true;
   return false;
 }
 

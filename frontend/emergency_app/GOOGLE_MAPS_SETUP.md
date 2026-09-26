@@ -1,6 +1,23 @@
-# Google Maps setup for ERAS Flutter Web
+# Google Maps setup for ERAS
 
-ERAS uses the official `google_maps_flutter` package. On Flutter Web, that package uses the Google Maps JavaScript API loaded from `web/index.html`.
+ERAS uses the official `google_maps_flutter` package. On Flutter Web, that package uses the Google Maps JavaScript API loaded from `web/index.html`. Road routing (responder → emergency) is **not** a browser API: it runs server side in the ERAS backend.
+
+## 0. Two keys, on purpose
+
+ERAS uses **two separate Google API keys**. They can never be the same key, because they are protected in fundamentally different ways.
+
+| | **BROWSER key** | **SERVER key** |
+| --- | --- | --- |
+| Stored in | `frontend/emergency_app/web/google_maps_config.js` (git-ignored) | `backend/.env` → `GOOGLE_ROUTES_API_KEY` (git-ignored) |
+| Visible to users | **Yes** — it is downloaded by every browser | **No** — it never leaves the server process |
+| APIs (enabled *and* in the key's API restrictions) | **Maps JavaScript API**, **Places API (New)**, **Geocoding API** | **Routes API** |
+| Application restrictions | HTTP referrers (web sites) | IP addresses (server egress IPs); unrestricted is acceptable only for local development |
+| Used by | `web/index.html`, `web/eras_location_bridge.js`, `google_maps_flutter` | `backend/src/services/routesService.js` only |
+
+Why the split:
+
+- The browser key **must** be public: the Maps JavaScript API is loaded by the browser, so the key is in the page. The only protection Google offers for it is the HTTP-referrer allow-list, which is why its API restrictions must stay limited to the three browser APIs.
+- The Routes API is a plain web service. A referrer header is trivially forged, so a browser-exposed Routes key could be used by anyone. The Routes key therefore lives only in the backend environment and is reachable exclusively through the authenticated endpoint `POST /api/routes/compute`. It must never appear in Dart code, `web/google_maps_config.js`, `index.html`, or any frontend JavaScript.
 
 ## 1. Google Cloud project
 
@@ -10,31 +27,77 @@ ERAS uses the official `google_maps_flutter` package. On Flutter Web, that packa
 
 ## 2. Enable the required APIs
 
-Enable all three of the following for the project:
+**APIs & Services → Library**, enable all four:
 
-| API | Used by |
-| --- | --- |
-| **Maps JavaScript API** | map rendering (`GoogleMap`, `operational_google_map.dart`) and the location bridge |
-| **Geocoding API** | reverse geocoding (`google.maps.Geocoder`) — GPS/map-tap coordinates → human readable place |
-| **Places API (New)** | requester place autocomplete (`google.maps.places.AutocompleteSuggestion`), `Place.fetchFields` for the selected place's exact coordinates, and the NEARBY PLACES selector (`Place.searchNearby` — Nearby Search (New)) |
+| API | Key | Used by |
+| --- | --- | --- |
+| **Maps JavaScript API** | browser | map rendering (`GoogleMap`, `operational_google_map.dart`) and the location bridge |
+| **Geocoding API** | browser | reverse geocoding (`google.maps.Geocoder`) — GPS/map-tap coordinates → human readable place |
+| **Places API (New)** | browser | requester place autocomplete (`google.maps.places.AutocompleteSuggestion`), `Place.fetchFields` for the selected place's exact coordinates, and the NEARBY PLACES selector (`Place.searchNearby` — Nearby Search (New)) |
+| **Routes API** | **server** | real road route + distance + traffic-aware ETA between the responder's live position and the emergency (`POST /api/routes/compute`) |
 
-> If autocomplete returns `REQUEST_DENIED` / `ApiTargetBlockedMapError`, or nearby places show *"Nearby places unavailable. Enable Places API (New) in Google Cloud."*, the **Places API (New)** is not enabled, or the key's *API restrictions* list does not include it. Enabling *Places API (Legacy)* alone is not sufficient for the new `AutocompleteSuggestion` / `Place.searchNearby` flows (the bridge does fall back to the legacy `AutocompleteService` for search when only the old API is available). The map and reverse geocoding use other APIs and keep working either way.
+Enabling an API is only half of the configuration — the key's own **API restrictions** list must contain it as well. A key that is enabled project-wide but restricted to "Maps JavaScript API" produces exactly the two failures below.
 
-## 3. Create and restrict an API key
+### 2a. Symptom → cause table
 
-Create an API key under **APIs & Services → Credentials** and restrict it before use.
+| Browser symptom | Cause | Fix |
+| --- | --- | --- |
+| `GEOCODER_GEOCODE: REQUEST_DENIED: The webpage is not allowed to use the geocoder.` | The **Geocoding API** is not enabled on the project **or** not in the browser key's *API restrictions* list **or** the page origin is not an allowed HTTP referrer. The map itself keeps working because it only needs the Maps JavaScript API. | Enable Geocoding API, add it to the key's API restrictions, add the origin to the referrer list. |
+| `Requests to this API places.googleapis.com method google.maps.places.v1.Places.AutocompletePlaces are blocked.` | The new Places surface (`places.googleapis.com`) is not covered by the key. **Places API (New)** is a *different* entry from the legacy *Places API* — selecting only the legacy one blocks every `AutocompleteSuggestion` / `Place.fetchFields` / `Place.searchNearby` call. | Enable **Places API (New)** and add exactly that entry to the key's API restrictions. |
+| `RefererNotAllowedMapError`, `InvalidKeyMapError`, `ApiNotActivatedMapError` (reported by `gm_authFailure` in the console) | The key itself is rejected for this origin. | Add `<origin>/*` to the key's HTTP referrers. |
+| `Google Routes API error (HTTP 403)` from `POST /api/routes/compute` | The **Routes API** is not enabled, or the *server* key is restricted to other APIs / other IPs. | Enable Routes API and fix the server key restrictions. This never involves the browser key. |
 
-Recommended web restrictions:
+> Note: the map and reverse geocoding use different APIs, so "the map renders" never proves that geocoding or Places is authorized. Use the diagnostics page in §3c to test all three individually.
+
+## 3. Create and restrict the keys
+
+Create the keys under **APIs & Services → Credentials**. Do not commit unrestricted keys or production secrets.
+
+### 3a. Browser key (Maps JavaScript API + Places API (New) + Geocoding API)
 
 - **Application restrictions:** HTTP referrers (web sites)
-- **API restrictions:** Maps JavaScript API, Geocoding API, Places API (New)
-- **Development referrers:**
-  - `http://localhost:*/*`
-  - `http://127.0.0.1:*/*`
+- **API restrictions → Restrict key:** `Maps JavaScript API`, `Places API (New)`, `Geocoding API`
+- **Development referrers** — the local Flutter Web origins ERAS is served from:
+  - `http://localhost:8080/*`
+  - `http://127.0.0.1:8080/*`
+  - `http://localhost:8081/*`
+  - `http://127.0.0.1:8081/*`
+  - (optional wildcards during development: `http://localhost:*/*`, `http://127.0.0.1:*/*`)
   - Arena preview hosts, for example `https://*-*.e2b.app/*`
 - **Production referrers:** add only the exact deployed ERAS origin(s), for example `https://eras.example.org/*`
 
-Do not commit unrestricted keys or production secrets.
+Reuse the project's existing browser key — do not create a second one. Adding the two missing APIs to the existing key is the whole fix.
+
+### 3b. Server key (Routes API)
+
+- **Application restrictions:** IP addresses (the backend's egress IP) — or None for local development
+- **API restrictions → Restrict key:** `Routes API` only
+- Store it as `GOOGLE_ROUTES_API_KEY` in `backend/.env` (see `backend/.env.example`). Never in the frontend.
+
+### 3c. Verify the browser key in the browser (no guessing)
+
+`web/eras_location_diagnostics.html` is served next to the app. Open it on the **same origin and port** the app runs on:
+
+```
+http://localhost:8080/eras_location_diagnostics.html
+http://localhost:8081/eras_location_diagnostics.html
+```
+
+It prints, live and unmodified:
+
+- the exact `window.location.origin` Google sees, and the referrer entry to allow-list (`<origin>/*`),
+- the masked key actually used at runtime (last 4 characters + length) and the loader URL,
+- whether `google.maps`, the `places` library and the Places API (New) classes loaded,
+- the verbatim result of three probes: `Geocoder.geocode`, `AutocompleteSuggestion.fetchAutocompleteSuggestions`, `Place.searchNearby`,
+- the concrete Google Cloud fix for whichever probe failed.
+
+The same report is available in the app console:
+
+```js
+JSON.parse(await erasLocationBridge.diagnostics(10.00846, 76.45163))
+```
+
+`web/index.html` also logs the masked key + origin at startup and installs `window.gm_authFailure`, so a rejected key is reported explicitly instead of failing silently.
 
 ## 4. Local Flutter Web configuration
 
@@ -128,13 +191,71 @@ It is **never** called from responder Socket.IO location updates (`LiveLocationS
 
 Nothing crashes and the current-location + reverse-geocoding workflow (Geocoding API) keeps working. **Refresh** retries once the API has been enabled in Google Cloud.
 
-`tool/eras_location_bridge_test.mjs` (plain Node, no Flutter needed) verifies the bridge's request shape: field mask, 5 km circle around the requester, `includedTypes`, `rankPreference = DISTANCE`, result mapping and the disabled-API error path. Run it with `node tool/eras_location_bridge_test.mjs`.
+`tool/eras_location_bridge_test.mjs` (plain Node, no Flutter needed) verifies the bridge's request shape: field mask, 5 km circle around the requester, `includedTypes`, `rankPreference = DISTANCE`, result mapping, the disabled-API error path, the verbatim geocoder/Places authorization errors plus their fix hints, and the `diagnostics()` report. Run it with `node tool/eras_location_bridge_test.mjs`.
 
-## 7. Data flow summary
+## 7. Road route: responder → emergency (server side)
+
+The route is computed by the **Routes API Compute Routes** method, through the backend. The deprecated Maps JavaScript `DirectionsService` is not used anywhere.
+
+### 7a. Request the backend sends
+
+```
+POST https://routes.googleapis.com/directions/v2:computeRoutes
+X-Goog-Api-Key:   $GOOGLE_ROUTES_API_KEY        (backend environment only)
+X-Goog-FieldMask: routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline
+```
+
+```jsonc
+{
+  "origin":      { "location": { "latLng": { "latitude": <responder>, "longitude": <responder> } } },
+  "destination": { "location": { "latLng": { "latitude": <emergency>, "longitude": <emergency> } } },
+  "travelMode": "DRIVE",
+  "routingPreference": "TRAFFIC_AWARE",
+  "computeAlternativeRoutes": false,
+  "units": "METRIC",
+  "languageCode": "en-US"
+}
+```
+
+Only the three field-mask fields are requested, so Google returns (and bills) nothing else.
+
+### 7b. ERAS endpoint
+
+```
+POST /api/routes/compute        (Authorization: Bearer <JWT> required)
+
+{ "origin": { "latitude": 10.00846, "longitude": 76.45163 },
+  "destination": { "latitude": 10.05276, "longitude": 76.35211 } }
+```
+
+Validation rejects a missing origin, a missing destination, a non-numeric coordinate, a half coordinate pair, and any latitude outside ±90 / longitude outside ±180 — all with `400` and **without** calling Google.
+
+Response (`200`) contains only:
+
+```json
+{ "success": true,
+  "data": { "distanceMeters": 7412, "durationSeconds": 1080, "duration": "1080s",
+            "encodedPolyline": "…", "distanceText": "7.4 km", "durationText": "18 min" } }
+```
+
+The API key is never part of any response, log line or error message: `routesService.redactApiKey()` strips key material (including `key=…` parameters and `AIza…` literals) from every upstream error before it is returned or logged.
+
+Failure mapping: `401` unauthenticated · `400` invalid coordinates · `404` Google found no drivable route · `502` upstream/network error · `503` `GOOGLE_ROUTES_API_KEY` not configured.
+
+### 7c. Client behaviour (`lib/services/active_route_controller.dart`)
+
+- A route exists **only** when the request is active, has coordinates, has an accepted responder, and that responder has a current or last-known position. Completed/cancelled requests drop the route and stop recalculating.
+- Route updates are throttled: after the first route, a recalculation needs **≥ 15 s since the last request AND ≥ 100 m of responder movement** (the safer of the two rules; a changed emergency coordinate or a manual retry bypasses the movement rule, and a failed attempt may retry once per interval). A burst of `responder.location.update` events therefore produces at most one Routes API call.
+- While a new route is computed the previous polyline stays on the map and the card shows "Updating route…". On failure the old route and the responder marker stay, and the error is shown non-blocking.
+- The polyline is Google's decoded `encodedPolyline` — never a straight connector — and the ETA is Google's own traffic-aware duration, never distance ÷ speed.
+- Map controls: **Center on emergency**, **Fit pins**, **Fit route** (frames both endpoints and the route geometry). The camera is never force-followed; pan/zoom stays with the user.
+
+## 8. Data flow summary
 
 - Requester GPS available: coordinates are stored in the form immediately, then reverse geocoded to fill the `location` text. ERAS stores `EmergencyRequest.latitude`, `EmergencyRequest.longitude` and that text.
 - Requester selects a searched place: the place's own coordinates from Google become `latitude`/`longitude`; the typed search text is never stored.
 - Requester selects a nearby place (hospital, police station, …): that place's own name/address and coordinates from Nearby Search (New) become the label and `latitude`/`longitude`; the request appears at that exact point on the Dispatch Board.
 - Requester GPS unavailable/denied: ERAS stores only the location text and shows that a precise map pin is unavailable.
 - Responder live location: Socket.IO `responder.location.update` updates `LiveLocationStore`, and the Google Map marker moves immediately without a REST refresh.
-- Terminal requests: completed/cancelled requests are removed from active map tracking.
+- Road route: the throttled `POST /api/routes/compute` call turns the responder's latest coordinate + the emergency coordinate into a real road polyline, distance and traffic-aware ETA. No key reaches the browser.
+- Terminal requests: completed/cancelled requests are removed from active map tracking and their route is removed.

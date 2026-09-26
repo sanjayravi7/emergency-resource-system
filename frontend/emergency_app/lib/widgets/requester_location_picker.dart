@@ -161,10 +161,15 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     } on LocationServiceException catch (error) {
       if (!mounted) return;
       // Coordinates are kept, the place field stays editable and nothing is
-      // fabricated.
+      // fabricated. A Google *authorization* denial (REQUEST_DENIED / "the
+      // webpage is not allowed to use the geocoder") additionally names the
+      // Google Cloud setting that has to be fixed — the raw Google text is
+      // always kept so the error is never hidden.
+      final hint =
+          isGeocodingApiDeniedError(error.message) ? kGeocodingApiDeniedHint : '';
       _setStatus(
         'Location detected, but place name could not be determined. Please '
-        'enter a nearby place. (${error.message})',
+        'enter a nearby place.$hint (${error.message})',
         isError: true,
       );
     } catch (error) {

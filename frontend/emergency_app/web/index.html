@@ -67,8 +67,48 @@
         document.head.appendChild(bridgeScript);
       }
 
+      // Never prints the key: only its length and last 4 characters, so the
+      // key actually used at runtime can be matched against Google Cloud
+      // without leaking it into logs or screenshots.
+      function maskKey(key) {
+        var text = String(key || '');
+        if (text.length <= 4) return '****';
+        return '****' + text.slice(-4);
+      }
+
       function configureGoogleMaps() {
         var key = window.ERAS_GOOGLE_MAPS_API_KEY;
+
+        // Diagnostics snapshot (read by web/eras_location_bridge.js and
+        // web/eras_location_diagnostics.html). No secret is stored here.
+        window.ERAS_MAPS_RUNTIME = {
+          keyConfigured: !!key,
+          keyMasked: key ? maskKey(key) : null,
+          keyLength: key ? String(key).length : 0,
+          keySource: 'web/google_maps_config.js',
+          origin: window.location.origin,
+          href: window.location.href,
+          libraries: 'places',
+          loaderUrl: null,
+          loadedAt: new Date().toISOString()
+        };
+
+        // Google calls this global when the browser key itself is rejected
+        // (InvalidKeyMapError, RefererNotAllowedMapError, ApiNotActivated...).
+        // The failure is recorded and printed with the exact page origin that
+        // has to be allow-listed as an HTTP referrer.
+        window.gm_authFailure = function () {
+          window.ERAS_MAPS_AUTH_FAILURE = true;
+          console.error(
+            '[ERAS] Google Maps authentication failure (gm_authFailure). ' +
+            'Key ' + (window.ERAS_MAPS_RUNTIME.keyMasked || '(missing)') +
+            ' was rejected for origin ' + window.location.origin + '. ' +
+            'Add ' + window.location.origin + '/* to the key HTTP referrers ' +
+            'and make sure Maps JavaScript API, Places API (New) and ' +
+            'Geocoding API are enabled and allowed by the key restrictions.'
+          );
+        };
+
         if (!key) {
           console.warn(
             'ERAS Google Maps API key not configured. Copy web/google_maps_config.template.js ' +
@@ -94,6 +134,15 @@
         // Geocoder (reverse geocoding) is part of the core Maps JavaScript
         // API bundle loaded here.
         '&libraries=places&v=weekly';
+        window.ERAS_MAPS_RUNTIME.loaderUrl =
+          mapsScript.src.replace(/key=[^&]*/, 'key=' + maskKey(key));
+        console.info(
+          '[ERAS] Google Maps JS loading with key ' + maskKey(key) +
+          ' (' + String(key).length + ' chars) from origin ' +
+          window.location.origin +
+          '. Required on this key: Maps JavaScript API, Places API (New), ' +
+          'Geocoding API. Open /eras_location_diagnostics.html to test them.'
+        );
         mapsScript.onload = function () {
           loadLocationBridge(startFlutter);
         };
