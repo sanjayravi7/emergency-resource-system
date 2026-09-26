@@ -56,6 +56,17 @@ function validateEmergencyRequestInput(data) {
     }
   }
 
+  // A precise location must be a complete pair. Storing half of a coordinate
+  // would either be meaningless or invite the client to fabricate the other
+  // half later; the human readable location text is never converted into
+  // coordinates on the server.
+  const hasLatitude = latitude !== undefined && latitude !== null;
+  const hasLongitude = longitude !== undefined && longitude !== null;
+
+  if (hasLatitude !== hasLongitude) {
+    return "Latitude and longitude must be provided together";
+  }
+
   return null;
 }
 

@@ -22,6 +22,20 @@ describe("Emergency request validation", () => {
     expect(validateEmergencyRequestInput(body)).toBeNull();
   });
 
+  test("❌ rejects latitude without longitude (incomplete precise location)", () => {
+    const { longitude, ...body } = validBody;
+    expect(validateEmergencyRequestInput(body)).toMatch(
+      /Latitude and longitude must be provided together/i
+    );
+  });
+
+  test("❌ rejects longitude without latitude (incomplete precise location)", () => {
+    const { latitude, ...body } = validBody;
+    expect(validateEmergencyRequestInput(body)).toMatch(
+      /Latitude and longitude must be provided together/i
+    );
+  });
+
   test("❌ rejects a missing emergency type", () => {
     expect(
       validateEmergencyRequestInput({ ...validBody, emergencyType: "  " })

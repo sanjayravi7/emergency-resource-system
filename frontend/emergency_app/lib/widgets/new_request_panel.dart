@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../models/eras_models.dart';
+import '../services/location_service.dart';
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
+import 'requester_location_picker.dart';
 
 /// Payload handed to the console when the requester submits the form.
 class NewRequestPayload {
@@ -49,14 +51,24 @@ class NewRequestPanel extends StatefulWidget {
     required this.onSubmit,
     required this.onReload,
     required this.onUseCurrentLocation,
+    this.locationService,
     this.submitting = false,
+    this.showMapPreview,
   });
 
   final List<BackendResource> resources;
   final Future<bool> Function(NewRequestPayload payload) onSubmit;
   final VoidCallback onReload;
-  final Future<Position?> Function() onUseCurrentLocation;
+
+  /// Reads browser/device GPS. Returns null when denied or unavailable.
+  final Future<GeoPoint?> Function() onUseCurrentLocation;
+
+  /// Google-backed reverse geocoding / place autocomplete. Injectable so tests
+  /// can provide a fake; defaults to the platform implementation.
+  final LocationService? locationService;
+
   final bool submitting;
+  final bool? showMapPreview;
 
   @override
   State<NewRequestPanel> createState() => _NewRequestPanelState();
@@ -71,10 +83,11 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
   String priority = 'HIGH';
   double? latitude;
   double? longitude;
-  bool locating = false;
   bool allowGpsFallback = true;
-  String? locationHelpMessage;
   String? errorMessage;
+
+  late final LocationService locationService =
+      widget.locationService ?? createLocationService();
 
   final List<_DraftLine> lines = <_DraftLine>[_DraftLine()];
 
@@ -129,45 +142,17 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     });
   }
 
-  Future<void> useCurrentLocation() async {
+  void onLocationChanged(double? newLatitude, double? newLongitude) {
     setState(() {
-      locating = true;
+      latitude = newLatitude;
+      longitude = newLongitude;
+      // A precise location is claimed as soon as coordinates exist.
+      allowGpsFallback = newLatitude == null || newLongitude == null;
       errorMessage = null;
-      locationHelpMessage = 'Requesting browser/device GPS permission…';
-    });
-
-    final position = await widget.onUseCurrentLocation();
-    if (!mounted) return;
-
-    setState(() {
-      locating = false;
-      if (position == null) {
-        latitude = null;
-        longitude = null;
-        allowGpsFallback = false;
-        locationHelpMessage =
-            'Precise GPS is unavailable or permission was denied. Enter a real place/address; the request will be saved without a map pin.';
-        return;
-      }
-
-      latitude = position.latitude;
-      longitude = position.longitude;
-      allowGpsFallback = true;
-      locationHelpMessage =
-          'Precise GPS captured: ${formatCoordinatePair(latitude!, longitude!)}. Enter or confirm the real location name/address before submitting.';
     });
   }
 
-  void chooseTextOnlyLocation() {
-    setState(() {
-      latitude = null;
-      longitude = null;
-      allowGpsFallback = false;
-      errorMessage = null;
-      locationHelpMessage =
-          'Text-only location selected. No fake coordinates will be generated; the map pin stays unavailable unless GPS is captured.';
-    });
-  }
+  bool get hasPreciseLocation => latitude != null && longitude != null;
 
   String? validate() {
     final resolvedType = emergencyType == 'Other'
@@ -183,7 +168,14 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     }
 
     if (locationController.text.trim().isEmpty) {
-      return 'Enter a real location name or address';
+      return 'Select or enter a place. Use "Use my current location" or search '
+          'for a nearby place.';
+    }
+
+    // Exactly one coordinate can never be stored: it is not a real point.
+    if ((latitude == null) != (longitude == null)) {
+      return 'Precise location is incomplete. Re-detect your location or pick '
+          'a place from search.';
     }
 
     if (!kPriorities.contains(priority)) {
@@ -274,7 +266,6 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       latitude = null;
       longitude = null;
       allowGpsFallback = true;
-      locationHelpMessage = null;
       lines
         ..clear()
         ..add(_DraftLine());
@@ -373,9 +364,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                 const SizedBox(height: 10),
                 const Text(
                   'The request is stored in PostgreSQL as an EmergencyRequest with one '
-                  'RequestResource row per selected resource. If GPS is available, the exact '
-                  'latitude/longitude is saved with the real location text; otherwise ERAS '
-                  'keeps the text-only location and does not create fake coordinates.',
+                  'RequestResource row per selected resource. Latitude/longitude from GPS, '
+                  'a selected Google place or a tapped map point stay the canonical location; '
+                  'the place text is only its human readable label. ERAS never fabricates '
+                  'coordinates from typed text.',
                   style: TextStyle(
                       fontSize: 11.5, color: AppColors.textFaint, height: 1.5),
                 ),
@@ -495,11 +487,11 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
           children: [
             Expanded(child: typeField),
             const SizedBox(width: 12),
-            Expanded(child: locationField),
-            const SizedBox(width: 12),
             Expanded(child: priorityField),
           ],
         ),
+        const SizedBox(height: 12),
+        locationField,
         const SizedBox(height: 12),
         descriptionField,
       ],
@@ -507,98 +499,22 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
   }
 
   Widget _locationField() {
-    final hasPreciseLocation = latitude != null && longitude != null;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const FieldLabel('Location'),
-        const SizedBox(height: 6),
-        TextField(
-          controller: locationController,
-          decoration: fieldDecoration(
-            hintText: 'Real place or address, e.g. Thrissur, Kerala',
-          ),
-          style: const TextStyle(fontSize: 13),
-          onChanged: (_) {
-            if (errorMessage != null) {
-              setState(() => errorMessage = null);
-            }
-          },
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            FilledButton.icon(
-              onPressed: locating ? null : useCurrentLocation,
-              icon: locating
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.my_location_rounded, size: 16),
-              label: Text(locating ? 'Locating…' : 'Use my current location'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.blue,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                textStyle: const TextStyle(fontSize: 12.5),
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: locating ? null : chooseTextOnlyLocation,
-              icon: const Icon(Icons.edit_location_alt_outlined, size: 16),
-              label: const Text('Choose text-only location'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textDim,
-                side: const BorderSide(color: AppColors.border),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                textStyle: const TextStyle(fontSize: 12.5),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(
-            color: hasPreciseLocation ? AppColors.tealDim : AppColors.surface2,
-            borderRadius: BorderRadius.circular(5),
-            border: Border.all(
-              color: hasPreciseLocation
-                  ? AppColors.teal.withValues(alpha: .35)
-                  : AppColors.border,
-            ),
-          ),
-          child: Text(
-            hasPreciseLocation
-                ? 'Coordinates: ${formatCoordinatePair(latitude!, longitude!)}'
-                : (locationHelpMessage ??
-                    'No precise coordinates selected yet. If GPS is denied, ERAS stores the location text only and does not create a fake map pin.'),
-            style: TextStyle(
-              fontSize: 11.5,
-              height: 1.35,
-              color: hasPreciseLocation ? AppColors.teal : AppColors.textFaint,
-            ),
-          ),
-        ),
-        if (locationHelpMessage != null && hasPreciseLocation) ...[
-          const SizedBox(height: 5),
-          Text(
-            locationHelpMessage!,
-            style: const TextStyle(
-              fontSize: 11,
-              height: 1.35,
-              color: AppColors.textDim,
-            ),
-          ),
-        ],
-      ],
+    return RequesterLocationPicker(
+      placeController: locationController,
+      latitude: latitude,
+      longitude: longitude,
+      locationService: locationService,
+      onUseCurrentLocation: widget.onUseCurrentLocation,
+      onLocationChanged: onLocationChanged,
+      onPlaceTextChanged: () {
+        if (errorMessage != null) {
+          setState(() => errorMessage = null);
+        } else {
+          setState(() {});
+        }
+      },
+      enabled: !widget.submitting,
+      showMapPreview: widget.showMapPreview ?? kIsWeb,
     );
   }
 

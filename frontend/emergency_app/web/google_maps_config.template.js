@@ -1,6 +1,7 @@
 // Copy this file to web/google_maps_config.js for local development.
 // Do not commit google_maps_config.js or any unrestricted/production API key.
-// The key must have Maps JavaScript API enabled and should be restricted by
+// The key must have Maps JavaScript API, Geocoding API and Places API (New)
+// enabled (see GOOGLE_MAPS_SETUP.md) and should be restricted by
 // HTTP referrer, for example:
 //   http://localhost:*/
 //   http://127.0.0.1:*/
