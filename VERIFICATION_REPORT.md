@@ -91,9 +91,9 @@ Request A's coordinates, Requester B only Request B's; Responder B publishing
 into Request A, a random request id, a COMPLETED request and a CANCELLED
 request are all rejected with FORBIDDEN; rate-limited updates are neither
 broadcast nor persisted (PostgreSQL keeps the last throttled point only).
-The map painter (`SectorMapPainter`) projects only received GPS coordinates —
-no coordinate is fabricated; live markers become "last-known" on
-`location.stop` and disappear when the request closes.
+The Google Maps marker layer uses only received GPS coordinates — no coordinate
+is fabricated; live markers become "last-known" on `location.stop` and
+disappear when the request closes.
 
 ## 8. Reconnect
 

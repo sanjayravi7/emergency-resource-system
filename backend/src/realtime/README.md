@@ -52,3 +52,32 @@ Terminal request snapshots emit a location stop event and subsequent location
 updates are rejected. Connected sockets periodically re-read the database user
 row and also revalidate before protected socket actions, so deactivated users
 cannot keep using a previously valid JWT session indefinitely.
+
+## Google Maps frontend integration
+
+The Flutter dashboard renders operational locations with the official
+`google_maps_flutter` package. For Flutter Web, `frontend/emergency_app/web/index.html`
+loads the Google Maps JavaScript API through a local ignored config file:
+
+1. Copy `frontend/emergency_app/web/google_maps_config.template.js` to
+   `frontend/emergency_app/web/google_maps_config.js`.
+2. Set `window.ERAS_GOOGLE_MAPS_API_KEY` to a Google Maps Platform key that is
+   restricted to the Maps JavaScript API and allowed HTTP referrers.
+3. Never commit `google_maps_config.js`, unrestricted keys, or production keys.
+
+Required Google Cloud setup:
+
+- Google Cloud project with billing enabled.
+- Maps JavaScript API enabled.
+- API key restricted by HTTP referrer. Use local development referrers such as
+  `http://localhost:*/*`, `http://127.0.0.1:*/*`, and the Arena preview host
+  pattern `https://*-*.e2b.app/*`; production keys should allow only the
+  deployed ERAS web origin.
+
+The map consumes the same realtime data described above. Request markers come
+only from `EmergencyRequest.latitude` / `EmergencyRequest.longitude`; text-only
+locations are listed as unavailable on the map rather than projected to fake
+coordinates. Responder markers come only from authorized request-room
+`responder.location.update` events (or the throttled last-known responder
+coordinate returned during REST reconciliation). Flutter updates marker state by
+stable marker id and does not call REST for every GPS point.

@@ -7,3 +7,6 @@
 # Temporary analyzer/log dumps.
 errors.txt
 errors_lib.txt
+
+# Local Google Maps API key config for Flutter Web.
+/web/google_maps_config.js

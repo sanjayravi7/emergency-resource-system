@@ -7,7 +7,7 @@ describe("Emergency request validation", () => {
   const validBody = {
     emergencyType: "Fire",
     description: "Building fire on the 3rd floor",
-    location: "North Ridge",
+    location: "Thrissur Round, Kerala",
     priority: "CRITICAL",
     latitude: 10.5276,
     longitude: 76.2144,

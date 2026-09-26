@@ -104,6 +104,33 @@ class BoardPanel extends StatelessWidget {
     return statuses.isEmpty ? null : statuses;
   }
 
+  Widget _locationCell(EmergencyRequest request) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 180,
+          child: Text(
+            request.location,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (request.coordinateLabel != null)
+          Text(
+            request.coordinateLabel!,
+            style: monoStyle(size: 10.5, color: AppColors.textFaint),
+          )
+        else
+          const Text(
+            'No precise coordinates',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Panel(
@@ -363,7 +390,7 @@ class BoardPanel extends StatelessWidget {
                   ],
                 ),
               ),
-              DataCell(Text(request.location)),
+              DataCell(_locationCell(request)),
               DataCell(PriorityPill(priority: request.priority)),
               DataCell(
                 SizedBox(
@@ -556,6 +583,11 @@ class _RequestCard extends StatelessWidget {
                 child: InfoChip(label: 'Location', value: request.location),
               ),
             ],
+          ),
+          const SizedBox(height: 6),
+          InfoChip(
+            label: 'Coordinates',
+            value: request.coordinateLabel ?? 'No precise coordinates',
           ),
           if ((requester?.email ?? '').isNotEmpty ||
               (requester?.phone ?? '').isNotEmpty) ...[

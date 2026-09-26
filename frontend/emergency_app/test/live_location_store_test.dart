@@ -21,7 +21,7 @@ EmergencyRequest _request(int id, String status) {
     'id': id,
     'emergencyType': 'Medical',
     'description': 'Test request',
-    'location': 'Old Town',
+    'location': 'Thrissur, Kerala',
     'priority': 'HIGH',
     'status': status,
     'createdAt': '2026-09-26T09:00:00.000Z',

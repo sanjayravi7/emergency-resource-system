@@ -653,6 +653,12 @@ class EmergencyRequest {
   /// Human readable id used all over the dispatch board (DB-201).
   String get displayId => 'DB-$id';
 
+  bool get hasPreciseLocation => latitude != null && longitude != null;
+
+  String? get coordinateLabel => hasPreciseLocation
+      ? formatCoordinatePair(latitude!, longitude!)
+      : null;
+
   bool get isOpen =>
       status != RequestStatus.completed && status != RequestStatus.cancelled;
 
@@ -816,16 +822,8 @@ Color responderStatusColor(String status) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// DISTRICTS - display-only coordinates for the sector map. They are labels for
-// the `location` column, never a source of resources.
-// ---------------------------------------------------------------------------
-
-class District {
-  const District(this.name, this.point);
-  final String name;
-  final Offset point;
-}
+String formatCoordinatePair(double latitude, double longitude) =>
+    '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}';
 
 /// Views available in the console. Which ones are shown depends on the role
 /// of the logged in user (see navItemsForRole).
@@ -848,15 +846,6 @@ List<NavItem> navItemsForRole(String? role) {
     const NavItem(ConsoleView.log, Icons.receipt_long_outlined, 'Log'),
   ];
 }
-
-const List<District> kDistricts = <District>[
-  District('North Ridge', Offset(150, 55)),
-  District('Harbor District', Offset(470, 70)),
-  District('Old Town', Offset(300, 130)),
-  District('Riverside', Offset(100, 190)),
-  District('Eastgate', Offset(520, 195)),
-  District('Summit Heights', Offset(300, 40)),
-];
 
 const List<String> kEmergencyTypes = <String>[
   'Fire',
