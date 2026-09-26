@@ -6,6 +6,13 @@ const authorizeRoles = require('../middleware/roleMiddleware');
 
 router.get('/', authenticate, responderController.getResponders);
 
+router.get(
+  '/me/availability',
+  authenticate,
+  authorizeRoles('RESPONDER'),
+  responderController.getMyAvailability
+);
+
 router.patch(
   '/status',
   authenticate,

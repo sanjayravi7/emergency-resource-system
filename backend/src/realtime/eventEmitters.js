@@ -275,18 +275,60 @@ async function emitAllocationsForRequest(requestId) {
 
 async function emitResponderAvailability(responderId) {
   if (!getIO()) return;
+  const numericResponderId = Number(responderId);
   const responder = await prisma.user.findUnique({
-    where: { id: Number(responderId) },
+    where: { id: numericResponderId },
     select: { id: true, responderStatus: true },
   });
   if (!responder) return;
 
-  emitToRooms('responder.availability', {
+  // The counts that explain the status are read from PostgreSQL as well, so
+  // the client can render "BUSY - 2 unfinished allocations" without deriving
+  // (or guessing) availability locally.
+  const [reserved, dispatched, activeRequests] = await Promise.all([
+    prisma.allocation.count({
+      where: { responderId: numericResponderId, status: 'RESERVED' },
+    }),
+    prisma.allocation.count({
+      where: { responderId: numericResponderId, status: 'DISPATCHED' },
+    }),
+    prisma.emergencyRequest.count({
+      where: {
+        acceptedById: numericResponderId,
+        status: { in: ['ACCEPTED', 'IN_PROGRESS', 'PARTIALLY_ALLOCATED'] },
+      },
+    }),
+  ]);
+
+  const timestamp = new Date().toISOString();
+  const publicPayload = {
     responderId: responder.id,
     currentResponderStatus: responder.responderStatus,
     responderStatus: responder.responderStatus,
-    timestamp: new Date().toISOString(),
-  }, [rooms.user(responder.id), rooms.responders, rooms.admins]);
+    timestamp,
+  };
+  const detailedPayload = {
+    ...publicPayload,
+    reservedAllocations: reserved,
+    dispatchedAllocations: dispatched,
+    unfinishedAllocations: reserved + dispatched,
+    activeRequests,
+  };
+
+  // The workload detail ("2 unfinished allocations") is only for the
+  // responder themselves and for admins. Other responders keep receiving the
+  // plain status they already had - nobody else's workload leaks sideways.
+  emitToRooms('responder.availability', detailedPayload, [
+    rooms.user(responder.id),
+    rooms.admins,
+  ]);
+
+  const io = getIO();
+  if (io) {
+    io.to(rooms.responders)
+      .except(rooms.user(responder.id))
+      .emit('responder.availability', publicPayload);
+  }
 }
 
 module.exports = {

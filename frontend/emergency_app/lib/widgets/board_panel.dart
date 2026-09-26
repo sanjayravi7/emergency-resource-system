@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
+import 'request_timeline.dart';
 
 /// Dispatch board. Everything shown here comes from PostgreSQL through the
 /// API - there is no local simulation of state anywhere.
@@ -23,11 +24,9 @@ class BoardPanel extends StatelessWidget {
     this.onDispatchAllocation,
     this.onMarkDelivered,
     this.onConfirmReceipt,
-    this.onStartLocationSharing,
-    this.onStopLocationSharing,
     this.liveLocations = const <int, LiveResponderLocation>{},
-    this.sharingRequestId,
     this.isMobile = false,
+    this.detailed = false,
   });
 
   final String title;
@@ -44,11 +43,13 @@ class BoardPanel extends StatelessWidget {
   final void Function(AllocationLine allocation)? onDispatchAllocation;
   final void Function(AllocationLine allocation)? onMarkDelivered;
   final void Function(AllocationLine allocation)? onConfirmReceipt;
-  final Future<void> Function(EmergencyRequest request)? onStartLocationSharing;
-  final Future<void> Function(int? requestId)? onStopLocationSharing;
   final Map<int, LiveResponderLocation> liveLocations;
-  final int? sharingRequestId;
   final bool isMobile;
+
+  /// Operational layout: one card per request with the lifecycle timeline and
+  /// the per-allocation detail. Used for the requester board and for the
+  /// responder's own active emergency.
+  final bool detailed;
 
   bool _canAccept(EmergencyRequest request) =>
       role == 'RESPONDER' &&
@@ -105,13 +106,19 @@ class BoardPanel extends StatelessWidget {
       hint: isMobile ? '' : hint,
       child: requests.isEmpty
           ? EmptyState(emptyMessage, title: emptyTitle, icon: emptyIcon)
-          : isMobile
+          : (isMobile || detailed)
               ? Column(
                   children: requests
                       .map((request) => _RequestCard(
                             request: request,
                             actions: _actions(request),
                             liveLocation: liveLocations[request.id],
+                            showTimeline: detailed,
+                            currentUserId: currentUserId,
+                            isResponderView: role == 'RESPONDER',
+                            onConfirmReceipt: onConfirmReceipt,
+                            onDispatchAllocation: onDispatchAllocation,
+                            onMarkDelivered: onMarkDelivered,
                           ))
                       .toList(),
                 )
@@ -155,7 +162,9 @@ class BoardPanel extends StatelessWidget {
       );
     }
 
-    if (onDispatchAllocation != null) {
+    // In the detailed (card) layout the per-allocation actions live inside
+    // AllocationProgressList, next to the allocation they act on.
+    if (!detailed && onDispatchAllocation != null) {
       for (final allocation in _dispatchable(request)) {
         actions.add(
           OutlinedButton(
@@ -175,7 +184,7 @@ class BoardPanel extends StatelessWidget {
       }
     }
 
-    if (onMarkDelivered != null) {
+    if (!detailed && onMarkDelivered != null) {
       for (final allocation in _deliverable(request)) {
         actions.add(
           FilledButton(
@@ -194,7 +203,7 @@ class BoardPanel extends StatelessWidget {
       }
     }
 
-    if (onConfirmReceipt != null) {
+    if (!detailed && onConfirmReceipt != null) {
       for (final allocation in _receivable(request)) {
         actions.add(
           FilledButton(
@@ -227,39 +236,6 @@ class BoardPanel extends StatelessWidget {
           ),
           child: const Text('Cancel', style: TextStyle(fontSize: 12)),
         ),
-      );
-    }
-
-    final assignedToCurrentResponder =
-        role == 'RESPONDER' &&
-        request.acceptedBy?.id == currentUserId &&
-        request.isOpen;
-    if (assignedToCurrentResponder && onStartLocationSharing != null) {
-      final isSharing = sharingRequestId == request.id ||
-          liveLocations.containsKey(request.id);
-      actions.add(
-        isSharing && onStopLocationSharing != null
-            ? OutlinedButton(
-                onPressed: () => onStopLocationSharing!(request.id),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.amber,
-                  side: const BorderSide(color: AppColors.amber),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                child: const Text('Stop live location',
-                    style: TextStyle(fontSize: 12)),
-              )
-            : FilledButton(
-                onPressed: () => onStartLocationSharing!(request),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.blue,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-                child: const Text('Share live location',
-                    style: TextStyle(fontSize: 12)),
-              ),
       );
     }
 
@@ -460,15 +436,34 @@ class _RequestCard extends StatelessWidget {
     required this.request,
     required this.actions,
     this.liveLocation,
+    this.showTimeline = false,
+    this.currentUserId,
+    this.isResponderView = false,
+    this.onConfirmReceipt,
+    this.onDispatchAllocation,
+    this.onMarkDelivered,
   });
 
   final EmergencyRequest request;
   final List<Widget> actions;
   final LiveResponderLocation? liveLocation;
+  final bool showTimeline;
+  final int? currentUserId;
+  final bool isResponderView;
+  final void Function(AllocationLine allocation)? onConfirmReceipt;
+  final void Function(AllocationLine allocation)? onDispatchAllocation;
+  final void Function(AllocationLine allocation)? onMarkDelivered;
 
   @override
   Widget build(BuildContext context) {
     final requester = request.requester;
+    final unfinishedCount = request.allocations
+        .where((allocation) =>
+            allocation.isActive &&
+            (allocation.isReserved || allocation.isDispatched) &&
+            (!isResponderView || allocation.responderId == currentUserId))
+        .length;
+    final blockedByUnfinishedWork = isResponderView && unfinishedCount > 0;
     String? allocationStateText(int resourceId) {
       final statuses = request.allocations
           .where((allocation) => allocation.resourceId == resourceId)
@@ -501,6 +496,10 @@ class _RequestCard extends StatelessWidget {
               PriorityPill(priority: request.priority),
             ],
           ),
+          if (showTimeline) ...[
+            const SizedBox(height: 10),
+            RequestTimeline(request: request, dense: true),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -599,6 +598,50 @@ class _RequestCard extends StatelessWidget {
               value:
                   '${liveLocation!.latitude.toStringAsFixed(5)}, ${liveLocation!.longitude.toStringAsFixed(5)} · updated ${formatDateTime(liveLocation!.updatedAt)}',
             ),
+          ],
+          if (showTimeline) ...[
+            const SizedBox(height: 10),
+            const Text(
+              'ALLOCATIONS',
+              style: TextStyle(
+                  fontSize: 9.5, color: AppColors.textFaint, letterSpacing: .5),
+            ),
+            const SizedBox(height: 4),
+            AllocationProgressList(
+              request: request,
+              currentUserId: currentUserId,
+              isResponderView: isResponderView,
+              onConfirmReceipt: onConfirmReceipt,
+              onDispatch: onDispatchAllocation,
+              onMarkDelivered: onMarkDelivered,
+            ),
+            if (blockedByUnfinishedWork) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.amberDim,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.amber.withValues(alpha: .4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.hourglass_bottom_rounded,
+                        size: 15, color: AppColors.amber),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$unfinishedCount allocation${unfinishedCount == 1 ? '' : 's'} still unfinished. '
+                        'You stay BUSY until every one of them is delivered.',
+                        style: const TextStyle(
+                            fontSize: 11.5, color: AppColors.amber),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 10),

@@ -590,11 +590,15 @@ class DesktopTopBar extends StatelessWidget {
     required this.active,
     required this.completed,
     required this.loading,
+    this.statusIndicator,
   });
 
   final String title, subtitle;
   final int pending, active, completed;
   final bool loading;
+
+  /// Realtime connection indicator (CONNECTED / RECONNECTING / OFFLINE).
+  final Widget? statusIndicator;
 
   @override
   Widget build(BuildContext context) {
@@ -639,6 +643,10 @@ class DesktopTopBar extends StatelessWidget {
               ],
             ),
           ),
+          if (statusIndicator != null) ...[
+            statusIndicator!,
+            const SizedBox(width: 22),
+          ],
           Stat(label: 'pending', value: pending, color: AppColors.amber),
           const SizedBox(width: 22),
           Stat(label: 'active', value: active, color: AppColors.blue),
@@ -660,7 +668,11 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     required this.onRefresh,
     required this.onLogout,
+    this.statusIndicator,
   });
+
+  /// Realtime connection indicator (CONNECTED / RECONNECTING / OFFLINE).
+  final Widget? statusIndicator;
 
   final String clock;
   final int pending, active, completed;
@@ -686,6 +698,10 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
             child: Row(
               children: [
                 const Expanded(child: Brand()),
+                if (statusIndicator != null) ...[
+                  statusIndicator!,
+                  const SizedBox(width: 8),
+                ],
                 Text(clock,
                     style: monoStyle(size: 12, color: AppColors.textFaint)),
                 IconButton(

@@ -6,13 +6,16 @@ import 'package:geolocator/geolocator.dart';
 import '../Services/api_service.dart';
 import '../Services/socket_service.dart';
 import '../models/eras_models.dart';
+import '../state/live_location_store.dart';
 import '../theme/app_theme.dart';
 import '../widgets/allocation_dialog.dart';
 import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/connection_status.dart';
 import '../widgets/log_panel.dart';
 import '../widgets/new_request_panel.dart';
 import '../widgets/resource_panels.dart';
+import '../widgets/responder_status_panel.dart';
 import '../widgets/sector_map.dart';
 import 'login_screen.dart';
 import 'responder_readiness_page.dart';
@@ -54,12 +57,32 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   Timer? clockTimer;
   Timer? refreshTimer;
   Timer? heartbeatTimer;
+  Timer? inventoryDebounce;
+  Timer? compatibleDebounce;
   StreamSubscription<RealtimeEvent>? realtimeEventsSubscription;
   StreamSubscription<SocketConnectionState>? socketStateSubscription;
   StreamSubscription<Position>? locationSubscription;
-  final Map<int, LiveResponderLocation> liveLocations =
-      <int, LiveResponderLocation>{};
+
+  /// Request-scoped responder positions (live and last known). Socket.IO
+  /// events and REST reconciliation both feed this single store.
+  final LiveLocationStore locationStore = LiveLocationStore();
+
+  /// Bumped whenever data that the map draws actually changed, so the painter
+  /// repaints on real changes instead of on every frame.
+  int mapRevision = 0;
+
+  SocketConnectionState connection = SocketService.instance.state;
+
+  /// Availability exactly as the backend computed it. Never set locally.
+  ResponderAvailability? myAvailability;
+
   int? sharingRequestId;
+
+  /// Set while live sharing is interrupted by a lost realtime connection, so
+  /// it can resume automatically once the connection is back.
+  int? pausedShareRequestId;
+
+  Map<int, LiveResponderLocation> get liveLocations => locationStore.snapshot;
 
   String? get role => ApiService.currentRole;
   bool get isRequester => role == 'REQUESTER';
@@ -72,13 +95,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     realtimeEventsSubscription =
         SocketService.instance.events.listen(_handleRealtimeEvent);
-    socketStateSubscription = SocketService.instance.connectionStates.listen((state) {
-      if (state.connected) {
-        // Socket.IO can miss events while disconnected. REST is the recovery
-        // source of truth before the next push event is consumed.
-        refreshAll(silent: true);
-      }
-    });
+    socketStateSubscription =
+        SocketService.instance.connectionStates.listen(_handleConnectionState);
     SocketService.instance.connect();
     refreshAll();
 
@@ -86,7 +104,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       const Duration(seconds: 1),
       (_) {
         if (!mounted) return;
-        setState(() => now = DateTime.now());
+        final current = DateTime.now();
+        // A live point that stopped arriving becomes "last known" instead of
+        // pretending the responder is still being tracked.
+        if (locationStore.expireStale(current)) mapRevision++;
+        setState(() => now = current);
       },
     );
 
@@ -101,6 +123,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       // Best-effort activity signal only; a missed request does not flip the
       // responder's status or disturb assigned emergencies.
       ApiService.responderHeartbeat().catchError((_) {});
+      loadMyAvailability(silent: true);
       heartbeatTimer = Timer.periodic(
         const Duration(seconds: 60),
         (_) => ApiService.responderHeartbeat().catchError((_) {}),
@@ -119,9 +142,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     clockTimer?.cancel();
     refreshTimer?.cancel();
     heartbeatTimer?.cancel();
+    inventoryDebounce?.cancel();
+    compatibleDebounce?.cancel();
     realtimeEventsSubscription?.cancel();
     socketStateSubscription?.cancel();
+    // GPS must never outlive this page.
     locationSubscription?.cancel();
+    locationSubscription = null;
     super.dispose();
   }
 
@@ -129,80 +156,289 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   // REALTIME
   // -------------------------------------------------------------------
 
+  /// Connection lifecycle. The REST board keeps working in every state; only
+  /// the push channel and the GPS stream react here.
+  void _handleConnectionState(SocketConnectionState state) {
+    if (!mounted) return;
+
+    final wasDegraded = connection.isDegraded;
+    setState(() => connection = state);
+
+    if (state.connected) {
+      // Socket.IO can miss events while disconnected. REST is the recovery
+      // source of truth before the next push event is consumed.
+      refreshAll(silent: true);
+      if (isResponder) loadMyAvailability(silent: true);
+      if (wasDegraded) _resumePausedLocationSharing();
+      return;
+    }
+
+    // No push channel: nothing on the map may keep claiming live tracking,
+    // and GPS is paused instead of streaming into a dead socket.
+    if (locationStore.markAllLastKnown()) {
+      mapRevision++;
+      setState(() {});
+    }
+    _pauseLocationSharingForTransport();
+  }
+
   Future<void> _handleRealtimeEvent(RealtimeEvent event) async {
     if (!mounted) return;
 
-    if (event.name == 'socket.invalidated') {
-      showToast(event.payload['message']?.toString() ??
-          'Your realtime session was invalidated. Please sign in again.');
-      await logout();
-      return;
-    }
+    switch (event.name) {
+      case 'socket.invalidated':
+        showToast(event.payload['message']?.toString() ??
+            'Your realtime session was invalidated. Please sign in again.');
+        await logout();
+        return;
 
-    if (event.name == 'responder.location.update' ||
-        event.name == 'responder.location.start') {
-      final location = event.name == 'responder.location.update'
-          ? LiveResponderLocation.fromJson(event.payload)
-          : null;
-      if (location != null && mounted) {
-        setState(() => liveLocations[location.requestId] = location);
-      }
-      return;
-    }
+      case 'socket.error':
+        // Authorization errors are actionable during development but do not
+        // replace the REST board with a client-side error state.
+        return;
 
-    if (event.name == 'responder.location.stop') {
-      final requestId = _asEventInt(event.payload['requestId']);
-      if (requestId == sharingRequestId) await _stopLocalLocationSharing(requestId);
-      if (requestId != null && mounted) {
-        setState(() {
-          final existing = liveLocations[requestId];
-          if (existing == null) {
-            liveLocations.remove(requestId);
-          } else {
-            liveLocations[requestId] = existing.asNotLive();
-          }
-        });
-      }
-      return;
-    }
+      case 'responder.location.start':
+        // The start event carries no coordinate; the first update does.
+        return;
 
-    if (event.name == 'socket.error') {
-      // Authorization errors are actionable during development but do not
-      // replace the REST board with a client-side error state.
-      return;
-    }
+      case 'responder.location.update':
+        final location = LiveResponderLocation.fromJson(event.payload);
+        if (location.requestId <= 0) return;
+        if (locationStore.applyLiveUpdate(location)) {
+          mapRevision++;
+          if (mounted) setState(() {});
+        }
+        return;
 
-    if (event.name == 'request.created') {
-      final requestId = _asEventInt(event.payload['requestId']);
-      if (requestId != null) SocketService.instance.subscribeToRequest(requestId);
-      await loadRequests(silent: true);
-      return;
-    }
-
-    if (event.name == 'request.updated' ||
-        event.name == 'allocation.updated' ||
-        event.name == 'responder.availability') {
-      await loadRequests(silent: true);
-      await loadResponders(silent: true);
-      if (isResponder) await loadMyInventory(silent: true);
-
-      final request = event.payload['request'];
-      if (request is Map &&
-          <String>{'COMPLETED', 'CANCELLED'}.contains(
-              request['status']?.toString().toUpperCase())) {
-        final requestId = _asEventInt(request['id'] ?? event.payload['requestId']);
+      case 'responder.location.stop':
+        final requestId = _asEventInt(event.payload['requestId']);
+        if (requestId == null) return;
         if (requestId == sharingRequestId) {
           await _stopLocalLocationSharing(requestId);
         }
-        // The `mounted` guard at the top of this handler is stale by now:
-        // the awaited reloads above yield to the event loop, so the page can
-        // be disposed (for example logout during a socket.invalidated storm)
-        // before this setState runs.
-        if (requestId != null && mounted) {
-          setState(() => liveLocations.remove(requestId));
+        if (locationStore.markLastKnown(requestId)) mapRevision++;
+        if (mounted) setState(() {});
+        return;
+
+      case 'responder.availability':
+        _applyAvailabilityEvent(event.payload);
+        return;
+
+      case 'request.created':
+        // Dart switch cases share one scope, so each case uses its own names.
+        final createdId = _asEventInt(event.payload['requestId']);
+        if (createdId != null) {
+          SocketService.instance.subscribeToRequest(createdId);
         }
+        final created = _requestFromPayload(event.payload['request']);
+        // Responder compatibility is computed by the backend, so a new
+        // request still needs one REST read - debounced so a burst of
+        // creations does not trigger a burst of reloads.
+        if (isResponder || created == null || !_applyRequestSnapshot(created)) {
+          _scheduleCompatibleRefresh();
+        } else if (mounted) {
+          setState(() {});
+        }
+        return;
+
+      case 'request.updated':
+        final updated = _requestFromPayload(event.payload['request']);
+        if (updated == null) {
+          await loadRequests(silent: true);
+          return;
+        }
+
+        final applied = _applyRequestSnapshot(updated);
+        if (!updated.isOpen && updated.id == sharingRequestId) {
+          await _stopLocalLocationSharing(updated.id);
+        }
+        if (applied && mounted) setState(() {});
+        return;
+
+      case 'allocation.updated':
+        final patched = _applyAllocationPayload(event.payload);
+        // A delivered/cancelled allocation changes responder inventory and
+        // catalog availability; those are REST reads, debounced.
+        _scheduleInventoryRefresh();
+        if (patched && mounted) setState(() {});
+        return;
+
+      default:
+        return;
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // TARGETED STATE UPDATES
+  // -------------------------------------------------------------------
+
+  EmergencyRequest? _requestFromPayload(dynamic value) {
+    if (value is! Map) return null;
+    final json = Map<String, dynamic>.from(value);
+    if (_asEventInt(json['id']) == null) return null;
+    return EmergencyRequest.fromJson(json);
+  }
+
+  bool _placeRequest(
+    List<EmergencyRequest> list,
+    EmergencyRequest request, {
+    required bool keep,
+  }) {
+    final index = list.indexWhere((item) => item.id == request.id);
+
+    if (!keep) {
+      if (index < 0) return false;
+      list.removeAt(index);
+      return true;
+    }
+
+    if (index >= 0) {
+      list[index] = request;
+    } else {
+      list.add(request);
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+    return true;
+  }
+
+  EmergencyRequest? _knownRequest(int id) =>
+      firstWhereOrNull(openRequests, (item) => item.id == id) ??
+      firstWhereOrNull(pendingCompatible, (item) => item.id == id) ??
+      firstWhereOrNull(logEntries, (item) => item.id == id);
+
+  /// Apply one committed request snapshot to the lists this role owns.
+  /// Returns false when the snapshot is not relevant for this user, in which
+  /// case nothing is touched and no reload is needed either.
+  bool _applyRequestSnapshot(EmergencyRequest snapshot) {
+    // Realtime payloads carry a slimmer requester/responder object than REST;
+    // merging keeps the contact details already loaded instead of blanking
+    // them on every push update.
+    final request = snapshot.withDetailsFrom(_knownRequest(snapshot.id));
+    final userId = ApiService.currentUserId;
+    final isMine = isAdmin ||
+        (isRequester && request.requester?.id == userId) ||
+        (isResponder && request.acceptedBy?.id == userId);
+    final wasPending =
+        pendingCompatible.any((item) => item.id == request.id);
+    final known = isMine ||
+        wasPending ||
+        openRequests.any((item) => item.id == request.id) ||
+        logEntries.any((item) => item.id == request.id);
+
+    if (!known) return false;
+
+    var changed = false;
+    changed |= _placeRequest(openRequests, request, keep: isMine && request.isOpen);
+    changed |= _placeRequest(logEntries, request, keep: isMine && !request.isOpen);
+
+    if (isResponder) {
+      // A pending request that somebody else accepted (or that closed) simply
+      // leaves the compatible list - no reload required.
+      final stillOffered = wasPending &&
+          request.status == RequestStatus.pending &&
+          request.acceptedBy == null;
+      changed |= _placeRequest(pendingCompatible, request, keep: stillOffered);
+    }
+
+    if (!request.isOpen) {
+      if (locationStore.removeForRequest(request.id)) changed = true;
+    } else if (locationStore.seedLastKnownFor(request)) {
+      changed = true;
+    }
+
+    if (changed) mapRevision++;
+    return changed;
+  }
+
+  bool _applyAllocationPayload(Map<String, dynamic> payload) {
+    final allocationJson = payload['allocation'];
+    if (allocationJson is! Map) return false;
+
+    final allocation =
+        AllocationLine.fromJson(Map<String, dynamic>.from(allocationJson));
+    if (allocation.requestId <= 0) return false;
+
+    var changed = false;
+    for (final list in <List<EmergencyRequest>>[
+      openRequests,
+      pendingCompatible,
+      logEntries,
+    ]) {
+      final index =
+          list.indexWhere((item) => item.id == allocation.requestId);
+      if (index < 0) continue;
+      list[index] = list[index].withAllocation(allocation);
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  void _applyAvailabilityEvent(Map<String, dynamic> payload) {
+    final responderId = _asEventInt(payload['responderId']);
+    if (responderId == null) return;
+
+    final status = payload['responderStatus']?.toString() ??
+        payload['currentResponderStatus']?.toString();
+
+    var changed = false;
+
+    // Responder directory entry: a status-only broadcast is enough for this.
+    if (status != null) {
+      final index =
+          responders.indexWhere((responder) => responder.id == responderId);
+      if (index >= 0 && responders[index].status != status) {
+        final current = responders[index];
+        responders[index] = BackendResponder(
+          id: current.id,
+          name: current.name,
+          email: current.email,
+          status: status,
+          phone: current.phone,
+          location: current.location,
+          latitude: current.latitude,
+          longitude: current.longitude,
+          lastActiveAt: current.lastActiveAt,
+        );
+        changed = true;
       }
     }
+
+    // My own availability card: only the payload that really carries the
+    // workload detail may replace the counts.
+    if (responderId == ApiService.currentUserId) {
+      if (ResponderAvailability.hasWorkloadDetail(payload)) {
+        myAvailability = ResponderAvailability.fromJson(payload);
+        changed = true;
+      } else if (status != null && myAvailability != null) {
+        myAvailability = myAvailability!.copyWithStatus(status);
+        changed = true;
+      } else if (status != null) {
+        // No baseline yet: read the authoritative numbers over REST.
+        loadMyAvailability(silent: true);
+      }
+    }
+
+    if (changed && mounted) setState(() {});
+  }
+
+  void _scheduleInventoryRefresh() {
+    if (!isResponder) return;
+    inventoryDebounce?.cancel();
+    inventoryDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      loadMyInventory(silent: true);
+      loadResources(silent: true);
+      loadMyAvailability(silent: true);
+    });
+  }
+
+  void _scheduleCompatibleRefresh() {
+    compatibleDebounce?.cancel();
+    compatibleDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      loadRequests(silent: true);
+    });
   }
 
   int? _asEventInt(dynamic value) {
@@ -225,6 +461,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     if (isResponder) {
       await loadMyInventory(silent: silent);
+      await loadMyAvailability(silent: true);
     }
 
     if (!mounted) return;
@@ -328,25 +565,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
         // The REST resynchronization also carries the latest throttled
         // PostgreSQL coordinate. Socket.IO then replaces it with live GPS
-        // updates when sharing is active.
-        final openIds = open.map((request) => request.id).toSet();
-        liveLocations.removeWhere((requestId, _) => !openIds.contains(requestId));
-        for (final request in open) {
-          final responder = request.acceptedBy;
-          if (responder?.latitude != null && responder?.longitude != null) {
-            final existing = liveLocations[request.id];
-            if (existing?.isLive != true) {
-              liveLocations[request.id] = LiveResponderLocation(
-                requestId: request.id,
-                responderId: responder!.id,
-                latitude: responder.latitude!,
-                longitude: responder.longitude!,
-                updatedAt: DateTime.now(),
-                isLive: false,
-              );
-            }
-          }
-        }
+        // updates when sharing is active - a live point is never downgraded
+        // by this reconciliation.
+        locationStore.syncWithOpenRequests(open);
+        mapRevision++;
       });
 
       // Room authorization is checked again by the backend. Pending responder
@@ -375,6 +597,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         responders
           ..clear()
           ..addAll(loaded);
+        mapRevision++;
       });
     } catch (error) {
       if (!silent) showToast('Failed to load responders: ${_clean(error)}');
@@ -400,6 +623,25 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     } catch (error) {
       if (!silent) {
         showToast('Failed to load your inventory: ${_clean(error)}');
+      }
+    }
+  }
+
+  /// Availability is read, never written, by the app: the backend recomputes
+  /// it from persisted work (lifecycle service) and this is the read model.
+  Future<void> loadMyAvailability({bool silent = false}) async {
+    if (!isResponder) return;
+
+    try {
+      final data = await ApiService.getMyResponderAvailability();
+      if (!mounted || data.isEmpty) return;
+
+      setState(() {
+        myAvailability = ResponderAvailability.fromJson(data);
+      });
+    } catch (error) {
+      if (!silent) {
+        showToast('Failed to load your availability: ${_clean(error)}');
       }
     }
   }
@@ -674,7 +916,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       }
 
       await stopLocationSharing(sharingRequestId);
-      sharingRequestId = request.id;
+      if (!mounted) return;
+      setState(() {
+        sharingRequestId = request.id;
+        pausedShareRequestId = null;
+      });
       SocketService.instance.startLocationSharing(request.id);
 
       try {
@@ -713,11 +959,18 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
   }
 
+  /// Cancel the GPS stream locally. Used for completion, cancellation,
+  /// logout, dispose and transport loss: the device never keeps streaming
+  /// positions that nothing is listening to.
   Future<void> _stopLocalLocationSharing(int? requestId) async {
     await locationSubscription?.cancel();
     locationSubscription = null;
     final activeRequestId = requestId ?? sharingRequestId;
-    if (activeRequestId == sharingRequestId) sharingRequestId = null;
+    if (activeRequestId == sharingRequestId) {
+      sharingRequestId = null;
+      pausedShareRequestId = null;
+      if (mounted) setState(() {});
+    }
   }
 
   Future<void> stopLocationSharing(int? requestId) async {
@@ -725,7 +978,42 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await _stopLocalLocationSharing(activeRequestId);
     if (activeRequestId != null) {
       SocketService.instance.stopLocationSharing(activeRequestId);
+      if (locationStore.markLastKnown(activeRequestId)) {
+        mapRevision++;
+        if (mounted) setState(() {});
+      }
     }
+  }
+
+  /// The realtime transport went away while sharing was active. GPS is
+  /// stopped (no point streaming into a dead socket) but the intent is
+  /// remembered so it can resume on reconnect.
+  void _pauseLocationSharingForTransport() {
+    final activeRequestId = sharingRequestId;
+    if (activeRequestId == null) return;
+
+    locationSubscription?.cancel();
+    locationSubscription = null;
+    if (!mounted) return;
+    setState(() => pausedShareRequestId = activeRequestId);
+  }
+
+  Future<void> _resumePausedLocationSharing() async {
+    final requestId = pausedShareRequestId ?? sharingRequestId;
+    if (requestId == null) return;
+
+    final request = firstWhereOrNull(openRequests, (r) => r.id == requestId);
+    // Only resume for an emergency that is still open and still assigned to
+    // this responder; the backend would reject anything else anyway.
+    if (request == null ||
+        !request.isOpen ||
+        request.acceptedBy?.id != ApiService.currentUserId) {
+      await _stopLocalLocationSharing(requestId);
+      return;
+    }
+
+    pausedShareRequestId = null;
+    await startLocationSharing(request);
   }
 
   Future<void> editMyHelpTypes() async {
@@ -795,7 +1083,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   Future<void> logout() async {
+    // Order matters: stop GPS first, then drop the socket, then the session.
     await stopLocationSharing(sharingRequestId);
+    inventoryDebounce?.cancel();
+    compatibleDebounce?.cancel();
+    locationStore.clear();
     SocketService.instance.disconnect();
     await ApiService.logout();
     if (!mounted) return;
@@ -884,6 +1176,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       return Scaffold(
         backgroundColor: AppColors.bg,
         appBar: MobileAppBar(
+          statusIndicator:
+              ConnectionStatusPill(state: connection, compact: true),
           clock: clockLabel,
           pending: pendingCount,
           active: activeCount,
@@ -926,6 +1220,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               child: Column(
                 children: [
                   DesktopTopBar(
+                    statusIndicator: ConnectionStatusPill(state: connection),
                     title: viewTitle,
                     subtitle: viewSubtitle,
                     pending: pendingCount,
@@ -945,6 +1240,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   Widget _buildMainContent({required bool isMobile}) {
     final children = <Widget>[];
+
+    // Degraded realtime is stated once, at the top, and the REST board below
+    // keeps working exactly as before.
+    children.add(
+      ConnectionNotice(
+        state: connection,
+        onRetry: () => refreshAll(silent: false),
+      ),
+    );
 
     if (activeView == ConsoleView.board) {
       children.addAll(_boardChildren(isMobile));
@@ -1014,6 +1318,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     if (isResponder) {
       children.add(
+        ResponderAvailabilityCard(
+          availability: myAvailability,
+          connection: connection,
+        ),
+      );
+
+      children.add(const SizedBox(height: 18));
+
+      children.add(
         BoardPanel(
           title: 'MY ACTIVE EMERGENCY',
           hint: 'Accepted by you',
@@ -1027,11 +1340,23 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           onAllocate: openAllocationDialog,
           onDispatchAllocation: dispatchAllocation,
           onMarkDelivered: markAllocationDelivered,
-          onStartLocationSharing: startLocationSharing,
-          onStopLocationSharing: stopLocationSharing,
           liveLocations: liveLocations,
-          sharingRequestId: sharingRequestId,
           isMobile: isMobile,
+          detailed: true,
+        ),
+      );
+
+      children.add(const SizedBox(height: 18));
+
+      children.add(
+        LocationSharingPanel(
+          requests: openRequests,
+          currentUserId: ApiService.currentUserId,
+          sharingRequestId: sharingRequestId,
+          liveLocations: liveLocations,
+          connection: connection,
+          onStart: startLocationSharing,
+          onStop: stopLocationSharing,
         ),
       );
 
@@ -1069,6 +1394,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           onConfirmReceipt: isRequester ? confirmReceipt : null,
           liveLocations: liveLocations,
           isMobile: isMobile,
+          detailed: isRequester,
         ),
       );
     }
@@ -1079,6 +1405,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       Panel(
         title: 'SECTOR MAP',
         hint: 'Districts, responders and open requests',
+        trailing: ConnectionStatusPill(state: connection, compact: true),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1103,6 +1430,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
                         responders: responders,
                         requests: [...openRequests, ...pendingCompatible],
                         liveLocations: liveLocations,
+                        repaintKey: mapRevision + locationStore.revision,
                       ),
                     ),
                   );
@@ -1121,6 +1449,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
                   LegendItem(color: AppColors.red, label: 'Emergency location'),
                   LegendItem(color: AppColors.amber, label: 'Pending request'),
                   LegendItem(color: AppColors.teal, label: 'Live responder'),
+                  LegendItem(
+                      color: AppColors.textFaint, label: 'Last known position'),
                 ],
               ),
             ),

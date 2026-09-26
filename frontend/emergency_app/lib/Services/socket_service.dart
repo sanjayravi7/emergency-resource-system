@@ -14,11 +14,32 @@ class RealtimeEvent {
   final Map<String, dynamic> payload;
 }
 
-class SocketConnectionState {
-  const SocketConnectionState({required this.connected, this.message});
+/// User facing realtime status. Deliberately transport agnostic: the UI shows
+/// CONNECTED / RECONNECTING / OFFLINE and never any socket internals such as
+/// transport names, socket ids, urls or attempt counters.
+enum RealtimeStatus { connected, reconnecting, offline }
 
-  final bool connected;
+class SocketConnectionState {
+  const SocketConnectionState({required this.status, this.message});
+
+  static const SocketConnectionState offline =
+      SocketConnectionState(status: RealtimeStatus.offline);
+
+  final RealtimeStatus status;
+
+  /// Short, human readable explanation. Never contains socket internals.
   final String? message;
+
+  bool get connected => status == RealtimeStatus.connected;
+
+  String get label => switch (status) {
+        RealtimeStatus.connected => 'CONNECTED',
+        RealtimeStatus.reconnecting => 'RECONNECTING',
+        RealtimeStatus.offline => 'OFFLINE',
+      };
+
+  /// Whether REST remains the only usable data path right now.
+  bool get isDegraded => status != RealtimeStatus.connected;
 }
 
 class SocketService {
@@ -32,6 +53,10 @@ class SocketService {
   final StreamController<SocketConnectionState> _connection =
       StreamController<SocketConnectionState>.broadcast();
   bool _disposed = false;
+  int _failedAttempts = 0;
+  SocketConnectionState _state = SocketConnectionState.offline;
+
+  static const int _maxReconnectionAttempts = 10;
 
   static const List<String> _serverEventNames = <String>[
     'socket.authenticated',
@@ -48,7 +73,20 @@ class SocketService {
 
   Stream<RealtimeEvent> get events => _events.stream;
   Stream<SocketConnectionState> get connectionStates => _connection.stream;
+
+  /// Last published connection state, so a freshly built page can render the
+  /// indicator before the next transition arrives.
+  SocketConnectionState get state => _state;
+  RealtimeStatus get status => _state.status;
   bool get isConnected => _socket?.connected == true;
+
+  void _publish(RealtimeStatus status, {String? message}) {
+    if (_disposed) return;
+    final next = SocketConnectionState(status: status, message: message);
+    if (_state.status == next.status && _state.message == next.message) return;
+    _state = next;
+    _connection.add(next);
+  }
 
   /// Calling connect repeatedly is safe. The page can rebuild or return from
   /// a reconnect without registering duplicate Socket.IO listeners.
@@ -65,7 +103,7 @@ class SocketService {
           .setTransports(<String>['websocket'])
           .setAuth(<String, dynamic>{'token': ApiService.token})
           .enableReconnection()
-          .setReconnectionAttempts(10)
+          .setReconnectionAttempts(_maxReconnectionAttempts)
           .setReconnectionDelay(1000)
           .disableAutoConnect()
           .build(),
@@ -73,19 +111,30 @@ class SocketService {
     _socket = socket;
 
     socket.onConnect((_) {
-      _connection.add(const SocketConnectionState(connected: true));
+      _failedAttempts = 0;
+      _publish(RealtimeStatus.connected);
     });
     socket.onDisconnect((_) {
-      _connection.add(const SocketConnectionState(
-        connected: false,
-        message: 'Socket disconnected; REST resynchronization will run.',
-      ));
+      // Socket.IO retries on its own, so a dropped connection is a
+      // "reconnecting" state for the user, not a hard offline state.
+      _publish(
+        RealtimeStatus.reconnecting,
+        message: 'Reconnecting. Live updates paused, data still loads.',
+      );
     });
-    socket.onConnectError((error) {
-      _connection.add(SocketConnectionState(
-        connected: false,
-        message: error?.toString(),
-      ));
+    socket.onConnectError((_) {
+      _failedAttempts += 1;
+      if (_failedAttempts >= _maxReconnectionAttempts) {
+        _publish(
+          RealtimeStatus.offline,
+          message: 'Working offline from the last loaded data.',
+        );
+        return;
+      }
+      _publish(
+        RealtimeStatus.reconnecting,
+        message: 'Reconnecting. Live updates paused, data still loads.',
+      );
     });
 
     for (final name in _serverEventNames) {
@@ -98,6 +147,10 @@ class SocketService {
       });
     }
 
+    _publish(
+      RealtimeStatus.reconnecting,
+      message: 'Connecting to live updates.',
+    );
     socket.connect();
   }
 
@@ -106,6 +159,7 @@ class SocketService {
   void disconnect() {
     final socket = _socket;
     _socket = null;
+    _failedAttempts = 0;
     if (socket != null) {
       // Dropping the socket after disconnect also drops its listener graph;
       // remove our named event handlers first so a forced logout/deactivation
@@ -115,7 +169,7 @@ class SocketService {
       }
       socket.disconnect();
     }
-    _connection.add(const SocketConnectionState(connected: false));
+    _publish(RealtimeStatus.offline);
   }
 
   void dispose() {

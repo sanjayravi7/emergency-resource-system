@@ -263,6 +263,23 @@ class UserSummary {
   final double? latitude;
   final double? longitude;
 
+  /// Fill in contact fields that a slimmer realtime payload did not carry.
+  /// Only missing values are taken from [other]; nothing is invented and a
+  /// different user is never merged in.
+  UserSummary mergeMissingFrom(UserSummary? other) {
+    if (other == null || other.id != id) return this;
+    return UserSummary(
+      id: id,
+      name: name,
+      email: email ?? other.email,
+      phone: phone ?? other.phone,
+      responderStatus: responderStatus ?? other.responderStatus,
+      location: location ?? other.location,
+      latitude: latitude ?? other.latitude,
+      longitude: longitude ?? other.longitude,
+    );
+  }
+
   static UserSummary? fromJson(dynamic value) {
     if (value is! Map) return null;
 
@@ -322,6 +339,76 @@ class LiveResponderLocation {
         updatedAt: updatedAt,
         isLive: false,
       );
+}
+
+/// Responder availability exactly as PostgreSQL computed it.
+///
+/// The app never sets, guesses or derives a responder status: it reads
+/// `responderStatus` and the counts that explain it from
+/// GET /api/responders/me/availability and from the authenticated
+/// `responder.availability` realtime event.
+class ResponderAvailability {
+  const ResponderAvailability({
+    required this.responderId,
+    required this.responderStatus,
+    this.reservedAllocations = 0,
+    this.dispatchedAllocations = 0,
+    this.unfinishedAllocations = 0,
+    this.activeRequests = 0,
+  });
+
+  final int responderId;
+  final String responderStatus;
+  final int reservedAllocations;
+  final int dispatchedAllocations;
+  final int unfinishedAllocations;
+  final int activeRequests;
+
+  bool get isBusy => responderStatus.toUpperCase() == 'BUSY';
+  bool get isAvailable => responderStatus.toUpperCase() == 'AVAILABLE';
+  bool get hasUnfinishedWork => unfinishedAllocations > 0;
+
+  /// "2 unfinished allocations" / "No unfinished work" - both are just a
+  /// rendering of the backend numbers.
+  String get workloadLabel {
+    if (unfinishedAllocations <= 0) return 'No unfinished work';
+    final plural = unfinishedAllocations == 1 ? '' : 's';
+    return '$unfinishedAllocations unfinished allocation$plural';
+  }
+
+  ResponderAvailability copyWithStatus(String status) => ResponderAvailability(
+        responderId: responderId,
+        responderStatus: status,
+        reservedAllocations: reservedAllocations,
+        dispatchedAllocations: dispatchedAllocations,
+        unfinishedAllocations: unfinishedAllocations,
+        activeRequests: activeRequests,
+      );
+
+  factory ResponderAvailability.fromJson(Map<String, dynamic> json) {
+    final reserved = _asInt(json['reservedAllocations']);
+    final dispatched = _asInt(json['dispatchedAllocations']);
+    final unfinished = _asIntOrNull(json['unfinishedAllocations']);
+
+    return ResponderAvailability(
+      responderId: _asInt(json['responderId']),
+      responderStatus: _asTrimmedString(json['responderStatus']) ??
+          _asTrimmedString(json['currentResponderStatus']) ??
+          'OFFLINE',
+      reservedAllocations: reserved,
+      dispatchedAllocations: dispatched,
+      unfinishedAllocations: unfinished ?? (reserved + dispatched),
+      activeRequests: _asInt(json['activeRequests']),
+    );
+  }
+
+  /// True when the payload actually carried the workload detail. The
+  /// broadcast form of `responder.availability` (other responders) only
+  /// carries the status, and must not overwrite real counts with zeroes.
+  static bool hasWorkloadDetail(Map<String, dynamic> json) =>
+      json.containsKey('unfinishedAllocations') ||
+      json.containsKey('reservedAllocations') ||
+      json.containsKey('dispatchedAllocations');
 }
 
 class BackendResponder {
@@ -656,6 +743,72 @@ class EmergencyRequest {
   bool get isFullyAllocated {
     if (requiredResources.isEmpty) return false;
     return requiredResources.every((r) => remainingFor(r.resourceId) == 0);
+  }
+
+  /// Targeted update helper: keeps the richer REST contact details when a
+  /// realtime snapshot of the same request carries a slimmer user object.
+  /// An absent `acceptedBy` is a real state (unassigned) and is never
+  /// back-filled from the previous snapshot.
+  EmergencyRequest withDetailsFrom(EmergencyRequest? previous) {
+    if (previous == null || previous.id != id) return this;
+
+    final mergedRequester = requester?.mergeMissingFrom(previous.requester);
+    final mergedAcceptedBy = acceptedBy?.mergeMissingFrom(previous.acceptedBy);
+
+    return EmergencyRequest(
+      id: id,
+      emergencyType: emergencyType,
+      description: description,
+      location: location,
+      priority: priority,
+      status: status,
+      statusRaw: statusRaw,
+      createdAt: createdAt,
+      requiredResources:
+          requiredResources.isEmpty ? previous.requiredResources : requiredResources,
+      allocations: allocations,
+      requester: mergedRequester ?? previous.requester,
+      acceptedBy: mergedAcceptedBy,
+      acceptedAt: acceptedAt,
+      latitude: latitude ?? previous.latitude,
+      longitude: longitude ?? previous.longitude,
+    );
+  }
+
+  /// Targeted update helper: returns a copy of this request with one
+  /// allocation replaced (or appended). Used when an `allocation.updated`
+  /// event arrives so a single card can refresh without reloading the board.
+  EmergencyRequest withAllocation(AllocationLine allocation) {
+    final next = <AllocationLine>[];
+    var replaced = false;
+
+    for (final existing in allocations) {
+      if (existing.id == allocation.id) {
+        next.add(allocation);
+        replaced = true;
+      } else {
+        next.add(existing);
+      }
+    }
+    if (!replaced) next.add(allocation);
+
+    return EmergencyRequest(
+      id: id,
+      emergencyType: emergencyType,
+      description: description,
+      location: location,
+      priority: priority,
+      status: status,
+      statusRaw: statusRaw,
+      createdAt: createdAt,
+      requiredResources: requiredResources,
+      allocations: List<AllocationLine>.unmodifiable(next),
+      requester: requester,
+      acceptedBy: acceptedBy,
+      acceptedAt: acceptedAt,
+      latitude: latitude,
+      longitude: longitude,
+    );
   }
 
   String get resourcesSummary => requiredResources.isEmpty

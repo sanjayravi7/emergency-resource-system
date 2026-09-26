@@ -43,6 +43,17 @@ exports.logout = async (req, res, next) => {
   }
 };
 
+// Own workload only. The identity comes from the verified JWT (req.user.id);
+// a client-supplied responderId is never accepted here.
+exports.getMyAvailability = async (req, res, next) => {
+  try {
+    const availability = await responderService.getResponderWorkload(req.user.id);
+    res.json({ success: true, availability });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.getResponders = async (req, res, next) => {
   try {
     const responders = await responderService.getResponders();

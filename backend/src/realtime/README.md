@@ -23,7 +23,14 @@ fresh PostgreSQL snapshot through the Socket.IO instance created by
 - `allocation.updated`: `{ allocationId, requestId, status, quantity,
   resourceId, responderId, updatedAt, allocation, requestStatus }`.
 - `responder.availability`: `{ responderId, responderStatus,
-  currentResponderStatus, timestamp }`.
+  currentResponderStatus, timestamp }` for the general broadcast, plus
+  `{ reservedAllocations, dispatchedAllocations, unfinishedAllocations,
+  activeRequests }` for the responder themselves and for admins. The workload
+  detail is emitted only to `user:<responderId>` and `admins`; other
+  responders keep receiving the status-only form, so one responder's workload
+  never leaks sideways. The same read model is available over REST at
+  `GET /api/responders/me/availability` (RESPONDER only, identity taken from
+  the JWT - no responderId is accepted from the client).
 - `responder.location.start`, `responder.location.update`, and
   `responder.location.stop`: `{ requestId, responderId, latitude,
   longitude, timestamp }` where coordinates are present for update.

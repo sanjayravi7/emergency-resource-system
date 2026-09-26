@@ -16,11 +16,17 @@ class SectorMapPainter extends CustomPainter {
     required this.responders,
     required this.requests,
     this.liveLocations = const <int, LiveResponderLocation>{},
+    this.repaintKey = 0,
   });
 
   final List<District> districts;
   final List<BackendResponder> responders;
   final List<EmergencyRequest> requests;
+
+  /// Changes only when the data behind the map changed (a request/responder
+  /// reload or an accepted live-location update). Socket.IO events that do
+  /// not move a marker therefore do not repaint the canvas.
+  final int repaintKey;
 
   /// Active responder telemetry keyed by requestId. The server authorizes and
   /// emits one request room at a time, so a responder serving more than one
@@ -133,14 +139,16 @@ class SectorMapPainter extends CustomPainter {
 
       final emergencyPoint = requestPoints[request.id];
       if (emergencyPoint != null) {
-        canvas.drawLine(
-          emergencyPoint,
-          responderPoint,
-          Paint()
-            ..color = (live.isLive ? AppColors.teal : AppColors.textFaint)
-                .withValues(alpha: .55)
-            ..strokeWidth = live.isLive ? 1.4 : 1.0,
-        );
+        final linkPaint = Paint()
+          ..color = (live.isLive ? AppColors.teal : AppColors.textFaint)
+              .withValues(alpha: live.isLive ? .55 : .35)
+          ..strokeWidth = live.isLive ? 1.4 : 1.0;
+
+        if (live.isLive) {
+          canvas.drawLine(emergencyPoint, responderPoint, linkPaint);
+        } else {
+          _drawDashedLine(canvas, emergencyPoint, responderPoint, linkPaint);
+        }
       }
 
       _drawResponderMarker(canvas, responderPoint, live, markerScale);
@@ -192,6 +200,20 @@ class SectorMapPainter extends CustomPainter {
     canvas.drawCircle(p, 4.5 * scale, Paint()..color = color);
     _drawMapIcon(canvas, Icons.warning_rounded, p.translate(0, -18 * scale), color,
         14 * scale);
+
+    // The emergency marker is labelled with the request it belongs to, so a
+    // map with several open emergencies stays readable.
+    final idPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: request.displayId,
+        style: monoStyle(size: 8.5 * scale, color: color),
+      ),
+    )..layout();
+    idPainter.paint(
+      canvas,
+      Offset(p.dx - idPainter.width / 2, p.dy + radius + 3 * scale),
+    );
   }
 
   void _drawResponderMarker(
@@ -207,18 +229,33 @@ class SectorMapPainter extends CustomPainter {
       Radius.circular(7 * scale),
     );
 
-    canvas.drawRRect(
-      rect.inflate(5 * scale),
-      Paint()..color = color.withValues(alpha: .14),
-    );
-    canvas.drawRRect(rect, Paint()..color = color);
-    _drawMapIcon(canvas, Icons.local_shipping_rounded, p, Colors.white,
-        16 * scale);
+    if (live.isLive) {
+      // Live tracking: solid marker with a halo.
+      canvas.drawRRect(
+        rect.inflate(5 * scale),
+        Paint()..color = color.withValues(alpha: .16),
+      );
+      canvas.drawRRect(rect, Paint()..color = color);
+      _drawMapIcon(canvas, Icons.local_shipping_rounded, p, Colors.white,
+          16 * scale);
+    } else {
+      // Last known position: hollow, outlined marker so a stopped stream can
+      // never be mistaken for live tracking.
+      canvas.drawRRect(rect, Paint()..color = AppColors.surface);
+      canvas.drawRRect(
+        rect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.4
+          ..color = color,
+      );
+      _drawMapIcon(canvas, Icons.local_shipping_rounded, p, color, 16 * scale);
+    }
 
     final labelPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
-        text: live.isLive ? 'LIVE' : 'LAST',
+        text: live.isLive ? 'LIVE' : 'LAST KNOWN',
         style: monoStyle(size: 8.5 * scale, color: color),
       ),
     )..layout();
@@ -254,8 +291,33 @@ class SectorMapPainter extends CustomPainter {
     );
   }
 
+  /// Dashed connector for a last-known (no longer live) responder point.
+  void _drawDashedLine(Canvas canvas, Offset from, Offset to, Paint paint) {
+    const dashLength = 5.0;
+    const gapLength = 4.0;
+    final delta = to - from;
+    final distance = delta.distance;
+    if (distance <= 0) return;
+
+    final step = delta / distance;
+    var travelled = 0.0;
+    while (travelled < distance) {
+      final end = travelled + dashLength > distance
+          ? distance
+          : travelled + dashLength;
+      canvas.drawLine(
+        from + step * travelled,
+        from + step * end,
+        paint,
+      );
+      travelled = end + gapLength;
+    }
+  }
+
   @override
-  bool shouldRepaint(covariant SectorMapPainter old) => true;
+  bool shouldRepaint(covariant SectorMapPainter old) =>
+      old.repaintKey != repaintKey ||
+      old.districts.length != districts.length;
 }
 
 class _GeoProjector {

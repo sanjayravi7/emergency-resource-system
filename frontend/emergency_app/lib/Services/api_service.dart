@@ -383,6 +383,26 @@ class ApiService {
     return body['responders'] ?? [];
   }
 
+  /// Own availability only. The backend derives the responder identity from
+  /// the JWT, so no responderId is (or can be) sent from the client.
+  static Future<Map<String, dynamic>> getMyResponderAvailability() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/responders/me/availability'),
+      headers: _headers,
+    );
+
+    final body = _decode(response);
+
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to load your availability');
+    }
+
+    final availability = body['availability'];
+    return availability is Map
+        ? Map<String, dynamic>.from(availability)
+        : <String, dynamic>{};
+  }
+
   static Future<List<dynamic>> getResponderResources() async {
     final response = await http.get(
       Uri.parse('$baseUrl/responder-resources/my'),
