@@ -331,6 +331,7 @@ void main() {
       required Future<GeoPoint?> Function() gps,
       bool selectPlaceFirst = false,
       String? typedPlace,
+      String? descriptionText = 'Two people trapped',
     }) async {
       NewRequestPayload? submitted;
 
@@ -348,7 +349,9 @@ void main() {
         },
       )));
 
-      await tester.enterText(_descriptionField(), 'Two people trapped');
+      if (descriptionText != null) {
+        await tester.enterText(_descriptionField(), descriptionText);
+      }
 
       if (selectPlaceFirst) {
         await _scrollIntoViewAndTap(
@@ -407,13 +410,79 @@ void main() {
       );
 
       expect(payload, isNotNull);
-      expect(payload!.location, 'Kolenchery, Kerala');
+      expect(payload!.description, 'Two people trapped');
+      expect(payload.location, 'Kolenchery, Kerala');
       expect(payload.latitude, 9.99);
       expect(payload.longitude, 76.66);
       expect(payload.hasPreciseLocation, isTrue);
     });
 
-    testWidgets('E. missing place -> submit rejected', (tester) async {
+    testWidgets('E. empty description -> submit allowed', (tester) async {
+      final service = FakeLocationService(
+        reverseResult: const ResolvedPlace(
+          label: 'Kolenchery, Kerala',
+          latitude: 9.99,
+          longitude: 76.66,
+        ),
+      );
+
+      final payload = await pumpPanelAndSubmit(
+        tester,
+        service: service,
+        gps: () async => const GeoPoint(9.99, 76.66),
+        selectPlaceFirst: true,
+        descriptionText: null,
+      );
+
+      expect(payload, isNotNull);
+      expect(payload!.description, isNull);
+    });
+
+    testWidgets('F. whitespace-only description -> submitted as empty/null',
+        (tester) async {
+      final service = FakeLocationService(
+        reverseResult: const ResolvedPlace(
+          label: 'Kolenchery, Kerala',
+          latitude: 9.99,
+          longitude: 76.66,
+        ),
+      );
+
+      final payload = await pumpPanelAndSubmit(
+        tester,
+        service: service,
+        gps: () async => const GeoPoint(9.99, 76.66),
+        selectPlaceFirst: true,
+        descriptionText: '   \n\t  ',
+      );
+
+      expect(payload, isNotNull);
+      expect(payload!.description, isNull);
+    });
+
+    testWidgets('G. non-empty description is preserved exactly', (tester) async {
+      const description = '  Two people trapped near the east gate.  ';
+      final service = FakeLocationService(
+        reverseResult: const ResolvedPlace(
+          label: 'Kolenchery, Kerala',
+          latitude: 9.99,
+          longitude: 76.66,
+        ),
+      );
+
+      final payload = await pumpPanelAndSubmit(
+        tester,
+        service: service,
+        gps: () async => const GeoPoint(9.99, 76.66),
+        selectPlaceFirst: true,
+        descriptionText: description,
+      );
+
+      expect(payload, isNotNull);
+      expect(payload!.description, description);
+    });
+
+    testWidgets('H. missing place -> submit rejected', (tester) async {
       final service = FakeLocationService(reverseError: 'ZERO_RESULTS');
 
       final payload = await pumpPanelAndSubmit(
@@ -428,7 +497,7 @@ void main() {
     });
 
     testWidgets(
-        'F. place typed but no coordinates -> stored without a fabricated pin',
+        'I. place typed but no coordinates -> stored without a fabricated pin',
         (tester) async {
       final service = FakeLocationService();
 
@@ -448,7 +517,7 @@ void main() {
     });
   });
 
-  group('G. Socket.IO live responder location', () {
+  group('J. Socket.IO live responder location', () {
     test('live location updates never trigger reverse geocoding or nearby search', () {
       final service = FakeLocationService();
       final store = LiveLocationStore();

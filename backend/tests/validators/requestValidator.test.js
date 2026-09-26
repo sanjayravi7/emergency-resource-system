@@ -42,10 +42,19 @@ describe("Emergency request validation", () => {
     ).toMatch(/Emergency type/i);
   });
 
-  test("❌ rejects a missing description", () => {
+  test("✅ accepts missing, null, empty, and whitespace-only descriptions", () => {
+    const { description, ...withoutDescription } = validBody;
+
+    expect(validateEmergencyRequestInput(withoutDescription)).toBeNull();
+    expect(
+      validateEmergencyRequestInput({ ...validBody, description: null })
+    ).toBeNull();
     expect(
       validateEmergencyRequestInput({ ...validBody, description: "" })
-    ).toMatch(/Description/i);
+    ).toBeNull();
+    expect(
+      validateEmergencyRequestInput({ ...validBody, description: "   	  " })
+    ).toBeNull();
   });
 
   test("❌ rejects a missing location", () => {

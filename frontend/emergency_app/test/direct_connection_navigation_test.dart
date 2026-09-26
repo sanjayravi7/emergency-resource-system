@@ -367,6 +367,70 @@ void main() {
 
       expect(taps, 1);
     });
+
+    testWidgets('mobile widths use a full-width tappable directions button',
+        (tester) async {
+      addTearDown(tester.view.reset);
+
+      for (final width in <double>[320, 360, 390, 430]) {
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+
+        await tester.pumpWidget(
+          host(
+            SizedBox(
+              width: width,
+              child: NavigationInfoCard(
+                connection: connection,
+                onGetDirections: () {},
+              ),
+            ),
+          ),
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('RESPONDER → EMERGENCY'), findsOneWidget);
+        expect(find.text('Responder location:'), findsOneWidget);
+        expect(find.text('LIVE'), findsOneWidget);
+        expect(find.text('Emergency location:'), findsOneWidget);
+        expect(find.text('SET'), findsOneWidget);
+        expect(find.text('Direct distance:'), findsOneWidget);
+        expect(find.text(connection.directDistanceLabel), findsOneWidget);
+
+        final button = find.widgetWithText(TextButton, 'Get directions');
+        expect(button, findsOneWidget);
+
+        final buttonSize = tester.getSize(button);
+        expect(buttonSize.height, greaterThanOrEqualTo(44));
+        expect(buttonSize.width, greaterThanOrEqualTo(width * .80));
+      }
+    });
+
+    testWidgets('desktop width keeps the compact card', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        host(
+          NavigationInfoCard(
+            connection: connection,
+            onGetDirections: () {},
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Responder location: LIVE'), findsOneWidget);
+      expect(find.text('Emergency location: SET'), findsOneWidget);
+
+      final cardSize = tester.getSize(find.byType(NavigationInfoCard));
+      expect(cardSize.width, lessThanOrEqualTo(250));
+
+      final buttonSize =
+          tester.getSize(find.widgetWithText(TextButton, 'Get directions'));
+      expect(buttonSize.width, lessThan(cardSize.width));
+    });
   });
 
   test('direct distance is straight-line only', () {

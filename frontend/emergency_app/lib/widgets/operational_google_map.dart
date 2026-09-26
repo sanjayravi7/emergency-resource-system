@@ -310,27 +310,27 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                     ),
                     Positioned(
                       left: 12,
+                      right: 12,
                       top: 12,
-                      child: _MapControls(
-                        onCenterEmergency: _centerOnEmergency,
-                        // The user keeps full pan/zoom control: the camera is
-                        // only moved by these explicit buttons, never by an
-                        // incoming responder GPS update.
-                        onFitPins: markers.isEmpty ? null : _fitAllPins,
-                        onGetDirections:
-                            connection == null ? null : _openDirections,
+                      child: _MapOverlayControls(
+                        controls: _MapControls(
+                          onCenterEmergency: _centerOnEmergency,
+                          // The user keeps full pan/zoom control: the camera is
+                          // only moved by these explicit buttons, never by an
+                          // incoming responder GPS update.
+                          onFitPins: markers.isEmpty ? null : _fitAllPins,
+                          onGetDirections:
+                              connection == null ? null : _openDirections,
+                        ),
+                        navigationInfoCard: connection == null
+                            ? null
+                            : NavigationInfoCard(
+                                connection: connection,
+                                onGetDirections: () =>
+                                    unawaited(_openDirections()),
+                              ),
                       ),
                     ),
-                    if (connection != null)
-                      Positioned(
-                        right: 12,
-                        top: 12,
-                        child: NavigationInfoCard(
-                          connection: connection,
-                          onGetDirections: () =>
-                              unawaited(_openDirections()),
-                        ),
-                      ),
                     if (markers.isEmpty)
                       const Positioned.fill(
                         child: IgnorePointer(
@@ -524,6 +524,44 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   }
 }
 
+class _MapOverlayControls extends StatelessWidget {
+  const _MapOverlayControls({
+    required this.controls,
+    required this.navigationInfoCard,
+  });
+
+  final Widget controls;
+  final Widget? navigationInfoCard;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.hasBoundedWidth ? constraints.maxWidth : null,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                child: controls,
+              ),
+              if (navigationInfoCard != null)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                  child: navigationInfoCard!,
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _MapControls extends StatelessWidget {
   const _MapControls({
     required this.onCenterEmergency,
@@ -610,105 +648,258 @@ class NavigationInfoCard extends StatelessWidget {
     this.showDirectDistance = true,
   });
 
+  static const double _compactMaxWidth = 250;
+
   final DirectConnection connection;
   final VoidCallback onGetDirections;
   final bool showDirectDistance;
 
+  bool _shouldUseExpandedLayout(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    if (constraints.hasBoundedWidth &&
+        constraints.maxWidth < _compactMaxWidth) {
+      return true;
+    }
+
+    final media = MediaQuery.maybeOf(context);
+    if (media == null) return false;
+
+    // A narrow browser/mobile viewport is normally taller than it is wide.
+    // Combine that shape with this card's own compact footprint instead of a
+    // device breakpoint, so tablet/desktop surfaces keep the compact card.
+    return media.size.width < media.size.height &&
+        (!constraints.hasBoundedWidth ||
+            constraints.maxWidth <= _compactMaxWidth * 2);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: .94),
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-            color: Colors.black.withValues(alpha: .08),
-          ),
-        ],
-      ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 250),
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'RESPONDER → EMERGENCY',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .8,
-                color: AppColors.textDim,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Responder location: '
-              '${connection.responderIsLive ? 'LIVE' : 'LAST KNOWN'}',
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.text,
-              ),
-            ),
-            const SizedBox(height: 2),
-            const Text(
-              'Emergency location: SET',
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.text,
-              ),
-            ),
-            if (showDirectDistance) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Direct distance: ${connection.directDistanceLabel}',
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: AppColors.textDim,
-                ),
-              ),
-              const Text(
-                'Straight-line only, not a road distance.',
-                style: TextStyle(
-                  fontSize: 10,
-                  height: 1.3,
-                  color: AppColors.textFaint,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final expandedLayout = _shouldUseExpandedLayout(context, constraints);
+
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.surface.withValues(alpha: .94),
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+                color: Colors.black.withValues(alpha: .08),
               ),
             ],
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: onGetDirections,
-                icon: const Icon(Icons.directions_rounded, size: 16),
-                label: const Text('Get directions'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.teal,
-                  textStyle: const TextStyle(fontSize: 12),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
+          ),
+          child: Container(
+            width: expandedLayout ? double.infinity : null,
+            constraints: expandedLayout
+                ? const BoxConstraints()
+                : const BoxConstraints(maxWidth: _compactMaxWidth),
+            padding: EdgeInsets.fromLTRB(
+              expandedLayout ? 14 : 12,
+              expandedLayout ? 12 : 10,
+              expandedLayout ? 14 : 12,
+              expandedLayout ? 12 : 8,
             ),
-            const Text(
-              'Driving directions open in Google Maps.',
-              style: TextStyle(
-                fontSize: 10,
-                height: 1.3,
-                color: AppColors.textFaint,
-              ),
-            ),
-          ],
+            child: expandedLayout ? _expandedContent() : _compactContent(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _compactContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _heading(),
+        const SizedBox(height: 6),
+        Text(
+          'Responder location: '
+          '${connection.responderIsLive ? 'LIVE' : 'LAST KNOWN'}',
+          style: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: AppColors.text,
+          ),
         ),
+        const SizedBox(height: 2),
+        const Text(
+          'Emergency location: SET',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: AppColors.text,
+          ),
+        ),
+        if (showDirectDistance) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Direct distance: ${connection.directDistanceLabel}',
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textDim,
+            ),
+          ),
+          const Text(
+            'Straight-line only, not a road distance.',
+            style: TextStyle(
+              fontSize: 10,
+              height: 1.3,
+              color: AppColors.textFaint,
+            ),
+          ),
+        ],
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _directionsButton(expanded: false),
+        ),
+        const Text(
+          'Driving directions open in Google Maps.',
+          style: TextStyle(
+            fontSize: 10,
+            height: 1.3,
+            color: AppColors.textFaint,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _expandedContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _heading(),
+        const SizedBox(height: 8),
+        const Divider(height: 1, color: AppColors.border),
+        const SizedBox(height: 10),
+        _mobileFact(
+          label: 'Responder location:',
+          value: connection.responderIsLive ? 'LIVE' : 'LAST KNOWN',
+        ),
+        const SizedBox(height: 10),
+        _mobileFact(label: 'Emergency location:', value: 'SET'),
+        if (showDirectDistance) ...[
+          const SizedBox(height: 10),
+          _mobileFact(
+            label: 'Direct distance:',
+            value: connection.directDistanceLabel,
+            helpText: 'Straight-line only, not road distance',
+          ),
+        ],
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: _directionsButton(expanded: true),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Driving directions open in Google Maps.',
+          style: TextStyle(
+            fontSize: 10.5,
+            height: 1.3,
+            color: AppColors.textFaint,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _heading() {
+    return const Text(
+      'RESPONDER → EMERGENCY',
+      style: TextStyle(
+        fontSize: 10.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .8,
+        color: AppColors.textDim,
+      ),
+    );
+  }
+
+  Widget _mobileFact({
+    required String label,
+    required String value,
+    String? helpText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDim,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: AppColors.text,
+          ),
+        ),
+        if (helpText != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            helpText,
+            style: const TextStyle(
+              fontSize: 10.5,
+              height: 1.3,
+              color: AppColors.textFaint,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _directionsButton({required bool expanded}) {
+    if (!expanded) {
+      return TextButton.icon(
+        onPressed: onGetDirections,
+        icon: const Icon(Icons.directions_rounded, size: 16),
+        label: const Text('Get directions'),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.teal,
+          textStyle: const TextStyle(fontSize: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      );
+    }
+
+    return TextButton.icon(
+      onPressed: onGetDirections,
+      icon: const Icon(Icons.directions_rounded, size: 18),
+      label: const Text(
+        'Get directions',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: AppColors.tealDim,
+        foregroundColor: AppColors.teal,
+        textStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        minimumSize: const Size.fromHeight(46),
+        tapTargetSize: MaterialTapTargetSize.padded,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
     );
   }

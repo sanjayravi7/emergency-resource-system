@@ -15,15 +15,10 @@ function validateEmergencyRequestInput(data) {
     return "Request body is required";
   }
 
-  const { emergencyType, description, location, priority, latitude, longitude } =
-    data;
+  const { emergencyType, location, priority, latitude, longitude } = data;
 
   if (!emergencyType || !String(emergencyType).trim()) {
     return "Emergency type is required";
-  }
-
-  if (!description || !String(description).trim()) {
-    return "Description is required";
   }
 
   if (!location || !String(location).trim()) {

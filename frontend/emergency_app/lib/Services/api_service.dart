@@ -133,25 +133,29 @@ class ApiService {
 
   static Future<Map<String, dynamic>> createRequest({
     required String emergencyType,
-    required String description,
+    required String? description,
     required String location,
     required String priority,
     required double? latitude,
     required double? longitude,
     required List<Map<String, int>> requiredResources,
   }) async {
+    final normalizedDescription =
+        description == null || description.trim().isEmpty ? null : description;
+    final requestBody = <String, dynamic>{
+      'emergencyType': emergencyType,
+      'location': location,
+      'priority': priority,
+      'latitude': latitude,
+      'longitude': longitude,
+      'requiredResources': requiredResources,
+      if (normalizedDescription != null) 'description': normalizedDescription,
+    };
+
     final response = await http.post(
       Uri.parse('$baseUrl/requests'),
       headers: _headers,
-      body: jsonEncode({
-        'emergencyType': emergencyType,
-        'description': description,
-        'location': location,
-        'priority': priority,
-        'latitude': latitude,
-        'longitude': longitude,
-        'requiredResources': requiredResources,
-      }),
+      body: jsonEncode(requestBody),
     );
 
     final body = _decode(response);

@@ -60,6 +60,13 @@ const requestInclude = {
 
 exports.requestInclude = requestInclude;
 
+function normalizeOptionalDescription(value) {
+  if (value === undefined || value === null) return null;
+
+  const description = String(value);
+  return description.trim() ? description : null;
+}
+
 exports.createEmergencyRequest = async (userId, data) => {
   const validationError = validateEmergencyRequestInput(data);
   if (validationError) throw new Error(validationError);
@@ -96,7 +103,7 @@ exports.createEmergencyRequest = async (userId, data) => {
   const created = await prisma.emergencyRequest.create({
     data: {
       emergencyType: String(data.emergencyType).trim(),
-      description: String(data.description).trim(),
+      description: normalizeOptionalDescription(data.description),
       location: String(data.location).trim(),
       latitude: typeof data.latitude === 'number' ? data.latitude : null,
       longitude: typeof data.longitude === 'number' ? data.longitude : null,
