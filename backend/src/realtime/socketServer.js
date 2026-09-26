@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const env = require('../config/env');
 const { authenticateSocket } = require('./socketAuth');
 const {
   attachSocketServer,
@@ -8,7 +9,11 @@ const {
 
 const activeLocationShares = new Map();
 const lastLocationPersistAt = new Map();
-const LOCATION_PERSIST_INTERVAL_MS = 10000;
+const locationRateWindows = new Map();
+const LOCATION_PERSIST_INTERVAL_MS = env.SOCKET_LOCATION_PERSIST_INTERVAL_MS;
+const LOCATION_RATE_WINDOW_MS = env.SOCKET_LOCATION_RATE_WINDOW_MS;
+const LOCATION_MAX_UPDATES_PER_WINDOW = env.SOCKET_LOCATION_MAX_UPDATES_PER_WINDOW;
+const SOCKET_SESSION_REVALIDATE_MS = env.SOCKET_SESSION_REVALIDATE_MS;
 
 function nowIso() {
   return new Date().toISOString();
@@ -24,6 +29,57 @@ function validCoordinate(value, min, max) {
   return Number.isFinite(number) && number >= min && number <= max
     ? number
     : null;
+}
+
+function emitSocketError(socket, error, ack) {
+  socket.emit('socket.error', error);
+  if (typeof ack === 'function') ack({ ok: false, error });
+}
+
+function invalidateSocket(socket, message = 'User is inactive') {
+  if (socket.data?.sessionInvalidated) return;
+  socket.data = { ...(socket.data || {}), sessionInvalidated: true };
+  if (typeof socket.emit === 'function') {
+    socket.emit('socket.invalidated', {
+      code: 'USER_INACTIVE',
+      message,
+      timestamp: nowIso(),
+    });
+  }
+  if (typeof socket.disconnect === 'function') {
+    setTimeout(() => socket.disconnect(true), 0);
+  }
+}
+
+function cleanupSocketLocationState(socket) {
+  for (const key of activeLocationShares.keys()) {
+    if (!key.startsWith(`${socket.id}:`)) continue;
+    activeLocationShares.delete(key);
+  }
+  for (const key of locationRateWindows.keys()) {
+    if (key.startsWith(`${socket.id}:`)) locationRateWindows.delete(key);
+  }
+}
+
+function consumeLocationUpdateQuota(socket, requestId) {
+  const key = shareKey(socket, requestId);
+  const current = Date.now();
+  const state = locationRateWindows.get(key);
+
+  if (!state || current - state.windowStart >= LOCATION_RATE_WINDOW_MS) {
+    locationRateWindows.set(key, { windowStart: current, count: 1 });
+    return { allowed: true, remaining: LOCATION_MAX_UPDATES_PER_WINDOW - 1 };
+  }
+
+  if (state.count >= LOCATION_MAX_UPDATES_PER_WINDOW) {
+    return {
+      allowed: false,
+      retryAfterMs: Math.max(0, state.windowStart + LOCATION_RATE_WINDOW_MS - current),
+    };
+  }
+
+  state.count += 1;
+  return { allowed: true, remaining: LOCATION_MAX_UPDATES_PER_WINDOW - state.count };
 }
 
 async function requestForResponder(requestId, responderId, includeClosed = false) {
@@ -48,7 +104,10 @@ async function refreshSocketIdentity(socket) {
       responderStatus: true,
     },
   });
-  if (!user || !user.isActive) return null;
+  if (!user || !user.isActive) {
+    invalidateSocket(socket, user ? 'User is inactive' : 'User no longer exists');
+    return null;
+  }
   socket.user = user;
   return user;
 }
@@ -76,9 +135,10 @@ async function canSubscribe(socket, requestId) {
 async function joinAuthorizedRequest(socket, requestId, ack) {
   const authorized = await canSubscribe(socket, requestId);
   if (!authorized) {
-    const error = { code: 'FORBIDDEN', message: 'Not authorized for this request' };
-    socket.emit('socket.error', error);
-    if (typeof ack === 'function') ack({ ok: false, error });
+    const error = socket.data?.sessionInvalidated
+      ? { code: 'USER_INACTIVE', message: 'Socket session was invalidated' }
+      : { code: 'FORBIDDEN', message: 'Not authorized for this request' };
+    emitSocketError(socket, error, ack);
     return false;
   }
 
@@ -133,10 +193,21 @@ function shareKey(socket, requestId) {
 function bindLocationEvents(socket) {
   socket.on('responder.location.start', async (data = {}, ack) => {
     const currentUser = await refreshSocketIdentity(socket);
-    if (!currentUser || currentUser.role !== 'RESPONDER') {
-      const error = { code: 'FORBIDDEN', message: 'Only responders can share location' };
-      socket.emit('socket.error', error);
-      if (typeof ack === 'function') ack({ ok: false, error });
+    if (!currentUser) {
+      if (typeof ack === 'function') {
+        ack({
+          ok: false,
+          error: { code: 'USER_INACTIVE', message: 'Socket session was invalidated' },
+        });
+      }
+      return;
+    }
+    if (currentUser.role !== 'RESPONDER') {
+      emitSocketError(
+        socket,
+        { code: 'FORBIDDEN', message: 'Only responders can share location' },
+        ack
+      );
       return;
     }
 
@@ -145,12 +216,14 @@ function bindLocationEvents(socket) {
       ? await requestForResponder(requestId, socket.user.id)
       : null;
     if (!request) {
-      const error = {
-        code: 'FORBIDDEN',
-        message: 'Responder is not assigned to an active emergency',
-      };
-      socket.emit('socket.error', error);
-      if (typeof ack === 'function') ack({ ok: false, error });
+      emitSocketError(
+        socket,
+        {
+          code: 'FORBIDDEN',
+          message: 'Responder is not assigned to an active emergency',
+        },
+        ack
+      );
       return;
     }
 
@@ -167,10 +240,21 @@ function bindLocationEvents(socket) {
 
   socket.on('responder.location.update', async (data = {}, ack) => {
     const currentUser = await refreshSocketIdentity(socket);
-    if (!currentUser || currentUser.role !== 'RESPONDER') {
-      const error = { code: 'FORBIDDEN', message: 'Only responders can share location' };
-      socket.emit('socket.error', error);
-      if (typeof ack === 'function') ack({ ok: false, error });
+    if (!currentUser) {
+      if (typeof ack === 'function') {
+        ack({
+          ok: false,
+          error: { code: 'USER_INACTIVE', message: 'Socket session was invalidated' },
+        });
+      }
+      return;
+    }
+    if (currentUser.role !== 'RESPONDER') {
+      emitSocketError(
+        socket,
+        { code: 'FORBIDDEN', message: 'Only responders can share location' },
+        ack
+      );
       return;
     }
 
@@ -182,14 +266,30 @@ function bindLocationEvents(socket) {
       : null;
 
     if (!request || latitude === null || longitude === null) {
-      const error = {
-        code: 'FORBIDDEN',
-        message: !request
-          ? 'Responder is not assigned to an active emergency'
-          : 'A valid latitude and longitude are required',
-      };
-      socket.emit('socket.error', error);
-      if (typeof ack === 'function') ack({ ok: false, error });
+      emitSocketError(
+        socket,
+        {
+          code: !request ? 'FORBIDDEN' : 'BAD_REQUEST',
+          message: !request
+            ? 'Responder is not assigned to an active emergency'
+            : 'A valid latitude and longitude are required',
+        },
+        ack
+      );
+      return;
+    }
+
+    const quota = consumeLocationUpdateQuota(socket, requestId);
+    if (!quota.allowed) {
+      emitSocketError(
+        socket,
+        {
+          code: 'RATE_LIMITED',
+          message: 'Too many responder location updates',
+          retryAfterMs: quota.retryAfterMs,
+        },
+        ack
+      );
       return;
     }
 
@@ -205,10 +305,21 @@ function bindLocationEvents(socket) {
 
   socket.on('responder.location.stop', async (data = {}, ack) => {
     const currentUser = await refreshSocketIdentity(socket);
-    if (!currentUser || currentUser.role !== 'RESPONDER') {
-      const error = { code: 'FORBIDDEN', message: 'Only responders can share location' };
-      socket.emit('socket.error', error);
-      if (typeof ack === 'function') ack({ ok: false, error });
+    if (!currentUser) {
+      if (typeof ack === 'function') {
+        ack({
+          ok: false,
+          error: { code: 'USER_INACTIVE', message: 'Socket session was invalidated' },
+        });
+      }
+      return;
+    }
+    if (currentUser.role !== 'RESPONDER') {
+      emitSocketError(
+        socket,
+        { code: 'FORBIDDEN', message: 'Only responders can share location' },
+        ack
+      );
       return;
     }
 
@@ -217,9 +328,11 @@ function bindLocationEvents(socket) {
       ? await requestForResponder(requestId, socket.user.id, true)
       : null;
     if (!request) {
-      const error = { code: 'FORBIDDEN', message: 'Responder is not assigned to this emergency' };
-      socket.emit('socket.error', error);
-      if (typeof ack === 'function') ack({ ok: false, error });
+      emitSocketError(
+        socket,
+        { code: 'FORBIDDEN', message: 'Responder is not assigned to this emergency' },
+        ack
+      );
       return;
     }
 
@@ -233,7 +346,19 @@ function bindLocationEvents(socket) {
   });
 }
 
+function startSessionRevalidation(socket) {
+  const timer = setInterval(() => {
+    void refreshSocketIdentity(socket).catch(() => {
+      invalidateSocket(socket, 'Unable to revalidate socket session');
+    });
+  }, SOCKET_SESSION_REVALIDATE_MS);
+
+  if (typeof timer.unref === 'function') timer.unref();
+  socket.on('disconnect', () => clearInterval(timer));
+}
+
 function bindSocketConnection(socket) {
+  startSessionRevalidation(socket);
   const userRoom = rooms.user(socket.user.id);
   socket.join(userRoom);
   if (socket.user.role === 'RESPONDER') socket.join(rooms.responders);
@@ -274,9 +399,11 @@ function bindSocketConnection(socket) {
   socket.on('request.subscribe', async (data = {}, ack) => {
     const requestId = asRequestId(data.requestId);
     if (!requestId) {
-      const error = { code: 'BAD_REQUEST', message: 'A valid requestId is required' };
-      socket.emit('socket.error', error);
-      if (typeof ack === 'function') ack({ ok: false, error });
+      emitSocketError(
+        socket,
+        { code: 'BAD_REQUEST', message: 'A valid requestId is required' },
+        ack
+      );
       return;
     }
     await joinAuthorizedRequest(socket, requestId, ack);
@@ -294,13 +421,13 @@ function bindSocketConnection(socket) {
     for (const key of activeLocationShares.keys()) {
       if (!key.startsWith(`${socket.id}:`)) continue;
       const requestId = Number(key.split(':')[1]);
-      activeLocationShares.delete(key);
       emitLocation('responder.location.stop', requestId, {
         requestId,
         responderId: socket.user.id,
         timestamp: nowIso(),
       });
     }
+    cleanupSocketLocationState(socket);
   });
 }
 
@@ -312,7 +439,10 @@ function createSocketServer(httpServer, options = {}) {
 }
 
 module.exports = {
+  LOCATION_MAX_UPDATES_PER_WINDOW,
   LOCATION_PERSIST_INTERVAL_MS,
+  LOCATION_RATE_WINDOW_MS,
+  SOCKET_SESSION_REVALIDATE_MS,
   createSocketServer,
   canSubscribe,
   requestForResponder,

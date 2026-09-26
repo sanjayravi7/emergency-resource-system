@@ -6,23 +6,32 @@ import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
 
 /// Sector overview. Districts are display coordinates only; the responders and
-/// the requests plotted on them come from PostgreSQL (matched on the
-/// `location` column).
+/// the requests plotted on them come from PostgreSQL. When real latitude /
+/// longitude values are available, the painter projects those received
+/// coordinates into the existing sector-map canvas instead of creating a
+/// second map system.
 class SectorMapPainter extends CustomPainter {
   SectorMapPainter({
     required this.districts,
     required this.responders,
     required this.requests,
+    this.liveLocations = const <int, LiveResponderLocation>{},
   });
 
   final List<District> districts;
   final List<BackendResponder> responders;
   final List<EmergencyRequest> requests;
 
+  /// Active responder telemetry keyed by requestId. The server authorizes and
+  /// emits one request room at a time, so a responder serving more than one
+  /// emergency is rendered as separate room-scoped points.
+  final Map<int, LiveResponderLocation> liveLocations;
+
   @override
   void paint(Canvas canvas, Size size) {
     final scaleX = size.width / 640;
     final scaleY = size.height / 260;
+    final markerScale = max(.8, min(scaleX, scaleY));
     Offset mapPoint(Offset p) => Offset(p.dx * scaleX, p.dy * scaleY);
 
     final linePaint = Paint()
@@ -49,7 +58,23 @@ class SectorMapPainter extends CustomPainter {
           canvas, Offset(p.dx - textPainter.width / 2, p.dy - 20));
     }
 
-    // Responders grouped by the district their `location` matches.
+    final openRequests = requests.where((request) => request.isOpen).toList();
+    final requestById = <int, EmergencyRequest>{
+      for (final request in openRequests) request.id: request,
+    };
+    final activeLiveLocations = <int, LiveResponderLocation>{
+      for (final entry in liveLocations.entries)
+        if (requestById.containsKey(entry.key)) entry.key: entry.value,
+    };
+    final geoProjector = _GeoProjector.from(
+      size: size,
+      requests: openRequests,
+      liveLocations: activeLiveLocations.values,
+    );
+
+    // Responders grouped by the district their `location` matches. This keeps
+    // the existing map functionality intact for responders that are not
+    // actively sharing request-scoped GPS.
     final byDistrict = <String, List<BackendResponder>>{};
 
     for (final responder in responders) {
@@ -87,36 +112,224 @@ class SectorMapPainter extends CustomPainter {
       }
     });
 
-    // Open requests at their location.
-    for (final request in requests) {
-      if (!request.isOpen) continue;
-
-      final district = firstWhereOrNull(
-        districts,
-        (d) => d.name.toLowerCase() == request.location.toLowerCase(),
-      );
-
-      if (district == null) continue;
-
-      final p = mapPoint(district.point);
-
-      final color = request.status == RequestStatus.pending
-          ? AppColors.amber
-          : AppColors.blue;
-
-      canvas.drawCircle(
-        p,
-        9,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = color.withValues(alpha: .6),
-      );
-
-      canvas.drawCircle(p, 4, Paint()..color = color);
+    // Open emergency/request locations. Real DB coordinates are preferred;
+    // otherwise the pre-existing sector/district plotting remains unchanged.
+    final requestPoints = <int, Offset>{};
+    for (final request in openRequests) {
+      final point = _requestPoint(request, geoProjector, mapPoint);
+      if (point == null) continue;
+      requestPoints[request.id] = point;
+      _drawEmergencyMarker(canvas, point, request, markerScale);
     }
+
+    // Room-scoped live responder locations. These points are never derived
+    // from a district label; they use only the coordinates received from the
+    // authenticated Socket.IO event or the throttled PostgreSQL resync value.
+    for (final entry in activeLiveLocations.entries) {
+      final request = requestById[entry.key];
+      final live = entry.value;
+      final responderPoint = geoProjector?.project(live.latitude, live.longitude);
+      if (request == null || responderPoint == null) continue;
+
+      final emergencyPoint = requestPoints[request.id];
+      if (emergencyPoint != null) {
+        canvas.drawLine(
+          emergencyPoint,
+          responderPoint,
+          Paint()
+            ..color = (live.isLive ? AppColors.teal : AppColors.textFaint)
+                .withValues(alpha: .55)
+            ..strokeWidth = live.isLive ? 1.4 : 1.0,
+        );
+      }
+
+      _drawResponderMarker(canvas, responderPoint, live, markerScale);
+    }
+  }
+
+  Offset? _requestPoint(
+    EmergencyRequest request,
+    _GeoProjector? geoProjector,
+    Offset Function(Offset) mapPoint,
+  ) {
+    if (request.latitude != null && request.longitude != null) {
+      final projected = geoProjector?.project(request.latitude!, request.longitude!);
+      if (projected != null) return projected;
+    }
+
+    final district = firstWhereOrNull(
+      districts,
+      (d) => d.name.toLowerCase() == request.location.toLowerCase(),
+    );
+
+    return district == null ? null : mapPoint(district.point);
+  }
+
+  void _drawEmergencyMarker(
+    Canvas canvas,
+    Offset p,
+    EmergencyRequest request,
+    double scale,
+  ) {
+    final color = request.status == RequestStatus.pending
+        ? AppColors.amber
+        : AppColors.red;
+    final radius = 9.0 * scale;
+
+    canvas.drawCircle(
+      p,
+      radius + 4,
+      Paint()..color = color.withValues(alpha: .14),
+    );
+    canvas.drawCircle(
+      p,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..color = color.withValues(alpha: .75),
+    );
+    canvas.drawCircle(p, 4.5 * scale, Paint()..color = color);
+    _drawMapIcon(canvas, Icons.warning_rounded, p.translate(0, -18 * scale), color,
+        14 * scale);
+  }
+
+  void _drawResponderMarker(
+    Canvas canvas,
+    Offset p,
+    LiveResponderLocation live,
+    double scale,
+  ) {
+    final radius = 10.0 * scale;
+    final color = live.isLive ? AppColors.teal : AppColors.textFaint;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: p, width: radius * 2.4, height: radius * 2.1),
+      Radius.circular(7 * scale),
+    );
+
+    canvas.drawRRect(
+      rect.inflate(5 * scale),
+      Paint()..color = color.withValues(alpha: .14),
+    );
+    canvas.drawRRect(rect, Paint()..color = color);
+    _drawMapIcon(canvas, Icons.local_shipping_rounded, p, Colors.white,
+        16 * scale);
+
+    final labelPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: live.isLive ? 'LIVE' : 'LAST',
+        style: monoStyle(size: 8.5 * scale, color: color),
+      ),
+    )..layout();
+    labelPainter.paint(
+      canvas,
+      Offset(p.dx - labelPainter.width / 2, p.dy + radius + 3 * scale),
+    );
+  }
+
+  void _drawMapIcon(
+    Canvas canvas,
+    IconData icon,
+    Offset center,
+    Color color,
+    double size,
+  ) {
+    final painter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          color: color,
+          fontSize: size,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+        ),
+      ),
+    )..layout();
+
+    painter.paint(
+      canvas,
+      Offset(center.dx - painter.width / 2, center.dy - painter.height / 2),
+    );
   }
 
   @override
   bool shouldRepaint(covariant SectorMapPainter old) => true;
+}
+
+class _GeoProjector {
+  _GeoProjector._({
+    required this.size,
+    required this.minLatitude,
+    required this.maxLatitude,
+    required this.minLongitude,
+    required this.maxLongitude,
+  });
+
+  final Size size;
+  final double minLatitude;
+  final double maxLatitude;
+  final double minLongitude;
+  final double maxLongitude;
+
+  static _GeoProjector? from({
+    required Size size,
+    required Iterable<EmergencyRequest> requests,
+    required Iterable<LiveResponderLocation> liveLocations,
+  }) {
+    final latitudes = <double>[];
+    final longitudes = <double>[];
+
+    for (final request in requests) {
+      if (request.latitude == null || request.longitude == null) continue;
+      latitudes.add(request.latitude!);
+      longitudes.add(request.longitude!);
+    }
+
+    for (final live in liveLocations) {
+      latitudes.add(live.latitude);
+      longitudes.add(live.longitude);
+    }
+
+    if (latitudes.isEmpty || longitudes.isEmpty) return null;
+
+    var minLatitude = latitudes.reduce(min);
+    var maxLatitude = latitudes.reduce(max);
+    var minLongitude = longitudes.reduce(min);
+    var maxLongitude = longitudes.reduce(max);
+
+    // Degenerate bounds (for example responder and emergency at the same GPS
+    // point) still need a viewport. Expanding the viewport does not fabricate a
+    // marker coordinate; it only prevents divide-by-zero in the projection.
+    if ((maxLatitude - minLatitude).abs() < .0001) {
+      minLatitude -= .0001;
+      maxLatitude += .0001;
+    }
+    if ((maxLongitude - minLongitude).abs() < .0001) {
+      minLongitude -= .0001;
+      maxLongitude += .0001;
+    }
+
+    return _GeoProjector._(
+      size: size,
+      minLatitude: minLatitude,
+      maxLatitude: maxLatitude,
+      minLongitude: minLongitude,
+      maxLongitude: maxLongitude,
+    );
+  }
+
+  Offset project(double latitude, double longitude) {
+    final padding = min(size.width, size.height) * .12;
+    final usableWidth = max(1.0, size.width - padding * 2);
+    final usableHeight = max(1.0, size.height - padding * 2);
+    final longitudeSpan = maxLongitude - minLongitude;
+    final latitudeSpan = maxLatitude - minLatitude;
+
+    final x = padding + ((longitude - minLongitude) / longitudeSpan) * usableWidth;
+    final y = padding + ((maxLatitude - latitude) / latitudeSpan) * usableHeight;
+    return Offset(x.clamp(padding, size.width - padding).toDouble(),
+        y.clamp(padding, size.height - padding).toDouble());
+  }
 }

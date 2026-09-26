@@ -132,6 +132,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   Future<void> _handleRealtimeEvent(RealtimeEvent event) async {
     if (!mounted) return;
 
+    if (event.name == 'socket.invalidated') {
+      showToast(event.payload['message']?.toString() ??
+          'Your realtime session was invalidated. Please sign in again.');
+      await logout();
+      return;
+    }
+
     if (event.name == 'responder.location.update' ||
         event.name == 'responder.location.start') {
       final location = event.name == 'responder.location.update'
@@ -145,9 +152,16 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     if (event.name == 'responder.location.stop') {
       final requestId = _asEventInt(event.payload['requestId']);
-      if (requestId == sharingRequestId) await stopLocationSharing(requestId);
+      if (requestId == sharingRequestId) await _stopLocalLocationSharing(requestId);
       if (requestId != null && mounted) {
-        setState(() => liveLocations.remove(requestId));
+        setState(() {
+          final existing = liveLocations[requestId];
+          if (existing == null) {
+            liveLocations.remove(requestId);
+          } else {
+            liveLocations[requestId] = existing.asNotLive();
+          }
+        });
       }
       return;
     }
@@ -177,8 +191,16 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           <String>{'COMPLETED', 'CANCELLED'}.contains(
               request['status']?.toString().toUpperCase())) {
         final requestId = _asEventInt(request['id'] ?? event.payload['requestId']);
-        if (requestId == sharingRequestId) await stopLocationSharing(requestId!);
-        if (requestId != null) setState(() => liveLocations.remove(requestId));
+        if (requestId == sharingRequestId) {
+          await _stopLocalLocationSharing(requestId);
+        }
+        // The `mounted` guard at the top of this handler is stale by now:
+        // the awaited reloads above yield to the event loop, so the page can
+        // be disposed (for example logout during a socket.invalidated storm)
+        // before this setState runs.
+        if (requestId != null && mounted) {
+          setState(() => liveLocations.remove(requestId));
+        }
       }
     }
   }
@@ -307,16 +329,22 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         // The REST resynchronization also carries the latest throttled
         // PostgreSQL coordinate. Socket.IO then replaces it with live GPS
         // updates when sharing is active.
+        final openIds = open.map((request) => request.id).toSet();
+        liveLocations.removeWhere((requestId, _) => !openIds.contains(requestId));
         for (final request in open) {
           final responder = request.acceptedBy;
           if (responder?.latitude != null && responder?.longitude != null) {
-            liveLocations[request.id] = LiveResponderLocation(
-              requestId: request.id,
-              responderId: responder!.id,
-              latitude: responder.latitude!,
-              longitude: responder.longitude!,
-              updatedAt: DateTime.now(),
-            );
+            final existing = liveLocations[request.id];
+            if (existing?.isLive != true) {
+              liveLocations[request.id] = LiveResponderLocation(
+                requestId: request.id,
+                responderId: responder!.id,
+                latitude: responder.latitude!,
+                longitude: responder.longitude!,
+                updatedAt: DateTime.now(),
+                isLive: false,
+              );
+            }
           }
         }
       });
@@ -383,6 +411,32 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         .toList();
   }
 
+  Future<Position?> _tryReadEmergencyPosition() async {
+    if (!isRequester) return null;
+
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+
+      return Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      ).timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // A requester can still create an emergency with the selected sector if
+      // the browser/device does not provide GPS. No client-side coordinate is
+      // fabricated as a substitute.
+      return null;
+    }
+  }
+
   // -------------------------------------------------------------------
   // MUTATIONS - each one reloads the data it touched
   // -------------------------------------------------------------------
@@ -391,13 +445,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     setState(() => submitting = true);
 
     try {
+      final emergencyPosition = await _tryReadEmergencyPosition();
       await ApiService.createRequest(
         emergencyType: payload.emergencyType,
         description: payload.description,
         location: payload.location,
         priority: payload.priority,
-        latitude: null,
-        longitude: null,
+        latitude: emergencyPosition?.latitude,
+        longitude: emergencyPosition?.longitude,
         requiredResources: payload.requiredResources,
       );
 
@@ -622,6 +677,20 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       sharingRequestId = request.id;
       SocketService.instance.startLocationSharing(request.id);
 
+      try {
+        final initialPosition = await Geolocator.getCurrentPosition(
+          locationSettings:
+              const LocationSettings(accuracy: LocationAccuracy.high),
+        ).timeout(const Duration(seconds: 5));
+        SocketService.instance.updateLocation(
+          requestId: request.id,
+          latitude: initialPosition.latitude,
+          longitude: initialPosition.longitude,
+        );
+      } catch (_) {
+        // The stream below may still provide a fix; do not fabricate one.
+      }
+
       final settings = const LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
@@ -639,18 +708,24 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       });
       showToast('Live responder location sharing started');
     } catch (error) {
+      if (sharingRequestId == request.id) await stopLocationSharing(request.id);
       showToast('Location sharing failed: ${_clean(error)}');
     }
   }
 
-  Future<void> stopLocationSharing(int? requestId) async {
-    locationSubscription?.cancel();
+  Future<void> _stopLocalLocationSharing(int? requestId) async {
+    await locationSubscription?.cancel();
     locationSubscription = null;
     final activeRequestId = requestId ?? sharingRequestId;
+    if (activeRequestId == sharingRequestId) sharingRequestId = null;
+  }
+
+  Future<void> stopLocationSharing(int? requestId) async {
+    final activeRequestId = requestId ?? sharingRequestId;
+    await _stopLocalLocationSharing(activeRequestId);
     if (activeRequestId != null) {
       SocketService.instance.stopLocationSharing(activeRequestId);
     }
-    if (activeRequestId == sharingRequestId) sharingRequestId = null;
   }
 
   Future<void> editMyHelpTypes() async {
@@ -1027,6 +1102,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
                         districts: kDistricts,
                         responders: responders,
                         requests: [...openRequests, ...pendingCompatible],
+                        liveLocations: liveLocations,
                       ),
                     ),
                   );
@@ -1042,7 +1118,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
                   LegendItem(color: AppColors.teal, label: 'Available'),
                   LegendItem(color: AppColors.blue, label: 'Busy / assigned'),
                   LegendItem(color: AppColors.textFaint, label: 'Offline'),
+                  LegendItem(color: AppColors.red, label: 'Emergency location'),
                   LegendItem(color: AppColors.amber, label: 'Pending request'),
+                  LegendItem(color: AppColors.teal, label: 'Live responder'),
                 ],
               ),
             ),
