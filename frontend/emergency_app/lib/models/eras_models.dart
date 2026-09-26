@@ -31,10 +31,10 @@ String? _asTrimmedString(dynamic value) {
   return text.isEmpty ? null : text;
 }
 
-String _asOptionalStoredText(dynamic value) {
-  if (value == null) return '';
+String? _asOptionalStoredText(dynamic value) {
+  if (value == null) return null;
   final text = value.toString();
-  return text.trim().isEmpty ? '' : text;
+  return text.trim().isEmpty ? null : text;
 }
 
 DateTime? _asDate(dynamic value) {
@@ -641,7 +641,7 @@ class EmergencyRequest {
 
   final int id;
   final String emergencyType;
-  final String description;
+  final String? description;
   final String location;
   final String priority;
   final RequestStatus status;
