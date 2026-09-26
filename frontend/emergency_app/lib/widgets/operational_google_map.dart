@@ -64,7 +64,7 @@ class OperationalMapMarkerBuilder {
 
   List<OperationalMapMarkerSnapshot> buildSnapshots({
     required Iterable<EmergencyRequest> requests,
-    required Map<int, LiveResponderLocation> liveLocations,
+    required Map<int, Map<int, LiveResponderLocation>> liveLocations,
   }) {
     final openRequests = <int, EmergencyRequest>{
       for (final request in requests)
@@ -93,43 +93,60 @@ class OperationalMapMarkerBuilder {
       );
     }
 
-    for (final entry in liveLocations.entries) {
-      final request = openRequests[entry.key];
+    // PHASE F: multiple responders may stream locations for the same
+    // request. Every (request, responder) pair renders its own marker with
+    // a stable id, so one responder's movement never disturbs another's.
+    for (final requestEntry in liveLocations.entries) {
+      final request = openRequests[requestEntry.key];
       if (request == null) continue;
 
-      final live = entry.value;
-      final responderName = request.acceptedBy?.id == live.responderId
-          ? request.acceptedBy!.name
-          : 'Responder #${live.responderId}';
-      final assignedResources = request.activeAllocations
-          .where((allocation) => allocation.responderId == live.responderId)
-          .map((allocation) => allocation.resourceName)
-          .toSet()
-          .join(', ');
+      for (final live in requestEntry.value.values) {
+        final responderName =
+            _responderDisplayName(request, live.responderId);
+        final assignedResources = request.activeAllocations
+            .where((allocation) => allocation.responderId == live.responderId)
+            .map((allocation) => allocation.resourceName)
+            .toSet()
+            .join(', ');
 
-      snapshots.add(
-        OperationalMapMarkerSnapshot(
-          id: 'responder-${request.id}-${live.responderId}',
-          kind: live.isLive
-              ? OperationalMapMarkerKind.liveResponder
-              : OperationalMapMarkerKind.lastKnownResponder,
-          position: LatLng(live.latitude, live.longitude),
-          requestId: request.id,
-          responderId: live.responderId,
-          title: live.isLive
-              ? 'LIVE responder · $responderName'
-              : 'LAST KNOWN responder · $responderName',
-          snippet: _responderSnippet(
-            request: request,
-            live: live,
-            assignedResources: assignedResources,
+        snapshots.add(
+          OperationalMapMarkerSnapshot(
+            id: 'responder-${request.id}-${live.responderId}',
+            kind: live.isLive
+                ? OperationalMapMarkerKind.liveResponder
+                : OperationalMapMarkerKind.lastKnownResponder,
+            position: LatLng(live.latitude, live.longitude),
+            requestId: request.id,
+            responderId: live.responderId,
+            title: live.isLive
+                ? 'LIVE responder · $responderName'
+                : 'LAST KNOWN responder · $responderName',
+            snippet: _responderSnippet(
+              request: request,
+              live: live,
+              assignedResources: assignedResources,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
 
     snapshots.sort((left, right) => left.id.compareTo(right.id));
     return snapshots;
+  }
+
+  /// Responder display name: from their assignment summary (multi-responder
+  /// snapshots), else the legacy acceptedBy lead, else a stable id label.
+  String _responderDisplayName(EmergencyRequest request, int responderId) {
+    final assignment = firstWhereOrNull(
+      request.activeAssignments,
+      (row) => row.responderId == responderId,
+    );
+    final name = assignment?.responder?.name ??
+        (request.acceptedBy?.id == responderId
+            ? request.acceptedBy!.name
+            : null);
+    return name ?? 'Responder #$responderId';
   }
 
   String _requestSnippet(EmergencyRequest request) {
@@ -163,13 +180,28 @@ class OperationalMapMarkerBuilder {
 /// This is a simple straight geometric connection between two coordinates.
 /// It is NOT a road route: ERAS computes no routing here and calls no routing
 /// service. Real driving directions come from the external Google Maps URL.
+///
+/// PHASE F: each (request, responder) pair draws its OWN line, so the id is
+/// pair-specific (see [directConnectionPolylineIdFor]). The constant remains
+/// the pre-multi-responder single-line id for compatibility.
 const PolylineId kDirectConnectionPolylineId = PolylineId('direct-connection');
 
-/// Builds the straight connection line between the responder and the
-/// emergency. Local map geometry only — no API request.
+/// Unique per-pair polyline id ('direct-connection-<request>-<responder>').
+PolylineId directConnectionPolylineIdFor(
+  int requestId,
+  int responderId,
+) =>
+    PolylineId('direct-connection-$requestId-$responderId');
+
+/// Builds the straight connection line between one responder and the
+/// emergency. Local map geometry only — no API request. Multiple responders
+/// each get their own line with a unique id.
 Polyline buildDirectConnectionPolyline(DirectConnection connection) {
   return Polyline(
-    polylineId: kDirectConnectionPolylineId,
+    polylineId: directConnectionPolylineIdFor(
+      connection.requestId,
+      connection.responderId,
+    ),
     points: <LatLng>[
       LatLng(connection.responder.latitude, connection.responder.longitude),
       LatLng(connection.emergency.latitude, connection.emergency.longitude),
@@ -190,7 +222,9 @@ class OperationalGoogleMap extends StatefulWidget {
   });
 
   final List<EmergencyRequest> requests;
-  final Map<int, LiveResponderLocation> liveLocations;
+
+  /// Multi-responder live points: requestId -> responderId -> latest point.
+  final Map<int, Map<int, LiveResponderLocation>> liveLocations;
   final bool isMobile;
 
   /// Opens the external Google Maps Directions URL. Defaults to the
@@ -215,11 +249,11 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   ExternalUrlLauncher get _launcher =>
       widget.urlLauncher ?? defaultExternalUrlLauncher;
 
-  /// The single responder → emergency pair that may show a connection line.
-  /// Recomputed from the current board state on every build, so the line
-  /// follows live GPS updates and disappears as soon as the request is
-  /// completed/cancelled, the assignment is removed, or coordinates vanish.
-  DirectConnection? get _connection => selectDirectConnection(
+  /// Every responder → emergency pair that may show a connection line.
+  /// Recomputed from the current board state on every build, so the lines
+  /// follow live GPS updates and disappear as soon as a request is
+  /// completed/cancelled, a responder stops, or coordinates vanish.
+  List<DirectConnection> get _connections => selectDirectConnections(
         requests: widget.requests,
         liveLocations: widget.liveLocations,
       );
@@ -273,9 +307,11 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     final snapshots = _snapshots;
     final markers = snapshots.map((snapshot) => snapshot.toMarker()).toSet();
     final textOnlyOpenRequests = _textOnlyOpenRequests;
-    final connection = _connection;
+    final connections = _connections;
+    // One straight blue line per valid responder → emergency pair.
     final polylines = <Polyline>{
-      if (connection != null) buildDirectConnectionPolyline(connection),
+      for (final connection in connections)
+        buildDirectConnectionPolyline(connection),
     };
 
     return LayoutBuilder(
@@ -333,12 +369,13 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                 onFitPins: markers.isEmpty ? null : _fitAllPins,
                                 isMobile: false,
                               ),
-                              navigationInfoCard: connection == null
+                              navigationDeck: connections.isEmpty
                                   ? null
-                                  : NavigationInfoCard(
-                                      connection: connection,
-                                      onGetDirections: () =>
-                                          unawaited(_openDirections()),
+                                  : NavigationDeck(
+                                      connections: connections,
+                                      onGetDirections: (connection) =>
+                                          unawaited(
+                                              _openDirections(connection)),
                                     ),
                             ),
                     ),
@@ -352,13 +389,14 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                 ),
               ),
             ),
-            if (isMobileLayout && connection != null)
+            if (isMobileLayout && connections.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: NavigationInfoCard(
-                  connection: connection,
+                child: NavigationDeck(
+                  connections: connections,
                   isMobile: true,
-                  onGetDirections: () => unawaited(_openDirections()),
+                  onGetDirections: (connection) =>
+                      unawaited(_openDirections(connection)),
                 ),
               ),
             Padding(
@@ -391,7 +429,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                         color: AppColors.blue,
                         label: 'LAST KNOWN responder',
                       ),
-                      if (connection != null)
+                      if (connections.isNotEmpty)
                         const LegendItem(
                           color: AppColors.blue,
                           label: 'Direct connection (straight line)',
@@ -479,10 +517,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   /// Hands the actual driving directions to Google Maps: a universal Maps
   /// URL that opens the Google Maps app on Android/iOS and the Google Maps
   /// website on desktop/web. No API key and no routing call inside ERAS.
-  Future<void> _openDirections() async {
-    final connection = _connection;
-    if (connection == null) return;
-
+  Future<void> _openDirections(DirectConnection connection) async {
     final opened = await openGoogleMapsDirections(
       connection: connection,
       launcher: _launcher,
@@ -552,11 +587,11 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
 class _MapOverlayControls extends StatelessWidget {
   const _MapOverlayControls({
     required this.controls,
-    required this.navigationInfoCard,
+    required this.navigationDeck,
   });
 
   final Widget controls;
-  final Widget? navigationInfoCard;
+  final Widget? navigationDeck;
 
   @override
   Widget build(BuildContext context) {
@@ -574,15 +609,87 @@ class _MapOverlayControls extends StatelessWidget {
                 constraints: BoxConstraints(maxWidth: constraints.maxWidth),
                 child: controls,
               ),
-              if (navigationInfoCard != null)
+              if (navigationDeck != null)
                 ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                  child: navigationInfoCard!,
+                  child: navigationDeck!,
                 ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+/// PHASE F: one navigation card per responder → emergency connection.
+///
+/// Mobile: a single connection keeps the familiar full-width card; several
+/// connections render as a horizontally scrollable row of compact cards so
+/// the narrow viewport never overflows. Desktop: compact cards wrap, capped
+/// in height with an inner scroll for very large responder counts.
+///
+/// Straight-line distances and the existing Google Maps URL launcher only -
+/// no ETA, no road routes, no routing API.
+class NavigationDeck extends StatelessWidget {
+  const NavigationDeck({
+    super.key,
+    required this.connections,
+    required this.onGetDirections,
+    this.isMobile = false,
+  });
+
+  final List<DirectConnection> connections;
+  final void Function(DirectConnection connection) onGetDirections;
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    if (connections.isEmpty) return const SizedBox.shrink();
+
+    if (isMobile) {
+      if (connections.length == 1) {
+        return NavigationInfoCard(
+          connection: connections.single,
+          isMobile: true,
+          onGetDirections: () => onGetDirections(connections.single),
+        );
+      }
+      return SizedBox(
+        height: 148,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: connections.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final connection = connections[index];
+            return SizedBox(
+              width: 250,
+              child: NavigationInfoCard(
+                connection: connection,
+                onGetDirections: () => onGetDirections(connection),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 190),
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            for (final connection in connections)
+              NavigationInfoCard(
+                connection: connection,
+                onGetDirections: () => onGetDirections(connection),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

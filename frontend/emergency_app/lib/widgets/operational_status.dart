@@ -244,6 +244,7 @@ class LocationSharingSummary extends StatelessWidget {
     required this.location,
     required this.connectionStatus,
     this.compact = false,
+    this.responderLabel,
   });
 
   final bool isActive;
@@ -251,14 +252,20 @@ class LocationSharingSummary extends StatelessWidget {
   final RealtimeConnectionStatus connectionStatus;
   final bool compact;
 
+  /// Optional multi-responder disambiguation, e.g. the responder's name:
+  /// "LOCATION SHARING ACTIVE · Responder B". Never fabricated client-side -
+  /// derived from assignment/allocation responder identities.
+  final String? responderLabel;
+
   @override
   Widget build(BuildContext context) {
     final color = isActive ? AppColors.teal : AppColors.textFaint;
+    final suffix = (responderLabel ?? '').isEmpty ? '' : ' · $responderLabel';
     final title = isActive
         ? location == null
-            ? 'LOCATION SHARING ACTIVE · WAITING FOR GPS'
-            : 'LOCATION SHARING ACTIVE'
-        : 'LAST-KNOWN RESPONDER LOCATION';
+            ? 'LOCATION SHARING ACTIVE · WAITING FOR GPS$suffix'
+            : 'LOCATION SHARING ACTIVE$suffix'
+        : 'LAST-KNOWN RESPONDER LOCATION$suffix';
     final detail = location == null
         ? null
         : '${location!.latitude.toStringAsFixed(5)}, '

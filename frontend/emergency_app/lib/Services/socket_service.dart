@@ -54,6 +54,7 @@ class SocketService {
     'request.created',
     'request.updated',
     'allocation.updated',
+    'responder.assigned',
     'responder.availability',
     'responder.location.start',
     'responder.location.update',

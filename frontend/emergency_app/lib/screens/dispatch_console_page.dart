@@ -203,10 +203,18 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     if (event.name == 'responder.location.stop') {
       final requestId = _asEventInt(event.payload['requestId']);
-      if (requestId == locationStore.localSharingRequestId) {
+      final responderId = _asEventInt(event.payload['responderId']);
+      if (requestId == locationStore.localSharingRequestId &&
+          (responderId == null ||
+              responderId == locationStore.localSharingResponderId ||
+              responderId == ApiService.currentUserId)) {
         await _stopLocalLocationSharing(requestId, emitStop: false);
       }
-      if (requestId != null) locationStore.stopSharing(requestId);
+      // Multi-responder: only the stopping responder's point becomes
+      // last-known; every other responder's stream is untouched.
+      if (requestId != null) {
+        locationStore.stopSharing(requestId, responderId: responderId);
+      }
       return;
     }
 
@@ -225,15 +233,52 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         await _applyRealtimeRequest(request);
       } else {
         // Unassigned responders receive a deliberately redacted invalidation
-        // when a pending request becomes unavailable. It contains no request
-        // snapshot and is only used to remove that pending card.
+        // (no request snapshot). Under multi-responder dispatch `available`
+        // means "still joinable" (non-terminal + outstanding quantity), so
+        // the pending card is only removed when the backend says the request
+        // is no longer joinable.
         final requestId = _asEventInt(event.payload['requestId']);
-        if (isResponder && requestId != null && mounted) {
+        final stillJoinable = event.payload['available'] == true;
+        if (isResponder &&
+            requestId != null &&
+            !stillJoinable &&
+            mounted) {
           setState(() {
             pendingCompatible.removeWhere((request) => request.id == requestId);
           });
         }
       }
+      return;
+    }
+
+    if (event.name == 'responder.assigned') {
+      // Multi-responder assignment confirmation. The backend always includes
+      // the fresh request snapshot (with assignments[]); applying it keeps
+      // acceptedBy lead semantics and de-duplicates naturally. Without a
+      // snapshot, merge the single assignment row into any known request and
+      // fall back to a silent REST refresh.
+      final rawRequest = event.payload['request'];
+      if (rawRequest is Map) {
+        await _applyRealtimeRequest(
+          EmergencyRequest.fromJson(Map<String, dynamic>.from(rawRequest)),
+        );
+        return;
+      }
+
+      final rawAssignment = event.payload['assignment'];
+      final requestId = _asEventInt(event.payload['requestId']);
+      if (rawAssignment is Map && requestId != null && mounted) {
+        final assignment = ResponderAssignmentLine.fromJson(
+          Map<String, dynamic>.from(rawAssignment),
+        );
+        setState(() {
+          _replaceRequestIn(openRequests, requestId,
+              (request) => request.withAssignment(assignment));
+          _replaceRequestIn(logEntries, requestId,
+              (request) => request.withAssignment(assignment));
+        });
+      }
+      await refreshAll(silent: true);
       return;
     }
 
@@ -275,14 +320,16 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       logEntries.removeWhere((row) => row.id == request.id);
 
       if (isResponder) {
-        if (request.isOpen &&
-            request.acceptedBy?.id == ApiService.currentUserId) {
+        // Multi-responder classification mirrors the backend participation
+        // rule: ACTIVE assignment, unfinished own allocation, or the legacy
+        // acceptedBy lead (payloads without assignment data).
+        final mine = request.participatesAsResponder(ApiService.currentUserId);
+        if (request.isOpen && mine) {
           openRequests.add(request);
         } else if (request.status == RequestStatus.pending) {
           // request.created is sent only to compatible responders.
           pendingCompatible.add(request);
-        } else if (!request.isOpen &&
-            request.acceptedBy?.id == ApiService.currentUserId) {
+        } else if (!request.isOpen && mine) {
           logEntries.add(request);
         }
       } else if (request.isOpen) {
@@ -334,11 +381,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   void _syncRequestSubscriptions() {
+    // The backend authorizes request-room subscriptions for exactly the
+    // participation rule (ACTIVE assignment / unfinished allocation / legacy
+    // lead), so the client subscribes to the same set.
     final authorizedOpenIds = openRequests
         .where((request) =>
             isAdmin ||
             isRequester ||
-            (isResponder && request.acceptedBy?.id == ApiService.currentUserId))
+            (isResponder &&
+                request.participatesAsResponder(ApiService.currentUserId)))
         .map((request) => request.id)
         .toSet();
 
@@ -803,8 +854,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   Future<void> startLocationSharing(EmergencyRequest request) async {
-    if (!isResponder || request.acceptedBy?.id != ApiService.currentUserId) {
-      showToast('Only the assigned responder can share this emergency location.');
+    if (!isResponder ||
+        !request.participatesAsResponder(ApiService.currentUserId)) {
+      showToast(
+          'Only a responder assigned to this emergency can share its location.');
       return;
     }
     if (connectionStatus != RealtimeConnectionStatus.connected ||
@@ -833,7 +886,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       if (!authorized) {
         throw Exception('Location sharing was not authorized for this request.');
       }
-      locationStore.beginLocalSharing(request.id);
+      locationStore.beginLocalSharing(
+        request.id,
+        responderId: ApiService.currentUserId,
+      );
 
       try {
         final initialPosition = await Geolocator.getCurrentPosition(
@@ -1223,7 +1279,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             onMarkDelivered: markAllocationDelivered,
             onStartLocationSharing: startLocationSharing,
             onStopLocationSharing: stopLocationSharing,
-            liveLocations: locationStore.locations,
+            liveLocations: locationStore.locationsByRequest,
             activelySharingRequestIds:
                 locationStore.activelySharingRequestIds,
             sharingRequestId: locationStore.localSharingRequestId,
@@ -1266,7 +1322,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
                 : 'No active requests in the database.',
             onCancelRequest: isRequester ? cancelRequest : null,
             onConfirmReceipt: isRequester ? confirmReceipt : null,
-            liveLocations: locationStore.locations,
+            liveLocations: locationStore.locationsByRequest,
             activelySharingRequestIds:
                 locationStore.activelySharingRequestIds,
             connectionStatus: connectionStatus,
@@ -1288,7 +1344,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           ),
           child: OperationalGoogleMap(
             requests: [...openRequests, ...pendingCompatible],
-            liveLocations: locationStore.locations,
+            liveLocations: locationStore.locationsByRequest,
             isMobile: isMobile,
           ),
         ),

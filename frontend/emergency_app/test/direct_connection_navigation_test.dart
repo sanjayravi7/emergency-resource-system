@@ -30,12 +30,44 @@ class FakeUrlLauncher implements ExternalUrlLauncher {
   Uri get last => launched.last;
 }
 
+Map<String, dynamic> assignment(int responderId, {String status = 'ACTIVE'}) =>
+    <String, dynamic>{
+      'id': responderId,
+      'requestId': 501,
+      'responderId': responderId,
+      'status': status,
+      'acceptedAt': '2026-09-26T09:30:00.000Z',
+      'responder': <String, dynamic>{
+        'id': responderId,
+        'name': 'Responder $responderId',
+      },
+    };
+
+Map<String, dynamic> allocationRow(int responderId,
+        {String status = 'RESERVED'}) =>
+    <String, dynamic>{
+      'id': 900 + responderId,
+      'requestId': 501,
+      'resourceId': 4,
+      'responderId': responderId,
+      'responderResourceId': 100 + responderId,
+      'quantity': 1,
+      'status': status,
+      'resource': <String, dynamic>{'id': 4, 'name': 'Blood'},
+      'responder': <String, dynamic>{
+        'id': responderId,
+        'name': 'Responder $responderId',
+      },
+    };
+
 EmergencyRequest request({
   int id = 501,
   String status = 'IN_PROGRESS',
   double? latitude = 10.05276,
   double? longitude = 76.35211,
   int? responderId = 9,
+  List<Map<String, dynamic>> assignments = const [],
+  List<Map<String, dynamic>> allocations = const [],
 }) {
   return EmergencyRequest.fromJson(<String, dynamic>{
     'id': id,
@@ -49,7 +81,8 @@ EmergencyRequest request({
     'latitude': latitude,
     'longitude': longitude,
     'requiredResources': <dynamic>[],
-    'allocations': <dynamic>[],
+    'allocations': allocations,
+    'assignments': assignments,
     if (responderId != null)
       'acceptedBy': <String, dynamic>{
         'id': responderId,
@@ -77,14 +110,14 @@ LiveResponderLocation live({
 
 Set<Polyline> polylinesFor({
   required List<EmergencyRequest> requests,
-  required Map<int, LiveResponderLocation> liveLocations,
+  required Map<int, Map<int, LiveResponderLocation>> liveLocations,
 }) {
-  final connection = selectDirectConnection(
-    requests: requests,
-    liveLocations: liveLocations,
-  );
   return <Polyline>{
-    if (connection != null) buildDirectConnectionPolyline(connection),
+    for (final connection in selectDirectConnections(
+      requests: requests,
+      liveLocations: liveLocations,
+    ))
+      buildDirectConnectionPolyline(connection),
   };
 }
 
@@ -98,12 +131,14 @@ void main() {
     test('appears for two valid points', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{501: live()},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
       );
 
       expect(polylines, hasLength(1));
       final line = polylines.single;
-      expect(line.polylineId, kDirectConnectionPolylineId);
+      // PHASE F: each (request, responder) pair draws its own line with a
+      // unique id (was the single shared kDirectConnectionPolylineId).
+      expect(line.polylineId, directConnectionPolylineIdFor(501, 9));
       expect(line.points, <LatLng>[
         const LatLng(10.00846, 76.45163),
         const LatLng(10.05276, 76.35211),
@@ -114,13 +149,15 @@ void main() {
     test('updates when the responder coordinate changes', () {
       final before = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{501: live()},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
       ).single;
 
       final after = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{
-          501: live(latitude: 10.02000, longitude: 76.44000),
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            9: live(latitude: 10.02000, longitude: 76.44000),
+          },
         },
       ).single;
 
@@ -135,7 +172,7 @@ void main() {
     test('no line when emergency coordinates are missing', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request(latitude: null, longitude: null)],
-        liveLocations: <int, LiveResponderLocation>{501: live()},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
       );
 
       expect(polylines, isEmpty);
@@ -145,7 +182,7 @@ void main() {
     test('no line when responder coordinates are missing', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: const <int, LiveResponderLocation>{},
+        liveLocations: const <int, Map<int, LiveResponderLocation>>{},
       );
 
       expect(polylines, isEmpty);
@@ -156,7 +193,7 @@ void main() {
         requests: <EmergencyRequest>[
           request(status: 'PENDING', responderId: null),
         ],
-        liveLocations: <int, LiveResponderLocation>{501: live()},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
       );
 
       expect(polylines, isEmpty);
@@ -165,7 +202,7 @@ void main() {
     test('no line when the live responder is not the assignee', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request(responderId: 9)],
-        liveLocations: <int, LiveResponderLocation>{501: live(responderId: 42)},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{42: live(responderId: 42)}},
       );
 
       expect(polylines, isEmpty);
@@ -176,7 +213,7 @@ void main() {
       expect(
         polylinesFor(
           requests: <EmergencyRequest>[request()],
-          liveLocations: <int, LiveResponderLocation>{501: live()},
+          liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
         ),
         hasLength(1),
       );
@@ -185,7 +222,7 @@ void main() {
         expect(
           polylinesFor(
             requests: <EmergencyRequest>[request(status: terminal)],
-            liveLocations: <int, LiveResponderLocation>{501: live()},
+            liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
           ),
           isEmpty,
           reason: '$terminal requests must not keep a connection line',
@@ -196,8 +233,10 @@ void main() {
     test('a last-known responder point still draws the connection', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{
-          501: live(isLive: false),
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            9: live(isLive: false),
+          },
         },
       );
 
@@ -208,7 +247,7 @@ void main() {
   group('Google Maps directions URL', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, LiveResponderLocation>{501: live()},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
     )!;
 
     // 6 -------------------------------------------------------------------
@@ -298,7 +337,7 @@ void main() {
         () async {
       final lastKnown = selectDirectConnection(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{501: live(isLive: false)},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(isLive: false)}},
       )!;
       final launcher = FakeUrlLauncher();
 
@@ -326,7 +365,7 @@ void main() {
   group('NavigationInfoCard', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, LiveResponderLocation>{501: live()},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
     )!;
 
     testWidgets('shows LIVE/SET state and a clearly labelled direct distance',
@@ -436,8 +475,10 @@ void main() {
         (tester) async {
       final lastKnownConnection = selectDirectConnection(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{
-          501: live(isLive: false),
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            9: live(isLive: false),
+          },
         },
       )!;
 
@@ -485,7 +526,7 @@ void main() {
                   width: width,
                   child: OperationalGoogleMap(
                     requests: <EmergencyRequest>[activeRequest],
-                    liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                    liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: liveLoc}},
                     isMobile: true,
                     urlLauncher: launcher,
                   ),
@@ -550,7 +591,7 @@ void main() {
                 width: 360,
                 child: OperationalGoogleMap(
                   requests: <EmergencyRequest>[request(status: status)],
-                  liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                  liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: liveLoc}},
                   isMobile: true,
                 ),
               ),
@@ -582,7 +623,7 @@ void main() {
               width: 1200,
               child: OperationalGoogleMap(
                 requests: <EmergencyRequest>[activeRequest],
-                liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: liveLoc}},
                 isMobile: false,
               ),
             ),
@@ -664,10 +705,207 @@ void main() {
     });
   });
 
+  group('multi-responder direct connections (Phase F)', () {
+    final assignedRequest = request(
+      assignments: [assignment(9), assignment(11), assignment(12, status: 'ENDED')],
+    );
+
+    Map<int, Map<int, LiveResponderLocation>> twoResponderLocations() =>
+        <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            9: live(latitude: 10.05276, longitude: 76.35211),
+            11: live(latitude: 10.10000, longitude: 76.40000),
+          },
+        };
+
+    // Phase F case 19 ----------------------------------------------------
+    test('one live connection per participating responder', () {
+      final connections = selectDirectConnections(
+        requests: <EmergencyRequest>[assignedRequest],
+        liveLocations: twoResponderLocations(),
+      );
+
+      // Responder 12 is ENDED: never active work, no connection.
+      expect(connections, hasLength(2));
+      expect(connections.map((c) => c.responderId), <int>[9, 11]);
+    });
+
+    // Phase F case 20 ----------------------------------------------------
+    test('each (request, responder) pair draws its own polyline id', () {
+      final polylines = polylinesFor(
+        requests: <EmergencyRequest>[assignedRequest],
+        liveLocations: twoResponderLocations(),
+      );
+
+      expect(polylines, hasLength(2));
+      expect(
+        polylines.map((line) => line.polylineId.value).toSet(),
+        <String>{
+          directConnectionPolylineIdFor(501, 9).value,
+          directConnectionPolylineIdFor(501, 11).value,
+        },
+      );
+      // Every polyline runs responder point -> emergency point.
+      for (final line in polylines) {
+        expect(line.points, hasLength(2));
+      }
+      final responder9Line = polylines.firstWhere((line) =>
+          line.polylineId == directConnectionPolylineIdFor(501, 9));
+      expect(responder9Line.points.first.latitude, 10.05276);
+      expect(responder9Line.points.last.latitude, 10.05276,
+          reason: 'destination is the emergency coordinate');
+    });
+
+    // Phase F case 21 ----------------------------------------------------
+    test('a live point of a non-participating responder creates no line', () {
+      final connections = selectDirectConnections(
+        requests: <EmergencyRequest>[request()],
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            42: live(responderId: 42),
+          },
+        },
+      );
+
+      expect(connections, isEmpty);
+    });
+
+    test('an allocation-only responder is relevant without an assignment', () {
+      final connections = selectDirectConnections(
+        requests: <EmergencyRequest>[
+          request(assignments: const [], allocations: [allocationRow(11)]),
+        ],
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            11: live(latitude: 10.05, longitude: 76.35),
+          },
+        },
+      );
+
+      expect(connections, hasLength(1));
+      expect(connections.single.responderId, 11);
+    });
+
+    test('a CANCELLED allocation alone does not make a responder relevant', () {
+      final connections = selectDirectConnections(
+        requests: <EmergencyRequest>[
+          request(assignments: const [], allocations: [
+            allocationRow(11, status: 'CANCELLED'),
+          ]),
+        ],
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            11: live(latitude: 10.05, longitude: 76.35),
+          },
+        },
+      );
+
+      expect(connections, isEmpty);
+    });
+
+    // Phase F case 22 ----------------------------------------------------
+    test('two requests with two responders produce four isolated lines', () {
+      final secondRequest = request(
+        id: 502,
+        latitude: 9.9,
+        longitude: 76.3,
+        responderId: 9,
+        assignments: [assignment(9)],
+      );
+
+      final polylines = polylinesFor(
+        requests: <EmergencyRequest>[assignedRequest, secondRequest],
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            9: live(latitude: 10.05276, longitude: 76.35211),
+            11: live(latitude: 10.10000, longitude: 76.40000),
+          },
+          502: <int, LiveResponderLocation>{
+            9: live(latitude: 10.0, longitude: 76.25),
+          },
+        },
+      );
+
+      expect(polylines, hasLength(3));
+      expect(
+        polylines.map((line) => line.polylineId.value).toSet(),
+        <String>{
+          directConnectionPolylineIdFor(501, 9).value,
+          directConnectionPolylineIdFor(501, 11).value,
+          directConnectionPolylineIdFor(502, 9).value,
+        },
+      );
+    });
+
+    // Phase F case 23 ----------------------------------------------------
+    testWidgets('Get directions opens the Google Maps URL for each responder',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final launcher = FakeUrlLauncher();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              child: OperationalGoogleMap(
+                requests: <EmergencyRequest>[assignedRequest],
+                liveLocations: twoResponderLocations(),
+                isMobile: false,
+                urlLauncher: launcher,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      final buttons = find.widgetWithText(TextButton, 'Get directions');
+      expect(buttons, findsNWidgets(2));
+
+      await tester.tap(buttons.first);
+      await tester.pump();
+      await tester.tap(buttons.at(1));
+      await tester.pump();
+
+      expect(launcher.launched, hasLength(2));
+      final urls = launcher.launched.map((url) => url.toString()).toList();
+      // Both use the existing Google Maps directions launcher - no Routes
+      // API, no ETA - and each origin is that responder's live point while
+      // the destination stays the emergency location.
+      for (final url in urls) {
+        expect(url, startsWith('https://www.google.com/maps/dir/'));
+        expect(url, contains('destination=10.05276,76.35211'));
+      }
+      expect(urls.first, contains('origin=10.05276,76.35211'));
+      expect(urls.last, contains('origin=10.1,76.4'));
+    });
+
+    // Phase F case 24 ----------------------------------------------------
+    test('every connection distance is haversine straight-line only', () {
+      final connections = selectDirectConnections(
+        requests: <EmergencyRequest>[assignedRequest],
+        liveLocations: twoResponderLocations(),
+      );
+
+      // Responder 9 sits exactly on the emergency: ~0 m. Responder 11 is
+      // roughly 7.3 km away. No driving distance, no ETA anywhere.
+      expect(connections.first.responderId, 9);
+      expect(connections.first.directDistanceMeters, lessThan(50));
+      expect(connections[1].responderId, 11);
+      expect(connections[1].directDistanceMeters, closeTo(7422, 60));
+      expect(connections[1].directDistanceLabel, endsWith('km'));
+    });
+  });
+
   test('direct distance is straight-line only', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, LiveResponderLocation>{501: live()},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
     )!;
 
     // Haversine distance between the two fixed points ≈ 12.0 km.
