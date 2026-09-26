@@ -131,21 +131,43 @@ class LegendItem extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final labelWidget = Text(
+          label,
+          softWrap: true,
+          style: const TextStyle(
+            fontSize: 11.5,
+            color: AppColors.textDim,
+            height: 1.25,
           ),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),
-          ),
-        ],
-      );
+        );
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(top: 3),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+            // Narrow phone widths (320 px) cannot fit the longest legend label
+            // on one line. When the available width is bounded the label is
+            // allowed to wrap instead of overflowing the Row; unbounded
+            // layouts keep the original intrinsic sizing.
+            if (constraints.hasBoundedWidth)
+              Flexible(child: labelWidget)
+            else
+              labelWidget,
+          ],
+        );
+      },
+    );
+  }
 }
 
 class ConnectionStatusIndicator extends StatelessWidget {

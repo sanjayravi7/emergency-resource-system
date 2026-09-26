@@ -1,5 +1,18 @@
 const requestService = require('../services/requestService');
 
+// A Prisma/infrastructure failure is never a client validation error. Prisma
+// phrases every failed query as "Invalid `prisma.x.y()` invocation", which the
+// message heuristic below would otherwise misread as a 400 and hide the real
+// cause (for example a database column that is still NOT NULL because a
+// migration was not deployed).
+const isInfrastructureError = (error) =>
+  Boolean(
+    error &&
+      (typeof error.code === 'string' ||
+        /^PrismaClient/.test(error.name || '') ||
+        /^Invalid `prisma\./.test(error.message || ''))
+  );
+
 // Errors raised by request validation are client errors (400),
 // not server errors. Everything else keeps the existing behaviour.
 const isValidationError = (message) =>
@@ -12,7 +25,7 @@ exports.createRequest = async (req, res, next) => {
     const request = await requestService.createEmergencyRequest(req.user.id, req.body);
     res.status(201).json({ success: true, request });
   } catch (error) {
-    if (isValidationError(error.message)) {
+    if (!isInfrastructureError(error) && isValidationError(error.message)) {
       return res.status(400).json({
         success: false,
         message: error.message,

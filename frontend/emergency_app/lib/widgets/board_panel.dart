@@ -380,7 +380,7 @@ class BoardPanel extends StatelessWidget {
                       SizedBox(
                         width: 190,
                         child: Text(
-                          request.description,
+                          request.description!,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -622,7 +622,7 @@ class _RequestCard extends StatelessWidget {
           ),
           if (request.description != null && request.description!.isNotEmpty) ...[
             const SizedBox(height: 6),
-            InfoChip(label: 'Details', value: request.description),
+            InfoChip(label: 'Details', value: request.description!),
           ],
           const SizedBox(height: 8),
           const Text(
