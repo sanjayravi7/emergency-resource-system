@@ -4,11 +4,20 @@ const {
   normalizeRequiredResources,
 } = require('../validators/requestValidator');
 const { runSerializableTransaction } = require('./transactionService');
-const { ACTIVE_REQUEST_STATUSES, syncResponderAvailability } = require('./lifecycleService');
+const {
+  ACTIVE_REQUEST_STATUSES,
+  JOINABLE_REQUEST_STATUSES,
+  UNFINISHED_ALLOCATION_STATUSES,
+  computeOutstandingByResource,
+  syncRequestStatus,
+  syncResponderAvailability,
+  syncResponderAvailabilityForRequest,
+} = require('./lifecycleService');
 const {
   emitAllocationsForRequest,
   emitRequestCreated,
   emitRequestUpdated,
+  emitResponderAssigned,
   emitResponderAvailability,
 } = require('../realtime/eventEmitters');
 const { getIO } = require('../realtime/socketEvents');
@@ -48,6 +57,13 @@ const requestInclude = {
   requiredResources: { include: { resource: true } },
   requester: { select: requesterSelect },
   acceptedBy: { select: responderSelect },
+  // Relation name is responderAssignments on the model; the API/JSON shape is
+  // built below so payloads stay additive.
+  assignments: {
+    include: {
+      responder: { select: responderSelect },
+    },
+  },
   allocations: {
     include: {
       resource: {
@@ -59,6 +75,85 @@ const requestInclude = {
 };
 
 exports.requestInclude = requestInclude;
+
+/**
+ * Normalize a capability row from either of the two shapes the services read:
+ * the locked raw rows inside acceptance (`resourceIsActive`/`resourceMode`
+ * columns) or a plain `responderResource.findMany` row (nested `resource`).
+ * Mode-aware matching never depends on the row shape.
+ */
+function normalizeCapability(row) {
+  if (!row) return null;
+  if (row.resourceMode !== undefined) {
+    return {
+      resourceId: row.resourceId,
+      isEnabled: row.isEnabled,
+      resourceIsActive: row.resourceIsActive,
+      mode: row.resourceMode,
+      status: row.status,
+      availableQuantity: row.availableQuantity,
+    };
+  }
+  return {
+    resourceId: row.resourceId,
+    isEnabled: row.isEnabled,
+    resourceIsActive: row.resource ? row.resource.isActive : false,
+    mode: row.resource ? row.resource.mode : undefined,
+    status: row.status,
+    availableQuantity: row.availableQuantity,
+  };
+}
+
+/**
+ * PARTIAL capability matching (multi-responder dispatch).
+ *
+ * A responder qualifies for an emergency when at least one required resource
+ * line still has outstanding quantity AND is servable by that responder under
+ * the existing RESOURCE MODE rules:
+ *   - SERVICE: enabled capability + active catalog resource (quantity never
+ *     gates a reusable capability)
+ *   - CONSUMABLE: enabled capability + active catalog resource + AVAILABLE
+ *     stock status + at least one unit of real inventory
+ *
+ * A responder never needs to cover every required resource. Returns the
+ * servable lines so callers can also report what remains.
+ */
+function findServableRequiredResources(requiredRows, outstandingByResource, capabilityRows) {
+  const capabilities = (capabilityRows || [])
+    .map(normalizeCapability)
+    .filter(Boolean);
+
+  const servable = [];
+  for (const required of requiredRows) {
+    const outstanding = outstandingByResource.get(required.resourceId) ?? 0;
+    if (outstanding <= 0) continue;
+
+    const capability = capabilities.find(
+      (candidate) => candidate.resourceId === required.resourceId
+    );
+    if (!capability || !capability.isEnabled || !capability.resourceIsActive) {
+      continue;
+    }
+
+    if (capability.mode === 'SERVICE') {
+      servable.push({ resourceId: required.resourceId, outstanding });
+      continue;
+    }
+
+    if (
+      capability.status === 'AVAILABLE' &&
+      capability.availableQuantity > 0
+    ) {
+      servable.push({
+        resourceId: required.resourceId,
+        outstanding: Math.min(outstanding, capability.availableQuantity),
+      });
+    }
+  }
+  return servable;
+}
+
+exports.findServableRequiredResources = findServableRequiredResources;
 
 function normalizeOptionalDescription(value) {
   // Description is optional: blank input is represented consistently as SQL
@@ -168,7 +263,8 @@ exports.cancelEmergencyRequest = async (userId, id) => {
     throw new Error('Request not found');
   }
 
-  const cancelled = await runSerializableTransaction(async (tx) => {
+  const { cancelled, syncedResponderIds } =
+    await runSerializableTransaction(async (tx) => {
     const lockedRequests = await tx.$queryRaw`
       SELECT id, "requesterId", "acceptedById", status
       FROM "EmergencyRequest"
@@ -194,8 +290,6 @@ exports.cancelEmergencyRequest = async (userId, id) => {
       },
       select: { id: true },
     });
-    const affectedResponders = new Set();
-    if (request.acceptedById) affectedResponders.add(request.acceptedById);
 
     for (const candidate of candidates) {
       const lockedAllocations = await tx.$queryRaw`
@@ -250,7 +344,6 @@ exports.cancelEmergencyRequest = async (userId, id) => {
         where: { id: allocation.id },
         data: { status: 'CANCELLED' },
       });
-      affectedResponders.add(allocation.responderId);
     }
 
     const cancelled = await tx.emergencyRequest.update({
@@ -259,18 +352,23 @@ exports.cancelEmergencyRequest = async (userId, id) => {
       include: requestInclude,
     });
 
-    for (const responderId of affectedResponders) {
-      await syncResponderAvailability(tx, responderId);
-    }
+    // Availability is request-scoped: cancelling releases every responder
+    // attached to this request - including assignment holders who never
+    // created an allocation (they are not in the candidates loop above).
+    const syncedResponderIds = await syncResponderAvailabilityForRequest(
+      tx,
+      requestId
+    );
 
-    return cancelled;
+    return { cancelled, syncedResponderIds };
   });
 
   await emitAfterCommit(async () => {
     await emitRequestUpdated(requestId);
     await emitAllocationsForRequest(requestId);
-    const accepted = cancelled.acceptedById;
-    if (accepted) await emitResponderAvailability(accepted);
+    for (const responderId of syncedResponderIds) {
+      await emitResponderAvailability(responderId);
+    }
   });
 
   return cancelled;
@@ -282,12 +380,35 @@ exports.getAllRequests = async () =>
     orderBy: { createdAt: 'desc' },
   });
 
-exports.getAssignedRequestsForResponder = async (responderId) =>
-  prisma.emergencyRequest.findMany({
-    where: { acceptedById: Number(responderId) },
+// ResponderAssignment is authoritative, but the legacy acceptedById rows and
+// the "allocated without accepting" flow are deliberately still returned so
+// no existing workload disappears from the responder board. findMany already
+// yields each request exactly once.
+exports.getAssignedRequestsForResponder = async (responderId) => {
+  const numericResponderId = Number(responderId);
+  return prisma.emergencyRequest.findMany({
+    where: {
+      OR: [
+        {
+          assignments: {
+            some: { responderId: numericResponderId, status: 'ACTIVE' },
+          },
+        },
+        {
+          allocations: {
+            some: {
+              responderId: numericResponderId,
+              status: { in: UNFINISHED_ALLOCATION_STATUSES },
+            },
+          },
+        },
+        { acceptedById: numericResponderId },
+      ],
+    },
     include: requestInclude,
     orderBy: { createdAt: 'desc' },
   });
+};
 
 exports.getCompatibleRequestsForResponder = async (responderId) => {
   const numericResponderId = Number(responderId);
@@ -305,19 +426,33 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
     return [];
   }
 
-  const activeEmergency = await prisma.emergencyRequest.findFirst({
-    where: {
-      acceptedById: numericResponderId,
-      status: { in: ACTIVE_REQUEST_STATUSES },
-    },
-    select: { id: true },
-  });
-  if (activeEmergency) return [];
+  // One active emergency at a time. ResponderAssignment is authoritative;
+  // the acceptedById lookup is the legacy fallback and can only exclude more,
+  // never less.
+  const [activeAssignment, legacyActiveEmergency] = await Promise.all([
+    prisma.responderAssignment.findFirst({
+      where: {
+        responderId: numericResponderId,
+        status: 'ACTIVE',
+        request: { status: { in: ACTIVE_REQUEST_STATUSES } },
+      },
+      select: { requestId: true },
+    }),
+    prisma.emergencyRequest.findFirst({
+      where: {
+        acceptedById: numericResponderId,
+        status: { in: ACTIVE_REQUEST_STATUSES },
+        // Legacy pairs only: assignment rows are authoritative for their
+        // own (request, responder) pair.
+        assignments: { none: { responderId: numericResponderId } },
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (activeAssignment || legacyActiveEmergency) return [];
 
   // A capability must explicitly be enabled. Joining the resource catalog
-  // ensures a disabled/inactive catalog resource can never match. Quantity
-  // and status are only meaningful for CONSUMABLE resources, so they are
-  // evaluated per-mode below rather than filtered out of this query.
+  // ensures a disabled/inactive catalog resource can never match.
   const responderResources = await prisma.responderResource.findMany({
     where: {
       responderId: numericResponderId,
@@ -333,8 +468,26 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
     },
   });
 
+  // Multi-responder dispatch: an emergency stays visible to OTHER compatible
+  // responders while it is active and still has outstanding work, even after
+  // the first responder accepted it. Requests this responder is already
+  // assigned to (or is the legacy lead of) are excluded. Note the explicit
+  // NULL branch: Prisma's `not` alone would drop unaccepted (NULL lead)
+  // emergencies entirely under SQL three-valued logic.
   const requests = await prisma.emergencyRequest.findMany({
-    where: { status: 'PENDING' },
+    where: {
+      status: { in: JOINABLE_REQUEST_STATUSES },
+      OR: [
+        { acceptedById: null },
+        { acceptedById: { not: numericResponderId } },
+      ],
+      assignments: {
+        none: {
+          responderId: numericResponderId,
+          status: 'ACTIVE',
+        },
+      },
+    },
     include: requestInclude,
     orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
   });
@@ -342,27 +495,18 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   return requests.filter((request) => {
     if (!request.requiredResources.length) return false;
 
-    return request.requiredResources.every((required) => {
-      if (!required.resource.isActive) return false;
+    const outstandingByResource = computeOutstandingByResource(
+      request.requiredResources,
+      request.allocations
+    );
 
-      // Strict integer resourceId matching; names/types are never used.
-      const candidate = responderResources.find(
-        (resource) => resource.resourceId === required.resourceId
-      );
-      if (!candidate || !candidate.resource.isActive) return false;
-
-      if (candidate.resource.mode === 'SERVICE') {
-        // Reusable capability: isEnabled + active resource is sufficient.
-        // Quantity/status never gate a SERVICE match.
-        return true;
-      }
-
-      // CONSUMABLE: the responder must have real, available inventory.
-      return (
-        candidate.status === 'AVAILABLE' &&
-        candidate.availableQuantity >= required.quantity
-      );
-    });
+    return (
+      findServableRequiredResources(
+        request.requiredResources,
+        outstandingByResource,
+        responderResources
+      ).length > 0
+    );
   });
 };
 
@@ -374,18 +518,25 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
   }
 
   const acceptedRequest = await runSerializableTransaction(async (tx) => {
-    // Retain explicit row locks for acceptance. The user lock serializes two
-    // different requests racing to be accepted by one responder.
+    // Retain explicit row locks for acceptance. The request lock serializes
+    // every responder racing to join this emergency; the user lock serializes
+    // two different requests racing to be accepted by one responder.
     const lockedRequests = await tx.$queryRaw`
-      SELECT id, status
+      SELECT id, status, "acceptedById"
       FROM "EmergencyRequest"
       WHERE id = ${numericRequestId}
       FOR UPDATE
     `;
     const requestRow = lockedRequests[0];
     if (!requestRow) throw new Error('Request not found');
-    if (requestRow.status !== 'PENDING') {
-      throw new Error('Only PENDING requests can be accepted');
+
+    // Multi-responder acceptance: any active, non-terminal request may gain
+    // an additional responder. Only the terminal states are closed.
+    if (requestRow.status === 'CANCELLED') {
+      throw new Error('Request has already been cancelled');
+    }
+    if (requestRow.status === 'COMPLETED') {
+      throw new Error('Request has already been completed');
     }
 
     const lockedResponders = await tx.$queryRaw`
@@ -403,15 +554,57 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       throw new Error('Responder is not available to accept');
     }
 
-    const activeEmergency = await tx.emergencyRequest.findFirst({
-      where: {
-        acceptedById: numericResponderId,
-        status: { in: ACTIVE_REQUEST_STATUSES },
-      },
-      select: { id: true },
-    });
-    if (activeEmergency) {
+    // One active emergency per responder (existing business rule). The
+    // assignment table is authoritative; acceptedById is the legacy
+    // fallback. This request itself is excluded - joining it again is the
+    // duplicate case handled below, not a conflict.
+    const [conflictingAssignment, conflictingLegacyEmergency] =
+      await Promise.all([
+        tx.responderAssignment.findFirst({
+          where: {
+            responderId: numericResponderId,
+            status: 'ACTIVE',
+            request: {
+              status: { in: ACTIVE_REQUEST_STATUSES },
+              id: { not: numericRequestId },
+            },
+          },
+          select: { id: true },
+        }),
+        tx.emergencyRequest.findFirst({
+          where: {
+            acceptedById: numericResponderId,
+            status: { in: ACTIVE_REQUEST_STATUSES },
+            id: { not: numericRequestId },
+            // Legacy pairs only: once an assignment row exists for this
+            // responder on that request, the table alone decides.
+            assignments: { none: { responderId: numericResponderId } },
+          },
+          select: { id: true },
+        }),
+      ]);
+    if (conflictingAssignment || conflictingLegacyEmergency) {
       throw new Error('Responder already has an active emergency');
+    }
+
+    // Duplicate membership on THIS request: application-level check first.
+    // The database unique constraint on (requestId, responderId) is the final
+    // safety net and is mapped to the same business error below. A legacy
+    // lead without any assignment row also counts as assigned; a pair whose
+    // row was ENDED is left to the constraint (re-joining ended assignments
+    // is a later-phase transition).
+    const existingPairRow = await tx.responderAssignment.findFirst({
+      where: {
+        requestId: numericRequestId,
+        responderId: numericResponderId,
+      },
+      select: { id: true, status: true },
+    });
+    if (
+      (existingPairRow && existingPairRow.status === 'ACTIVE') ||
+      (!existingPairRow && requestRow.acceptedById === numericResponderId)
+    ) {
+      throw new Error('Responder is already assigned to this request');
     }
 
     const requiredResources = await tx.requestResource.findMany({
@@ -421,6 +614,21 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     if (!requiredResources.length) {
       throw new Error('Request has no required resource');
     }
+
+    // Outstanding quantity reuses the allocation service's definition of
+    // "active allocation" so acceptance and allocation can never disagree
+    // about how much work remains.
+    const activeAllocations = await tx.allocation.findMany({
+      where: {
+        requestId: numericRequestId,
+        status: { not: 'CANCELLED' },
+      },
+      select: { resourceId: true, quantity: true, status: true },
+    });
+    const outstandingByResource = computeOutstandingByResource(
+      requiredResources,
+      activeAllocations
+    );
 
     // Lock all capability rows before the compatibility re-check so changes
     // made after GET /compatible cannot race this acceptance.
@@ -434,49 +642,89 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       FOR UPDATE OF rr, resource
     `;
 
-    for (const required of requiredResources) {
-      const matching = responderResources.find((resource) => {
-        if (resource.resourceId !== required.resourceId) return false;
-        if (!resource.isEnabled || !resource.resourceIsActive) return false;
-
-        if (resource.resourceMode === 'SERVICE') {
-          // Reusable capability: no quantity ceiling and no dependence on
-          // the ResponderResource.status column (that column only tracks
-          // consumable stock availability).
-          return true;
-        }
-
-        return (
-          resource.status === 'AVAILABLE' &&
-          resource.availableQuantity >= required.quantity
-        );
-      });
-      if (!matching) {
-        throw new Error('Responder does not have the required resource available');
-      }
+    // PARTIAL capability matching: the responder needs at least one required
+    // resource line that still has outstanding quantity and that they can
+    // serve under the existing mode rules. Full coverage is NOT required -
+    // other responders may cover the remaining lines.
+    const servable = findServableRequiredResources(
+      requiredResources,
+      outstandingByResource,
+      responderResources
+    );
+    if (!servable.length) {
+      throw new Error(
+        'Responder has no compatible resource with outstanding quantity'
+      );
     }
 
-    const updatedRequest = await tx.emergencyRequest.update({
-      where: { id: numericRequestId },
-      data: {
-        status: 'ACCEPTED',
-        acceptedById: numericResponderId,
-        acceptedAt: new Date(),
-      },
-      include: requestInclude,
+    // First assignment becomes the lead responder. acceptedById is never
+    // overwritten by later assignments and is never cleared when one ends.
+    const activeAssignmentCount = await tx.responderAssignment.count({
+      where: { requestId: numericRequestId, status: 'ACTIVE' },
     });
+    const isFirstAssignment =
+      activeAssignmentCount === 0 && !requestRow.acceptedById;
+
+    // One timestamp per acceptance: the assignment row and (for the first
+    // acceptance) the request row describe the same event.
+    const acceptedAt = new Date();
+
+    let assignment;
+    try {
+      assignment = await tx.responderAssignment.create({
+        data: {
+          requestId: numericRequestId,
+          responderId: numericResponderId,
+          status: 'ACTIVE',
+          acceptedAt,
+        },
+      });
+    } catch (error) {
+      // P2002 = unique (requestId, responderId) violation from a concurrent
+      // accept that committed between our check and this insert. Surface it
+      // as the same business conflict instead of leaking a Prisma error.
+      if (error.code === 'P2002') {
+        throw new Error('Responder is already assigned to this request');
+      }
+      throw error;
+    }
+
+    if (isFirstAssignment) {
+      await tx.emergencyRequest.update({
+        where: { id: numericRequestId },
+        data: {
+          acceptedById: numericResponderId,
+          acceptedAt,
+        },
+      });
+    }
 
     await tx.user.update({
       where: { id: numericResponderId },
       data: { lastActiveAt: new Date() },
     });
+
+    // Derive the request status from persisted state exactly as the rest of
+    // the lifecycle does: first acceptance moves PENDING -> ACCEPTED, later
+    // acceptances keep the existing active status (never reset to PENDING).
+    await syncRequestStatus(tx, numericRequestId);
     await syncResponderAvailability(tx, numericResponderId);
 
-    return updatedRequest;
+    // The response contract is unchanged: the updated request row, now also
+    // carrying its assignments through requestInclude.
+    return tx.emergencyRequest.findUnique({
+      where: { id: numericRequestId },
+      include: requestInclude,
+    });
   });
 
   await emitAfterCommit(async () => {
     await emitRequestUpdated(numericRequestId, [numericResponderId]);
+    // Per-responder assignment confirmation for multi-responder dispatch:
+    // the assigned responder receives their own assignment, while the
+    // requester, request room, and admins receive the full assignments[]
+    // state. Emitted only after the acceptance transaction committed.
+    await emitResponderAssigned(numericRequestId, numericResponderId);
     await emitResponderAvailability(numericResponderId);
   });
 

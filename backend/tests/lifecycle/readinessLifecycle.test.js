@@ -191,7 +191,7 @@ describe('Responder readiness and delivery lifecycle', () => {
     expect(response.body.resources.find((row) => row.id === fireInventory.id).isEnabled).toBe(false);
   });
 
-  test('3. request requiring Blood + Fire does not appear', async () => {
+  test('3. request requiring Blood + Fire appears for the partial (Blood-only) responder', async () => {
     const emergency = await createEmergency([
       { resourceId: blood.id, quantity: 1 },
       { resourceId: fire.id, quantity: 1 },
@@ -202,7 +202,28 @@ describe('Responder readiness and delivery lifecycle', () => {
       .set('Authorization', `Bearer ${responderToken}`);
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.requests.map((item) => item.id)).not.toContain(emergency.id);
+    // PHASE C: partial capability matching - a responder who can serve at
+    // least one required resource line with outstanding quantity sees the
+    // request even though they cannot cover the Fire line. The old
+    // all-resources expectation was intentionally changed; zero-overlap
+    // rejection is proven by test 15 below and by 3b right here.
+    expect(response.body.requests.map((item) => item.id)).toContain(emergency.id);
+  });
+
+  test('3b. responder with ZERO overlap cannot accept the request', async () => {
+    const emergency = await createEmergency([
+      { resourceId: fire.id, quantity: 1 },
+    ]);
+
+    // The Blood-only responder has no capability for a Fire-only request.
+    const response = await request(app)
+      .patch(`/api/requests/${emergency.id}/accept`)
+      .set('Authorization', `Bearer ${responderToken}`);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body.message).toBe(
+      'Responder has no compatible resource with outstanding quantity'
+    );
   });
 
   test('4. request requiring only Blood appears', async () => {

@@ -19,10 +19,21 @@ fresh PostgreSQL snapshot through the Socket.IO instance created by
   It is sent only to the `user:{id}` rooms of compatible active responders,
   plus the creator and admins.
 - `request.updated`: `{ requestId, status, acceptedBy, acceptedById,
-  acceptedAt, updatedAt, request }` for the owning requester, assigned
-  responder/request room, and admins. Other responders receive only a redacted
-  `{ requestId, status, available, updatedAt }` invalidation so a no-longer-
-  pending card can be removed without exposing requester data.
+  acceptedAt, updatedAt, request }` (the `request` snapshot also carries
+  `assignments[]`) for the owning requester, every responder with an ACTIVE
+  assignment, the request room, and admins. Other responders receive only a
+  redacted `{ requestId, status, available, updatedAt }` invalidation so a
+  no-longer-joinable card can be removed without exposing requester data.
+  `available` now means "still joinable" (non-terminal AND at least one
+  required resource with outstanding quantity), not `status === 'PENDING'`:
+  under multi-responder dispatch an ACCEPTED/IN_PROGRESS/PARTIALLY_ALLOCATED
+  request may still have outstanding work. The compatibility endpoint stays
+  authoritative for a specific responder.
+- `responder.assigned`: `{ requestId, responderId, assignment, assignments,
+  request }` is emitted after the acceptance transaction commits. The
+  assigned responder receives their own assignment confirmation through
+  `user:{responderId}`; the request room, the requester, and admins receive
+  the full multi-responder assignment state.
 - `allocation.updated`: `{ allocationId, requestId, status, quantity,
   resourceId, responderId, updatedAt, allocation, requestStatus }`, restricted
   to the owning requester, assigned responder/request room, and admins.
@@ -34,8 +45,13 @@ fresh PostgreSQL snapshot through the Socket.IO instance created by
 
 Clients may request `request.subscribe`, but membership is checked against
 PostgreSQL. A requester can subscribe only to their own request, and a
-responder only to a request assigned to them. Admin subscriptions are allowed
-for operational visibility.
+responder only to a request they participate in: an ACTIVE
+`ResponderAssignment`, an unfinished allocation (allocation intentionally
+does not require an assignment), or - as a legacy fallback - an
+`acceptedById` lead row without any assignment data for that pair. Admin
+subscriptions are allowed for operational visibility. On (re)connect a
+responder is automatically re-joined to the request rooms of all their
+non-terminal participations; requesters are re-joined to their own requests.
 
 Location updates are validated against the authenticated responder's current
 assignment and an active request. They are broadcast only through the
@@ -48,8 +64,11 @@ are configurable with:
 - `SOCKET_LOCATION_PERSIST_INTERVAL_MS` (default `10000`)
 - `SOCKET_SESSION_REVALIDATE_MS` (default `30000`)
 
-Terminal request snapshots emit a location stop event and subsequent location
-updates are rejected. Connected sockets periodically re-read the database user
+Terminal request snapshots emit a `responder.location.stop` PER participating
+responder (lead, ACTIVE assignment holders, and allocation owners - each
+event carries that responder's id) and subsequent location updates are
+rejected. Multiple responders may stream locations on the same request
+independently; every location payload carries `responderId`. Connected sockets periodically re-read the database user
 row and also revalidate before protected socket actions, so deactivated users
 cannot keep using a previously valid JWT session indefinitely.
 
