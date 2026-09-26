@@ -41,7 +41,7 @@ jobs:
       - name: Publish resolved lockfile for this diagnostic run
         if: always()
         run: |
-          echo "::notice title=Resolved pubspec.lock::$(base64 --wrap=0 frontend/emergency_app/pubspec.lock)"
+          echo "::notice file=frontend/emergency_app/pubspec.lock,line=1,title=Resolved pubspec.lock::$(base64 --wrap=0 frontend/emergency_app/pubspec.lock)"
 
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
