@@ -104,8 +104,8 @@
             'Key ' + (window.ERAS_MAPS_RUNTIME.keyMasked || '(missing)') +
             ' was rejected for origin ' + window.location.origin + '. ' +
             'Add ' + window.location.origin + '/* to the key HTTP referrers ' +
-            'and make sure Maps JavaScript API, Places API (New) and ' +
-            'Geocoding API are enabled and allowed by the key restrictions.'
+            'and make sure Maps JavaScript API and Places API (New) are ' +
+            'enabled and allowed by the key restrictions.'
           );
         };
 
@@ -131,8 +131,6 @@
           encodeURIComponent(key) +
         // The places library powers the requester place autocomplete and the
         // Nearby Search (New) selector in web/eras_location_bridge.js.
-        // Geocoder (reverse geocoding) is part of the core Maps JavaScript
-        // API bundle loaded here.
         '&libraries=places&v=weekly';
         window.ERAS_MAPS_RUNTIME.loaderUrl =
           mapsScript.src.replace(/key=[^&]*/, 'key=' + maskKey(key));
@@ -141,7 +139,7 @@
           ' (' + String(key).length + ' chars) from origin ' +
           window.location.origin +
           '. Required on this key: Maps JavaScript API, Places API (New), ' +
-          'Geocoding API. Open /eras_location_diagnostics.html to test them.'
+          'Open /eras_location_diagnostics.html to test them.'
         );
         mapsScript.onload = function () {
           loadLocationBridge(startFlutter);

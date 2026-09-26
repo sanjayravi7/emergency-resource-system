@@ -12,10 +12,9 @@
 ///   * latitude/longitude stay the canonical, precise location.
 ///   * the human readable place text is only a label for those coordinates.
 ///   * no coordinate is ever fabricated; failures surface as exceptions.
-///   * on Flutter Web every call goes through the already-loaded Google Maps
-///     JavaScript API (Geocoder + Places library), so the referrer restricted
-///     browser key configured in web/google_maps_config.js is reused and no
-///     key is ever embedded in Dart or backend source.
+///   * on Flutter Web reverse geocoding uses the authenticated ERAS backend
+///     (Photon), while search, place details and nearby places continue to use
+///     the already-loaded Google Places library.
 library;
 
 import 'dart:math' as math;

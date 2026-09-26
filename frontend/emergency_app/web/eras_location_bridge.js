@@ -7,7 +7,6 @@
  *
  * Google APIs used (must be enabled on the Google Cloud project):
  *   - Maps JavaScript API   (map rendering + this bridge)
- *   - Geocoding API         (google.maps.Geocoder -> reverse geocoding)
  *   - Places API (New)      (AutocompleteSuggestion + Place.fetchFields +
  *                            Place.searchNearby -> Nearby Search (New))
  *
@@ -17,7 +16,6 @@
 (function () {
   'use strict';
 
-  var geocoder = null;
   var sessionToken = null;
 
   function mapsReady() {
@@ -50,7 +48,7 @@
    *
    * Maps JavaScript API errors are plain Error objects whose `code`
    * ("REQUEST_DENIED", "OVER_QUERY_LIMIT", ...) and `endpoint`
-   * ("GEOCODER_GEOCODE", "PLACES_AUTOCOMPLETE", ...) carry the actual reason.
+   * ("PLACES_AUTOCOMPLETE", ...) carry the actual reason.
    * Nothing is swallowed here: the code/endpoint are prefixed to the message
    * exactly as Google reported them.
    */
@@ -112,69 +110,6 @@
       }
     }
     return false;
-  }
-
-  function getGeocoder() {
-    if (!mapsReady()) return null;
-    if (!geocoder) geocoder = new google.maps.Geocoder();
-    return geocoder;
-  }
-
-  /**
-   * Reverse geocoding.
-   * https://developers.google.com/maps/documentation/geocoding/reverse-geocoding
-   * Picks the most specific, human recognisable result rather than a plus code.
-   */
-  async function reverseGeocode(latitude, longitude) {
-    var coder = getGeocoder();
-    if (!coder) return fail('Google Maps JavaScript API is not loaded.');
-
-    try {
-      var response = await coder.geocode({
-        location: { lat: Number(latitude), lng: Number(longitude) },
-      });
-      var results = (response && response.results) || [];
-      if (!results.length) return fail('No address found for these coordinates.');
-
-      var preferredTypes = [
-        'point_of_interest',
-        'establishment',
-        'premise',
-        'street_address',
-        'sublocality',
-        'locality',
-      ];
-
-      var best = null;
-      for (var t = 0; t < preferredTypes.length && !best; t++) {
-        for (var i = 0; i < results.length; i++) {
-          var types = results[i].types || [];
-          if (types.indexOf(preferredTypes[t]) !== -1 &&
-              types.indexOf('plus_code') === -1) {
-            best = results[i];
-            break;
-          }
-        }
-      }
-      if (!best) {
-        for (var j = 0; j < results.length && !best; j++) {
-          if ((results[j].types || []).indexOf('plus_code') === -1) {
-            best = results[j];
-          }
-        }
-      }
-      if (!best) best = results[0];
-
-      return ok({
-        label: best.formatted_address || '',
-        placeId: best.place_id || null,
-      });
-    } catch (error) {
-      // Typical failure: "GEOCODER_GEOCODE: REQUEST_DENIED: The webpage is not
-      // allowed to use the geocoder." -> Geocoding API missing from the
-      // project or from the browser key's API restrictions.
-      return fail(withAuthorizationHint(errorText(error), 'Geocoding API'));
-    }
   }
 
   /**
@@ -498,7 +433,6 @@
     };
 
     if (lat !== null && lng !== null) {
-      report.probes.geocoding = JSON.parse(await reverseGeocode(lat, lng));
       report.probes.placesAutocomplete = JSON.parse(
         await autocomplete('hospital', lat, lng, 30000)
       );
@@ -514,7 +448,6 @@
     isAvailable: function () {
       return mapsReady();
     },
-    reverseGeocode: reverseGeocode,
     autocomplete: autocomplete,
     placeDetails: placeDetails,
     searchNearby: searchNearby,

@@ -10,6 +10,7 @@ const responderResourceRoutes = require('./routes/responderResourceRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const userRoutes = require('./routes/userRoutes');
 const routeRoutes = require('./routes/routeRoutes');
+const locationRoutes = require('./routes/locationRoutes');
 const errorMiddleware = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/api/responder-resources', responderResourceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/routes', routeRoutes);
+app.use('/api/location', locationRoutes);
 
 app.use(errorMiddleware);
 

@@ -66,6 +66,12 @@ const env = {
     8000,
     { min: 1000 }
   ),
+
+  // Photon public reverse-geocoding service. This is server-side only; no
+  // Google Geocoding key is used or sent to Flutter.
+  PHOTON_REVERSE_URL: (process.env.PHOTON_REVERSE_URL || 'https://photon.komoot.io/reverse').trim(),
+  PHOTON_USER_AGENT: (process.env.PHOTON_USER_AGENT || 'ERAS/1.0 (reverse geocoding)').trim(),
+  PHOTON_TIMEOUT_MS: integerFromEnv('PHOTON_TIMEOUT_MS', 5000, { min: 500 }),
 };
 
 if (!env.DATABASE_URL) {
