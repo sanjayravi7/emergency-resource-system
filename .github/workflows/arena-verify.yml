@@ -78,11 +78,9 @@ jobs:
             echo '```'
             git diff --stat | tail -c 3000
             echo '```'
-            echo "### git diff after dart format (truncated)"
-            echo '```diff'
-            git diff | head -c 15000
-            echo '```'
           } >> "$REPORT"
+          git diff > /tmp/format.patch
+          gzip -9 -c /tmp/format.patch | base64 -w 200 > /tmp/format.patch.b64
           git checkout -- .
 
       - name: Publish report
@@ -90,9 +88,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          head -c 60000 /tmp/report.md > /tmp/report.trimmed.md
-          jq -Rs '{body: .}' < /tmp/report.trimmed.md > /tmp/payload.json
-          gh api -X POST \
-            "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
-            --input /tmp/payload.json --jq '.html_url'
+          post() {
+            head -c 60000 "$1" > /tmp/body.txt
+            jq -Rs '{body: .}' < /tmp/body.txt > /tmp/payload.json
+            gh api -X POST \
+              "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+              --input /tmp/payload.json --jq '.html_url'
+          }
+          post /tmp/report.md
+          post /tmp/format.patch.b64
           cat /tmp/report.md >> "$GITHUB_STEP_SUMMARY"

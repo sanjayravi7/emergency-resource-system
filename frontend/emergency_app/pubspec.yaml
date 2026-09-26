@@ -5,7 +5,10 @@ publish_to: none
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  # 3.4.0 is the first SDK that ships the dart:js_interop `isA` helper used by
+  # lib/services/location_service_web.dart for platform-consistent JS type
+  # checks.
+  sdk: ">=3.4.0 <4.0.0"
 
 dependencies:
   flutter:
