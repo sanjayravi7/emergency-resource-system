@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const env = require('../config/env');
 const { authenticateSocket } = require('./socketAuth');
+const { UNFINISHED_ALLOCATION_STATUSES } = require('../services/lifecycleService');
 const {
   attachSocketServer,
   emitToRoom,
@@ -82,12 +83,55 @@ function consumeLocationUpdateQuota(socket, requestId) {
   return { allowed: true, remaining: LOCATION_MAX_UPDATES_PER_WINDOW - state.count };
 }
 
+/**
+ * Authoritative realtime participation for one responder on one request
+ * (Part 2). ResponderAssignment is the primary mechanism:
+ *
+ * 1. an ACTIVE ResponderAssignment exists for (requestId, responderId), OR
+ * 2. the responder owns an unfinished allocation for the request
+ *    (createAllocation intentionally does not require an assignment), OR
+ * 3. LEGACY fallback: the responder is acceptedById AND no assignment row
+ *    exists for the pair (pre-assignment-era rows). Once a pair has any
+ *    assignment row, the table alone decides for that pair.
+ *
+ * acceptedById belonging to a DIFFERENT responder never grants access.
+ * `activeOnly` additionally requires a non-terminal request status.
+ */
+function responderParticipationWhere(responderId, { activeOnly = false } = {}) {
+  const numericResponderId = Number(responderId);
+  return {
+    OR: [
+      {
+        assignments: {
+          some: { responderId: numericResponderId, status: 'ACTIVE' },
+        },
+      },
+      {
+        allocations: {
+          some: {
+            responderId: numericResponderId,
+            status: { in: UNFINISHED_ALLOCATION_STATUSES },
+          },
+        },
+      },
+      {
+        acceptedById: numericResponderId,
+        assignments: { none: { responderId: numericResponderId } },
+      },
+    ],
+    ...(activeOnly
+      ? { status: { notIn: ['COMPLETED', 'CANCELLED'] } }
+      : {}),
+  };
+}
+
 async function requestForResponder(requestId, responderId, includeClosed = false) {
   return prisma.emergencyRequest.findFirst({
     where: {
       id: requestId,
-      acceptedById: responderId,
-      ...(includeClosed ? {} : { status: { notIn: ['COMPLETED', 'CANCELLED'] } }),
+      ...responderParticipationWhere(responderId, {
+        activeOnly: !includeClosed,
+      }),
     },
     select: { id: true, requesterId: true, acceptedById: true, status: true },
   });
@@ -116,20 +160,37 @@ async function canSubscribe(socket, requestId) {
   const currentUser = await refreshSocketIdentity(socket);
   if (!currentUser) return false;
 
-  const request = await prisma.emergencyRequest.findUnique({
-    where: { id: requestId },
-    select: { requesterId: true, acceptedById: true },
-  });
-  if (!request) return false;
-
-  if (socket.user.role === 'ADMIN') return true;
-  if (socket.user.role === 'REQUESTER') {
-    return request.requesterId === socket.user.id;
+  if (socket.user.role === 'ADMIN') {
+    const request = await prisma.emergencyRequest.findUnique({
+      where: { id: requestId },
+      select: { id: true },
+    });
+    return Boolean(request);
   }
-  return (
-    socket.user.role === 'RESPONDER' &&
-    request.acceptedById === socket.user.id
-  );
+  if (socket.user.role === 'REQUESTER') {
+    const request = await prisma.emergencyRequest.findUnique({
+      where: { id: requestId },
+      select: { requesterId: true },
+    });
+    return Boolean(request && request.requesterId === socket.user.id);
+  }
+  if (socket.user.role === 'RESPONDER') {
+    // Assignment-aware authorization (Part 3): ACTIVE assignment, unfinished
+    // allocation, or the legacy acceptedById fallback for pairs without any
+    // assignment row. Unrelated responders are denied. The terminal-status
+    // restriction deliberately does not apply to subscription: responders
+    // keep read access to requests they worked on, matching the previous
+    // behaviour of the acceptedById lead.
+    const request = await prisma.emergencyRequest.findFirst({
+      where: {
+        id: requestId,
+        ...responderParticipationWhere(socket.user.id),
+      },
+      select: { id: true },
+    });
+    return Boolean(request);
+  }
+  return false;
 }
 
 async function joinAuthorizedRequest(socket, requestId, ack) {
@@ -374,10 +435,17 @@ function bindSocketConnection(socket) {
         select: { id: true },
       });
     } else if (socket.user.role === 'RESPONDER') {
+      // Reconnect baseline for responders (Part 4): every request with an
+      // ACTIVE assignment for this responder OR one of their unfinished
+      // allocations (allocation-only responders are real participants), OR
+      // a legacy acceptedById lead row without assignment data. Terminal
+      // requests are not rejoined: there is nothing live to receive.
+      // findMany already yields each request exactly once, so the OR legs
+      // cannot produce duplicate room joins.
       requests = await prisma.emergencyRequest.findMany({
         where: {
-          acceptedById: socket.user.id,
           status: { notIn: ['COMPLETED', 'CANCELLED'] },
+          ...responderParticipationWhere(socket.user.id),
         },
         select: { id: true },
       });
@@ -446,4 +514,5 @@ module.exports = {
   createSocketServer,
   canSubscribe,
   requestForResponder,
+  responderParticipationWhere,
 };

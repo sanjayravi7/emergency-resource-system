@@ -73,6 +73,22 @@ exports.getAllRequests = async (req, res, next) => {
   }
 };
 
+// Acceptance business rejections are client errors (400): they describe an
+// action the responder cannot take right now, not an infrastructure fault.
+// The historical 'Responder is not available' body is preserved verbatim for
+// backward compatibility. Everything else keeps the existing behaviour.
+const ACCEPTANCE_CLIENT_ERROR_MESSAGES = [
+  'Responder is not available to accept',
+  'Responder is inactive',
+  'Only responders can accept emergencies',
+  'Responder already has an active emergency',
+  'Responder is already assigned to this request',
+  'Request has already been cancelled',
+  'Request has already been completed',
+  'Request has no required resource',
+  'Responder has no compatible resource with outstanding quantity',
+];
+
 exports.acceptRequest = async (req, res, next) => {
   try {
     const request = await requestService.acceptEmergencyRequest(
@@ -86,6 +102,13 @@ exports.acceptRequest = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Responder is not available',
+      });
+    }
+
+    if (ACCEPTANCE_CLIENT_ERROR_MESSAGES.includes(error.message)) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
       });
     }
 

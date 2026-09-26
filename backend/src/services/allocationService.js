@@ -2,7 +2,8 @@ const prisma = require('../config/prisma');
 const { runSerializableTransaction } = require('./transactionService');
 const {
   syncRequestStatus,
-  syncResponderAvailability,
+  syncResponderAvailabilityForRequest,
+  computeOutstandingByResource,
 } = require('./lifecycleService');
 const {
   emitAllocationUpdated,
@@ -87,7 +88,8 @@ exports.createAllocation = async (responderId, data) => {
     throw new Error('Quantity must be greater than 0');
   }
 
-  const createdAllocation = await runSerializableTransaction(async (tx) => {
+  const { allocation: createdAllocation, syncedResponderIds } =
+    await runSerializableTransaction(async (tx) => {
     // Lock the request first. This serializes remaining-quantity calculation
     // across allocations, including allocations from separate resource rows.
     const lockedRequests = await tx.$queryRaw`
@@ -141,13 +143,15 @@ exports.createAllocation = async (responderId, data) => {
         resourceId,
         status: { not: 'CANCELLED' },
       },
-      select: { quantity: true },
+      select: { resourceId: true, quantity: true, status: true },
     });
-    const alreadyAllocated = existingAllocations.reduce(
-      (sum, allocation) => sum + allocation.quantity,
-      0
+    // Shared outstanding calculation (also used by acceptance): active
+    // allocations are every non-CANCELLED allocation for the required line.
+    const outstandingByResource = computeOutstandingByResource(
+      [{ resourceId, quantity: required.quantity }],
+      existingAllocations
     );
-    const outstanding = required.quantity - alreadyAllocated;
+    const outstanding = outstandingByResource.get(resourceId);
 
     if (outstanding <= 0) {
       throw new Error('This resource is already fully allocated');
@@ -193,14 +197,24 @@ exports.createAllocation = async (responderId, data) => {
     });
 
     await syncRequestStatus(tx, requestId);
-    await syncResponderAvailability(tx, responderId);
+    // Availability is request-scoped: creating an allocation can complete a
+    // required line or move the request status, which changes the BUSY basis
+    // of OTHER attached responders, not only the acting one. The helper
+    // re-derives status from persisted work for everyone attached.
+    const syncedResponderIds = await syncResponderAvailabilityForRequest(
+      tx,
+      requestId,
+      [Number(responderId)]
+    );
 
-    return allocation;
+    return { allocation, syncedResponderIds };
   });
 
   await emitAfterCommit(async () => {
     await emitAllocationUpdated(createdAllocation.id);
-    await emitResponderAvailability(createdAllocation.responderId);
+    for (const responderId of syncedResponderIds) {
+      await emitResponderAvailability(responderId);
+    }
   });
 
   return createdAllocation;
@@ -215,7 +229,8 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
     );
   }
 
-  const updatedAllocation = await runSerializableTransaction(async (tx) => {
+  const { updated: updatedAllocation, syncedResponderIds } =
+    await runSerializableTransaction(async (tx) => {
     const allocation = await lockAllocation(tx, numericAllocationId);
     if (!allocation) throw new Error('Allocation not found');
     if (allocation.responderId !== Number(responderId)) {
@@ -232,8 +247,8 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
     // receipt, the owning responder may complete the delivery themselves.
     // Delivery is only valid from DISPATCHED (never straight from RESERVED),
     // and it must never touch inventory: the units were genuinely consumed.
-    // Availability is still derived below by syncResponderAvailability - a
-    // sibling RESERVED/DISPATCHED allocation keeps the responder BUSY.
+    // Availability is still derived below by the request-scoped availability
+    // sync - a sibling RESERVED/DISPATCHED allocation keeps the responder BUSY.
     if (status === 'DELIVERED' && allocation.status !== 'DISPATCHED') {
       throw new Error('Only DISPATCHED allocations can be marked as delivered');
     }
@@ -277,13 +292,22 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
     });
 
     await syncRequestStatus(tx, allocation.requestId);
-    await syncResponderAvailability(tx, allocation.responderId);
-    return updated;
+    // Delivery (or cancellation) can complete the request, which releases
+    // responders attached through assignments even when they hold no
+    // allocation in this transaction. Re-sync everyone attached.
+    const syncedResponderIds = await syncResponderAvailabilityForRequest(
+      tx,
+      allocation.requestId,
+      [Number(allocation.responderId)]
+    );
+    return { updated, syncedResponderIds };
   });
 
   await emitAfterCommit(async () => {
     await emitAllocationUpdated(updatedAllocation.id);
-    await emitResponderAvailability(updatedAllocation.responderId);
+    for (const responderId of syncedResponderIds) {
+      await emitResponderAvailability(responderId);
+    }
   });
 
   return updatedAllocation;
@@ -292,7 +316,8 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
 exports.confirmAllocationReceived = async (requesterId, allocationId) => {
   const numericAllocationId = asPositiveInteger(allocationId, 'allocationId');
 
-  const receivedAllocation = await runSerializableTransaction(async (tx) => {
+  const { updated: receivedAllocation, syncedResponderIds } =
+    await runSerializableTransaction(async (tx) => {
     const allocation = await lockAllocation(tx, numericAllocationId);
     if (!allocation) throw new Error('Allocation not found');
 
@@ -323,13 +348,21 @@ exports.confirmAllocationReceived = async (requesterId, allocationId) => {
     });
 
     await syncRequestStatus(tx, allocation.requestId);
-    await syncResponderAvailability(tx, allocation.responderId);
-    return updated;
+    // Confirming receipt can complete the request, releasing responders
+    // attached through assignments even when they did not act here.
+    const syncedResponderIds = await syncResponderAvailabilityForRequest(
+      tx,
+      allocation.requestId,
+      [Number(allocation.responderId)]
+    );
+    return { updated, syncedResponderIds };
   });
 
   await emitAfterCommit(async () => {
     await emitAllocationUpdated(receivedAllocation.id);
-    await emitResponderAvailability(receivedAllocation.responderId);
+    for (const responderId of syncedResponderIds) {
+      await emitResponderAvailability(responderId);
+    }
   });
 
   return receivedAllocation;

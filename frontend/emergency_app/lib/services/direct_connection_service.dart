@@ -66,54 +66,77 @@ class DirectConnection {
       );
 }
 
-/// Picks the one emergency that may show a direct connection line.
+/// Builds one direct connection per VALID responder → emergency pair.
 ///
-/// A connection is allowed only when
+/// PHASE F multi-responder: every relevant responder of every open request
+/// may get their own connection. A connection is allowed only when
 ///   * the request is still active (not completed/cancelled),
 ///   * the request has latitude + longitude,
-///   * a responder accepted the request, and
-///   * that same responder has a live or last-known coordinate.
+///   * the responder is relevant to the request (ACTIVE assignment, an
+///     unfinished allocation of theirs, or the legacy acceptedBy lead when
+///     the payload has no assignment data), and
+///   * that responder has a live or last-known coordinate.
 ///
-/// Returns null when no request qualifies. Live responders win over
-/// last-known ones; ties are resolved by request id so the choice is stable.
-DirectConnection? selectDirectConnection({
+/// Connections are NEVER drawn to unrelated responder locations, and
+/// completed/cancelled requests produce none (cleanup happens naturally
+/// because the list is recomputed from current state).
+///
+/// Live responders sort before last-known ones; ties resolve by request id
+/// then responder id so the order is stable.
+List<DirectConnection> selectDirectConnections({
   required Iterable<EmergencyRequest> requests,
-  required Map<int, LiveResponderLocation> liveLocations,
+  required Map<int, Map<int, LiveResponderLocation>> liveLocations,
 }) {
-  final candidates = <DirectConnection>[];
+  final connections = <DirectConnection>[];
 
   for (final request in requests) {
     if (!request.isOpen) continue;
     if (!request.hasPreciseLocation) continue;
 
-    final responder = request.acceptedBy;
-    if (responder == null) continue;
+    final points = liveLocations[request.id];
+    if (points == null || points.isEmpty) continue;
 
-    final live = liveLocations[request.id];
-    if (live == null) continue;
-    if (live.responderId != responder.id) continue;
+    for (final live in points.values) {
+      // Relevance mirrors the backend participation rule; a location of an
+      // unrelated responder never yields a connection.
+      if (!request.participatesAsResponder(live.responderId)) continue;
 
-    candidates.add(
-      DirectConnection(
-        requestId: request.id,
-        responderId: responder.id,
-        responder: GeoPoint(live.latitude, live.longitude),
-        emergency: GeoPoint(request.latitude!, request.longitude!),
-        responderIsLive: live.isLive,
-      ),
-    );
+      connections.add(
+        DirectConnection(
+          requestId: request.id,
+          responderId: live.responderId,
+          responder: GeoPoint(live.latitude, live.longitude),
+          emergency: GeoPoint(request.latitude!, request.longitude!),
+          responderIsLive: live.isLive,
+        ),
+      );
+    }
   }
 
-  if (candidates.isEmpty) return null;
-
-  candidates.sort((left, right) {
+  connections.sort((left, right) {
     if (left.responderIsLive != right.responderIsLive) {
       return left.responderIsLive ? -1 : 1;
     }
-    return left.requestId.compareTo(right.requestId);
+    final byRequest = left.requestId.compareTo(right.requestId);
+    if (byRequest != 0) return byRequest;
+    return left.responderId.compareTo(right.responderId);
   });
 
-  return candidates.first;
+  return connections;
+}
+
+/// Legacy single-connection picker: the first (most relevant) entry of
+/// [selectDirectConnections], or null when none qualifies. Retained for the
+/// pre-multi-responder call sites and tests.
+DirectConnection? selectDirectConnection({
+  required Iterable<EmergencyRequest> requests,
+  required Map<int, Map<int, LiveResponderLocation>> liveLocations,
+}) {
+  final connections = selectDirectConnections(
+    requests: requests,
+    liveLocations: liveLocations,
+  );
+  return connections.isEmpty ? null : connections.first;
 }
 
 /// "740 m" / "7.4 km" — straight-line distance formatting only.

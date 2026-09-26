@@ -27,7 +27,8 @@ class BoardPanel extends StatelessWidget {
     this.onConfirmReceipt,
     this.onStartLocationSharing,
     this.onStopLocationSharing,
-    this.liveLocations = const <int, LiveResponderLocation>{},
+    this.liveLocations =
+        const <int, Map<int, LiveResponderLocation>>{},
     this.activelySharingRequestIds = const <int>{},
     this.sharingRequestId,
     this.connectionStatus = RealtimeConnectionStatus.offline,
@@ -50,7 +51,8 @@ class BoardPanel extends StatelessWidget {
   final void Function(AllocationLine allocation)? onConfirmReceipt;
   final Future<void> Function(EmergencyRequest request)? onStartLocationSharing;
   final Future<void> Function(int? requestId)? onStopLocationSharing;
-  final Map<int, LiveResponderLocation> liveLocations;
+  /// Multi-responder live points: requestId -> responderId -> latest point.
+  final Map<int, Map<int, LiveResponderLocation>> liveLocations;
   final Set<int> activelySharingRequestIds;
   final int? sharingRequestId;
   final RealtimeConnectionStatus connectionStatus;
@@ -61,11 +63,15 @@ class BoardPanel extends StatelessWidget {
       request.status == RequestStatus.pending &&
       onAccept != null;
 
+  // Part 7 gate classification:
+  //  - Allocate: RESPONDER who PARTICIPATES (ACTIVE assignment, an
+  //    unfinished allocation of theirs, or the legacy acceptedBy lead) -
+  //    the same rule the backend authorizes. acceptedBy alone is no longer
+  //    the modern test.
   bool _canAllocate(EmergencyRequest request) =>
       role == 'RESPONDER' &&
       onAllocate != null &&
-      request.acceptedBy != null &&
-      request.acceptedBy!.id == currentUserId &&
+      request.participatesAsResponder(currentUserId) &&
       request.isOpen &&
       !request.isFullyAllocated;
 
@@ -144,9 +150,8 @@ class BoardPanel extends StatelessWidget {
                       .map((request) => _RequestCard(
                             request: request,
                             actions: _actions(request),
-                            liveLocation: liveLocations[request.id],
-                            isActivelySharing:
-                                activelySharingRequestIds.contains(request.id),
+                            liveLocations: liveLocations[request.id] ??
+                                const <int, LiveResponderLocation>{},
                             connectionStatus: connectionStatus,
                           ))
                       .toList(),
@@ -266,11 +271,13 @@ class BoardPanel extends StatelessWidget {
       );
     }
 
-    final assignedToCurrentResponder =
+    // Live-location gate: any responder the backend would authorize
+    // (participation rule) may stream, not only the acceptedBy lead.
+    final currentResponderParticipates =
         role == 'RESPONDER' &&
-        request.acceptedBy?.id == currentUserId &&
+        request.participatesAsResponder(currentUserId) &&
         request.isOpen;
-    if (assignedToCurrentResponder && onStartLocationSharing != null) {
+    if (currentResponderParticipates && onStartLocationSharing != null) {
       final isSharing = sharingRequestId == request.id ||
           activelySharingRequestIds.contains(request.id);
       actions.add(
@@ -461,41 +468,15 @@ class BoardPanel extends StatelessWidget {
                 ),
               ),
               DataCell(
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      request.acceptedBy?.name ?? 'unassigned',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: request.acceptedBy == null
-                            ? AppColors.textFaint
-                            : AppColors.text,
-                      ),
-                    ),
-                    if (request.acceptedAt != null)
-                      Text(
-                        'at ${formatDateTime(request.acceptedAt)}',
-                        style: const TextStyle(
-                            fontSize: 10.5, color: AppColors.textFaint),
-                      ),
-                    if ((request.acceptedBy?.phone ?? '').isNotEmpty)
-                      Text(
-                        request.acceptedBy!.phone!,
-                        style: const TextStyle(
-                            fontSize: 10.5, color: AppColors.textFaint),
-                      ),
-                    if (activelySharingRequestIds.contains(request.id) ||
-                        liveLocations[request.id] != null)
-                      LocationSharingSummary(
-                        isActive:
-                            activelySharingRequestIds.contains(request.id),
-                        location: liveLocations[request.id],
-                        connectionStatus: connectionStatus,
-                        compact: true,
-                      ),
-                  ],
+                SizedBox(
+                  width: 210,
+                  child: _RespondersCell(
+                    request: request,
+                    liveLocations: liveLocations[request.id] ??
+                        const <int, LiveResponderLocation>{},
+                    connectionStatus: connectionStatus,
+                    compact: true,
+                  ),
                 ),
               ),
               DataCell(
@@ -522,15 +503,15 @@ class _RequestCard extends StatelessWidget {
   const _RequestCard({
     required this.request,
     required this.actions,
-    required this.isActivelySharing,
     required this.connectionStatus,
-    this.liveLocation,
+    this.liveLocations = const <int, LiveResponderLocation>{},
   });
 
   final EmergencyRequest request;
   final List<Widget> actions;
-  final LiveResponderLocation? liveLocation;
-  final bool isActivelySharing;
+
+  /// This request's live points, one entry per responder.
+  final Map<int, LiveResponderLocation> liveLocations;
   final RealtimeConnectionStatus connectionStatus;
 
   @override
@@ -667,7 +648,7 @@ class _RequestCard extends StatelessWidget {
             children: [
               Expanded(
                 child: InfoChip(
-                  label: 'Responder',
+                  label: 'Lead responder',
                   value: request.acceptedBy?.name ?? 'unassigned',
                 ),
               ),
@@ -681,20 +662,111 @@ class _RequestCard extends StatelessWidget {
               ),
             ],
           ),
-          if (isActivelySharing || liveLocation != null) ...[
-            const SizedBox(height: 8),
-            LocationSharingSummary(
-              isActive: isActivelySharing,
-              location: liveLocation,
-              connectionStatus: connectionStatus,
-            ),
-          ],
+          _RespondersCell(
+            request: request,
+            liveLocations: liveLocations,
+            connectionStatus: connectionStatus,
+          ),
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: actions),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// PHASE F multi-responder summary: lead responder (preserved acceptedBy
+/// semantics) plus every additional ACTIVE assignment, with per-responder
+/// live-location rows. ENDED assignments are history and never render as
+/// active work (Part 15); terminal requests rely on their status pill for
+/// the active/over distinction instead of inventing client-side lifecycle.
+class _RespondersCell extends StatelessWidget {
+  const _RespondersCell({
+    required this.request,
+    required this.liveLocations,
+    required this.connectionStatus,
+    this.compact = false,
+  });
+
+  final EmergencyRequest request;
+  final Map<int, LiveResponderLocation> liveLocations;
+  final RealtimeConnectionStatus connectionStatus;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final lead = request.acceptedBy;
+    final additional = request.additionalActiveAssignments;
+
+    String? displayName(int responderId) {
+      final assignment = firstWhereOrNull(
+        request.activeAssignments,
+        (row) => row.responderId == responderId,
+      );
+      return assignment?.responder?.name ??
+          (lead?.id == responderId ? lead!.name : null);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          lead?.name ?? 'unassigned',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: lead == null ? AppColors.textFaint : AppColors.text,
+          ),
+        ),
+        if (request.acceptedAt != null)
+          Text(
+            'LEAD · ACTIVE · at ${formatDateTime(request.acceptedAt)}',
+            style: const TextStyle(
+                fontSize: 10.5, color: AppColors.textFaint),
+          ),
+        if ((lead?.phone ?? '').isNotEmpty)
+          Text(
+            lead!.phone!,
+            style: const TextStyle(
+                fontSize: 10.5, color: AppColors.textFaint),
+          ),
+        for (final assignment in additional) ...[
+          const SizedBox(height: 4),
+          Text(
+            assignment.responder?.name ?? 'Responder #${assignment.responderId}',
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: AppColors.text,
+            ),
+          ),
+          Text(
+            'ASSIGNED · ${assignment.status}',
+            style: const TextStyle(
+                fontSize: 10.5, color: AppColors.textFaint),
+          ),
+          if ((assignment.responder?.phone ?? '').isNotEmpty)
+            Text(
+              assignment.responder!.phone!,
+              style: const TextStyle(
+                  fontSize: 10.5, color: AppColors.textFaint),
+            ),
+        ],
+        for (final entry in liveLocations.entries) ...[
+          const SizedBox(height: 4),
+          LocationSharingSummary(
+            // Per-responder activeness comes from that responder's own
+            // stream state - one responder sharing must never light up
+            // another responder's stale point.
+            isActive: entry.value.isLive,
+            location: entry.value,
+            connectionStatus: connectionStatus,
+            compact: compact,
+            responderLabel: displayName(entry.key) ?? 'Responder #${entry.key}',
+          ),
+        ],
+      ],
     );
   }
 }

@@ -514,11 +514,16 @@ if (!hasDatabase) {
     await requesterUpdated;
     await responderAUpdated;
     const responderBInvalidation = await responderBSeesUnavailable;
+    // PHASE E (redacted joinability): an ACCEPTED emergency with outstanding
+    // required quantity is still potentially joinable by other compatible
+    // responders, so the redacted responders-room signal is now `available:
+    // true` instead of the old `status === 'PENDING'` gate. The payload stays
+    // redacted (no requester data); GET /compatible stays authoritative.
     expect(responderBInvalidation).toEqual(
       expect.objectContaining({
         requestId: emergency.id,
         status: 'ACCEPTED',
-        available: false,
+        available: true,
       })
     );
     expect(responderBInvalidation.request).toBeUndefined();
@@ -531,7 +536,12 @@ if (!hasDatabase) {
       .get('/api/requests/compatible')
       .set('Authorization', `Bearer ${tokens.responderB}`);
     expect(compatibleAfterAccept.statusCode).toBe(200);
-    expect(compatibleAfterAccept.body.requests).not.toEqual(
+    // PHASE C multi-responder dispatch: an ACCEPTED emergency with
+    // outstanding work stays visible to other compatible AVAILABLE
+    // responders, so responderB may still join. (The old expectation that
+    // acceptance hides the request from everyone was intentionally changed;
+    // zero-overlap responders still never see it - see responderC above.)
+    expect(compatibleAfterAccept.body.requests).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: emergency.id })])
     );
 

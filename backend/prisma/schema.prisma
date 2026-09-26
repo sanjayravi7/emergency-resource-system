@@ -61,6 +61,14 @@ enum AllocationStatus {
   CANCELLED
 }
 
+// Membership state of one responder on one emergency. ACTIVE while they are
+// working the emergency, ENDED once their involvement is over (request
+// completed/cancelled, or the assignment is removed).
+enum AssignmentStatus {
+  ACTIVE
+  ENDED
+}
+
 // ======================================================
 // USER
 // ======================================================
@@ -92,7 +100,8 @@ model User {
 
   responderResources ResponderResource[]
 
-  acceptedRequests EmergencyRequest[] @relation("AcceptedRequests")
+  acceptedRequests     EmergencyRequest[]    @relation("AcceptedRequests")
+  responderAssignments ResponderAssignment[]
 }
 
 // ======================================================
@@ -129,12 +138,50 @@ model EmergencyRequest {
   requiredResources RequestResource[]
 
   allocations Allocation[]
+  assignments ResponderAssignment[]
 
   @@index([requesterId])
   @@index([status])
   @@index([priority])
   @@index([location])
   @@index([acceptedById])
+}
+
+// ======================================================
+// RESPONDER ASSIGNMENT
+//
+// Connects:
+// Emergency Request
+// + Responder (User)
+//
+// One row per (request, responder) pair: the unique constraint prevents
+// duplicate assignments, while multiple responders may be assigned to the
+// same emergency and one responder may hold assignments on multiple
+// emergencies. EmergencyRequest.acceptedById continues to identify the
+// FIRST accepting (lead) responder for backward compatibility and is never
+// overwritten when additional responders join.
+// ======================================================
+
+model ResponderAssignment {
+  id Int @id @default(autoincrement())
+
+  requestId   Int
+  responderId Int
+
+  status AssignmentStatus @default(ACTIVE)
+
+  acceptedAt DateTime  @default(now())
+  endedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request   EmergencyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  responder User             @relation(fields: [responderId], references: [id])
+
+  @@unique([requestId, responderId])
+  @@index([requestId, status])
+  @@index([responderId, status])
 }
 
 // ======================================================

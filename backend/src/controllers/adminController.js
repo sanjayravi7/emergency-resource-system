@@ -71,6 +71,19 @@ exports.getAllRequests = async (req, res, next) => {
             responderStatus: true,
           },
         },
+        assignments: {
+          include: {
+            responder: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                responderStatus: true,
+              },
+            },
+          },
+        },
       },
       orderBy: [
         { priority: 'desc' },

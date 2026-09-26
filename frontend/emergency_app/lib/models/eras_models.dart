@@ -558,6 +558,61 @@ class AllocationLine {
 }
 
 // ---------------------------------------------------------------------------
+// RESPONDER ASSIGNMENT - one row per responder working one emergency
+// ---------------------------------------------------------------------------
+
+/// Mirrors the backend `assignments[]` entries in request snapshots
+/// (ResponderAssignment rows; see the Phase E realtime contract).
+///
+/// Only fields the backend actually returns are modeled - nothing is invented.
+class ResponderAssignmentLine {
+  const ResponderAssignmentLine({
+    required this.id,
+    required this.requestId,
+    required this.responderId,
+    required this.status,
+    this.acceptedAt,
+    this.endedAt,
+    this.createdAt,
+    this.updatedAt,
+    this.responder,
+  });
+
+  final int id;
+  final int requestId;
+  final int responderId;
+
+  /// ACTIVE while the responder is working the emergency, ENDED once their
+  /// involvement is over. Backend snapshot is the source of truth.
+  final String status;
+  final DateTime? acceptedAt;
+  final DateTime? endedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  /// Operational responder summary (id, name, phone, responderStatus,
+  /// location, coordinates, lastActiveAt) when the backend includes it.
+  final UserSummary? responder;
+
+  bool get isActive => status == 'ACTIVE';
+  bool get isEnded => status == 'ENDED';
+
+  factory ResponderAssignmentLine.fromJson(Map<String, dynamic> json) {
+    return ResponderAssignmentLine(
+      id: _asInt(json['id']),
+      requestId: _asInt(json['requestId']),
+      responderId: _asInt(json['responderId']),
+      status: json['status']?.toString() ?? 'ACTIVE',
+      acceptedAt: _asDate(json['acceptedAt']),
+      endedAt: _asDate(json['endedAt']),
+      createdAt: _asDate(json['createdAt']),
+      updatedAt: _asDate(json['updatedAt']),
+      responder: UserSummary.fromJson(json['responder']),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // EMERGENCY REQUEST - mirrors the EmergencyRequest table
 // ---------------------------------------------------------------------------
 
@@ -631,6 +686,7 @@ class EmergencyRequest {
     required this.createdAt,
     required this.requiredResources,
     required this.allocations,
+    this.assignments = const <ResponderAssignmentLine>[],
     this.requester,
     this.acceptedBy,
     this.acceptedAt,
@@ -651,7 +707,14 @@ class EmergencyRequest {
   final DateTime? updatedAt;
   final List<RequiredResourceLine> requiredResources;
   final List<AllocationLine> allocations;
+
+  /// Multi-responder membership (ResponderAssignment rows). Defaults to an
+  /// empty list, so payloads from backends without assignments still parse.
+  final List<ResponderAssignmentLine> assignments;
   final UserSummary? requester;
+
+  /// First/lead responder (legacy compatibility, never overwritten by the
+  /// backend). Additional responders live in [assignments].
   final UserSummary? acceptedBy;
   final double? latitude;
   final double? longitude;
@@ -673,6 +736,93 @@ class EmergencyRequest {
 
   List<AllocationLine> get activeAllocations =>
       allocations.where((a) => a.isActive).toList(growable: false);
+
+  /// Assignments with ACTIVE status only. ENDED rows are history, never
+  /// active work (Part 15).
+  List<ResponderAssignmentLine> get activeAssignments =>
+      assignments.where((a) => a.isActive).toList(growable: false);
+
+  /// Modern assignment test: ONLY an ACTIVE ResponderAssignment counts.
+  /// acceptedBy alone is never treated as an assignment except through the
+  /// explicit legacy helper below.
+  bool isAssignedTo(int userId) =>
+      assignments.any((a) => a.isActive && a.responderId == userId);
+
+  /// Legacy compatibility: a pre-assignment-era lead pair carries only
+  /// acceptedBy. Exactly like the backend's per-pair rule, it counts only
+  /// when NO assignment row exists for THIS responder on this request -
+  /// once the pair has a row (ACTIVE or ENDED), the table alone decides.
+  bool isLegacyAcceptedBy(int? userId) =>
+      userId != null &&
+      acceptedBy?.id == userId &&
+      !assignments.any((a) => a.responderId == userId);
+
+  /// The responder owns an unfinished (RESERVED/DISPATCHED) allocation on
+  /// this request. Allocation intentionally requires no assignment
+  /// (Part 7, category B - the allocation-only flow).
+  bool ownsUnfinishedAllocation(int? userId) => userId != null
+      ? allocations.any((a) =>
+          a.responderId == userId &&
+          (a.isReserved || a.isDispatched))
+      : false;
+
+  /// Full realtime-participation test mirroring the backend Socket.IO rule
+  /// (Phase E): ACTIVE assignment OR unfinished allocation OR the legacy
+  /// acceptedBy fallback. This is what authorizes room subscriptions and
+  /// live-location sharing client-side; the backend stays authoritative.
+  bool participatesAsResponder(int? userId) =>
+      userId != null &&
+      (isAssignedTo(userId) ||
+          ownsUnfinishedAllocation(userId) ||
+          isLegacyAcceptedBy(userId));
+
+  /// ACTIVE assigned responders (assignment summaries), excluding the lead
+  /// responder who is rendered separately through the preserved acceptedBy
+  /// fields.
+  List<ResponderAssignmentLine> get additionalActiveAssignments {
+    final leadId = acceptedBy?.id;
+    return activeAssignments
+        .where((a) => a.responderId != leadId)
+        .toList(growable: false);
+  }
+
+  /// Merge one assignment row into the snapshot (responder.assigned event).
+  /// The pair (requestId, responderId) is unique in the backend, so an
+  /// existing row for the same responder is replaced, never duplicated.
+  EmergencyRequest withAssignment(ResponderAssignmentLine assignment) {
+    final nextAssignments = <ResponderAssignmentLine>[];
+    var replaced = false;
+    for (final existing in assignments) {
+      if (existing.responderId == assignment.responderId) {
+        nextAssignments.add(assignment);
+        replaced = true;
+      } else {
+        nextAssignments.add(existing);
+      }
+    }
+    if (!replaced) nextAssignments.add(assignment);
+    nextAssignments.sort((a, b) => a.id.compareTo(b.id));
+
+    return EmergencyRequest(
+      id: id,
+      emergencyType: emergencyType,
+      description: description,
+      location: location,
+      priority: priority,
+      status: status,
+      statusRaw: statusRaw,
+      createdAt: createdAt,
+      requiredResources: requiredResources,
+      allocations: allocations,
+      assignments: nextAssignments,
+      requester: requester,
+      acceptedBy: acceptedBy,
+      acceptedAt: acceptedAt,
+      updatedAt: updatedAt,
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
 
   int allocatedFor(int resourceId) {
     var total = 0;
@@ -730,6 +880,7 @@ class EmergencyRequest {
       createdAt: createdAt,
       requiredResources: requiredResources,
       allocations: nextAllocations,
+      assignments: assignments,
       requester: requester,
       acceptedBy: acceptedBy,
       acceptedAt: acceptedAt,
@@ -758,6 +909,11 @@ class EmergencyRequest {
           .toList(growable: false),
       allocations: _asMapList(json['allocations'])
           .map(AllocationLine.fromJson)
+          .toList(growable: false),
+      // Backward compatible: old payloads without assignments parse to an
+      // empty list (null-safe, no cast failures).
+      assignments: _asMapList(json['assignments'])
+          .map(ResponderAssignmentLine.fromJson)
           .toList(growable: false),
       requester: UserSummary.fromJson(json['requester']),
       acceptedBy: UserSummary.fromJson(json['acceptedBy']),

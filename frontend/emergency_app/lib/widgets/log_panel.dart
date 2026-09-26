@@ -76,17 +76,22 @@ class LogPanel extends StatelessWidget {
                                 ),
                               if (entry.allocations.isNotEmpty) ...[
                                 const Divider(height: 6, color: AppColors.border),
-                                ...entry.allocations.map(
-                                  (allocation) => AllocationOperationalRow(
-                                    allocation: allocation,
-                                    compact: true,
-                                  ),
-                                ),
+                                // PHASE F: allocations are grouped by the
+                                // responder who owns them; every status
+                                // (RESERVED/DISPATCHED/DELIVERED/CANCELLED)
+                                // is preserved per row.
+                                _AllocationsByResponder(
+                                    allocations: entry.allocations),
                               ],
                             ],
                           ),
                         ),
-                        DataCell(Text(entry.acceptedBy?.name ?? '-')),
+                        DataCell(
+                          SizedBox(
+                            width: 170,
+                            child: _RespondersSummary(request: entry),
+                          ),
+                        ),
                         DataCell(Text(
                           formatDateTime(entry.createdAt),
                           style: monoStyle(size: 12, color: AppColors.textDim),
@@ -153,19 +158,10 @@ class _LogCard extends StatelessWidget {
                       fontSize: 11.5, color: AppColors.textFaint),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'Responder: ${request.acceptedBy?.name ?? '-'}',
-                  style: const TextStyle(
-                      fontSize: 11.5, color: AppColors.textFaint),
-                ),
+                _RespondersSummary(request: request, mobile: true),
                 if (request.allocations.isNotEmpty) ...[
                   const SizedBox(height: 5),
-                  ...request.allocations.map(
-                    (allocation) => AllocationOperationalRow(
-                      allocation: allocation,
-                      compact: true,
-                    ),
-                  ),
+                  _AllocationsByResponder(allocations: request.allocations),
                 ],
                 const SizedBox(height: 7),
                 OperationalTimeline(request: request, compact: true),
@@ -175,6 +171,98 @@ class _LogCard extends StatelessWidget {
           StatusPill(status: request.status),
         ],
       ),
+    );
+  }
+}
+
+/// PHASE F: the after-action log lists every responder who worked the
+/// request - the preserved acceptedBy lead first, then every assignment
+/// (ACTIVE or ENDED: history is history, but it stays truthful). Names come
+/// from PostgreSQL snapshots; nothing is guessed client-side.
+class _RespondersSummary extends StatelessWidget {
+  const _RespondersSummary({required this.request, this.mobile = false});
+
+  final EmergencyRequest request;
+  final bool mobile;
+
+  @override
+  Widget build(BuildContext context) {
+    final names = <String>[];
+    void add(String? name) {
+      final trimmed = name?.trim();
+      if (trimmed == null || trimmed.isEmpty || names.contains(trimmed)) {
+        return;
+      }
+      names.add(trimmed);
+    }
+
+    add(request.acceptedBy?.name);
+    for (final assignment in request.assignments) {
+      add(assignment.responder?.name ?? 'Responder #${assignment.responderId}');
+    }
+    if (names.isEmpty) {
+      return Text(mobile ? 'Responder: -' : '-',
+          style: const TextStyle(
+              fontSize: 11.5, color: AppColors.textFaint));
+    }
+
+    if (!mobile) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final name in names)
+            Text(name, style: const TextStyle(fontSize: 12.5)),
+        ],
+      );
+    }
+    return Text(
+      'Responders: ${names.join(', ')}',
+      style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
+    );
+  }
+}
+
+/// PHASE F: allocation rows grouped per responder (Part 16). With a single
+/// responder the rendering is byte-for-byte the previous flat list; with
+/// several responders each group gets a faint label so the after-action log
+/// reads per responder. Statuses are untouched - each row keeps its own
+/// AllocationStatusBadge.
+class _AllocationsByResponder extends StatelessWidget {
+  const _AllocationsByResponder({required this.allocations});
+
+  final List<AllocationLine> allocations;
+
+  @override
+  Widget build(BuildContext context) {
+    // Preserve the payload order but bucket by responder owner.
+    final grouped = <int, List<AllocationLine>>{};
+    for (final allocation in allocations) {
+      grouped.putIfAbsent(allocation.responderId, () => []).add(allocation);
+    }
+
+    final singleResponder = grouped.length <= 1;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final entry in grouped.entries) ...[
+          if (!singleResponder) ...[
+            Text(
+              '${entry.value.first.responderName ?? 'Responder #${entry.key}'}'
+              ' · ${entry.value.length} allocation'
+              '${entry.value.length == 1 ? '' : 's'}',
+              style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textFaint),
+            ),
+            const SizedBox(height: 2),
+          ],
+          for (final allocation in entry.value)
+            AllocationOperationalRow(allocation: allocation, compact: true),
+        ],
+      ],
     );
   }
 }
