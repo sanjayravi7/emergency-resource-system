@@ -21,6 +21,7 @@
 //     http://127.0.0.1:8081/*
 //     (add your Arena/preview or production origins as needed)
 //
-// The Routes API key is a SEPARATE, SERVER-SIDE key. It lives only in the
-// backend environment (GOOGLE_ROUTES_API_KEY) and must never be placed here.
+// Driving directions are NOT computed by ERAS: the map draws a direct
+// connection line and "Get directions" opens a key-less Google Maps URL
+// (https://www.google.com/maps/dir/?api=1). No Routes API key exists anywhere.
 window.ERAS_GOOGLE_MAPS_API_KEY = 'YOUR_REFERRER_RESTRICTED_MAPS_JS_API_KEY';
