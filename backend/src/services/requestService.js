@@ -39,6 +39,7 @@ const responderSelect = {
   location: true,
   latitude: true,
   longitude: true,
+  lastActiveAt: true,
 };
 
 // Every board response is database-backed and carries the resource IDs needed

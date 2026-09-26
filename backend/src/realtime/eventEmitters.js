@@ -4,6 +4,7 @@ const { emitToRooms, getIO, rooms } = require('./socketEvents');
 const requesterSelect = {
   id: true,
   name: true,
+  email: true,
   phone: true,
 };
 
@@ -15,6 +16,7 @@ const acceptedBySelect = {
   location: true,
   latitude: true,
   longitude: true,
+  lastActiveAt: true,
 };
 
 const requestInclude = {
@@ -57,6 +59,8 @@ function requestPayload(request) {
       ? {
           id: request.requester.id,
           name: request.requester.name,
+          email: request.requester.email,
+          phone: request.requester.phone,
         }
       : null,
     acceptedBy: request.acceptedBy
@@ -67,6 +71,7 @@ function requestPayload(request) {
           location: request.acceptedBy.location,
           latitude: request.acceptedBy.latitude,
           longitude: request.acceptedBy.longitude,
+          lastActiveAt: request.acceptedBy.lastActiveAt,
         }
       : null,
     requiredResources: (request.requiredResources || []).map((required) => ({
@@ -146,10 +151,12 @@ function requestRooms(request, extraUserIds = []) {
   if (request?.requesterId) userIds.add(request.requesterId);
   if (request?.acceptedById) userIds.add(request.acceptedById);
 
+  // Full request/allocation snapshots are restricted to the request room,
+  // owning requester, assigned responder(s), and admins. Never use the global
+  // responder room for operational/requester data.
   return [
     rooms.request(request.id),
     ...[...userIds].map((userId) => rooms.user(userId)),
-    rooms.responders,
     rooms.admins,
   ];
 }
@@ -179,7 +186,12 @@ async function emitRequestCreated(request, compatibleResponderIds = []) {
         : undefined,
     })),
     requester: request.requester
-      ? { id: request.requester.id, name: request.requester.name }
+      ? {
+          id: request.requester.id,
+          name: request.requester.name,
+          email: request.requester.email,
+          phone: request.requester.phone,
+        }
       : { id: request.requesterId },
     createdAt: request.createdAt,
     request: requestPayload(request),
@@ -208,6 +220,7 @@ async function emitRequestUpdated(requestId, extraUserIds = []) {
           location: request.acceptedBy.location,
           latitude: request.acceptedBy.latitude,
           longitude: request.acceptedBy.longitude,
+          lastActiveAt: request.acceptedBy.lastActiveAt,
         }
       : null,
     acceptedById: request.acceptedById,
@@ -217,6 +230,16 @@ async function emitRequestUpdated(requestId, extraUserIds = []) {
   };
   const targetRooms = requestRooms(request, extraUserIds);
   emitToRooms('request.updated', payload, targetRooms);
+
+  // Responders who previously received a compatible PENDING request need to
+  // remove it after acceptance/cancellation, but are not entitled to the full
+  // requester snapshot. A redacted invalidation carries only availability.
+  emitToRooms('request.updated', {
+    requestId: request.id,
+    status: request.status,
+    available: request.status === 'PENDING',
+    updatedAt: request.updatedAt,
+  }, [rooms.responders]);
 
   if (
     ['COMPLETED', 'CANCELLED'].includes(request.status) &&

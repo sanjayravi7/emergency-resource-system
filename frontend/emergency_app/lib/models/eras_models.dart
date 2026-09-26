@@ -252,6 +252,7 @@ class UserSummary {
     this.location,
     this.latitude,
     this.longitude,
+    this.lastActiveAt,
   });
 
   final int id;
@@ -262,6 +263,7 @@ class UserSummary {
   final String? location;
   final double? latitude;
   final double? longitude;
+  final DateTime? lastActiveAt;
 
   static UserSummary? fromJson(dynamic value) {
     if (value is! Map) return null;
@@ -282,6 +284,7 @@ class UserSummary {
       location: _asTrimmedString(json['location']),
       latitude: _asDoubleOrNull(json['latitude']),
       longitude: _asDoubleOrNull(json['longitude']),
+      lastActiveAt: _asDate(json['lastActiveAt']),
     );
   }
 }
@@ -322,6 +325,15 @@ class LiveResponderLocation {
         updatedAt: updatedAt,
         isLive: false,
       );
+
+  LiveResponderLocation asLive() => LiveResponderLocation(
+        requestId: requestId,
+        responderId: responderId,
+        latitude: latitude,
+        longitude: longitude,
+        updatedAt: updatedAt,
+        isLive: true,
+      );
 }
 
 class BackendResponder {
@@ -358,6 +370,20 @@ class BackendResponder {
       latitude: _asDoubleOrNull(json['latitude']),
       longitude: _asDoubleOrNull(json['longitude']),
       lastActiveAt: _asDate(json['lastActiveAt']),
+    );
+  }
+
+  BackendResponder withStatus(String nextStatus, {DateTime? updatedAt}) {
+    return BackendResponder(
+      id: id,
+      name: name,
+      email: email,
+      status: nextStatus,
+      phone: phone,
+      location: location,
+      latitude: latitude,
+      longitude: longitude,
+      lastActiveAt: updatedAt ?? lastActiveAt,
     );
   }
 }
@@ -481,6 +507,7 @@ class AllocationLine {
     required this.resourceName,
     this.responderName,
     this.allocatedAt,
+    this.updatedAt,
   });
 
   final int id;
@@ -495,6 +522,7 @@ class AllocationLine {
   final String resourceName;
   final String? responderName;
   final DateTime? allocatedAt;
+  final DateTime? updatedAt;
 
   bool get isActive => status != 'CANCELLED';
   bool get isReserved => status == 'RESERVED';
@@ -518,6 +546,7 @@ class AllocationLine {
           _asTrimmedString(resource['name']) ?? 'Resource #$resourceId',
       responderName: _asTrimmedString(responder['name']),
       allocatedAt: _asDate(json['allocatedAt']),
+      updatedAt: _asDate(json['updatedAt']),
     );
   }
 }
@@ -599,6 +628,7 @@ class EmergencyRequest {
     this.requester,
     this.acceptedBy,
     this.acceptedAt,
+    this.updatedAt,
     this.latitude,
     this.longitude,
   });
@@ -612,6 +642,7 @@ class EmergencyRequest {
   final String statusRaw;
   final DateTime createdAt;
   final DateTime? acceptedAt;
+  final DateTime? updatedAt;
   final List<RequiredResourceLine> requiredResources;
   final List<AllocationLine> allocations;
   final UserSummary? requester;
@@ -662,6 +693,40 @@ class EmergencyRequest {
       ? 'No resources requested'
       : requiredResources.map((r) => r.label).join(', ');
 
+  /// Apply an authoritative allocation event to this request snapshot. The
+  /// request status, when present, is also the value supplied by the backend;
+  /// Flutter never derives or advances the lifecycle itself.
+  EmergencyRequest withAllocation(
+    AllocationLine allocation, {
+    String? backendRequestStatus,
+  }) {
+    final nextAllocations = <AllocationLine>[
+      for (final existing in allocations)
+        if (existing.id != allocation.id) existing,
+      allocation,
+    ];
+    final nextStatusRaw = backendRequestStatus ?? statusRaw;
+
+    return EmergencyRequest(
+      id: id,
+      emergencyType: emergencyType,
+      description: description,
+      location: location,
+      priority: priority,
+      status: requestStatusFromApi(nextStatusRaw),
+      statusRaw: nextStatusRaw,
+      createdAt: createdAt,
+      requiredResources: requiredResources,
+      allocations: nextAllocations,
+      requester: requester,
+      acceptedBy: acceptedBy,
+      acceptedAt: acceptedAt,
+      updatedAt: allocation.updatedAt ?? updatedAt,
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
+
   factory EmergencyRequest.fromJson(Map<String, dynamic> json) {
     final statusRaw = (json['status'] ?? 'PENDING').toString();
 
@@ -675,6 +740,7 @@ class EmergencyRequest {
       statusRaw: statusRaw,
       createdAt: _asDate(json['createdAt']) ?? DateTime.now(),
       acceptedAt: _asDate(json['acceptedAt']),
+      updatedAt: _asDate(json['updatedAt']),
       requiredResources: _asMapList(json['requiredResources'])
           .map(RequiredResourceLine.fromJson)
           .toList(growable: false),

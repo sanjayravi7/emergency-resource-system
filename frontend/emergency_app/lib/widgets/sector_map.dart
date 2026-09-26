@@ -12,11 +12,16 @@ import '../theme/app_theme.dart';
 /// second map system.
 class SectorMapPainter extends CustomPainter {
   SectorMapPainter({
-    required this.districts,
-    required this.responders,
-    required this.requests,
-    this.liveLocations = const <int, LiveResponderLocation>{},
-  });
+    required List<District> districts,
+    required List<BackendResponder> responders,
+    required List<EmergencyRequest> requests,
+    Map<int, LiveResponderLocation> liveLocations =
+        const <int, LiveResponderLocation>{},
+  })  : districts = List<District>.unmodifiable(districts),
+        responders = List<BackendResponder>.unmodifiable(responders),
+        requests = List<EmergencyRequest>.unmodifiable(requests),
+        liveLocations =
+            Map<int, LiveResponderLocation>.unmodifiable(liveLocations);
 
   final List<District> districts;
   final List<BackendResponder> responders;
@@ -76,8 +81,14 @@ class SectorMapPainter extends CustomPainter {
     // the existing map functionality intact for responders that are not
     // actively sharing request-scoped GPS.
     final byDistrict = <String, List<BackendResponder>>{};
+    final respondersWithTrackedPoints = activeLiveLocations.values
+        .map((location) => location.responderId)
+        .toSet();
 
     for (final responder in responders) {
+      // Do not draw a second district dot for a responder who already has a
+      // request-scoped live/last-known GPS marker on this map.
+      if (respondersWithTrackedPoints.contains(responder.id)) continue;
       final location = responder.location;
       if (location == null) continue;
 
@@ -192,6 +203,13 @@ class SectorMapPainter extends CustomPainter {
     canvas.drawCircle(p, 4.5 * scale, Paint()..color = color);
     _drawMapIcon(canvas, Icons.warning_rounded, p.translate(0, -18 * scale), color,
         14 * scale);
+    _drawMarkerLabel(
+      canvas,
+      p.translate(0, 13 * scale),
+      '${request.displayId} · EMERGENCY',
+      color,
+      scale,
+    );
   }
 
   void _drawResponderMarker(
@@ -209,22 +227,77 @@ class SectorMapPainter extends CustomPainter {
 
     canvas.drawRRect(
       rect.inflate(5 * scale),
-      Paint()..color = color.withValues(alpha: .14),
+      Paint()
+        ..style = live.isLive ? PaintingStyle.fill : PaintingStyle.stroke
+        ..strokeWidth = 1.4 * scale
+        ..color = color.withValues(alpha: live.isLive ? .16 : .65),
     );
-    canvas.drawRRect(rect, Paint()..color = color);
-    _drawMapIcon(canvas, Icons.local_shipping_rounded, p, Colors.white,
-        16 * scale);
+    canvas.drawRRect(
+      rect,
+      Paint()
+        ..style = live.isLive ? PaintingStyle.fill : PaintingStyle.stroke
+        ..strokeWidth = 1.6 * scale
+        ..color = color,
+    );
+    _drawMapIcon(
+      canvas,
+      Icons.local_shipping_rounded,
+      p,
+      live.isLive ? Colors.white : color,
+      16 * scale,
+    );
+    if (live.isLive) {
+      canvas.drawCircle(
+        p.translate(radius, -radius * .8),
+        3 * scale,
+        Paint()..color = AppColors.teal,
+      );
+    }
 
-    final labelPainter = TextPainter(
+    _drawMarkerLabel(
+      canvas,
+      p.translate(0, radius + 3 * scale),
+      live.isLive ? 'LIVE RESPONDER' : 'LAST KNOWN',
+      color,
+      scale,
+    );
+  }
+
+  void _drawMarkerLabel(
+    Canvas canvas,
+    Offset center,
+    String text,
+    Color color,
+    double scale,
+  ) {
+    final painter = TextPainter(
       textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
       text: TextSpan(
-        text: live.isLive ? 'LIVE' : 'LAST',
-        style: monoStyle(size: 8.5 * scale, color: color),
+        text: text,
+        style: monoStyle(
+          size: 8 * scale,
+          color: color,
+          weight: FontWeight.w700,
+        ),
       ),
     )..layout();
-    labelPainter.paint(
+
+    final background = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: center.translate(0, painter.height / 2),
+        width: painter.width + 8 * scale,
+        height: painter.height + 4 * scale,
+      ),
+      Radius.circular(4 * scale),
+    );
+    canvas.drawRRect(
+      background,
+      Paint()..color = AppColors.surface.withValues(alpha: .88),
+    );
+    painter.paint(
       canvas,
-      Offset(p.dx - labelPainter.width / 2, p.dy + radius + 3 * scale),
+      Offset(center.dx - painter.width / 2, center.dy),
     );
   }
 
@@ -255,7 +328,53 @@ class SectorMapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant SectorMapPainter old) => true;
+  bool shouldRepaint(covariant SectorMapPainter old) {
+    if (old.districts.length != districts.length ||
+        old.responders.length != responders.length ||
+        old.requests.length != requests.length ||
+        old.liveLocations.length != liveLocations.length) {
+      return true;
+    }
+
+    for (var index = 0; index < responders.length; index++) {
+      final left = old.responders[index];
+      final right = responders[index];
+      if (left.id != right.id ||
+          left.status != right.status ||
+          left.location != right.location ||
+          left.latitude != right.latitude ||
+          left.longitude != right.longitude) {
+        return true;
+      }
+    }
+
+    for (var index = 0; index < requests.length; index++) {
+      final left = old.requests[index];
+      final right = requests[index];
+      if (left.id != right.id ||
+          left.statusRaw != right.statusRaw ||
+          left.latitude != right.latitude ||
+          left.longitude != right.longitude ||
+          left.location != right.location) {
+        return true;
+      }
+    }
+
+    for (final entry in liveLocations.entries) {
+      final previous = old.liveLocations[entry.key];
+      final current = entry.value;
+      if (previous == null ||
+          previous.responderId != current.responderId ||
+          previous.latitude != current.latitude ||
+          previous.longitude != current.longitude ||
+          previous.updatedAt != current.updatedAt ||
+          previous.isLive != current.isLive) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 }
 
 class _GeoProjector {
