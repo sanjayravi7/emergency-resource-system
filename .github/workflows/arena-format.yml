@@ -1,0 +1,62 @@
+# TEMPORARY sandbox workflow (arena branch only): replicates dart.yml's
+# environment (pub get BEFORE dart format, so language-versioned formatting
+# matches), applies the format pass, then verifies exactly like dart.yml and
+# reports the verbatim output as a PR comment. Removed before final delivery.
+name: Arena Format
+
+on:
+  push:
+    branches: ["arena/01a0de3c-emergency-resource-system"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Apply dart format
+        run: dart format .
+
+      - name: Verify formatting exactly like dart.yml
+        run: |
+          set +e
+          dart format --output=none --set-exit-if-changed . > /tmp/fmt.txt 2>&1
+          echo "FMT_EXIT=$?" >> "$GITHUB_ENV"
+
+      - name: Commit format changes
+        run: |
+          git config user.email "arena-debug-bot@users.noreply.github.com"
+          git config user.name "arena-debug-bot"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore: apply dart format" -m "[skip ci]"
+          git push
+
+      - name: Report to PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "### Arena format (pub-get-then-format): exit = ${FMT_EXIT}"
+            echo '```'
+            cat /tmp/fmt.txt
+            echo '```'
+          } > /tmp/report.md
+          gh pr comment 24 --repo sanjayravi7/emergency-resource-system --body-file /tmp/report.md || true
