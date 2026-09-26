@@ -13,9 +13,9 @@ import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/log_panel.dart';
 import '../widgets/new_request_panel.dart';
+import '../widgets/operational_google_map.dart';
 import '../widgets/operational_status.dart';
 import '../widgets/resource_panels.dart';
-import '../widgets/sector_map.dart';
 import 'login_screen.dart';
 import 'responder_readiness_page.dart';
 
@@ -562,7 +562,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 5));
     } catch (_) {
-      // A requester can still create an emergency with the selected sector if
+      // A requester can still create an emergency with a real text location if
       // the browser/device does not provide GPS. No client-side coordinate is
       // fabricated as a substitute.
       return null;
@@ -577,18 +577,27 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     setState(() => submitting = true);
 
     try {
-      final emergencyPosition = await _tryReadEmergencyPosition();
+      final shouldTryGpsFallback =
+          !payload.hasPreciseLocation && payload.allowGpsFallback;
+      final emergencyPosition = shouldTryGpsFallback
+          ? await _tryReadEmergencyPosition()
+          : null;
+      final latitude = payload.latitude ?? emergencyPosition?.latitude;
+      final longitude = payload.longitude ?? emergencyPosition?.longitude;
+
       await ApiService.createRequest(
         emergencyType: payload.emergencyType,
         description: payload.description,
         location: payload.location,
         priority: payload.priority,
-        latitude: emergencyPosition?.latitude,
-        longitude: emergencyPosition?.longitude,
+        latitude: latitude,
+        longitude: longitude,
         requiredResources: payload.requiredResources,
       );
 
-      showToast('Emergency request created');
+      showToast(latitude == null || longitude == null
+          ? 'Emergency request created with a text-only location. Precise map pin unavailable.'
+          : 'Emergency request created with precise GPS coordinates.');
 
       await loadRequests();
       await loadResources();
@@ -1123,10 +1132,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       children.add(
         NewRequestPanel(
           resources: resources,
-          locations: kDistricts.map((d) => d.name).toList(),
           submitting: submitting,
           onSubmit: submitRequest,
           onReload: loadResources,
+          onUseCurrentLocation: _tryReadEmergencyPosition,
         ),
       );
     }
@@ -1264,58 +1273,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       AnimatedBuilder(
         animation: locationStore,
         builder: (context, _) => Panel(
-          title: 'SECTOR MAP',
+          title: 'GOOGLE MAP',
           trailing: ConnectionStatusIndicator(
             status: connectionStatus,
             compact: true,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final maxHeight = isMobile ? 210.0 : 250.0;
-                    final ratio = isMobile ? 360 / 210 : 640 / 280;
-                    final width = constraints.maxWidth;
-                    final height =
-                        (width / ratio).clamp(150.0, maxHeight).toDouble();
-
-                    return SizedBox(
-                      height: height,
-                      width: double.infinity,
-                      child: CustomPaint(
-                        painter: SectorMapPainter(
-                          districts: kDistricts,
-                          responders: responders,
-                          requests: [...openRequests, ...pendingCompatible],
-                          liveLocations: locationStore.locations,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  children: [
-                    LegendItem(color: AppColors.red, label: 'Emergency location'),
-                    LegendItem(color: AppColors.amber, label: 'Pending request'),
-                    LegendItem(color: AppColors.teal, label: 'Live responder'),
-                    LegendItem(
-                      color: AppColors.textFaint,
-                      label: 'Last-known responder',
-                    ),
-                    LegendItem(color: AppColors.blue, label: 'Busy / assigned'),
-                    LegendItem(color: AppColors.teal, label: 'Available'),
-                  ],
-                ),
-              ),
-            ],
+          child: OperationalGoogleMap(
+            requests: [...openRequests, ...pendingCompatible],
+            liveLocations: locationStore.locations,
+            isMobile: isMobile,
           ),
         ),
       ),

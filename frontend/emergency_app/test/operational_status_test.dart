@@ -13,7 +13,7 @@ EmergencyRequest _request({
     'id': 71,
     'emergencyType': 'Medical',
     'description': 'Operational status test',
-    'location': 'Old Town',
+    'location': 'Thrissur, Kerala',
     'priority': 'HIGH',
     'status': requestStatus,
     'createdAt': '2026-09-26T09:00:00.000Z',

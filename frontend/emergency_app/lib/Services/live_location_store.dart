@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/eras_models.dart';
 
-/// Request-scoped responder telemetry used by the board and sector map.
+/// Request-scoped responder telemetry used by the board and Google Map.
 ///
 /// This is deliberately not a request/allocation lifecycle model. Request and
 /// allocation state still comes exclusively from PostgreSQL. The store only

@@ -40,7 +40,7 @@ const RESOURCES = [
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'vehicle',
-    location: 'Central Depot',
+    location: 'Thrissur, Kerala',
     lowStockThreshold: 2,
   },
   {
@@ -50,7 +50,7 @@ const RESOURCES = [
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'person',
-    location: 'Community Hall',
+    location: 'Thrissur Town Hall, Kerala',
     lowStockThreshold: 2,
   },
   {
@@ -60,7 +60,7 @@ const RESOURCES = [
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'unit',
-    location: 'Fire Station 1',
+    location: 'Fire and Rescue Station Thrissur, Kerala',
     lowStockThreshold: 2,
   },
   {
@@ -70,7 +70,7 @@ const RESOURCES = [
     totalQuantity: 5,
     availableQuantity: 5,
     unit: 'vessel',
-    location: 'Harbor Station',
+    location: 'Kochi Marine Drive, Kerala',
     lowStockThreshold: 1,
   },
   {
@@ -80,7 +80,7 @@ const RESOURCES = [
     totalQuantity: 10,
     availableQuantity: 10,
     unit: 'unit',
-    location: 'Central Blood Bank',
+    location: 'Government Medical College Thrissur, Kerala',
     lowStockThreshold: 2,
   },
   {
@@ -90,7 +90,7 @@ const RESOURCES = [
     totalQuantity: 20,
     availableQuantity: 20,
     unit: 'cylinder',
-    location: 'Central Depot',
+    location: 'Thrissur, Kerala',
     lowStockThreshold: 4,
   },
   {
@@ -100,7 +100,7 @@ const RESOURCES = [
     totalQuantity: 50,
     availableQuantity: 50,
     unit: 'bottle',
-    location: 'Central Depot',
+    location: 'Thrissur, Kerala',
     lowStockThreshold: 10,
   },
   {
@@ -110,7 +110,7 @@ const RESOURCES = [
     totalQuantity: 30,
     availableQuantity: 30,
     unit: 'kit',
-    location: 'Central Pharmacy',
+    location: 'Thrissur, Kerala',
     lowStockThreshold: 5,
   },
 ];
@@ -185,7 +185,7 @@ async function resolveDevResponder() {
         isActive: true,
         responderStatus: 'AVAILABLE',
         phone: preferred.phone || '9000000049',
-        location: preferred.location || 'North Ridge',
+        location: 'Thrissur Round, Kerala',
       },
     });
   }
@@ -195,7 +195,7 @@ async function resolveDevResponder() {
     name: 'Responder1',
     role: 'RESPONDER',
     phone: '9000000049',
-    location: 'North Ridge',
+    location: 'Thrissur Round, Kerala',
     extra: {
       responderStatus: 'AVAILABLE',
       latitude: 10.5276,
@@ -282,7 +282,7 @@ async function main() {
     name: 'Arun',
     role: 'REQUESTER',
     phone: '9000000001',
-    location: 'North Ridge',
+    location: 'Thrissur Round, Kerala',
   });
 
   const admin = await upsertUser({
@@ -290,7 +290,7 @@ async function main() {
     name: 'ERAS Admin',
     role: 'ADMIN',
     phone: '9000000002',
-    location: 'Control Room',
+    location: 'Thrissur Collectorate, Kerala',
   });
 
   const responder = await resolveDevResponder();

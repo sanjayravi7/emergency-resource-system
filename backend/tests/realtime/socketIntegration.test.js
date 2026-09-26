@@ -105,7 +105,7 @@ if (!hasDatabase) {
           password: hashedPassword,
           role: 'REQUESTER',
           isActive: true,
-          location: 'Old Town',
+          location: 'Thrissur, Kerala',
         },
       }),
       requesterB: await prisma.user.create({
@@ -115,7 +115,7 @@ if (!hasDatabase) {
           password: hashedPassword,
           role: 'REQUESTER',
           isActive: true,
-          location: 'Eastgate',
+          location: 'Kochi, Kerala',
         },
       }),
       responderA: await prisma.user.create({
@@ -126,7 +126,7 @@ if (!hasDatabase) {
           role: 'RESPONDER',
           isActive: true,
           responderStatus: 'AVAILABLE',
-          location: 'North Ridge',
+          location: 'Thrissur Round, Kerala',
         },
       }),
       responderB: await prisma.user.create({
@@ -137,7 +137,7 @@ if (!hasDatabase) {
           role: 'RESPONDER',
           isActive: true,
           responderStatus: 'AVAILABLE',
-          location: 'Harbor District',
+          location: 'Kochi Marine Drive, Kerala',
         },
       }),
       responderC: await prisma.user.create({
@@ -148,7 +148,7 @@ if (!hasDatabase) {
           role: 'RESPONDER',
           isActive: true,
           responderStatus: 'AVAILABLE',
-          location: 'Riverside',
+          location: 'Kozhikode Beach, Kerala',
         },
       }),
       admin: await prisma.user.create({
@@ -333,7 +333,7 @@ if (!hasDatabase) {
     sockets = null;
   }
 
-  async function createEmergency({ requesterToken = tokens.requesterA, location = 'Old Town' } = {}) {
+  async function createEmergency({ requesterToken = tokens.requesterA, location = 'Thrissur, Kerala' } = {}) {
     const response = await request(app)
       .post('/api/requests')
       .set('Authorization', `Bearer ${requesterToken}`)
@@ -402,7 +402,7 @@ if (!hasDatabase) {
     });
   }
 
-  async function createAcceptedRequestDirect(requesterId, location = 'Old Town') {
+  async function createAcceptedRequestDirect(requesterId, location = 'Thrissur, Kerala') {
     return prisma.emergencyRequest.create({
       data: {
         requesterId,
@@ -411,8 +411,8 @@ if (!hasDatabase) {
         emergencyType: 'Medical',
         description: 'Direct location isolation request',
         location,
-        latitude: location === 'Eastgate' ? 10.532 : 10.5276,
-        longitude: location === 'Eastgate' ? 76.225 : 76.2144,
+        latitude: location === 'Kochi, Kerala' ? 9.9312 : 10.5276,
+        longitude: location === 'Kochi, Kerala' ? 76.2673 : 76.2144,
         priority: 'HIGH',
         status: 'ACCEPTED',
         requiredResources: {
@@ -730,8 +730,8 @@ if (!hasDatabase) {
       error: expect.objectContaining({ code: 'FORBIDDEN' }),
     });
 
-    const requestA = await createAcceptedRequestDirect(users.requesterA.id, 'Old Town');
-    const requestB = await createAcceptedRequestDirect(users.requesterB.id, 'Eastgate');
+    const requestA = await createAcceptedRequestDirect(users.requesterA.id, 'Thrissur, Kerala');
+    const requestB = await createAcceptedRequestDirect(users.requesterB.id, 'Kochi, Kerala');
     await emitAck(sockets.requesterA, 'request.subscribe', { requestId: requestA.id });
     await emitAck(sockets.requesterB, 'request.subscribe', { requestId: requestB.id });
 
@@ -853,7 +853,7 @@ if (!hasDatabase) {
       ])
     );
 
-    const requestA = await createAcceptedRequestDirect(users.requesterA.id, 'Old Town');
+    const requestA = await createAcceptedRequestDirect(users.requesterA.id, 'Thrissur, Kerala');
     await emitAck(sockets.requesterA, 'request.subscribe', { requestId: requestA.id });
 
     let updateCount = 0;
