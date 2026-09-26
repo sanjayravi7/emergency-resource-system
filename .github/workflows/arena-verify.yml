@@ -1,0 +1,84 @@
+name: Arena verification (temporary)
+
+# Temporary helper workflow used to run the Flutter toolchain for the
+# arena/* working branch and report the raw output in the job summary.
+# It is removed again before the branch is finished.
+
+on:
+  push:
+    branches: ["arena/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Run checks
+        run: |
+          OUT="$GITHUB_STEP_SUMMARY"
+
+          run_step() {
+            title="$1"
+            shift
+            {
+              echo "### $title"
+              echo '```'
+            } >> "$OUT"
+            set +e
+            "$@" > /tmp/step.log 2>&1
+            code=$?
+            set -e
+            tail -c 9000 /tmp/step.log >> "$OUT"
+            {
+              echo ""
+              echo "EXIT CODE: $code"
+              echo '```'
+              echo ""
+            } >> "$OUT"
+          }
+
+          run_step "flutter --version" flutter --version
+          run_step "flutter pub get" flutter pub get
+          run_step "dart format --output=none --set-exit-if-changed ." \
+            dart format --output=none --set-exit-if-changed .
+          run_step "flutter analyze" flutter analyze
+          run_step "flutter test test/requester_location_test.dart" \
+            flutter test test/requester_location_test.dart
+          run_step "flutter test" flutter test
+
+      - name: Formatter diff
+        if: always()
+        run: |
+          set +e
+          dart format . > /tmp/format.log 2>&1
+          {
+            echo "### dart format . (what the formatter would rewrite)"
+            echo '```'
+            tail -c 2000 /tmp/format.log
+            echo '```'
+            echo "### git diff --stat after dart format"
+            echo '```'
+            git diff --stat | tail -c 4000
+            echo '```'
+            echo "### git diff after dart format (truncated)"
+            echo '```diff'
+            git diff | head -c 20000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          git checkout -- .
