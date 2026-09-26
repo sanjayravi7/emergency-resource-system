@@ -4,6 +4,9 @@ on:
   push:
     branches: ["arena/01a0dcd4-emergency-resource-system"]
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -22,43 +25,42 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Flutter version
-        run: flutter --version
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Analyze project source
-        if: always()
+      - name: Run everything and collect a report
         run: |
           set +e
-          flutter analyze 2>&1 | tee /tmp/analyze.txt
-          code=${PIPESTATUS[0]}
-          {
-            echo '## flutter analyze'
-            echo '```'
-            cat /tmp/analyze.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit $code
+          report=/tmp/report.md
+          : > "$report"
 
-      - name: Run requester location tests
-        if: always()
-        run: flutter test test/requester_location_test.dart
+          echo '### flutter --version' >> "$report"
+          echo '```' >> "$report"; flutter --version >> "$report" 2>&1; echo '```' >> "$report"
 
-      - name: Run all tests
-        if: always()
-        run: flutter test
+          echo '### flutter pub get' >> "$report"
+          echo '```' >> "$report"; flutter pub get >> "$report" 2>&1; echo "exit=$?" >> "$report"; echo '```' >> "$report"
 
-      - name: Formatting report (informational)
+          echo '### flutter analyze' >> "$report"
+          echo '```' >> "$report"; flutter analyze >> "$report" 2>&1; echo "exit=$?" >> "$report"; echo '```' >> "$report"
+
+          echo '### flutter test test/requester_location_test.dart' >> "$report"
+          echo '```' >> "$report"; flutter test test/requester_location_test.dart >> "$report" 2>&1; echo "exit=$?" >> "$report"; echo '```' >> "$report"
+
+          echo '### flutter test' >> "$report"
+          echo '```' >> "$report"; flutter test >> "$report" 2>&1; echo "exit=$?" >> "$report"; echo '```' >> "$report"
+
+          echo '### dart format --output=none --set-exit-if-changed .' >> "$report"
+          echo '```' >> "$report"; dart format --output=none --set-exit-if-changed . >> "$report" 2>&1; echo "exit=$?" >> "$report"; echo '```' >> "$report"
+
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish report as a commit comment
         if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set +e
-          dart format --output=none --set-exit-if-changed . 2>&1 | tee /tmp/fmt.txt
-          code=${PIPESTATUS[0]}
-          {
-            echo "## dart format (exit $code)"
-            echo '```'
-            tail -60 /tmp/fmt.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY' > /tmp/body.json
+          import json
+          body = open('/tmp/report.md').read()[:60000]
+          print(json.dumps({"body": body}))
+          PY
+          gh api --method POST \
+            "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" \
+            --input /tmp/body.json > /dev/null
