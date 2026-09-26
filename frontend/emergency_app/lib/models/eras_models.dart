@@ -643,6 +643,25 @@ RequestStatus requestStatusFromApi(String? value) {
   }
 }
 
+/// Whether a realtime request payload reports a TERMINAL lifecycle state.
+///
+/// Works for both Phase E payload shapes:
+///   * a full `request` snapshot (`payload['request']['status']`), and
+///   * a redacted invalidation that carries only `payload['status']`.
+///
+/// The backend status string stays authoritative - Flutter never derives or
+/// advances the lifecycle itself. Terminal requests must drop every piece of
+/// per-request tracking state (all responders, not just one).
+bool isTerminalRequestPayload(Map<String, dynamic> payload) {
+  final raw = payload['status'] ??
+      (payload['request'] is Map
+          ? (payload['request'] as Map)['status']
+          : null);
+  if (raw == null) return false;
+  final status = requestStatusFromApi(raw.toString());
+  return status == RequestStatus.completed || status == RequestStatus.cancelled;
+}
+
 String statusLabel(RequestStatus status) => switch (status) {
       RequestStatus.pending => 'PENDING',
       RequestStatus.accepted => 'ACCEPTED',

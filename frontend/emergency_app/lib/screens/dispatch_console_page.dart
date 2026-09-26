@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../Services/api_service.dart';
-import '../Services/live_location_store.dart';
-import '../Services/socket_service.dart';
+import '../services/api_service.dart';
+import '../services/live_location_store.dart';
+import '../services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
@@ -246,6 +246,17 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           setState(() {
             pendingCompatible.removeWhere((request) => request.id == requestId);
           });
+        }
+
+        // PHASE F: a redacted update can still be terminal (COMPLETED /
+        // CANCELLED). A terminal request keeps NO live or last-known
+        // tracking for ANY of its responders, so the whole request is
+        // cleared - not just the responder of a single stop event.
+        if (requestId != null && isTerminalRequestPayload(event.payload)) {
+          if (requestId == locationStore.localSharingRequestId) {
+            await _stopLocalLocationSharing(requestId, emitStop: false);
+          }
+          locationStore.clearRequest(requestId);
         }
       }
       return;

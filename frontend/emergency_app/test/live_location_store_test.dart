@@ -1,4 +1,4 @@
-import 'package:dispatch_console_flutter/Services/live_location_store.dart';
+import 'package:dispatch_console_flutter/services/live_location_store.dart';
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -285,6 +285,28 @@ void main() {
       expect(points.containsKey(4), isFalse,
           reason: 'no ACTIVE assignment, no allocation, not the lead');
       expect(points.containsKey(5), isTrue);
+    });
+
+    // Phase F correction: the single-location convenience accessor is only
+    // safe while exactly one responder is tracked. -----------------------
+    test('singleLocationFor never guesses a responder', () {
+      final store = LiveLocationStore();
+      addTearDown(store.dispose);
+
+      expect(store.singleLocationFor(93), isNull,
+          reason: 'no point at all');
+
+      store.applyUpdate(_location(93, responderId: 7, latitude: 10.7));
+      expect(store.singleLocationFor(93)!.responderId, 7);
+      expect(store.locationFor(93, 7)!.latitude, 10.7);
+
+      store.applyUpdate(_location(93, responderId: 8, latitude: 10.8));
+      expect(store.singleLocationFor(93), isNull,
+          reason: 'two responders: returning an arbitrary one is forbidden');
+      // The pair-keyed API stays authoritative and complete.
+      expect(store.locationFor(93, 7)!.latitude, 10.7);
+      expect(store.locationFor(93, 8)!.latitude, 10.8);
+      expect(store.locationsForRequest(93), hasLength(2));
     });
 
     // Phase F case 11: clearRequest removes all responders. ---------------

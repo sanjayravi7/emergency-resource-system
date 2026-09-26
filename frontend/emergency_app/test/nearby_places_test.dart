@@ -1,4 +1,4 @@
-import 'package:dispatch_console_flutter/Services/live_location_store.dart';
+import 'package:dispatch_console_flutter/services/live_location_store.dart';
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/services/location_service.dart';
 import 'package:dispatch_console_flutter/widgets/new_request_panel.dart';
@@ -776,7 +776,10 @@ void main() {
         updatedAt: DateTime.utc(2026, 9, 26, 10, 1),
       ));
 
-      expect(store.locationFor(1)!.latitude, 10.12);
+      // Pair-keyed API (Phase F): responder 9 is the only responder of
+      // request 1 in this fixture, so the pair is explicit here.
+      expect(store.locationFor(1, 9)!.latitude, 10.12);
+      expect(store.singleLocationFor(1)!.latitude, 10.12);
       expect(service.nearbyCalls, isEmpty);
       expect(service.reverseGeocodeCalls, isEmpty);
       expect(service.autocompleteCalls, isEmpty);

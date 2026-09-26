@@ -1,6 +1,5 @@
-import 'package:dispatch_console_flutter/Services/location_service.dart'
+import 'package:dispatch_console_flutter/services/location_service.dart'
     show GeoPoint;
-import 'package:dispatch_console_flutter/Services/socket_service.dart';
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/services/direct_connection_service.dart';
 import 'package:dispatch_console_flutter/widgets/board_panel.dart';
@@ -316,6 +315,10 @@ void main() {
             76.2 + responderId / 1000,
           ),
           emergency: GeoPoint(10.527642, 76.214435),
+          // Production contract (Phase F): every connection states whether
+          // the responder point came from an active stream. Responder 12 is
+          // a last-known point, the other two are live.
+          responderIsLive: responderId != 12,
         ),
     ];
 

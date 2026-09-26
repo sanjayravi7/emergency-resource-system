@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../Services/api_service.dart';
-import '../Services/socket_service.dart';
+import '../services/api_service.dart';
+import '../services/socket_service.dart';
 import '../theme/app_theme.dart';
 import 'dispatch_console_page.dart';
 import 'responder_readiness_page.dart';
