@@ -1,7 +1,7 @@
 name: Arena verification (temporary)
 
 # Temporary helper workflow used to run the Flutter toolchain for the
-# arena/* working branch and report the raw output in the job summary.
+# arena/* working branch and report the raw output back as a commit comment.
 # It is removed again before the branch is finished.
 
 on:
@@ -9,7 +9,7 @@ on:
     branches: ["arena/**"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -31,7 +31,8 @@ jobs:
 
       - name: Run checks
         run: |
-          OUT="$GITHUB_STEP_SUMMARY"
+          REPORT=/tmp/report.md
+          : > "$REPORT"
 
           run_step() {
             title="$1"
@@ -39,18 +40,18 @@ jobs:
             {
               echo "### $title"
               echo '```'
-            } >> "$OUT"
+            } >> "$REPORT"
             set +e
             "$@" > /tmp/step.log 2>&1
             code=$?
             set -e
-            tail -c 9000 /tmp/step.log >> "$OUT"
+            tail -c 7000 /tmp/step.log >> "$REPORT"
             {
               echo ""
               echo "EXIT CODE: $code"
               echo '```'
               echo ""
-            } >> "$OUT"
+            } >> "$REPORT"
           }
 
           run_step "flutter --version" flutter --version
@@ -65,20 +66,33 @@ jobs:
       - name: Formatter diff
         if: always()
         run: |
+          REPORT=/tmp/report.md
           set +e
           dart format . > /tmp/format.log 2>&1
           {
-            echo "### dart format . (what the formatter would rewrite)"
+            echo "### dart format . output"
             echo '```'
-            tail -c 2000 /tmp/format.log
+            tail -c 1500 /tmp/format.log
             echo '```'
             echo "### git diff --stat after dart format"
             echo '```'
-            git diff --stat | tail -c 4000
+            git diff --stat | tail -c 3000
             echo '```'
             echo "### git diff after dart format (truncated)"
             echo '```diff'
-            git diff | head -c 20000
+            git diff | head -c 15000
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } >> "$REPORT"
           git checkout -- .
+
+      - name: Publish report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head -c 60000 /tmp/report.md > /tmp/report.trimmed.md
+          jq -Rs '{body: .}' < /tmp/report.trimmed.md > /tmp/payload.json
+          gh api -X POST \
+            "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
+            --input /tmp/payload.json --jq '.html_url'
+          cat /tmp/report.md >> "$GITHUB_STEP_SUMMARY"
