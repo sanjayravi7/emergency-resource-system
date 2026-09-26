@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../Services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
+import 'operational_status.dart';
 
 /// Dispatch board. Everything shown here comes from PostgreSQL through the
 /// API - there is no local simulation of state anywhere.
@@ -26,7 +28,9 @@ class BoardPanel extends StatelessWidget {
     this.onStartLocationSharing,
     this.onStopLocationSharing,
     this.liveLocations = const <int, LiveResponderLocation>{},
+    this.activelySharingRequestIds = const <int>{},
     this.sharingRequestId,
+    this.connectionStatus = RealtimeConnectionStatus.offline,
     this.isMobile = false,
   });
 
@@ -47,7 +51,9 @@ class BoardPanel extends StatelessWidget {
   final Future<void> Function(EmergencyRequest request)? onStartLocationSharing;
   final Future<void> Function(int? requestId)? onStopLocationSharing;
   final Map<int, LiveResponderLocation> liveLocations;
+  final Set<int> activelySharingRequestIds;
   final int? sharingRequestId;
+  final RealtimeConnectionStatus connectionStatus;
   final bool isMobile;
 
   bool _canAccept(EmergencyRequest request) =>
@@ -112,6 +118,9 @@ class BoardPanel extends StatelessWidget {
                             request: request,
                             actions: _actions(request),
                             liveLocation: liveLocations[request.id],
+                            isActivelySharing:
+                                activelySharingRequestIds.contains(request.id),
+                            connectionStatus: connectionStatus,
                           ))
                       .toList(),
                 )
@@ -168,7 +177,7 @@ class BoardPanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            child: Text('Dispatch ${allocation.resourceName}',
+            child: Text('Confirm & Dispatch · ${allocation.resourceName}',
                 style: const TextStyle(fontSize: 12)),
           ),
         );
@@ -236,7 +245,7 @@ class BoardPanel extends StatelessWidget {
         request.isOpen;
     if (assignedToCurrentResponder && onStartLocationSharing != null) {
       final isSharing = sharingRequestId == request.id ||
-          liveLocations.containsKey(request.id);
+          activelySharingRequestIds.contains(request.id);
       actions.add(
         isSharing && onStopLocationSharing != null
             ? OutlinedButton(
@@ -247,17 +256,19 @@ class BoardPanel extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                child: const Text('Stop live location',
+                child: const Text('Stop Live Location',
                     style: TextStyle(fontSize: 12)),
               )
             : FilledButton(
-                onPressed: () => onStartLocationSharing!(request),
+                onPressed: connectionStatus == RealtimeConnectionStatus.connected
+                    ? () => onStartLocationSharing!(request)
+                    : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.blue,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
-                child: const Text('Share live location',
+                child: const Text('Start Live Location',
                     style: TextStyle(fontSize: 12)),
               ),
       );
@@ -275,8 +286,8 @@ class BoardPanel extends StatelessWidget {
         // Content-driven rows kept in the compact 68-88px band; only rows with
         // several required resources are allowed to grow a little more.
         headingRowHeight: 40,
-        dataRowMinHeight: 64,
-        dataRowMaxHeight: 104,
+        dataRowMinHeight: 104,
+        dataRowMaxHeight: 220,
         columnSpacing: 22,
         horizontalMargin: 16,
         columns: const [
@@ -285,7 +296,7 @@ class BoardPanel extends StatelessWidget {
           DataColumn(label: Text('EMERGENCY')),
           DataColumn(label: Text('LOCATION')),
           DataColumn(label: Text('PRIORITY')),
-          DataColumn(label: Text('REQUIRED RESOURCES')),
+          DataColumn(label: Text('RESOURCES / ALLOCATIONS')),
           DataColumn(label: Text('CREATED')),
           DataColumn(label: Text('STATUS')),
           DataColumn(label: Text('RESPONDER')),
@@ -355,27 +366,40 @@ class BoardPanel extends StatelessWidget {
               DataCell(Text(request.location)),
               DataCell(PriorityPill(priority: request.priority)),
               DataCell(
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: request.requiredResources.isEmpty
-                      ? [
-                          const Text('-',
-                              style: TextStyle(color: AppColors.textFaint)),
-                        ]
-                      : request.requiredResources.map((line) {
-                          final allocated =
-                              request.allocatedFor(line.resourceId);
-
+                SizedBox(
+                  width: 310,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (request.requiredResources.isEmpty)
+                        const Text('-',
+                            style: TextStyle(color: AppColors.textFaint))
+                      else
+                        ...request.requiredResources.map((line) {
+                          final allocated = request.allocatedFor(line.resourceId);
                           return ResourceChip(
                             name: line.resourceName,
                             type: line.resourceType,
                             quantity: line.quantity,
                             trailingText: allocated > 0
-                                ? '$allocated allocated · ${_allocationStateText(request, line.resourceId) ?? ''}'
+                                ? '$allocated allocated'
                                 : _allocationStateText(request, line.resourceId),
                           );
-                        }).toList(),
+                        }),
+                      if (request.allocations.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        const Divider(height: 1, color: AppColors.border),
+                        const SizedBox(height: 3),
+                        ...request.allocations.map(
+                          (allocation) => AllocationOperationalRow(
+                            allocation: allocation,
+                            compact: true,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
               DataCell(
@@ -395,7 +419,20 @@ class BoardPanel extends StatelessWidget {
                   ],
                 ),
               ),
-              DataCell(StatusPill(status: request.status)),
+              DataCell(
+                SizedBox(
+                  width: 430,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      StatusPill(status: request.status),
+                      const SizedBox(height: 8),
+                      OperationalTimeline(request: request, compact: true),
+                    ],
+                  ),
+                ),
+              ),
               DataCell(
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -422,15 +459,14 @@ class BoardPanel extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 10.5, color: AppColors.textFaint),
                       ),
-                    if (liveLocations[request.id] != null)
-                      Text(
-                        '${liveLocations[request.id]!.isLive ? 'LIVE' : 'LAST'} · ${liveLocations[request.id]!.latitude.toStringAsFixed(5)}, ${liveLocations[request.id]!.longitude.toStringAsFixed(5)}',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          color: liveLocations[request.id]!.isLive
-                              ? AppColors.teal
-                              : AppColors.textFaint,
-                        ),
+                    if (activelySharingRequestIds.contains(request.id) ||
+                        liveLocations[request.id] != null)
+                      LocationSharingSummary(
+                        isActive:
+                            activelySharingRequestIds.contains(request.id),
+                        location: liveLocations[request.id],
+                        connectionStatus: connectionStatus,
+                        compact: true,
                       ),
                   ],
                 ),
@@ -459,12 +495,16 @@ class _RequestCard extends StatelessWidget {
   const _RequestCard({
     required this.request,
     required this.actions,
+    required this.isActivelySharing,
+    required this.connectionStatus,
     this.liveLocation,
   });
 
   final EmergencyRequest request;
   final List<Widget> actions;
   final LiveResponderLocation? liveLocation;
+  final bool isActivelySharing;
+  final RealtimeConnectionStatus connectionStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -501,6 +541,8 @@ class _RequestCard extends StatelessWidget {
               PriorityPill(priority: request.priority),
             ],
           ),
+          const SizedBox(height: 10),
+          OperationalTimeline(request: request),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -571,6 +613,23 @@ class _RequestCard extends StatelessWidget {
                     : allocationStateText(line.resourceId),
               ),
             ),
+          if (request.allocations.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Text(
+              'ALLOCATIONS',
+              style: TextStyle(
+                fontSize: 9.5,
+                color: AppColors.textFaint,
+                letterSpacing: .5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            ...request.allocations.map(
+              (allocation) => AllocationOperationalRow(
+                allocation: allocation,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -590,14 +649,12 @@ class _RequestCard extends StatelessWidget {
               ),
             ],
           ),
-          if (liveLocation != null) ...[
-            const SizedBox(height: 6),
-            InfoChip(
-              label: liveLocation!.isLive
-                  ? 'Live responder position'
-                  : 'Last responder position',
-              value:
-                  '${liveLocation!.latitude.toStringAsFixed(5)}, ${liveLocation!.longitude.toStringAsFixed(5)} · updated ${formatDateTime(liveLocation!.updatedAt)}',
+          if (isActivelySharing || liveLocation != null) ...[
+            const SizedBox(height: 8),
+            LocationSharingSummary(
+              isActive: isActivelySharing,
+              location: liveLocation,
+              connectionStatus: connectionStatus,
             ),
           ],
           if (actions.isNotEmpty) ...[

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../Services/api_service.dart';
+import '../Services/live_location_store.dart';
 import '../Services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
@@ -12,6 +13,7 @@ import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/log_panel.dart';
 import '../widgets/new_request_panel.dart';
+import '../widgets/operational_status.dart';
 import '../widgets/resource_panels.dart';
 import '../widgets/sector_map.dart';
 import 'login_screen.dart';
@@ -57,9 +59,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   StreamSubscription<RealtimeEvent>? realtimeEventsSubscription;
   StreamSubscription<SocketConnectionState>? socketStateSubscription;
   StreamSubscription<Position>? locationSubscription;
-  final Map<int, LiveResponderLocation> liveLocations =
-      <int, LiveResponderLocation>{};
-  int? sharingRequestId;
+  final LiveLocationStore locationStore = LiveLocationStore();
+  final Set<int> _subscribedRequestIds = <int>{};
+  RealtimeConnectionStatus connectionStatus = RealtimeConnectionStatus.offline;
+  bool _hasConnectedOnce = false;
+  bool _needsReconnectReconciliation = false;
 
   String? get role => ApiService.currentRole;
   bool get isRequester => role == 'REQUESTER';
@@ -72,14 +76,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     realtimeEventsSubscription =
         SocketService.instance.events.listen(_handleRealtimeEvent);
-    socketStateSubscription = SocketService.instance.connectionStates.listen((state) {
-      if (state.connected) {
-        // Socket.IO can miss events while disconnected. REST is the recovery
-        // source of truth before the next push event is consumed.
-        refreshAll(silent: true);
-      }
-    });
+    connectionStatus = SocketService.instance.currentConnection.status;
+    socketStateSubscription = SocketService.instance.connectionStates.listen(
+      (state) => unawaited(_handleSocketConnectionState(state)),
+    );
     SocketService.instance.connect();
+    connectionStatus = SocketService.instance.currentConnection.status;
     refreshAll();
 
     clockTimer = Timer.periodic(
@@ -121,13 +123,49 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     heartbeatTimer?.cancel();
     realtimeEventsSubscription?.cancel();
     socketStateSubscription?.cancel();
+    final sharingRequestId = locationStore.localSharingRequestId;
     locationSubscription?.cancel();
+    if (sharingRequestId != null && SocketService.instance.isConnected) {
+      SocketService.instance.stopLocationSharing(sharingRequestId);
+    }
+    locationStore.dispose();
     super.dispose();
   }
 
   // -------------------------------------------------------------------
   // REALTIME
   // -------------------------------------------------------------------
+
+  Future<void> _handleSocketConnectionState(
+    SocketConnectionState state,
+  ) async {
+    if (!mounted) return;
+
+    if (!state.connected) {
+      if (_hasConnectedOnce) _needsReconnectReconciliation = true;
+      _subscribedRequestIds.clear();
+      await _stopLocalLocationSharing(
+        locationStore.localSharingRequestId,
+        emitStop: false,
+      );
+      locationStore.markConnectionLost();
+    }
+
+    if (!mounted) return;
+    setState(() => connectionStatus = state.status);
+
+    if (state.connected) {
+      final shouldReconcile =
+          _hasConnectedOnce && _needsReconnectReconciliation;
+      _hasConnectedOnce = true;
+      _needsReconnectReconciliation = false;
+
+      // Socket.IO may miss events while disconnected. PostgreSQL/REST is the
+      // recovery source of truth, while the first connection uses the initial
+      // page load already in progress.
+      if (shouldReconcile) await refreshAll(silent: true);
+    }
+  }
 
   Future<void> _handleRealtimeEvent(RealtimeEvent event) async {
     if (!mounted) return;
@@ -139,69 +177,179 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       return;
     }
 
-    if (event.name == 'responder.location.update' ||
-        event.name == 'responder.location.start') {
-      final location = event.name == 'responder.location.update'
-          ? LiveResponderLocation.fromJson(event.payload)
-          : null;
-      if (location != null && mounted) {
-        setState(() => liveLocations[location.requestId] = location);
+    if (event.name == 'responder.location.start') {
+      final requestId = _asEventInt(event.payload['requestId']);
+      final responderId = _asEventInt(event.payload['responderId']);
+      if (requestId != null && responderId != null) {
+        locationStore.beginRemoteSharing(
+          requestId: requestId,
+          responderId: responderId,
+        );
+      }
+      return;
+    }
+
+    if (event.name == 'responder.location.update') {
+      final requestId = _asEventInt(event.payload['requestId']);
+      final responderId = _asEventInt(event.payload['responderId']);
+      if (requestId != null && responderId != null) {
+        locationStore.applyUpdate(
+          LiveResponderLocation.fromJson(event.payload),
+        );
       }
       return;
     }
 
     if (event.name == 'responder.location.stop') {
       final requestId = _asEventInt(event.payload['requestId']);
-      if (requestId == sharingRequestId) await _stopLocalLocationSharing(requestId);
-      if (requestId != null && mounted) {
-        setState(() {
-          final existing = liveLocations[requestId];
-          if (existing == null) {
-            liveLocations.remove(requestId);
-          } else {
-            liveLocations[requestId] = existing.asNotLive();
-          }
-        });
+      if (requestId == locationStore.localSharingRequestId) {
+        await _stopLocalLocationSharing(requestId, emitStop: false);
       }
+      if (requestId != null) locationStore.stopSharing(requestId);
       return;
     }
 
     if (event.name == 'socket.error') {
-      // Authorization errors are actionable during development but do not
-      // replace the REST board with a client-side error state.
+      // REST remains usable. Socket authorization/rate errors never replace
+      // the database-backed board with a client-side lifecycle state.
       return;
     }
 
-    if (event.name == 'request.created') {
-      final requestId = _asEventInt(event.payload['requestId']);
-      if (requestId != null) SocketService.instance.subscribeToRequest(requestId);
-      await loadRequests(silent: true);
-      return;
-    }
-
-    if (event.name == 'request.updated' ||
-        event.name == 'allocation.updated' ||
-        event.name == 'responder.availability') {
-      await loadRequests(silent: true);
-      await loadResponders(silent: true);
-      if (isResponder) await loadMyInventory(silent: true);
-
-      final request = event.payload['request'];
-      if (request is Map &&
-          <String>{'COMPLETED', 'CANCELLED'}.contains(
-              request['status']?.toString().toUpperCase())) {
-        final requestId = _asEventInt(request['id'] ?? event.payload['requestId']);
-        if (requestId == sharingRequestId) {
-          await _stopLocalLocationSharing(requestId);
-        }
-        // The `mounted` guard at the top of this handler is stale by now:
-        // the awaited reloads above yield to the event loop, so the page can
-        // be disposed (for example logout during a socket.invalidated storm)
-        // before this setState runs.
-        if (requestId != null && mounted) {
-          setState(() => liveLocations.remove(requestId));
+    if (event.name == 'request.created' || event.name == 'request.updated') {
+      final rawRequest = event.payload['request'];
+      if (rawRequest is Map) {
+        final request = EmergencyRequest.fromJson(
+          Map<String, dynamic>.from(rawRequest),
+        );
+        await _applyRealtimeRequest(request);
+      } else {
+        // Unassigned responders receive a deliberately redacted invalidation
+        // when a pending request becomes unavailable. It contains no request
+        // snapshot and is only used to remove that pending card.
+        final requestId = _asEventInt(event.payload['requestId']);
+        if (isResponder && requestId != null && mounted) {
+          setState(() {
+            pendingCompatible.removeWhere((request) => request.id == requestId);
+          });
         }
       }
+      return;
+    }
+
+    if (event.name == 'allocation.updated') {
+      _applyRealtimeAllocation(event.payload);
+      // Inventory quantities are not part of the allocation event. Reload only
+      // that small responder dataset; request.updated carries the fresh request.
+      if (isResponder) await loadMyInventory(silent: true);
+      return;
+    }
+
+    if (event.name == 'responder.availability') {
+      final responderId = _asEventInt(event.payload['responderId']);
+      final status = event.payload['responderStatus']?.toString();
+      final timestamp =
+          DateTime.tryParse(event.payload['timestamp']?.toString() ?? '');
+      if (responderId == null || status == null || !mounted) return;
+
+      setState(() {
+        final index = responders.indexWhere((row) => row.id == responderId);
+        if (index >= 0) {
+          responders[index] =
+              responders[index].withStatus(status, updatedAt: timestamp);
+        }
+      });
+    }
+  }
+
+  Future<void> _applyRealtimeRequest(EmergencyRequest request) async {
+    final isTerminal = !request.isOpen;
+    if (isTerminal && request.id == locationStore.localSharingRequestId) {
+      await _stopLocalLocationSharing(request.id, emitStop: false);
+    }
+    if (!mounted) return;
+
+    setState(() {
+      openRequests.removeWhere((row) => row.id == request.id);
+      pendingCompatible.removeWhere((row) => row.id == request.id);
+      logEntries.removeWhere((row) => row.id == request.id);
+
+      if (isResponder) {
+        if (request.isOpen &&
+            request.acceptedBy?.id == ApiService.currentUserId) {
+          openRequests.add(request);
+        } else if (request.status == RequestStatus.pending) {
+          // request.created is sent only to compatible responders.
+          pendingCompatible.add(request);
+        } else if (!request.isOpen &&
+            request.acceptedBy?.id == ApiService.currentUserId) {
+          logEntries.add(request);
+        }
+      } else if (request.isOpen) {
+        openRequests.add(request);
+      } else {
+        logEntries.add(request);
+      }
+
+      openRequests.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      pendingCompatible.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      logEntries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    });
+
+    if (isTerminal) {
+      locationStore.removeRequest(request.id);
+    } else {
+      locationStore.reconcile(openRequests);
+    }
+    _syncRequestSubscriptions();
+  }
+
+  void _applyRealtimeAllocation(Map<String, dynamic> payload) {
+    final rawAllocation = payload['allocation'];
+    if (rawAllocation is! Map || !mounted) return;
+    final allocation = AllocationLine.fromJson(
+      Map<String, dynamic>.from(rawAllocation),
+    );
+    final backendRequestStatus = payload['requestStatus']?.toString();
+
+    EmergencyRequest patch(EmergencyRequest request) => request.withAllocation(
+          allocation,
+          backendRequestStatus: backendRequestStatus,
+        );
+
+    setState(() {
+      _replaceRequestIn(openRequests, allocation.requestId, patch);
+      _replaceRequestIn(pendingCompatible, allocation.requestId, patch);
+      _replaceRequestIn(logEntries, allocation.requestId, patch);
+    });
+  }
+
+  void _replaceRequestIn(
+    List<EmergencyRequest> requests,
+    int requestId,
+    EmergencyRequest Function(EmergencyRequest request) update,
+  ) {
+    final index = requests.indexWhere((request) => request.id == requestId);
+    if (index >= 0) requests[index] = update(requests[index]);
+  }
+
+  void _syncRequestSubscriptions() {
+    final authorizedOpenIds = openRequests
+        .where((request) =>
+            isAdmin ||
+            isRequester ||
+            (isResponder && request.acceptedBy?.id == ApiService.currentUserId))
+        .map((request) => request.id)
+        .toSet();
+
+    for (final requestId
+        in _subscribedRequestIds.difference(authorizedOpenIds).toList()) {
+      SocketService.instance.unsubscribeFromRequest(requestId);
+      _subscribedRequestIds.remove(requestId);
+    }
+    for (final requestId
+        in authorizedOpenIds.difference(_subscribedRequestIds).toList()) {
+      SocketService.instance.subscribeToRequest(requestId);
+      _subscribedRequestIds.add(requestId);
     }
   }
 
@@ -216,6 +364,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   Future<void> refreshAll({bool silent = false}) async {
     if (!mounted) return;
+
+    // Polling remains the offline data path. Once Socket.IO has exhausted a
+    // reconnect cycle, the next regular/manual REST refresh also starts a new
+    // best-effort realtime reconnect cycle.
+    if (!SocketService.instance.isConnected &&
+        connectionStatus == RealtimeConnectionStatus.offline) {
+      SocketService.instance.connect();
+    }
 
     if (!silent) setState(() => loading = true);
 
@@ -325,36 +481,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         logEntries
           ..clear()
           ..addAll(closed);
-
-        // The REST resynchronization also carries the latest throttled
-        // PostgreSQL coordinate. Socket.IO then replaces it with live GPS
-        // updates when sharing is active.
-        final openIds = open.map((request) => request.id).toSet();
-        liveLocations.removeWhere((requestId, _) => !openIds.contains(requestId));
-        for (final request in open) {
-          final responder = request.acceptedBy;
-          if (responder?.latitude != null && responder?.longitude != null) {
-            final existing = liveLocations[request.id];
-            if (existing?.isLive != true) {
-              liveLocations[request.id] = LiveResponderLocation(
-                requestId: request.id,
-                responderId: responder!.id,
-                latitude: responder.latitude!,
-                longitude: responder.longitude!,
-                updatedAt: DateTime.now(),
-                isLive: false,
-              );
-            }
-          }
-        }
       });
 
-      // Room authorization is checked again by the backend. Pending responder
-      // requests are not subscribed until acceptance, while requester/admin
-      // rooms are safe to subscribe for their own/current views.
-      for (final request in <EmergencyRequest>[...open, ...closed]) {
-        SocketService.instance.subscribeToRequest(request.id);
-      }
+      // REST supplies the latest throttled PostgreSQL coordinate. A currently
+      // live socket point wins; closed requests are removed from tracking.
+      locationStore.reconcile(open);
+      _syncRequestSubscriptions();
     } catch (error) {
       if (!silent) showToast('Failed to load requests: ${_clean(error)}');
     }
@@ -658,6 +790,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       showToast('Only the assigned responder can share this emergency location.');
       return;
     }
+    if (connectionStatus != RealtimeConnectionStatus.connected ||
+        !SocketService.instance.isConnected) {
+      showToast('Live location requires a connected realtime service.');
+      return;
+    }
 
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
@@ -673,9 +810,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         throw Exception('Location permission was not granted.');
       }
 
-      await stopLocationSharing(sharingRequestId);
-      sharingRequestId = request.id;
-      SocketService.instance.startLocationSharing(request.id);
+      await stopLocationSharing(locationStore.localSharingRequestId);
+      final authorized =
+          await SocketService.instance.startLocationSharing(request.id);
+      if (!authorized) {
+        throw Exception('Location sharing was not authorized for this request.');
+      }
+      locationStore.beginLocalSharing(request.id);
 
       try {
         final initialPosition = await Geolocator.getCurrentPosition(
@@ -691,41 +832,51 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         // The stream below may still provide a fix; do not fabricate one.
       }
 
-      final settings = const LocationSettings(
+      const settings = LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
       );
       locationSubscription = Geolocator.getPositionStream(
         locationSettings: settings,
-      ).listen((position) {
-        final requestId = sharingRequestId;
-        if (requestId == null) return;
-        SocketService.instance.updateLocation(
-          requestId: requestId,
-          latitude: position.latitude,
-          longitude: position.longitude,
-        );
-      });
+      ).listen(
+        (position) {
+          final requestId = locationStore.localSharingRequestId;
+          if (requestId == null || !SocketService.instance.isConnected) return;
+          SocketService.instance.updateLocation(
+            requestId: requestId,
+            latitude: position.latitude,
+            longitude: position.longitude,
+          );
+        },
+        onError: (Object _) {
+          unawaited(stopLocationSharing(request.id));
+        },
+      );
       showToast('Live responder location sharing started');
     } catch (error) {
-      if (sharingRequestId == request.id) await stopLocationSharing(request.id);
+      if (locationStore.localSharingRequestId == request.id) {
+        await stopLocationSharing(request.id);
+      }
       showToast('Location sharing failed: ${_clean(error)}');
     }
   }
 
-  Future<void> _stopLocalLocationSharing(int? requestId) async {
+  Future<void> _stopLocalLocationSharing(
+    int? requestId, {
+    bool emitStop = false,
+  }) async {
     await locationSubscription?.cancel();
     locationSubscription = null;
-    final activeRequestId = requestId ?? sharingRequestId;
-    if (activeRequestId == sharingRequestId) sharingRequestId = null;
+    final activeRequestId = requestId ?? locationStore.localSharingRequestId;
+    if (activeRequestId == null) return;
+    locationStore.endLocalSharing(activeRequestId);
+    if (emitStop && SocketService.instance.isConnected) {
+      SocketService.instance.stopLocationSharing(activeRequestId);
+    }
   }
 
   Future<void> stopLocationSharing(int? requestId) async {
-    final activeRequestId = requestId ?? sharingRequestId;
-    await _stopLocalLocationSharing(activeRequestId);
-    if (activeRequestId != null) {
-      SocketService.instance.stopLocationSharing(activeRequestId);
-    }
+    await _stopLocalLocationSharing(requestId, emitStop: true);
   }
 
   Future<void> editMyHelpTypes() async {
@@ -795,7 +946,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   Future<void> logout() async {
-    await stopLocationSharing(sharingRequestId);
+    await stopLocationSharing(locationStore.localSharingRequestId);
     SocketService.instance.disconnect();
     await ApiService.logout();
     if (!mounted) return;
@@ -841,6 +992,22 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       openRequests.where((r) => r.status != RequestStatus.pending).length;
 
   int get closedCount => logEntries.length;
+
+  BackendResponder? get currentResponder => firstWhereOrNull(
+        responders,
+        (responder) => responder.id == ApiService.currentUserId,
+      );
+
+  int get unfinishedAllocationCount {
+    final requests = <EmergencyRequest>[...openRequests, ...logEntries];
+    return requests
+        .expand((request) => request.allocations)
+        .where((allocation) =>
+            allocation.responderId == ApiService.currentUserId &&
+            (allocation.status == 'RESERVED' ||
+                allocation.status == 'DISPATCHED'))
+        .length;
+  }
 
   String get viewTitle => switch (activeView) {
         ConsoleView.board => 'Dispatch Board',
@@ -891,6 +1058,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           title: viewTitle,
           onRefresh: refreshAll,
           onLogout: logout,
+          connectionStatus: connectionStatus,
         ),
         body: SafeArea(
           top: false,
@@ -932,6 +1100,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
                     active: activeCount,
                     completed: closedCount,
                     loading: loading,
+                    connectionStatus: connectionStatus,
                   ),
                   Expanded(child: _buildMainContent(isMobile: false)),
                 ],
@@ -1014,29 +1183,40 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     if (isResponder) {
       children.add(
-        BoardPanel(
-          title: 'MY ACTIVE EMERGENCY',
-          hint: 'Accepted by you',
-          requests: openRequests,
-          role: role,
-          currentUserId: ApiService.currentUserId,
-          emptyTitle: 'NO ACTIVE EMERGENCY',
-          emptyIcon: Icons.check_circle_outline,
-          emptyMessage:
-              'Accept a compatible request below to start working on it.',
-          onAllocate: openAllocationDialog,
-          onDispatchAllocation: dispatchAllocation,
-          onMarkDelivered: markAllocationDelivered,
-          onStartLocationSharing: startLocationSharing,
-          onStopLocationSharing: stopLocationSharing,
-          liveLocations: liveLocations,
-          sharingRequestId: sharingRequestId,
-          isMobile: isMobile,
+        ResponderAvailabilityBanner(
+          responder: currentResponder,
+          unfinishedAllocations: unfinishedAllocationCount,
+        ),
+      );
+      children.add(
+        AnimatedBuilder(
+          animation: locationStore,
+          builder: (context, _) => BoardPanel(
+            title: 'MY ACTIVE EMERGENCY',
+            hint: 'Accepted by you',
+            requests: openRequests,
+            role: role,
+            currentUserId: ApiService.currentUserId,
+            emptyTitle: 'NO ACTIVE EMERGENCY',
+            emptyIcon: Icons.check_circle_outline,
+            emptyMessage:
+                'Accept a compatible request below to start working on it.',
+            onAllocate: openAllocationDialog,
+            onDispatchAllocation: dispatchAllocation,
+            onMarkDelivered: markAllocationDelivered,
+            onStartLocationSharing: startLocationSharing,
+            onStopLocationSharing: stopLocationSharing,
+            liveLocations: locationStore.locations,
+            activelySharingRequestIds:
+                locationStore.activelySharingRequestIds,
+            sharingRequestId: locationStore.localSharingRequestId,
+            connectionStatus: connectionStatus,
+            isMobile: isMobile,
+          ),
         ),
       );
 
       children.add(const SizedBox(height: 18));
-
       children.add(
         BoardPanel(
           title: 'COMPATIBLE PENDING REQUESTS',
@@ -1050,81 +1230,93 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               'New pending requests will appear here when your available '
               'inventory matches every required resource.',
           onAccept: acceptRequest,
-          liveLocations: liveLocations,
+          connectionStatus: connectionStatus,
           isMobile: isMobile,
         ),
       );
     } else {
       children.add(
-        BoardPanel(
-          title: isAdmin ? 'ALL ACTIVE REQUESTS' : 'MY ACTIVE REQUESTS',
-          hint: 'Sorted by time received',
-          requests: openRequests,
-          role: role,
-          currentUserId: ApiService.currentUserId,
-          emptyMessage: isRequester
-              ? 'No active requests. Submit one from "New".'
-              : 'No active requests in the database.',
-          onCancelRequest: isRequester ? cancelRequest : null,
-          onConfirmReceipt: isRequester ? confirmReceipt : null,
-          liveLocations: liveLocations,
-          isMobile: isMobile,
+        AnimatedBuilder(
+          animation: locationStore,
+          builder: (context, _) => BoardPanel(
+            title: isAdmin ? 'ALL ACTIVE REQUESTS' : 'MY ACTIVE REQUESTS',
+            hint: 'Sorted by time received',
+            requests: openRequests,
+            role: role,
+            currentUserId: ApiService.currentUserId,
+            emptyMessage: isRequester
+                ? 'No active requests. Submit one from "New".'
+                : 'No active requests in the database.',
+            onCancelRequest: isRequester ? cancelRequest : null,
+            onConfirmReceipt: isRequester ? confirmReceipt : null,
+            liveLocations: locationStore.locations,
+            activelySharingRequestIds:
+                locationStore.activelySharingRequestIds,
+            connectionStatus: connectionStatus,
+            isMobile: isMobile,
+          ),
         ),
       );
     }
 
     children.add(const SizedBox(height: 18));
-
     children.add(
-      Panel(
-        title: 'SECTOR MAP',
-        hint: 'Districts, responders and open requests',
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              // Content-driven, but height-capped so the map never pushes the
-              // request board far below the fold on wide desktop layouts.
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final maxHeight = isMobile ? 190.0 : 230.0;
-                  final ratio = isMobile ? 360 / 200 : 640 / 260;
-                  final width = constraints.maxWidth;
-                  final height =
-                      (width / ratio).clamp(140.0, maxHeight).toDouble();
+      AnimatedBuilder(
+        animation: locationStore,
+        builder: (context, _) => Panel(
+          title: 'SECTOR MAP',
+          trailing: ConnectionStatusIndicator(
+            status: connectionStatus,
+            compact: true,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final maxHeight = isMobile ? 210.0 : 250.0;
+                    final ratio = isMobile ? 360 / 210 : 640 / 280;
+                    final width = constraints.maxWidth;
+                    final height =
+                        (width / ratio).clamp(150.0, maxHeight).toDouble();
 
-                  return SizedBox(
-                    height: height,
-                    width: double.infinity,
-                    child: CustomPaint(
-                      painter: SectorMapPainter(
-                        districts: kDistricts,
-                        responders: responders,
-                        requests: [...openRequests, ...pendingCompatible],
-                        liveLocations: liveLocations,
+                    return SizedBox(
+                      height: height,
+                      width: double.infinity,
+                      child: CustomPaint(
+                        painter: SectorMapPainter(
+                          districts: kDistricts,
+                          responders: responders,
+                          requests: [...openRequests, ...pendingCompatible],
+                          liveLocations: locationStore.locations,
+                        ),
                       ),
+                    );
+                  },
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  children: [
+                    LegendItem(color: AppColors.red, label: 'Emergency location'),
+                    LegendItem(color: AppColors.amber, label: 'Pending request'),
+                    LegendItem(color: AppColors.teal, label: 'Live responder'),
+                    LegendItem(
+                      color: AppColors.textFaint,
+                      label: 'Last-known responder',
                     ),
-                  );
-                },
+                    LegendItem(color: AppColors.blue, label: 'Busy / assigned'),
+                    LegendItem(color: AppColors.teal, label: 'Available'),
+                  ],
+                ),
               ),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 6,
-                children: [
-                  LegendItem(color: AppColors.teal, label: 'Available'),
-                  LegendItem(color: AppColors.blue, label: 'Busy / assigned'),
-                  LegendItem(color: AppColors.textFaint, label: 'Offline'),
-                  LegendItem(color: AppColors.red, label: 'Emergency location'),
-                  LegendItem(color: AppColors.amber, label: 'Pending request'),
-                  LegendItem(color: AppColors.teal, label: 'Live responder'),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

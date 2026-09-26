@@ -14,11 +14,21 @@ class RealtimeEvent {
   final Map<String, dynamic> payload;
 }
 
-class SocketConnectionState {
-  const SocketConnectionState({required this.connected, this.message});
+enum RealtimeConnectionStatus { connected, reconnecting, offline }
 
-  final bool connected;
+class SocketConnectionState {
+  const SocketConnectionState({required this.status, this.message});
+
+  final RealtimeConnectionStatus status;
   final String? message;
+
+  bool get connected => status == RealtimeConnectionStatus.connected;
+
+  String get label => switch (status) {
+        RealtimeConnectionStatus.connected => 'CONNECTED',
+        RealtimeConnectionStatus.reconnecting => 'RECONNECTING',
+        RealtimeConnectionStatus.offline => 'OFFLINE',
+      };
 }
 
 class SocketService {
@@ -32,6 +42,10 @@ class SocketService {
   final StreamController<SocketConnectionState> _connection =
       StreamController<SocketConnectionState>.broadcast();
   bool _disposed = false;
+  bool _manualDisconnect = false;
+  SocketConnectionState _currentConnection = const SocketConnectionState(
+    status: RealtimeConnectionStatus.offline,
+  );
 
   static const List<String> _serverEventNames = <String>[
     'socket.authenticated',
@@ -48,22 +62,36 @@ class SocketService {
 
   Stream<RealtimeEvent> get events => _events.stream;
   Stream<SocketConnectionState> get connectionStates => _connection.stream;
+  SocketConnectionState get currentConnection => _currentConnection;
   bool get isConnected => _socket?.connected == true;
 
-  /// Calling connect repeatedly is safe. The page can rebuild or return from
-  /// a reconnect without registering duplicate Socket.IO listeners.
+  /// Calling connect repeatedly is safe. The singleton retains exactly one
+  /// Socket.IO object and therefore one listener graph for the active login.
   void connect() {
     if (_disposed || ApiService.token == null) return;
+    _manualDisconnect = false;
+
     if (_socket != null) {
-      if (!_socket!.connected) _socket!.connect();
+      if (!_socket!.connected) {
+        _setConnection(const SocketConnectionState(
+          status: RealtimeConnectionStatus.reconnecting,
+        ));
+        _socket!.connect();
+      }
       return;
     }
+
+    _setConnection(const SocketConnectionState(
+      status: RealtimeConnectionStatus.reconnecting,
+    ));
 
     final socket = IO.io(
       _serverUrl(),
       IO.OptionBuilder()
           .setTransports(<String>['websocket'])
           .setAuth(<String, dynamic>{'token': ApiService.token})
+          // Never reuse a cached Manager from a previous authenticated user.
+          .enableForceNew()
           .enableReconnection()
           .setReconnectionAttempts(10)
           .setReconnectionDelay(1000)
@@ -73,24 +101,44 @@ class SocketService {
     _socket = socket;
 
     socket.onConnect((_) {
-      _connection.add(const SocketConnectionState(connected: true));
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.connected,
+      ));
     });
-    socket.onDisconnect((_) {
-      _connection.add(const SocketConnectionState(
-        connected: false,
-        message: 'Socket disconnected; REST resynchronization will run.',
+    socket.onDisconnect((reason) {
+      _setConnection(SocketConnectionState(
+        status: _manualDisconnect
+            ? RealtimeConnectionStatus.offline
+            : RealtimeConnectionStatus.reconnecting,
+        message: reason?.toString(),
       ));
     });
     socket.onConnectError((error) {
-      _connection.add(SocketConnectionState(
-        connected: false,
+      _setConnection(SocketConnectionState(
+        status: RealtimeConnectionStatus.reconnecting,
         message: error?.toString(),
+      ));
+    });
+    socket.onReconnectAttempt((_) {
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.reconnecting,
+      ));
+    });
+    socket.onReconnect((_) {
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.connected,
+      ));
+    });
+    socket.onReconnectFailed((_) {
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.offline,
+        message: 'Realtime connection unavailable. REST refresh remains active.',
       ));
     });
 
     for (final name in _serverEventNames) {
       socket.on(name, (dynamic value) {
-        if (_disposed) return;
+        if (_disposed || !identical(_socket, socket)) return;
         final payload = value is Map
             ? Map<String, dynamic>.from(value)
             : <String, dynamic>{'value': value};
@@ -104,18 +152,20 @@ class SocketService {
   /// Stop the current connection and all listeners. A later login starts a
   /// fresh authenticated socket, so an old user's room can never be reused.
   void disconnect() {
+    _manualDisconnect = true;
     final socket = _socket;
     _socket = null;
     if (socket != null) {
-      // Dropping the socket after disconnect also drops its listener graph;
-      // remove our named event handlers first so a forced logout/deactivation
-      // cannot leave stale callbacks around if the package delays teardown.
       for (final name in _serverEventNames) {
         socket.off(name);
       }
-      socket.disconnect();
+      // dispose() disconnects and removes transport/reconnect listeners too;
+      // this prevents listener duplication across logout/login cycles.
+      socket.dispose();
     }
-    _connection.add(const SocketConnectionState(connected: false));
+    _setConnection(const SocketConnectionState(
+      status: RealtimeConnectionStatus.offline,
+    ));
   }
 
   void dispose() {
@@ -126,18 +176,32 @@ class SocketService {
   }
 
   void subscribeToRequest(int requestId) {
+    if (requestId <= 0) return;
     _socket?.emit('request.subscribe', <String, dynamic>{'requestId': requestId});
   }
 
   void unsubscribeFromRequest(int requestId) {
+    if (requestId <= 0) return;
     _socket
         ?.emit('request.unsubscribe', <String, dynamic>{'requestId': requestId});
   }
 
-  void startLocationSharing(int requestId) {
-    _socket?.emit(
+  Future<bool> startLocationSharing(int requestId) async {
+    final socket = _socket;
+    if (!isConnected || socket == null || requestId <= 0) return false;
+
+    final completer = Completer<bool>();
+    socket.emitWithAck(
       'responder.location.start',
       <String, dynamic>{'requestId': requestId},
+      ack: (dynamic response) {
+        if (completer.isCompleted) return;
+        completer.complete(response is Map && response['ok'] == true);
+      },
+    );
+    return completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => false,
     );
   }
 
@@ -146,6 +210,7 @@ class SocketService {
     required double latitude,
     required double longitude,
   }) {
+    if (!isConnected || requestId <= 0) return;
     _socket?.emit('responder.location.update', <String, dynamic>{
       'requestId': requestId,
       'latitude': latitude,
@@ -154,10 +219,21 @@ class SocketService {
   }
 
   void stopLocationSharing(int requestId) {
+    if (!isConnected || requestId <= 0) return;
     _socket?.emit(
       'responder.location.stop',
       <String, dynamic>{'requestId': requestId},
     );
+  }
+
+  void _setConnection(SocketConnectionState state) {
+    if (_disposed) return;
+    if (_currentConnection.status == state.status &&
+        _currentConnection.message == state.message) {
+      return;
+    }
+    _currentConnection = state;
+    _connection.add(state);
   }
 
   String _serverUrl() {

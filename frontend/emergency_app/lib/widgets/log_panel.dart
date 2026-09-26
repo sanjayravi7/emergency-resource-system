@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
+import 'operational_status.dart';
 
 /// Closed / after-action log. Completed and cancelled requests straight from
 /// the database - no session-only memory.
@@ -36,8 +37,8 @@ class LogPanel extends StatelessWidget {
                     headingTextStyle: tableHeadStyle(),
                     dataTextStyle: const TextStyle(
                         fontSize: 13, color: AppColors.text),
-                    dataRowMinHeight: 48,
-                    dataRowMaxHeight: 110,
+                    dataRowMinHeight: 72,
+                    dataRowMaxHeight: 180,
                     columns: const [
                       DataColumn(label: Text('REQUEST ID')),
                       DataColumn(label: Text('EMERGENCY')),
@@ -60,21 +61,29 @@ class LogPanel extends StatelessWidget {
                           Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: entry.requiredResources.isEmpty
-                                ? [
-                                    const Text('-',
-                                        style: TextStyle(
-                                            color: AppColors.textFaint)),
-                                  ]
-                                : entry.requiredResources
-                                    .map(
-                                      (line) => ResourceChip(
-                                        name: line.resourceName,
-                                        type: line.resourceType,
-                                        quantity: line.quantity,
-                                      ),
-                                    )
-                                    .toList(),
+                            children: <Widget>[
+                              if (entry.requiredResources.isEmpty)
+                                const Text('-',
+                                    style: TextStyle(
+                                        color: AppColors.textFaint))
+                              else
+                                ...entry.requiredResources.map(
+                                  (line) => ResourceChip(
+                                    name: line.resourceName,
+                                    type: line.resourceType,
+                                    quantity: line.quantity,
+                                  ),
+                                ),
+                              if (entry.allocations.isNotEmpty) ...[
+                                const Divider(height: 6, color: AppColors.border),
+                                ...entry.allocations.map(
+                                  (allocation) => AllocationOperationalRow(
+                                    allocation: allocation,
+                                    compact: true,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         DataCell(Text(entry.acceptedBy?.name ?? '-')),
@@ -82,7 +91,23 @@ class LogPanel extends StatelessWidget {
                           formatDateTime(entry.createdAt),
                           style: monoStyle(size: 12, color: AppColors.textDim),
                         )),
-                        DataCell(StatusPill(status: entry.status)),
+                        DataCell(
+                          SizedBox(
+                            width: 430,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                StatusPill(status: entry.status),
+                                const SizedBox(height: 7),
+                                OperationalTimeline(
+                                  request: entry,
+                                  compact: true,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ]);
                     }).toList(),
                   ),
@@ -133,6 +158,17 @@ class _LogCard extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 11.5, color: AppColors.textFaint),
                 ),
+                if (request.allocations.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  ...request.allocations.map(
+                    (allocation) => AllocationOperationalRow(
+                      allocation: allocation,
+                      compact: true,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 7),
+                OperationalTimeline(request: request, compact: true),
               ],
             ),
           ),

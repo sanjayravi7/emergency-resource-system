@@ -19,9 +19,13 @@ fresh PostgreSQL snapshot through the Socket.IO instance created by
   It is sent only to the `user:{id}` rooms of compatible active responders,
   plus the creator and admins.
 - `request.updated`: `{ requestId, status, acceptedBy, acceptedById,
-  acceptedAt, updatedAt, request }`.
+  acceptedAt, updatedAt, request }` for the owning requester, assigned
+  responder/request room, and admins. Other responders receive only a redacted
+  `{ requestId, status, available, updatedAt }` invalidation so a no-longer-
+  pending card can be removed without exposing requester data.
 - `allocation.updated`: `{ allocationId, requestId, status, quantity,
-  resourceId, responderId, updatedAt, allocation, requestStatus }`.
+  resourceId, responderId, updatedAt, allocation, requestStatus }`, restricted
+  to the owning requester, assigned responder/request room, and admins.
 - `responder.availability`: `{ responderId, responderStatus,
   currentResponderStatus, timestamp }`.
 - `responder.location.start`, `responder.location.update`, and

@@ -513,7 +513,16 @@ if (!hasDatabase) {
     await acceptEmergency(emergency.id);
     await requesterUpdated;
     await responderAUpdated;
-    await responderBSeesUnavailable;
+    const responderBInvalidation = await responderBSeesUnavailable;
+    expect(responderBInvalidation).toEqual(
+      expect.objectContaining({
+        requestId: emergency.id,
+        status: 'ACCEPTED',
+        available: false,
+      })
+    );
+    expect(responderBInvalidation.request).toBeUndefined();
+    expect(responderBInvalidation.acceptedBy).toBeUndefined();
     await adminUpdated;
     await availabilityBusy;
     await expectResponderStatus('BUSY');
@@ -531,8 +540,14 @@ if (!hasDatabase) {
       'allocation.updated',
       (payload) => payload.requestId === emergency.id && payload.status === 'RESERVED'
     );
+    const noAllocationForUnassignedResponder = expectNoEvent(
+      sockets.responderB,
+      'allocation.updated',
+      (payload) => payload.requestId === emergency.id
+    );
     const allocation = await createAllocation(emergency.id);
     const allocationPayload = await allocationEvent;
+    await noAllocationForUnassignedResponder;
     expect(allocationPayload.allocationId).toBe(allocation.id);
     await expectResponderStatus('BUSY');
 
@@ -552,10 +567,18 @@ if (!hasDatabase) {
     });
     await expectResponderStatus('BUSY');
 
+    await emitAck(sockets.responderA, 'responder.location.start', {
+      requestId: emergency.id,
+    });
     const deliveredByRequester = waitForEvent(
       sockets.requesterA,
       'allocation.updated',
       (payload) => payload.allocationId === allocation.id && payload.status === 'DELIVERED'
+    );
+    const completedLocationCleanup = waitForEvent(
+      sockets.requesterA,
+      'responder.location.stop',
+      (payload) => payload.requestId === emergency.id
     );
     const completedByRequester = waitForEvent(
       sockets.requesterA,
@@ -565,6 +588,7 @@ if (!hasDatabase) {
     await confirmReceived(allocation.id);
     await deliveredByRequester;
     await completedByRequester;
+    await completedLocationCleanup;
 
     const requesterFinal = await prisma.emergencyRequest.findUnique({ where: { id: emergency.id } });
     const requesterAllocationFinal = await prisma.allocation.findUnique({ where: { id: allocation.id } });

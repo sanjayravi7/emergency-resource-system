@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../Services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
 
@@ -145,6 +146,60 @@ class LegendItem extends StatelessWidget {
           ),
         ],
       );
+}
+
+class ConnectionStatusIndicator extends StatelessWidget {
+  const ConnectionStatusIndicator({
+    super.key,
+    required this.status,
+    this.compact = false,
+  });
+
+  final RealtimeConnectionStatus status;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, icon) = switch (status) {
+      RealtimeConnectionStatus.connected =>
+        ('CONNECTED', AppColors.teal, Icons.wifi_rounded),
+      RealtimeConnectionStatus.reconnecting =>
+        ('RECONNECTING', AppColors.amber, Icons.sync_rounded),
+      RealtimeConnectionStatus.offline =>
+        ('OFFLINE', AppColors.red, Icons.wifi_off_rounded),
+    };
+
+    return Semantics(
+      label: 'Realtime connection $label',
+      child: Container(
+        key: const ValueKey<String>('connection-status-indicator'),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 7 : 9,
+          vertical: compact ? 4 : 5,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .11),
+          border: Border.all(color: color.withValues(alpha: .35)),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: compact ? 12 : 13, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: monoStyle(
+                size: compact ? 9 : 10,
+                color: color,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Pills and chips ────────────────────────────────────────────────────────
@@ -590,11 +645,13 @@ class DesktopTopBar extends StatelessWidget {
     required this.active,
     required this.completed,
     required this.loading,
+    required this.connectionStatus,
   });
 
   final String title, subtitle;
   final int pending, active, completed;
   final bool loading;
+  final RealtimeConnectionStatus connectionStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -639,6 +696,8 @@ class DesktopTopBar extends StatelessWidget {
               ],
             ),
           ),
+          ConnectionStatusIndicator(status: connectionStatus),
+          const SizedBox(width: 22),
           Stat(label: 'pending', value: pending, color: AppColors.amber),
           const SizedBox(width: 22),
           Stat(label: 'active', value: active, color: AppColors.blue),
@@ -660,11 +719,13 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.title,
     required this.onRefresh,
     required this.onLogout,
+    required this.connectionStatus,
   });
 
   final String clock;
   final int pending, active, completed;
   final String title;
+  final RealtimeConnectionStatus connectionStatus;
   final VoidCallback onRefresh;
   final VoidCallback onLogout;
 
@@ -686,6 +747,11 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
             child: Row(
               children: [
                 const Expanded(child: Brand()),
+                ConnectionStatusIndicator(
+                  status: connectionStatus,
+                  compact: true,
+                ),
+                const SizedBox(width: 7),
                 Text(clock,
                     style: monoStyle(size: 12, color: AppColors.textFaint)),
                 IconButton(
