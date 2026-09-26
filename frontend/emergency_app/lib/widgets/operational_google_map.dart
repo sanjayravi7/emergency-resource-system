@@ -318,10 +318,13 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                       child: isMobileLayout
                           ? Align(
                               alignment: Alignment.topLeft,
-                              child: _MapControls(
-                                onCenterEmergency: _centerOnEmergency,
-                                onFitPins: markers.isEmpty ? null : _fitAllPins,
-                                isMobile: true,
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: _MapControls(
+                                  onCenterEmergency: _centerOnEmergency,
+                                  onFitPins: markers.isEmpty ? null : _fitAllPins,
+                                  isMobile: true,
+                                ),
                               ),
                             )
                           : _MapOverlayControls(
@@ -588,13 +591,11 @@ class _MapControls extends StatelessWidget {
   const _MapControls({
     required this.onCenterEmergency,
     this.onFitPins,
-    this.onGetDirections,
     this.isMobile = false,
   });
 
   final Future<void> Function() onCenterEmergency;
   final Future<void> Function()? onFitPins;
-  final Future<void> Function()? onGetDirections;
   final bool isMobile;
 
   @override
@@ -661,18 +662,6 @@ class _MapControls extends StatelessWidget {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
-            if (onGetDirections != null && !isMobile)
-              TextButton.icon(
-                onPressed: () => unawaited(onGetDirections!()),
-                icon: const Icon(Icons.directions_rounded, size: 16),
-                label: const Text('Get directions'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.teal,
-                  textStyle: const TextStyle(fontSize: 12),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-                ),
-              ),
           ],
         ),
       ),

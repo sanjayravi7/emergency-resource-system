@@ -61,10 +61,9 @@ const requestInclude = {
 exports.requestInclude = requestInclude;
 
 function normalizeOptionalDescription(value) {
-  if (value === undefined || value === null) return null;
-
-  const description = String(value);
-  return description.trim() ? description : null;
+  // Description is optional: blank input is represented consistently as SQL
+  // NULL, while meaningful text is preserved exactly as supplied.
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
 exports.createEmergencyRequest = async (userId, data) => {
