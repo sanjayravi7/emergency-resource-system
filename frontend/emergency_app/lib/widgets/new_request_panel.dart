@@ -236,9 +236,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         : emergencyType.trim();
 
     final rawDescription = descriptionController.text;
-    final normalizedDescription = rawDescription.trim().isEmpty
-        ? null
-        : rawDescription;
+    final normalizedDescription =
+        rawDescription.trim().isEmpty ? null : rawDescription;
 
     final payload = NewRequestPayload(
       emergencyType: resolvedType,
@@ -560,9 +559,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
-                      color: r.isSelectable
-                          ? AppColors.text
-                          : AppColors.textFaint,
+                      color:
+                          r.isSelectable ? AppColors.text : AppColors.textFaint,
                     ),
                   ),
                 ),
@@ -656,10 +654,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
               color: resource == null
                   ? AppColors.textFaint
                   : resource.isOutOfStock
-                  ? AppColors.red
-                  : resource.isLowStock
-                  ? AppColors.amber
-                  : AppColors.textDim,
+                      ? AppColors.red
+                      : resource.isLowStock
+                          ? AppColors.amber
+                          : AppColors.textDim,
             ),
           ),
         ),
@@ -682,9 +680,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                onPressed: resource == null
-                    ? null
-                    : () => changeQuantity(index, -1),
+                onPressed:
+                    resource == null ? null : () => changeQuantity(index, -1),
                 icon: const Icon(Icons.remove, size: 16),
                 splashRadius: 18,
               ),
@@ -697,9 +694,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                 ),
               ),
               IconButton(
-                onPressed: resource == null
-                    ? null
-                    : () => changeQuantity(index, 1),
+                onPressed:
+                    resource == null ? null : () => changeQuantity(index, 1),
                 icon: const Icon(Icons.add, size: 16),
                 splashRadius: 18,
               ),

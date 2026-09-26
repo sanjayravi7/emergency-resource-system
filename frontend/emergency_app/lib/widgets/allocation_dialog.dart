@@ -29,8 +29,7 @@ class AllocationDialog extends StatefulWidget {
     required int resourceId,
     required int responderResourceId,
     required int quantity,
-  })
-  onAllocate;
+  }) onAllocate;
 
   final Future<bool> Function(int allocationId) onCancelAllocation;
   final Future<void> Function(AllocationLine allocation) onDispatchAllocation;
@@ -249,8 +248,8 @@ class _AllocationDialogState extends State<AllocationDialog> {
     final maxQuantity = inventory == null
         ? 0
         : (remaining < inventory.availableQuantity
-              ? remaining
-              : inventory.availableQuantity);
+            ? remaining
+            : inventory.availableQuantity);
 
     final quantity = maxQuantity <= 0 ? 0 : quantityFor(line, maxQuantity);
 
@@ -312,8 +311,8 @@ class _AllocationDialogState extends State<AllocationDialog> {
                   onPressed: busy || quantity <= 1
                       ? null
                       : () => setState(
-                          () => quantities[line.resourceId] = quantity - 1,
-                        ),
+                            () => quantities[line.resourceId] = quantity - 1,
+                          ),
                   icon: const Icon(Icons.remove, size: 16),
                 ),
                 Text(
@@ -328,8 +327,8 @@ class _AllocationDialogState extends State<AllocationDialog> {
                   onPressed: busy || quantity >= maxQuantity
                       ? null
                       : () => setState(
-                          () => quantities[line.resourceId] = quantity + 1,
-                        ),
+                            () => quantities[line.resourceId] = quantity + 1,
+                          ),
                   icon: const Icon(Icons.add, size: 16),
                 ),
                 const Spacer(),

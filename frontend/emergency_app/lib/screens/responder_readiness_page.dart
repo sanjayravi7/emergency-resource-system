@@ -137,8 +137,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           'status': available == 0
               ? 'UNAVAILABLE'
               : isEnabled
-              ? 'AVAILABLE'
-              : existing.status,
+                  ? 'AVAILABLE'
+                  : existing.status,
         });
       }
 
@@ -254,9 +254,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                         onPressed: _saving
                             ? null
                             : () => setState(
-                                () => _showQuantityControls =
-                                    !_showQuantityControls,
-                              ),
+                                  () => _showQuantityControls =
+                                      !_showQuantityControls,
+                                ),
                         icon: const Icon(Icons.tune, size: 17),
                         label: const Text('EDIT MY HELP TYPES'),
                       ),
@@ -287,16 +287,16 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   }
 
   Widget _message(String text, Color color) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Text(text, style: TextStyle(fontSize: 12.5, color: color)),
-    ),
-  );
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .12),
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Text(text, style: TextStyle(fontSize: 12.5, color: color)),
+        ),
+      );
 
   Widget _resourceRow(BackendResource resource) {
     final row = _inventoryByResourceId[resource.id];
@@ -326,8 +326,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 onChanged: _saving
                     ? null
                     : (value) => setState(
-                        () => _selected[resource.id] = value ?? false,
-                      ),
+                          () => _selected[resource.id] = value ?? false,
+                        ),
                 activeColor: AppColors.teal,
               ),
               Expanded(
@@ -345,8 +345,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                       isService
                           ? 'Reusable capability · no inventory to track'
                           : row == null
-                          ? 'No responder inventory assigned'
-                          : '$available / ${row.totalQuantity} $unit · ${row.status}',
+                              ? 'No responder inventory assigned'
+                              : '$available / ${row.totalQuantity} $unit · ${row.status}',
                       style: const TextStyle(
                         fontSize: 11.5,
                         color: AppColors.textFaint,

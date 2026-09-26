@@ -69,9 +69,8 @@ class OperationalTimeline extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_rounded,
                 size: compact ? 10 : 12,
-                color: states[index + 1].$2
-                    ? AppColors.teal
-                    : AppColors.textFaint,
+                color:
+                    states[index + 1].$2 ? AppColors.teal : AppColors.textFaint,
               ),
           ],
         ],
@@ -132,16 +131,16 @@ class _TerminalNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 14, color: color),
-      const SizedBox(width: 5),
-      Text(
-        label,
-        style: monoStyle(size: 10, color: color, weight: FontWeight.w700),
-      ),
-    ],
-  );
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: monoStyle(size: 10, color: color, weight: FontWeight.w700),
+          ),
+        ],
+      );
 }
 
 /// One backend Allocation row: resource, quantity, responder and current
@@ -259,14 +258,14 @@ class LocationSharingSummary extends StatelessWidget {
     final color = isActive ? AppColors.teal : AppColors.textFaint;
     final title = isActive
         ? location == null
-              ? 'LOCATION SHARING ACTIVE · WAITING FOR GPS'
-              : 'LOCATION SHARING ACTIVE'
+            ? 'LOCATION SHARING ACTIVE · WAITING FOR GPS'
+            : 'LOCATION SHARING ACTIVE'
         : 'LAST-KNOWN RESPONDER LOCATION';
     final detail = location == null
         ? null
         : '${location!.latitude.toStringAsFixed(5)}, '
-              '${location!.longitude.toStringAsFixed(5)} · '
-              'updated ${formatDateTime(location!.updatedAt)}';
+            '${location!.longitude.toStringAsFixed(5)} · '
+            'updated ${formatDateTime(location!.updatedAt)}';
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -342,8 +341,8 @@ class ResponderAvailabilityBanner extends StatelessWidget {
     final color = isBusy
         ? AppColors.amber
         : isAvailable
-        ? AppColors.teal
-        : AppColors.textFaint;
+            ? AppColors.teal
+            : AppColors.textFaint;
     final detail = unfinishedAllocations == 0
         ? 'No unfinished work'
         : '$unfinishedAllocations unfinished allocation${unfinishedAllocations == 1 ? '' : 's'}';

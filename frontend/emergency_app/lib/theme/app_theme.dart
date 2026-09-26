@@ -24,42 +24,43 @@ class PillColors {
 }
 
 InputDecoration fieldDecoration({String? hintText}) => InputDecoration(
-  isDense: true,
-  filled: true,
-  hintText: hintText,
-  fillColor: AppColors.surface2,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-  enabledBorder: OutlineInputBorder(
-    borderSide: const BorderSide(color: AppColors.border),
-    borderRadius: BorderRadius.circular(5),
-  ),
-  focusedBorder: OutlineInputBorder(
-    borderSide: const BorderSide(color: AppColors.blue, width: 2),
-    borderRadius: BorderRadius.circular(5),
-  ),
-  border: OutlineInputBorder(
-    borderSide: const BorderSide(color: AppColors.border),
-    borderRadius: BorderRadius.circular(5),
-  ),
-);
+      isDense: true,
+      filled: true,
+      hintText: hintText,
+      fillColor: AppColors.surface2,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      enabledBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: AppColors.blue, width: 2),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      border: OutlineInputBorder(
+        borderSide: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(5),
+      ),
+    );
 
 TextStyle monoStyle({
   required double size,
   required Color color,
   FontWeight? weight,
-}) => TextStyle(
-  fontFamily: 'IBM Plex Mono',
-  fontSize: size,
-  color: color,
-  fontWeight: weight,
-);
+}) =>
+    TextStyle(
+      fontFamily: 'IBM Plex Mono',
+      fontSize: size,
+      color: color,
+      fontWeight: weight,
+    );
 
 TextStyle tableHeadStyle() => const TextStyle(
-  fontSize: 10.5,
-  color: AppColors.textFaint,
-  letterSpacing: .6,
-  fontWeight: FontWeight.w500,
-);
+      fontSize: 10.5,
+      color: AppColors.textFaint,
+      letterSpacing: .6,
+      fontWeight: FontWeight.w500,
+    );
 
 String titleCase(String value) {
   if (value.isEmpty) return value;

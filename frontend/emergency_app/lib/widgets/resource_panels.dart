@@ -27,9 +27,8 @@ class ResourceCatalogPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lowStock = resources.where((r) => r.isActive && r.isLowStock).length;
-    final outOfStock = resources
-        .where((r) => r.isActive && r.isOutOfStock)
-        .length;
+    final outOfStock =
+        resources.where((r) => r.isActive && r.isOutOfStock).length;
 
     return Panel(
       title: 'RESOURCE CATALOG',
@@ -465,8 +464,8 @@ class ResponderResourcesPanel extends StatelessWidget {
                 final statusColor = item.status == 'AVAILABLE'
                     ? AppColors.teal
                     : item.status == 'BUSY'
-                    ? AppColors.blue
-                    : AppColors.textFaint;
+                        ? AppColors.blue
+                        : AppColors.textFaint;
 
                 return Container(
                   padding: const EdgeInsets.symmetric(

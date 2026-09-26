@@ -317,8 +317,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     final selected = category ?? _nearbyCategory;
     if (selected == null) return;
 
-    final origin =
-        center ??
+    final origin = center ??
         (widget.latitude != null && widget.longitude != null
             ? GeoPoint(widget.latitude!, widget.longitude!)
             : null);
@@ -351,8 +350,8 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         _nearbyCenter = origin;
         _nearbyStatusMessage = results.isEmpty
             ? 'No ${selected.pluralLabel.toLowerCase()} found within '
-                  '${_radiusKilometersLabel()} of the current location. Try '
-                  'another category or search by name.'
+                '${_radiusKilometersLabel()} of the current location. Try '
+                'another category or search by name.'
             : null;
       });
     } on PlacesApiDisabledException {
@@ -478,26 +477,25 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
           controller: _searchController,
           enabled: enabled,
           style: const TextStyle(fontSize: 13),
-          decoration:
-              fieldDecoration(
-                hintText: 'Search for a place, landmark, address…',
-              ).copyWith(
-                prefixIcon: const Icon(
-                  Icons.search,
-                  size: 18,
-                  color: AppColors.textFaint,
-                ),
-                suffixIcon: _searching
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
-              ),
+          decoration: fieldDecoration(
+            hintText: 'Search for a place, landmark, address…',
+          ).copyWith(
+            prefixIcon: const Icon(
+              Icons.search,
+              size: 18,
+              color: AppColors.textFaint,
+            ),
+            suffixIcon: _searching
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : null,
+          ),
           onChanged: _onSearchChanged,
           onSubmitted: (value) {
             _debounce?.cancel();

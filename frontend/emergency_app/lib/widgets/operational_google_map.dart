@@ -45,18 +45,19 @@ class OperationalMapMarkerSnapshot {
   bool get isLiveResponder => kind == OperationalMapMarkerKind.liveResponder;
 
   double get _hue => switch (kind) {
-    OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
-    OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
-    OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
-    OperationalMapMarkerKind.lastKnownResponder => BitmapDescriptor.hueAzure,
-  };
+        OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
+        OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
+        OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
+        OperationalMapMarkerKind.lastKnownResponder =>
+          BitmapDescriptor.hueAzure,
+      };
 
   Marker toMarker() => Marker(
-    markerId: markerId,
-    position: position,
-    icon: BitmapDescriptor.defaultMarkerWithHue(_hue),
-    infoWindow: InfoWindow(title: title, snippet: snippet),
-  );
+        markerId: markerId,
+        position: position,
+        icon: BitmapDescriptor.defaultMarkerWithHue(_hue),
+        infoWindow: InfoWindow(title: title, snippet: snippet),
+      );
 }
 
 class OperationalMapMarkerBuilder {
@@ -217,9 +218,9 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   /// follows live GPS updates and disappears as soon as the request is
   /// completed/cancelled, the assignment is removed, or coordinates vanish.
   DirectConnection? get _connection => selectDirectConnection(
-    requests: widget.requests,
-    liveLocations: widget.liveLocations,
-  );
+        requests: widget.requests,
+        liveLocations: widget.liveLocations,
+      );
 
   List<OperationalMapMarkerSnapshot> get _snapshots =>
       _markerBuilder.buildSnapshots(
@@ -279,8 +280,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobileLayout =
-            widget.isMobile ||
+        final isMobileLayout = widget.isMobile ||
             (constraints.hasBoundedWidth && constraints.maxWidth < 600);
 
         final mapHeight = isMobileLayout
@@ -322,9 +322,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                 width: double.infinity,
                                 child: _MapControls(
                                   onCenterEmergency: _centerOnEmergency,
-                                  onFitPins: markers.isEmpty
-                                      ? null
-                                      : _fitAllPins,
+                                  onFitPins:
+                                      markers.isEmpty ? null : _fitAllPins,
                                   isMobile: true,
                                 ),
                               ),
@@ -420,8 +419,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   }
 
   CameraPosition _initialCamera(List<OperationalMapMarkerSnapshot> snapshots) {
-    final focus =
-        _emergencyFocus(snapshots) ??
+    final focus = _emergencyFocus(snapshots) ??
         (snapshots.isNotEmpty ? snapshots.first.position : null);
     if (focus == null) return _fallbackCamera;
     return CameraPosition(target: focus, zoom: 14);
@@ -644,9 +642,8 @@ class _MapControls extends StatelessWidget {
               ),
             ),
             TextButton.icon(
-              onPressed: onFitPins == null
-                  ? null
-                  : () => unawaited(onFitPins!()),
+              onPressed:
+                  onFitPins == null ? null : () => unawaited(onFitPins!()),
               icon: Icon(Icons.fit_screen_rounded, size: isMobile ? 15 : 16),
               label: const Text('Fit pins'),
               style: TextButton.styleFrom(

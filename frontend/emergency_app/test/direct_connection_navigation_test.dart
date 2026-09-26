@@ -89,8 +89,8 @@ Set<Polyline> polylinesFor({
 }
 
 Widget host(Widget child) => MaterialApp(
-  home: Scaffold(body: Center(child: child)),
-);
+      home: Scaffold(body: Center(child: child)),
+    );
 
 void main() {
   group('direct connection line', () {

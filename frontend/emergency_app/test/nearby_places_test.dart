@@ -30,14 +30,12 @@ class NearbyRecordingLocationService implements LocationService {
   String? reverseError;
 
   final List<
-    ({
-      double latitude,
-      double longitude,
-      NearbyPlaceCategory category,
-      double radiusMeters,
-    })
-  >
-  nearbyCalls = [];
+      ({
+        double latitude,
+        double longitude,
+        NearbyPlaceCategory category,
+        double radiusMeters,
+      })> nearbyCalls = [];
 
   final List<GeoPoint> reverseGeocodeCalls = <GeoPoint>[];
   final List<String> autocompleteCalls = <String>[];
@@ -131,15 +129,15 @@ const List<NearbyPlace> _hospitals = <NearbyPlace>[
 ];
 
 Finder _descriptionField() => find.byWidgetPredicate(
-  (widget) =>
-      widget is TextField &&
-      widget.decoration?.hintText ==
-          'What happened, how many people are affected…',
-);
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText ==
+              'What happened, how many people are affected…',
+    );
 
 Widget _host(Widget child) => MaterialApp(
-  home: Scaffold(body: SingleChildScrollView(child: child)),
-);
+      home: Scaffold(body: SingleChildScrollView(child: child)),
+    );
 
 /// The requester form is a tall page; give the test a realistically sized
 /// surface so every tap stays inside the render tree (same approach as
@@ -250,8 +248,7 @@ void main() {
           expect(
             forbiddenTableBTypes.contains(type),
             isFalse,
-            reason:
-                '$category -> "$type" is a Table B type and cannot be '
+            reason: '$category -> "$type" is a Table B type and cannot be '
                 'used as a Nearby Search (New) filter',
           );
         }
@@ -459,7 +456,8 @@ void main() {
       expect(find.text('Church Road, Kolenchery'), findsOneWidget);
     });
 
-    testWidgets('4. selecting a nearby place updates the form label + exact '
+    testWidgets(
+        '4. selecting a nearby place updates the form label + exact '
         'coordinates and allows submission', (tester) async {
       final service = NearbyRecordingLocationService(nearbyResults: _hospitals);
       NewRequestPayload? submitted;
@@ -529,12 +527,12 @@ void main() {
       expect(submitted!.hasPreciseLocation, isTrue);
     });
 
-    testWidgets('5. Places API (New) disabled -> graceful message, no crash, form '
+    testWidgets(
+        '5. Places API (New) disabled -> graceful message, no crash, form '
         'keeps working', (tester) async {
       final service = NearbyRecordingLocationService(
         nearbyError: const PlacesApiDisabledException(
-          details:
-              'Places API (New) has not been used in project 3804150054 '
+          details: 'Places API (New) has not been used in project 3804150054 '
               'before or it is disabled.',
         ),
       );

@@ -34,9 +34,8 @@ class FakeLocationService implements LocationService {
   final List<GeoPoint?> autocompleteBiases = <GeoPoint?>[];
   final List<String> resolveCalls = <String>[];
   final List<
-    ({double latitude, double longitude, NearbyPlaceCategory category})
-  >
-  nearbyCalls = [];
+          ({double latitude, double longitude, NearbyPlaceCategory category})>
+      nearbyCalls = [];
 
   @override
   bool get isAvailable => true;
@@ -108,15 +107,15 @@ const BackendResource _ambulance = BackendResource(
 );
 
 Finder _descriptionField() => find.byWidgetPredicate(
-  (widget) =>
-      widget is TextField &&
-      widget.decoration?.hintText ==
-          'What happened, how many people are affected…',
-);
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText ==
+              'What happened, how many people are affected…',
+    );
 
 Widget _host(Widget child) => MaterialApp(
-  home: Scaffold(body: SingleChildScrollView(child: child)),
-);
+      home: Scaffold(body: SingleChildScrollView(child: child)),
+    );
 
 /// The requester form is a tall page (emergency fields + location workflow +
 /// resource rows + submit button). The default 800x600 test viewport pushes the

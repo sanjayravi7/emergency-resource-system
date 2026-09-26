@@ -28,9 +28,9 @@ class ApiService {
   static bool get isAdmin => currentRole == 'ADMIN';
 
   static Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    if (token != null) 'Authorization': 'Bearer $token',
-  };
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
 
   static Map<String, dynamic> _decode(http.Response response) {
     if (response.body.isEmpty) {

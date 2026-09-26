@@ -25,10 +25,10 @@ class SocketConnectionState {
   bool get connected => status == RealtimeConnectionStatus.connected;
 
   String get label => switch (status) {
-    RealtimeConnectionStatus.connected => 'CONNECTED',
-    RealtimeConnectionStatus.reconnecting => 'RECONNECTING',
-    RealtimeConnectionStatus.offline => 'OFFLINE',
-  };
+        RealtimeConnectionStatus.connected => 'CONNECTED',
+        RealtimeConnectionStatus.reconnecting => 'RECONNECTING',
+        RealtimeConnectionStatus.offline => 'OFFLINE',
+      };
 }
 
 class SocketService {

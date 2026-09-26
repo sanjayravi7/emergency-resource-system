@@ -56,8 +56,7 @@ class LiveLocationStore extends ChangeNotifier {
 
   void beginLocalSharing(int requestId) {
     if (requestId <= 0) return;
-    final changed =
-        _localSharingRequestId != requestId ||
+    final changed = _localSharingRequestId != requestId ||
         !_activelySharing.contains(requestId);
     _localSharingRequestId = requestId;
     _activelySharing.add(requestId);

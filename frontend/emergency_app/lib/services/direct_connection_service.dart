@@ -58,12 +58,12 @@ class DirectConnection {
 
   @override
   int get hashCode => Object.hash(
-    requestId,
-    responderId,
-    responder,
-    emergency,
-    responderIsLive,
-  );
+        requestId,
+        responderId,
+        responder,
+        emergency,
+        responderIsLive,
+      );
 }
 
 /// Picks the one emergency that may show a direct connection line.
@@ -132,8 +132,7 @@ double distanceBetweenMeters(GeoPoint a, GeoPoint b) {
   final dLng = (b.longitude - a.longitude) * toRadians;
   final sinLat = math.sin(dLat / 2);
   final sinLng = math.sin(dLng / 2);
-  final h =
-      sinLat * sinLat +
+  final h = sinLat * sinLat +
       math.cos(a.latitude * toRadians) *
           math.cos(b.latitude * toRadians) *
           sinLng *
@@ -176,11 +175,12 @@ String buildGoogleMapsDirectionsUrl({
   required GeoPoint origin,
   required GeoPoint destination,
   bool navigate = true,
-}) => buildGoogleMapsDirectionsUri(
-  origin: origin,
-  destination: destination,
-  navigate: navigate,
-).toString();
+}) =>
+    buildGoogleMapsDirectionsUri(
+      origin: origin,
+      destination: destination,
+      navigate: navigate,
+    ).toString();
 
 /// "12.9716,77.5946" — the exact coordinates, never rounded into a fake place.
 String formatCoordinateParameter(GeoPoint point) =>

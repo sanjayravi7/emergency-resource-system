@@ -74,32 +74,32 @@ class BoardPanel extends StatelessWidget {
       onCancelRequest != null &&
       request.canBeCancelledByRequester;
 
-  List<AllocationLine> _dispatchable(EmergencyRequest request) => request
-      .allocations
-      .where(
-        (allocation) =>
-            role == 'RESPONDER' &&
-            allocation.responderId == currentUserId &&
-            allocation.isReserved,
-      )
-      .toList(growable: false);
+  List<AllocationLine> _dispatchable(EmergencyRequest request) =>
+      request.allocations
+          .where(
+            (allocation) =>
+                role == 'RESPONDER' &&
+                allocation.responderId == currentUserId &&
+                allocation.isReserved,
+          )
+          .toList(growable: false);
 
   // Responder-side delivery fallback: the responder may complete their own
   // DISPATCHED allocation when the requester never confirms receipt.
-  List<AllocationLine> _deliverable(EmergencyRequest request) => request
-      .allocations
-      .where(
-        (allocation) =>
-            role == 'RESPONDER' &&
-            allocation.responderId == currentUserId &&
-            allocation.isDispatched,
-      )
-      .toList(growable: false);
+  List<AllocationLine> _deliverable(EmergencyRequest request) =>
+      request.allocations
+          .where(
+            (allocation) =>
+                role == 'RESPONDER' &&
+                allocation.responderId == currentUserId &&
+                allocation.isDispatched,
+          )
+          .toList(growable: false);
 
-  List<AllocationLine> _receivable(EmergencyRequest request) => request
-      .allocations
-      .where((allocation) => role == 'REQUESTER' && allocation.isDispatched)
-      .toList(growable: false);
+  List<AllocationLine> _receivable(EmergencyRequest request) =>
+      request.allocations
+          .where((allocation) => role == 'REQUESTER' && allocation.isDispatched)
+          .toList(growable: false);
 
   String? _allocationStateText(EmergencyRequest request, int resourceId) {
     final statuses = request.allocations
@@ -145,22 +145,22 @@ class BoardPanel extends StatelessWidget {
       child: requests.isEmpty
           ? EmptyState(emptyMessage, title: emptyTitle, icon: emptyIcon)
           : isMobile
-          ? Column(
-              children: requests
-                  .map(
-                    (request) => _RequestCard(
-                      request: request,
-                      actions: _actions(request),
-                      liveLocation: liveLocations[request.id],
-                      isActivelySharing: activelySharingRequestIds.contains(
-                        request.id,
-                      ),
-                      connectionStatus: connectionStatus,
-                    ),
-                  )
-                  .toList(),
-            )
-          : _table(),
+              ? Column(
+                  children: requests
+                      .map(
+                        (request) => _RequestCard(
+                          request: request,
+                          actions: _actions(request),
+                          liveLocation: liveLocations[request.id],
+                          isActivelySharing: activelySharingRequestIds.contains(
+                            request.id,
+                          ),
+                          connectionStatus: connectionStatus,
+                        ),
+                      )
+                      .toList(),
+                )
+              : _table(),
     );
   }
 
@@ -281,13 +281,11 @@ class BoardPanel extends StatelessWidget {
       );
     }
 
-    final assignedToCurrentResponder =
-        role == 'RESPONDER' &&
+    final assignedToCurrentResponder = role == 'RESPONDER' &&
         request.acceptedBy?.id == currentUserId &&
         request.isOpen;
     if (assignedToCurrentResponder && onStartLocationSharing != null) {
-      final isSharing =
-          sharingRequestId == request.id ||
+      final isSharing = sharingRequestId == request.id ||
           activelySharingRequestIds.contains(request.id);
       actions.add(
         isSharing && onStopLocationSharing != null
@@ -309,8 +307,8 @@ class BoardPanel extends StatelessWidget {
             : FilledButton(
                 onPressed:
                     connectionStatus == RealtimeConnectionStatus.connected
-                    ? () => onStartLocationSharing!(request)
-                    : null,
+                        ? () => onStartLocationSharing!(request)
+                        : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.blue,
                   padding: const EdgeInsets.symmetric(

@@ -44,12 +44,12 @@ EmergencyRequest _request({
 }
 
 Widget _app(Widget child) => MaterialApp(
-  home: Scaffold(
-    body: SingleChildScrollView(
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
-    ),
-  ),
-);
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: Padding(padding: const EdgeInsets.all(16), child: child),
+        ),
+      ),
+    );
 
 void main() {
   testWidgets('request timeline shows the complete operational sequence', (
@@ -72,9 +72,8 @@ void main() {
   testWidgets('allocation row shows resource quantity responder and status', (
     tester,
   ) async {
-    final allocation = _request(allocationStatus: 'DELIVERED')
-        .allocations
-        .single;
+    final allocation =
+        _request(allocationStatus: 'DELIVERED').allocations.single;
     await tester.pumpWidget(
       _app(AllocationOperationalRow(allocation: allocation)),
     );

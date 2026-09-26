@@ -164,9 +164,8 @@ class BackendResource {
       return '$count responder${count == 1 ? '' : 's'} available';
     }
 
-    final suffix = (unit == null || unit!.isEmpty)
-        ? 'available'
-        : '$unit available';
+    final suffix =
+        (unit == null || unit!.isEmpty) ? 'available' : '$unit available';
     return '$availableQuantity $suffix';
   }
 
@@ -283,8 +282,7 @@ class UserSummary {
 
     return UserSummary(
       id: id,
-      name:
-          _asTrimmedString(json['name']) ??
+      name: _asTrimmedString(json['name']) ??
           _asTrimmedString(json['email']) ??
           'User #$id',
       email: _asTrimmedString(json['email']),
@@ -327,22 +325,22 @@ class LiveResponderLocation {
   }
 
   LiveResponderLocation asNotLive() => LiveResponderLocation(
-    requestId: requestId,
-    responderId: responderId,
-    latitude: latitude,
-    longitude: longitude,
-    updatedAt: updatedAt,
-    isLive: false,
-  );
+        requestId: requestId,
+        responderId: responderId,
+        latitude: latitude,
+        longitude: longitude,
+        updatedAt: updatedAt,
+        isLive: false,
+      );
 
   LiveResponderLocation asLive() => LiveResponderLocation(
-    requestId: requestId,
-    responderId: responderId,
-    latitude: latitude,
-    longitude: longitude,
-    updatedAt: updatedAt,
-    isLive: true,
-  );
+        requestId: requestId,
+        responderId: responderId,
+        latitude: latitude,
+        longitude: longitude,
+        updatedAt: updatedAt,
+        isLive: true,
+      );
 }
 
 class BackendResponder {
@@ -591,44 +589,45 @@ RequestStatus requestStatusFromApi(String? value) {
 }
 
 String statusLabel(RequestStatus status) => switch (status) {
-  RequestStatus.pending => 'PENDING',
-  RequestStatus.accepted => 'ACCEPTED',
-  RequestStatus.inProgress => 'IN PROGRESS',
-  RequestStatus.partiallyAllocated => 'PARTIAL',
-  RequestStatus.completed => 'COMPLETED',
-  RequestStatus.cancelled => 'CANCELLED',
-};
+      RequestStatus.pending => 'PENDING',
+      RequestStatus.accepted => 'ACCEPTED',
+      RequestStatus.inProgress => 'IN PROGRESS',
+      RequestStatus.partiallyAllocated => 'PARTIAL',
+      RequestStatus.completed => 'COMPLETED',
+      RequestStatus.cancelled => 'CANCELLED',
+    };
 
 PillColors statusColors(RequestStatus status) => switch (status) {
-  RequestStatus.pending => const PillColors(
-    AppColors.amberDim,
-    AppColors.amber,
-  ),
-  RequestStatus.accepted => const PillColors(AppColors.blueDim, AppColors.blue),
-  RequestStatus.inProgress => const PillColors(
-    AppColors.blueDim,
-    AppColors.blue,
-  ),
-  RequestStatus.partiallyAllocated => const PillColors(
-    AppColors.amberDim,
-    AppColors.amber,
-  ),
-  RequestStatus.completed => const PillColors(
-    AppColors.tealDim,
-    AppColors.teal,
-  ),
-  RequestStatus.cancelled => const PillColors(
-    AppColors.surface2,
-    AppColors.textFaint,
-  ),
-};
+      RequestStatus.pending => const PillColors(
+          AppColors.amberDim,
+          AppColors.amber,
+        ),
+      RequestStatus.accepted =>
+        const PillColors(AppColors.blueDim, AppColors.blue),
+      RequestStatus.inProgress => const PillColors(
+          AppColors.blueDim,
+          AppColors.blue,
+        ),
+      RequestStatus.partiallyAllocated => const PillColors(
+          AppColors.amberDim,
+          AppColors.amber,
+        ),
+      RequestStatus.completed => const PillColors(
+          AppColors.tealDim,
+          AppColors.teal,
+        ),
+      RequestStatus.cancelled => const PillColors(
+          AppColors.surface2,
+          AppColors.textFaint,
+        ),
+    };
 
 PillColors priorityColors(String priority) => switch (priority.toUpperCase()) {
-  'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
-  'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
-  'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
-  _ => const PillColors(AppColors.surface2, AppColors.textDim),
-};
+      'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
+      'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
+      'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
+      _ => const PillColors(AppColors.surface2, AppColors.textDim),
+    };
 
 class EmergencyRequest {
   const EmergencyRequest({

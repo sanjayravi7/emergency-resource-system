@@ -187,20 +187,20 @@ class ConnectionStatusIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color, icon) = switch (status) {
       RealtimeConnectionStatus.connected => (
-        'CONNECTED',
-        AppColors.teal,
-        Icons.wifi_rounded,
-      ),
+          'CONNECTED',
+          AppColors.teal,
+          Icons.wifi_rounded,
+        ),
       RealtimeConnectionStatus.reconnecting => (
-        'RECONNECTING',
-        AppColors.amber,
-        Icons.sync_rounded,
-      ),
+          'RECONNECTING',
+          AppColors.amber,
+          Icons.sync_rounded,
+        ),
       RealtimeConnectionStatus.offline => (
-        'OFFLINE',
-        AppColors.red,
-        Icons.wifi_off_rounded,
-      ),
+          'OFFLINE',
+          AppColors.red,
+          Icons.wifi_off_rounded,
+        ),
     };
 
     return Semantics(
@@ -393,13 +393,13 @@ class FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    text.toUpperCase(),
-    style: const TextStyle(
-      fontSize: 11,
-      color: AppColors.textFaint,
-      letterSpacing: .5,
-    ),
-  );
+        text.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11,
+          color: AppColors.textFaint,
+          letterSpacing: .5,
+        ),
+      );
 }
 
 // ── Header stats ───────────────────────────────────────────────────────────

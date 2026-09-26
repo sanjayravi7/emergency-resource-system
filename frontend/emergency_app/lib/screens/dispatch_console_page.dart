@@ -314,9 +314,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     final backendRequestStatus = payload['requestStatus']?.toString();
 
     EmergencyRequest patch(EmergencyRequest request) => request.withAllocation(
-      allocation,
-      backendRequestStatus: backendRequestStatus,
-    );
+          allocation,
+          backendRequestStatus: backendRequestStatus,
+        );
 
     setState(() {
       _replaceRequestIn(openRequests, allocation.requestId, patch);
@@ -886,20 +886,19 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       );
       locationSubscription =
           Geolocator.getPositionStream(locationSettings: settings).listen(
-            (position) {
-              final requestId = locationStore.localSharingRequestId;
-              if (requestId == null || !SocketService.instance.isConnected)
-                return;
-              SocketService.instance.updateLocation(
-                requestId: requestId,
-                latitude: position.latitude,
-                longitude: position.longitude,
-              );
-            },
-            onError: (Object _) {
-              unawaited(stopLocationSharing(request.id));
-            },
+        (position) {
+          final requestId = locationStore.localSharingRequestId;
+          if (requestId == null || !SocketService.instance.isConnected) return;
+          SocketService.instance.updateLocation(
+            requestId: requestId,
+            latitude: position.latitude,
+            longitude: position.longitude,
           );
+        },
+        onError: (Object _) {
+          unawaited(stopLocationSharing(request.id));
+        },
+      );
       showToast('Live responder location sharing started');
     } catch (error) {
       if (locationStore.localSharingRequestId == request.id) {
@@ -1044,9 +1043,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   int get closedCount => logEntries.length;
 
   BackendResponder? get currentResponder => firstWhereOrNull(
-    responders,
-    (responder) => responder.id == ApiService.currentUserId,
-  );
+        responders,
+        (responder) => responder.id == ApiService.currentUserId,
+      );
 
   int get unfinishedAllocationCount {
     final requests = <EmergencyRequest>[...openRequests, ...logEntries];
@@ -1062,20 +1061,20 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   String get viewTitle => switch (activeView) {
-    ConsoleView.board => 'Dispatch Board',
-    ConsoleView.newRequest => 'New Request',
-    ConsoleView.resources => 'Resources',
-    ConsoleView.responders => 'Responders',
-    ConsoleView.log => 'Closed Log',
-  };
+        ConsoleView.board => 'Dispatch Board',
+        ConsoleView.newRequest => 'New Request',
+        ConsoleView.resources => 'Resources',
+        ConsoleView.responders => 'Responders',
+        ConsoleView.log => 'Closed Log',
+      };
 
   String get viewSubtitle => switch (activeView) {
-    ConsoleView.board => 'Live request state from PostgreSQL',
-    ConsoleView.newRequest => 'Request any active resource in the catalog',
-    ConsoleView.resources => 'Resource catalog and inventory',
-    ConsoleView.responders => 'Responders registered in the database',
-    ConsoleView.log => 'Completed and cancelled requests',
-  };
+        ConsoleView.board => 'Live request state from PostgreSQL',
+        ConsoleView.newRequest => 'Request any active resource in the catalog',
+        ConsoleView.resources => 'Resource catalog and inventory',
+        ConsoleView.responders => 'Responders registered in the database',
+        ConsoleView.log => 'Completed and cancelled requests',
+      };
 
   String get roleLabel {
     final name = ApiService.currentUserName;
