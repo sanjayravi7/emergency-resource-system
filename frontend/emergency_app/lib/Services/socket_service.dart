@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import 'api_service.dart';
 
@@ -36,7 +36,7 @@ class SocketService {
 
   static final SocketService instance = SocketService._();
 
-  IO.Socket? _socket;
+  io.Socket? _socket;
   final StreamController<RealtimeEvent> _events =
       StreamController<RealtimeEvent>.broadcast();
   final StreamController<SocketConnectionState> _connection =
@@ -85,9 +85,9 @@ class SocketService {
       status: RealtimeConnectionStatus.reconnecting,
     ));
 
-    final socket = IO.io(
+    final socket = io.io(
       _serverUrl(),
-      IO.OptionBuilder()
+      io.OptionBuilder()
           .setTransports(<String>['websocket'])
           .setAuth(<String, dynamic>{'token': ApiService.token})
           // Never reuse a cached Manager from a previous authenticated user.

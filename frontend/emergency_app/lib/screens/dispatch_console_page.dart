@@ -558,7 +558,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         return null;
       }
 
-      return Geolocator.getCurrentPosition(
+      return await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 5));
     } catch (_) {
