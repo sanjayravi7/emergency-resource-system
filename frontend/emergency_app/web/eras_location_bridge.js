@@ -37,11 +37,68 @@
     return JSON.stringify({ ok: false, error: String(message) });
   }
 
-  /** Best-effort text for any thrown/rejected Google error. */
+  function pageOrigin() {
+    try {
+      return String(window.location.origin || '');
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /**
+   * Best-effort text for any thrown/rejected Google error.
+   *
+   * Maps JavaScript API errors are plain Error objects whose `code`
+   * ("REQUEST_DENIED", "OVER_QUERY_LIMIT", ...) and `endpoint`
+   * ("GEOCODER_GEOCODE", "PLACES_AUTOCOMPLETE", ...) carry the actual reason.
+   * Nothing is swallowed here: the code/endpoint are prefixed to the message
+   * exactly as Google reported them.
+   */
   function errorText(error) {
     if (!error) return 'Unknown Google error.';
-    if (error.message) return String(error.message);
-    return String(error);
+
+    var parts = [];
+    if (error.endpoint) parts.push(String(error.endpoint));
+    if (error.code && String(error.code) !== String(error.endpoint)) {
+      parts.push(String(error.code));
+    }
+    if (error.name && error.name !== 'Error' && !parts.length) {
+      parts.push(String(error.name));
+    }
+
+    var message = error.message ? String(error.message) : String(error);
+    return parts.length ? parts.join(': ') + ': ' + message : message;
+  }
+
+  /**
+   * Appends the concrete Google Cloud fix for the authorization failures ERAS
+   * actually hits in the browser. The raw Google error is always kept in front
+   * of the hint — the error is never hidden or replaced.
+   */
+  function withAuthorizationHint(text, api) {
+    var lower = String(text || '').toLowerCase();
+    var denied =
+      lower.indexOf('request_denied') !== -1 ||
+      lower.indexOf('permission_denied') !== -1 ||
+      lower.indexOf('not allowed to use') !== -1 ||
+      lower.indexOf('are blocked') !== -1 ||
+      lower.indexOf('apitargetblockedmaperror') !== -1 ||
+      lower.indexOf('referernotallowedmaperror') !== -1 ||
+      lower.indexOf('has not been used in project') !== -1 ||
+      lower.indexOf('is disabled') !== -1;
+
+    if (!denied) return text;
+
+    return (
+      text +
+      ' [ERAS] This is a Google Cloud authorization failure, not an ERAS bug. ' +
+      'Check that "' +
+      api +
+      '" is ENABLED in the project AND listed in the browser key\'s API ' +
+      'restrictions, and that this exact origin (' +
+      (pageOrigin() || 'unknown origin') +
+      '/*) is an allowed HTTP referrer for that key.'
+    );
   }
 
   async function ensurePlaces() {
@@ -113,7 +170,10 @@
         placeId: best.place_id || null,
       });
     } catch (error) {
-      return fail(error && error.message ? error.message : error);
+      // Typical failure: "GEOCODER_GEOCODE: REQUEST_DENIED: The webpage is not
+      // allowed to use the geocoder." -> Geocoding API missing from the
+      // project or from the browser key's API restrictions.
+      return fail(withAuthorizationHint(errorText(error), 'Geocoding API'));
     }
   }
 
@@ -204,7 +264,10 @@
         }),
       });
     } catch (error) {
-      return fail(error && error.message ? error.message : error);
+      // Typical failure: "Requests to this API places.googleapis.com method
+      // google.maps.places.v1.Places.AutocompletePlaces are blocked."
+      // -> Places API (New) missing from the browser key's API restrictions.
+      return fail(withAuthorizationHint(errorText(error), 'Places API (New)'));
     }
   }
 
@@ -276,7 +339,7 @@
         longitude: detail.geometry.location.lng(),
       });
     } catch (error) {
-      return fail(error && error.message ? error.message : error);
+      return fail(withAuthorizationHint(errorText(error), 'Places API (New)'));
     }
   }
 
@@ -370,8 +433,81 @@
 
       return ok({ places: results });
     } catch (error) {
-      return fail(errorText(error));
+      return fail(withAuthorizationHint(errorText(error), 'Places API (New)'));
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Diagnostics
+  //
+  // Answers the Part A/B questions directly in the browser, with no hidden
+  // errors: which key is actually used at runtime (masked), what the page
+  // origin/referrer really is, which Google libraries loaded, and what each of
+  // the three APIs replies for a live probe.
+  //
+  // Used by web/eras_location_diagnostics.html and available in the console as
+  //   await erasLocationBridge.diagnostics(10.00846, 76.45163)
+  // -------------------------------------------------------------------------
+  async function diagnostics(latitude, longitude) {
+    var runtime = window.ERAS_MAPS_RUNTIME || {};
+    var lat = latitude === undefined || latitude === null ? null : Number(latitude);
+    var lng = longitude === undefined || longitude === null ? null : Number(longitude);
+
+    var report = {
+      page: {
+        href: (function () {
+          try {
+            return String(window.location.href);
+          } catch (e) {
+            return '';
+          }
+        })(),
+        origin: pageOrigin(),
+        referrer: (function () {
+          try {
+            return String(document.referrer || '');
+          } catch (e) {
+            return '';
+          }
+        })(),
+      },
+      key: {
+        configured: !!runtime.keyConfigured,
+        // Only a masked tail is ever exposed, never the key itself.
+        masked: runtime.keyMasked || null,
+        length: runtime.keyLength || 0,
+        source: runtime.keySource || 'web/google_maps_config.js',
+      },
+      loader: {
+        scriptUrl: runtime.loaderUrl || null,
+        libraries: runtime.libraries || null,
+        authFailure: !!window.ERAS_MAPS_AUTH_FAILURE,
+      },
+      libraries: {
+        mapsJs: mapsReady(),
+        mapsVersion: mapsReady() && google.maps.version ? String(google.maps.version) : null,
+        places: placesReady(),
+        placesNew:
+          placesReady() &&
+          !!google.maps.places.Place &&
+          typeof google.maps.places.Place.searchNearby === 'function' &&
+          !!google.maps.places.AutocompleteSuggestion,
+        placesLegacy: placesReady() && !!google.maps.places.AutocompleteService,
+      },
+      probes: {},
+    };
+
+    if (lat !== null && lng !== null) {
+      report.probes.geocoding = JSON.parse(await reverseGeocode(lat, lng));
+      report.probes.placesAutocomplete = JSON.parse(
+        await autocomplete('hospital', lat, lng, 30000)
+      );
+      report.probes.placesNearby = JSON.parse(
+        await searchNearby(lat, lng, ['hospital'], 5000, 5)
+      );
+    }
+
+    return JSON.stringify(report);
   }
 
   window.erasLocationBridge = {
@@ -382,5 +518,6 @@
     autocomplete: autocomplete,
     placeDetails: placeDetails,
     searchNearby: searchNearby,
+    diagnostics: diagnostics,
   };
 })();

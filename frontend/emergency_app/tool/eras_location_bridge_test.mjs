@@ -24,10 +24,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 const bridgePath = resolve(here, '../web/eras_location_bridge.js');
 const bridgeSource = readFileSync(bridgePath, 'utf8');
 
-function loadBridge(googleStub) {
+function loadBridge(googleStub, options = {}) {
   const sandbox = {
     google: googleStub,
-    document: { createElement: () => ({}) },
+    document: { createElement: () => ({}), referrer: options.referrer || '' },
+    location: {
+      origin: options.origin || 'http://localhost:8080',
+      href: `${options.origin || 'http://localhost:8080'}/`,
+    },
+    ERAS_MAPS_RUNTIME: options.runtime,
     console,
   };
   sandbox.window = sandbox;
@@ -252,6 +257,142 @@ console.log('other bridge exports stay intact');
 
   const empty = loadBridge({});
   check('isAvailable false without google.maps', empty.isAvailable() === false);
+}
+
+// ---------------------------------------------------------------------------
+console.log('authorization failures surface the raw Google error + a fix hint');
+{
+  // Exactly what the browser reported for the Geocoder:
+  //   GEOCODER_GEOCODE: REQUEST_DENIED: The webpage is not allowed to use the
+  //   geocoder.
+  const geocoderError = Object.assign(
+    new Error('The webpage is not allowed to use the geocoder.'),
+    { code: 'REQUEST_DENIED', endpoint: 'GEOCODER_GEOCODE' }
+  );
+
+  const bridge = loadBridge(
+    {
+      maps: {
+        Geocoder: function () {
+          return {
+            geocode: async () => {
+              throw geocoderError;
+            },
+          };
+        },
+        places: {},
+      },
+    },
+    { origin: 'http://localhost:8080' }
+  );
+
+  const parsed = JSON.parse(await bridge.reverseGeocode(10.00846, 76.45163));
+  check('geocoder denial -> ok:false', parsed.ok === false, JSON.stringify(parsed));
+  check(
+    'raw Google endpoint + code are preserved (nothing hidden)',
+    /GEOCODER_GEOCODE/.test(parsed.error) &&
+      /REQUEST_DENIED/.test(parsed.error) &&
+      /not allowed to use the geocoder/i.test(parsed.error),
+    parsed.error
+  );
+  check(
+    'hint names the Geocoding API and the page origin',
+    /Geocoding API/.test(parsed.error) &&
+      /http:\/\/localhost:8080\/\*/.test(parsed.error),
+    parsed.error
+  );
+}
+
+{
+  // Exactly what the browser reported for Places API (New):
+  //   Requests to this API places.googleapis.com method
+  //   google.maps.places.v1.Places.AutocompletePlaces are blocked.
+  const bridge = loadBridge(
+    {
+      maps: {
+        places: {
+          AutocompleteSessionToken: function () {},
+          AutocompleteSuggestion: {
+            fetchAutocompleteSuggestions: async () => {
+              throw new Error(
+                'Requests to this API places.googleapis.com method ' +
+                  'google.maps.places.v1.Places.AutocompletePlaces are blocked.'
+              );
+            },
+          },
+        },
+      },
+    },
+    { origin: 'http://127.0.0.1:8081' }
+  );
+
+  const parsed = JSON.parse(await bridge.autocomplete('hospital', 10, 76, 30000));
+  check(
+    'blocked AutocompletePlaces -> ok:false with the raw message',
+    parsed.ok === false &&
+      /AutocompletePlaces are blocked/.test(parsed.error),
+    JSON.stringify(parsed)
+  );
+  check(
+    'hint names Places API (New) and the 8081 origin',
+    /Places API \(New\)/.test(parsed.error) &&
+      /http:\/\/127\.0\.0\.1:8081\/\*/.test(parsed.error),
+    parsed.error
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log('diagnostics() reports key/origin/libraries without leaking the key');
+{
+  const bridge = loadBridge(
+    {
+      maps: {
+        version: '3.58.10',
+        Geocoder: function () {
+          return { geocode: async () => ({ results: [] }) };
+        },
+        places: {
+          Place: { searchNearby: async () => ({ places: [] }) },
+          AutocompleteSuggestion: {
+            fetchAutocompleteSuggestions: async () => ({ suggestions: [] }),
+          },
+          AutocompleteSessionToken: function () {},
+          AutocompleteService: function () {},
+        },
+      },
+    },
+    {
+      origin: 'http://localhost:8080',
+      referrer: 'http://localhost:8080/',
+      runtime: {
+        keyConfigured: true,
+        keyMasked: '****1234',
+        keyLength: 39,
+        keySource: 'web/google_maps_config.js',
+        libraries: 'places',
+        loaderUrl:
+          'https://maps.googleapis.com/maps/api/js?key=****1234&libraries=places&v=weekly',
+      },
+    }
+  );
+
+  const report = JSON.parse(await bridge.diagnostics(10.00846, 76.45163));
+  check('reports the page origin', report.page.origin === 'http://localhost:8080', report.page.origin);
+  check('reports only a masked key', report.key.masked === '****1234', JSON.stringify(report.key));
+  check(
+    'never contains an unmasked key',
+    !/AIza/.test(JSON.stringify(report)),
+    JSON.stringify(report.key)
+  );
+  check('detects the loaded Maps JS version', report.libraries.mapsVersion === '3.58.10');
+  check('detects Places API (New) availability', report.libraries.placesNew === true);
+  check(
+    'runs all three probes',
+    !!report.probes.geocoding &&
+      !!report.probes.placesAutocomplete &&
+      !!report.probes.placesNearby,
+    JSON.stringify(Object.keys(report.probes))
+  );
 }
 
 console.log('');

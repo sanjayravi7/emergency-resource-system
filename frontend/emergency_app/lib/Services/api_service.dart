@@ -531,4 +531,48 @@ class ApiService {
     }
     return body;
   }
+
+  // ---------------------------------------------------------------------
+  // ROAD ROUTING (Google Routes API through the ERAS backend)
+  //
+  // The Routes API key is a SERVER key stored in the backend environment
+  // (GOOGLE_ROUTES_API_KEY). Flutter Web never holds it: it calls this
+  // authenticated endpoint, which returns only distance, duration and the
+  // encoded polyline.
+  // ---------------------------------------------------------------------
+
+  static Future<Map<String, dynamic>> computeRoute({
+    required double originLatitude,
+    required double originLongitude,
+    required double destinationLatitude,
+    required double destinationLongitude,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/routes/compute'),
+      headers: _headers,
+      body: jsonEncode({
+        'origin': {
+          'latitude': originLatitude,
+          'longitude': originLongitude,
+        },
+        'destination': {
+          'latitude': destinationLatitude,
+          'longitude': destinationLongitude,
+        },
+      }),
+    );
+
+    final body = _decode(response);
+
+    if (response.statusCode != 200) {
+      _fail(body, 'Route calculation failed');
+    }
+
+    final data = body['data'];
+    if (data is! Map) {
+      throw Exception('Route calculation returned no data.');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
 }

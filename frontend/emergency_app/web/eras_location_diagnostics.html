@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ERAS · Google location services diagnostics</title>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f6fa;
+      color: #111a2e;
+    }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    p.lead { margin: 0 0 18px; color: #525c7a; }
+    section {
+      background: #fff;
+      border: 1px solid #dce1ee;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+      max-width: 980px;
+    }
+    h2 { font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: #525c7a; margin: 0 0 10px; }
+    table { border-collapse: collapse; width: 100%; }
+    td { padding: 4px 8px 4px 0; vertical-align: top; }
+    td.k { color: #525c7a; white-space: nowrap; width: 230px; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+    .ok   { color: #0e9c8c; font-weight: 700; }
+    .bad  { color: #d6304a; font-weight: 700; }
+    .warn { color: #b4740a; font-weight: 700; }
+    .hint { background: #fdf0da; border: 1px solid #f0d9ae; border-radius: 6px; padding: 10px 12px; margin-top: 10px; }
+    button {
+      font: inherit; padding: 7px 12px; border-radius: 6px; cursor: pointer;
+      border: 1px solid #3b63d6; background: #3b63d6; color: #fff;
+    }
+    input { font: inherit; padding: 6px 8px; border: 1px solid #dce1ee; border-radius: 6px; width: 140px; }
+  </style>
+</head>
+<body>
+  <h1>ERAS · Google location services diagnostics</h1>
+  <p class="lead">
+    Live check of the browser key used by Flutter Web. Nothing is mocked and no
+    error is hidden — every Google reply is printed verbatim.
+  </p>
+
+  <section>
+    <h2>Page identity (what Google sees as the referrer)</h2>
+    <table id="page"></table>
+  </section>
+
+  <section>
+    <h2>Browser key &amp; loader</h2>
+    <table id="key"></table>
+  </section>
+
+  <section>
+    <h2>Loaded Google libraries</h2>
+    <table id="libraries"></table>
+  </section>
+
+  <section>
+    <h2>Live API probes</h2>
+    <p style="margin:0 0 10px;color:#525c7a">
+      Latitude <input id="lat" value="10.00846"> Longitude <input id="lng" value="76.45163">
+      <button id="run">Run probes</button>
+    </p>
+    <table id="probes"></table>
+    <div id="verdict"></div>
+  </section>
+
+  <script src="google_maps_config.js" onerror="window.__erasConfigMissing = true"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      function maskKey(key) {
+        var text = String(key || '');
+        if (text.length <= 4) return '****';
+        return '****' + text.slice(-4);
+      }
+
+      function row(table, label, valueHtml) {
+        var tr = document.createElement('tr');
+        var k = document.createElement('td');
+        k.className = 'k';
+        k.textContent = label;
+        var v = document.createElement('td');
+        v.innerHTML = valueHtml;
+        tr.appendChild(k);
+        tr.appendChild(v);
+        document.getElementById(table).appendChild(tr);
+      }
+
+      function escapeHtml(text) {
+        return String(text === undefined || text === null ? '' : text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      function flag(value) {
+        return value
+          ? '<span class="ok">YES</span>'
+          : '<span class="bad">NO</span>';
+      }
+
+      var key = window.ERAS_GOOGLE_MAPS_API_KEY;
+
+      window.ERAS_MAPS_RUNTIME = {
+        keyConfigured: !!key,
+        keyMasked: key ? maskKey(key) : null,
+        keyLength: key ? String(key).length : 0,
+        keySource: 'web/google_maps_config.js',
+        origin: window.location.origin,
+        href: window.location.href,
+        libraries: 'places',
+        loaderUrl: null,
+        loadedAt: new Date().toISOString()
+      };
+
+      window.gm_authFailure = function () {
+        window.ERAS_MAPS_AUTH_FAILURE = true;
+        row(
+          'key',
+          'gm_authFailure',
+          '<span class="bad">Google rejected this key for this origin</span> ' +
+            '(InvalidKeyMapError / RefererNotAllowedMapError / ApiNotActivatedMapError).'
+        );
+      };
+
+      row('page', 'window.location.origin', '<code>' + escapeHtml(window.location.origin) + '</code>');
+      row('page', 'window.location.href', '<code>' + escapeHtml(window.location.href) + '</code>');
+      row('page', 'document.referrer', '<code>' + escapeHtml(document.referrer || '(none)') + '</code>');
+      row(
+        'page',
+        'HTTP referrer entry to allow-list',
+        '<code>' + escapeHtml(window.location.origin) + '/*</code>'
+      );
+
+      row('key', 'google_maps_config.js loaded', flag(!window.__erasConfigMissing));
+      row('key', 'ERAS_GOOGLE_MAPS_API_KEY set', flag(!!key));
+      row('key', 'key (masked)', '<code>' + escapeHtml(key ? maskKey(key) : '(missing)') + '</code>');
+      row('key', 'key length', '<code>' + (key ? String(key).length : 0) + '</code>');
+
+      if (!key) {
+        row(
+          'key',
+          'next step',
+          '<span class="bad">Create web/google_maps_config.js from ' +
+            'web/google_maps_config.template.js and set the browser key.</span>'
+        );
+        return;
+      }
+
+      var mapsScript = document.createElement('script');
+      // Exactly the same loader the app uses (web/index.html).
+      mapsScript.async = true;
+      mapsScript.src =
+        'https://maps.googleapis.com/maps/api/js?key=' +
+        encodeURIComponent(key) +
+        '&libraries=places&v=weekly';
+      window.ERAS_MAPS_RUNTIME.loaderUrl = mapsScript.src.replace(
+        /key=[^&]*/,
+        'key=' + maskKey(key)
+      );
+      row('key', 'loader URL (masked)', '<code>' + escapeHtml(window.ERAS_MAPS_RUNTIME.loaderUrl) + '</code>');
+
+      mapsScript.onerror = function () {
+        row('libraries', 'Maps JavaScript API', '<span class="bad">script failed to load</span>');
+      };
+
+      mapsScript.onload = function () {
+        var bridgeScript = document.createElement('script');
+        bridgeScript.src = 'eras_location_bridge.js';
+        bridgeScript.onload = describeLibraries;
+        bridgeScript.onerror = function () {
+          row('libraries', 'eras_location_bridge.js', '<span class="bad">failed to load</span>');
+        };
+        document.head.appendChild(bridgeScript);
+      };
+      document.head.appendChild(mapsScript);
+
+      function describeLibraries() {
+        var hasMaps = typeof google !== 'undefined' && !!google.maps;
+        var hasPlaces = hasMaps && !!google.maps.places;
+        var hasNewPlaces =
+          hasPlaces &&
+          !!google.maps.places.Place &&
+          typeof google.maps.places.Place.searchNearby === 'function' &&
+          !!google.maps.places.AutocompleteSuggestion;
+
+        row('libraries', 'google.maps (Maps JavaScript API)', flag(hasMaps));
+        row('libraries', 'google.maps.version', '<code>' + escapeHtml(hasMaps ? google.maps.version : '-') + '</code>');
+        row('libraries', 'google.maps.places (places library)', flag(hasPlaces));
+        row('libraries', 'Places API (New) classes available', flag(hasNewPlaces));
+        row('libraries', 'google.maps.Geocoder available', flag(hasMaps && !!google.maps.Geocoder));
+
+        document.getElementById('run').addEventListener('click', runProbes);
+        runProbes();
+      }
+
+      function apiVerdict(label, result, api) {
+        var ok = result && result.ok === true;
+        row(
+          'probes',
+          label,
+          (ok ? '<span class="ok">OK</span>' : '<span class="bad">FAILED</span>') +
+            '<pre>' +
+            escapeHtml(ok ? JSON.stringify(result, null, 2) : result && result.error) +
+            '</pre>'
+        );
+        return ok
+          ? ''
+          : '<li><b>' + escapeHtml(api) + '</b> is not authorized for this key/origin.</li>';
+      }
+
+      async function runProbes() {
+        document.getElementById('probes').innerHTML = '';
+        document.getElementById('verdict').innerHTML = '';
+
+        var lat = Number(document.getElementById('lat').value);
+        var lng = Number(document.getElementById('lng').value);
+        if (!isFinite(lat) || !isFinite(lng)) {
+          row('probes', 'input', '<span class="bad">Latitude/longitude must be numbers.</span>');
+          return;
+        }
+
+        var bridge = window.erasLocationBridge;
+        if (!bridge) {
+          row('probes', 'bridge', '<span class="bad">erasLocationBridge is not loaded.</span>');
+          return;
+        }
+
+        var report = JSON.parse(await bridge.diagnostics(lat, lng));
+        var problems = '';
+        problems += apiVerdict('Geocoding API · reverseGeocode', report.probes.geocoding, 'Geocoding API');
+        problems += apiVerdict(
+          'Places API (New) · AutocompleteSuggestion',
+          report.probes.placesAutocomplete,
+          'Places API (New)'
+        );
+        problems += apiVerdict(
+          'Places API (New) · Place.searchNearby',
+          report.probes.placesNearby,
+          'Places API (New)'
+        );
+
+        document.getElementById('verdict').innerHTML = problems
+          ? '<div class="hint"><b>Fix in Google Cloud Console (project of key ' +
+            escapeHtml(report.key.masked) +
+            '):</b><ul>' +
+            problems +
+            '</ul>1. APIs &amp; Services → Library: enable <b>Maps JavaScript API</b>, ' +
+            '<b>Places API (New)</b> and <b>Geocoding API</b>.<br>' +
+            '2. Credentials → this key → <b>API restrictions</b>: the key must list all three ' +
+            '(a key restricted to Maps JavaScript API only returns exactly these errors).<br>' +
+            '3. Credentials → this key → <b>Application restrictions → HTTP referrers</b>: add ' +
+            '<code>' +
+            escapeHtml(window.location.origin) +
+            '/*</code> (plus the 8080/8081 localhost and 127.0.0.1 origins).<br>' +
+            '4. Enable billing on the project; changes can take a few minutes to propagate.</div>'
+          : '<div class="hint"><span class="ok">All three Google APIs answered successfully for this key and origin.</span></div>';
+      }
+    })();
+  </script>
+</body>
+</html>
