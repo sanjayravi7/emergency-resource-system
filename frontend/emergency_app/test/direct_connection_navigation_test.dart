@@ -600,7 +600,7 @@ void main() {
   });
 
   group('Emergency request description optionality', () {
-    test('accepts empty description', () {
+    test('empty description is normalized to null', () {
       final req = EmergencyRequest.fromJson(<String, dynamic>{
         'id': 601,
         'emergencyType': 'Medical',
@@ -613,7 +613,23 @@ void main() {
         'requiredResources': <dynamic>[],
         'allocations': <dynamic>[],
       });
-      expect(req.description, '');
+      expect(req.description, isNull);
+    });
+
+    test('whitespace-only description is normalized to null', () {
+      final req = EmergencyRequest.fromJson(<String, dynamic>{
+        'id': 604,
+        'emergencyType': 'Medical',
+        'description': '   \n\t  ',
+        'location': 'Kochi',
+        'priority': 'HIGH',
+        'status': 'PENDING',
+        'createdAt': '2026-09-26T09:00:00.000Z',
+        'updatedAt': '2026-09-26T10:00:00.000Z',
+        'requiredResources': <dynamic>[],
+        'allocations': <dynamic>[],
+      });
+      expect(req.description, isNull);
     });
 
     test('accepts null/missing description', () {
