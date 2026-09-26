@@ -27,6 +27,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Temporary diagnostic artifact. It is removed after the resolved lockfile
+      # has been collected for this compatibility repair.
+      - name: Upload resolved Flutter lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-pubspec-lock
+          path: frontend/emergency_app/pubspec.lock
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 

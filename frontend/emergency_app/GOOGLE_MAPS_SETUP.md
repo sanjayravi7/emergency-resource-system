@@ -45,7 +45,7 @@ Edit `web/google_maps_config.js`:
 window.ERAS_GOOGLE_MAPS_API_KEY = 'YOUR_REFERRER_RESTRICTED_MAPS_JS_API_KEY';
 ```
 
-`web/google_maps_config.js` is ignored by Git. `web/index.html` loads it at runtime and then configures the official Maps JavaScript API bootstrap loader for `google_maps_flutter_web`.
+`web/google_maps_config.js` is ignored by Git. `web/index.html` loads it at runtime, then loads the Maps JavaScript API with the direct script loader before starting Flutter. This is intentional: `google_maps_flutter_web` reads globals such as `google.maps.MapTypeId.ROADMAP`, while the newer `importLibrary` bootstrap keeps those globals lazy until application code imports the `maps` library.
 
 ## 5. Running locally
 
