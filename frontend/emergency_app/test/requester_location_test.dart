@@ -279,6 +279,50 @@ void main() {
   });
 
   group('NewRequestPanel validation', () {
+    /// Scrolls [finder] into the test viewport and then taps it.
+    ///
+    /// The requester form is much taller than the default 800x600 test
+    /// surface, so the controls near its bottom (resource dropdown, submit
+    /// button) are laid out below the viewport. Tapping them straight away
+    /// sends the pointer event to an offset outside the root render tree,
+    /// which Flutter reports as "Offset ... is outside the bounds of the root
+    /// of the render tree" and which never reaches the widget.
+    Future<void> scrollAndTap(WidgetTester tester, Finder finder) async {
+      expect(finder, findsOneWidget);
+      await tester.ensureVisible(finder);
+      // ensureVisible only moves the scroll position; the tap offset is read
+      // from the render tree, so it has to be laid out again before tapping.
+      await tester.pumpAndSettle();
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    /// Selects [resource] with the real dropdown and proves the panel stored
+    /// the selection, so D/E/F submit an actual resource line.
+    Future<void> selectResource(
+      WidgetTester tester,
+      BackendResource resource,
+    ) async {
+      final dropdown = find.byType(DropdownButtonFormField<int>);
+      await scrollAndTap(tester, dropdown);
+
+      // A closed DropdownButton keeps its items inside an IndexedStack whose
+      // unselected children are off-stage, so the entry only becomes findable
+      // once the menu route is really open. hitTestable() additionally keeps
+      // the copy the requester can actually press (the menu sits above the
+      // route's modal barrier), instead of guessing with `.last`.
+      final menuEntry = find.text(resource.name).hitTestable();
+      expect(menuEntry, findsOneWidget);
+      await tester.tap(menuEntry);
+      await tester.pumpAndSettle();
+
+      // The dropdown really holds the resource id now.
+      expect(
+        tester.widget<DropdownButtonFormField<int>>(dropdown).initialValue,
+        resource.id,
+      );
+    }
+
     Future<NewRequestPayload?> pumpPanelAndSubmit(
       WidgetTester tester, {
       required FakeLocationService service,
@@ -303,8 +347,8 @@ void main() {
       await tester.enterText(_descriptionField(), 'Two people trapped');
 
       if (selectPlaceFirst) {
-        await tester.tap(find.byKey(const Key('use-current-location-button')));
-        await tester.pumpAndSettle();
+        final gpsButton = find.byKey(const Key('use-current-location-button'));
+        await scrollAndTap(tester, gpsButton);
       }
 
       if (typedPlace != null) {
@@ -313,15 +357,10 @@ void main() {
         await tester.pump();
       }
 
-      // Pick the single resource.
-      await tester.tap(find.byType(DropdownButtonFormField<int>).last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Ambulance').last);
-      await tester.pumpAndSettle();
+      // Pick the single resource through the production dropdown.
+      await selectResource(tester, _ambulance);
 
-      await tester.ensureVisible(find.text('Submit request'));
-      await tester.tap(find.text('Submit request'));
-      await tester.pumpAndSettle();
+      await scrollAndTap(tester, find.text('Submit request'));
 
       return submitted;
     }
