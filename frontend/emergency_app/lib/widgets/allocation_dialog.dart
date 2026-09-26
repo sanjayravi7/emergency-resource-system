@@ -144,7 +144,9 @@ class _AllocationDialogState extends State<AllocationDialog> {
                     Text(
                       '${current.emergencyType} · ${current.location}',
                       style: const TextStyle(
-                          fontSize: 12.5, color: AppColors.textDim),
+                        fontSize: 12.5,
+                        color: AppColors.textDim,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     ...current.requiredResources.map(
@@ -155,9 +157,10 @@ class _AllocationDialogState extends State<AllocationDialog> {
                       const Text(
                         'ALLOCATIONS',
                         style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textFaint,
-                            letterSpacing: .6),
+                          fontSize: 10,
+                          color: AppColors.textFaint,
+                          letterSpacing: .6,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       ...current.activeAllocations.map(
@@ -178,9 +181,12 @@ class _AllocationDialogState extends State<AllocationDialog> {
                                       ? null
                                       : () => dispatchAllocation(allocation),
                                   style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.blue),
-                                  child: const Text('Dispatch',
-                                      style: TextStyle(fontSize: 12)),
+                                    foregroundColor: AppColors.blue,
+                                  ),
+                                  child: const Text(
+                                    'Dispatch',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 )
                               else if (allocation.isDispatched)
                                 TextButton(
@@ -188,24 +194,33 @@ class _AllocationDialogState extends State<AllocationDialog> {
                                       ? null
                                       : () => markDelivered(allocation),
                                   style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.teal),
-                                  child: const Text('Mark Delivered',
-                                      style: TextStyle(fontSize: 12)),
+                                    foregroundColor: AppColors.teal,
+                                  ),
+                                  child: const Text(
+                                    'Mark Delivered',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 )
                               else if (allocation.isDelivered)
-                                const Text('Delivered',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.teal)),
+                                const Text(
+                                  'Delivered',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.teal,
+                                  ),
+                                ),
                               if (!allocation.isDelivered)
                                 TextButton(
                                   onPressed: busy
                                       ? null
                                       : () => cancelAllocation(allocation.id),
                                   style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.red),
-                                  child: const Text('Cancel',
-                                      style: TextStyle(fontSize: 12)),
+                                    foregroundColor: AppColors.red,
+                                  ),
+                                  child: const Text(
+                                    'Cancel',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 ),
                             ],
                           ),
@@ -265,7 +280,9 @@ class _AllocationDialogState extends State<AllocationDialog> {
                 child: Text(
                   line.resourceName,
                   style: const TextStyle(
-                      fontSize: 13.5, fontWeight: FontWeight.w600),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
@@ -301,9 +318,10 @@ class _AllocationDialogState extends State<AllocationDialog> {
                 Text(
                   '$quantity',
                   style: monoStyle(
-                      size: 14,
-                      color: AppColors.text,
-                      weight: FontWeight.w600),
+                    size: 14,
+                    color: AppColors.text,
+                    weight: FontWeight.w600,
+                  ),
                 ),
                 IconButton(
                   onPressed: busy || quantity >= maxQuantity
@@ -324,8 +342,10 @@ class _AllocationDialogState extends State<AllocationDialog> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
-                  child: const Text('Allocate',
-                      style: TextStyle(fontSize: 12.5)),
+                  child: const Text(
+                    'Allocate',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
                 ),
               ],
             ),

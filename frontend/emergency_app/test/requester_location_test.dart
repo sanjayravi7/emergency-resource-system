@@ -33,14 +33,18 @@ class FakeLocationService implements LocationService {
   final List<String> autocompleteCalls = <String>[];
   final List<GeoPoint?> autocompleteBiases = <GeoPoint?>[];
   final List<String> resolveCalls = <String>[];
-  final List<({double latitude, double longitude, NearbyPlaceCategory category})>
+  final List<
+          ({double latitude, double longitude, NearbyPlaceCategory category})>
       nearbyCalls = [];
 
   @override
   bool get isAvailable => true;
 
   @override
-  Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
+  Future<ResolvedPlace> reverseGeocode(
+    double latitude,
+    double longitude,
+  ) async {
     reverseGeocodeCalls.add(GeoPoint(latitude, longitude));
     if (reverseError != null) {
       throw LocationServiceException(reverseError!);
@@ -138,150 +142,172 @@ Future<void> _scrollIntoViewAndTap(WidgetTester tester, Finder finder) async {
 void main() {
   group('RequesterLocationPicker', () {
     testWidgets(
-        'A. current location success: GPS -> reverse geocode -> place filled',
-        (tester) async {
-      final service = FakeLocationService(
-        reverseResult: const ResolvedPlace(
-          label: 'Sree Narayana Gurukulam College of Engineering, Kolenchery',
-          latitude: 9.9876,
-          longitude: 76.6543,
-          placeId: 'place-college',
-        ),
-      );
-      final controller = TextEditingController();
-      double? latitude;
-      double? longitude;
-
-      await tester.pumpWidget(_host(StatefulBuilder(
-        builder: (context, setState) => RequesterLocationPicker(
-          placeController: controller,
-          latitude: latitude,
-          longitude: longitude,
-          locationService: service,
-          showMapPreview: false,
-          onUseCurrentLocation: () async => const GeoPoint(9.9876, 76.6543),
-          onLocationChanged: (lat, lng) =>
-              setState(() {
-                latitude = lat;
-                longitude = lng;
-              }),
-        ),
-      )));
-
-      await tester.tap(find.byKey(const Key('use-current-location-button')));
-      await tester.pumpAndSettle();
-
-      expect(controller.text,
-          'Sree Narayana Gurukulam College of Engineering, Kolenchery');
-      expect(latitude, 9.9876);
-      expect(longitude, 76.6543);
-      expect(service.reverseGeocodeCalls.single,
-          const GeoPoint(9.9876, 76.6543));
-      expect(find.textContaining('Location detected'), findsOneWidget);
-      expect(find.textContaining('9.9876'), findsOneWidget);
-    });
-
-    testWidgets(
-        'B. reverse geocode failure keeps coordinates and asks for manual place',
-        (tester) async {
-      final service = FakeLocationService(reverseError: 'ZERO_RESULTS');
-      final controller = TextEditingController();
-      double? latitude;
-      double? longitude;
-
-      await tester.pumpWidget(_host(StatefulBuilder(
-        builder: (context, setState) => RequesterLocationPicker(
-          placeController: controller,
-          latitude: latitude,
-          longitude: longitude,
-          locationService: service,
-          showMapPreview: false,
-          onUseCurrentLocation: () async => const GeoPoint(10.1, 76.2),
-          onLocationChanged: (lat, lng) => setState(() {
-            latitude = lat;
-            longitude = lng;
-          }),
-        ),
-      )));
-
-      await tester.tap(find.byKey(const Key('use-current-location-button')));
-      await tester.pumpAndSettle();
-
-      // Coordinates retained, nothing fabricated, field still editable.
-      expect(latitude, 10.1);
-      expect(longitude, 76.2);
-      expect(controller.text, isEmpty);
-      expect(
-        find.textContaining('place name could not be determined'),
-        findsOneWidget,
-      );
-
-      await tester.enterText(
-        find.byKey(const Key('location-place-field')),
-        'Near Kolenchery junction',
-      );
-      expect(controller.text, 'Near Kolenchery junction');
-    });
-
-    testWidgets(
-        'C. place selection sets both the place text and exact coordinates',
-        (tester) async {
-      final service = FakeLocationService(
-        predictions: const <PlacePrediction>[
-          PlacePrediction(
-            placeId: 'place-hospital',
-            primaryText: 'Kolenchery Government Hospital',
-            secondaryText: 'Kerala, India',
+      'A. current location success: GPS -> reverse geocode -> place filled',
+      (tester) async {
+        final service = FakeLocationService(
+          reverseResult: const ResolvedPlace(
+            label: 'Sree Narayana Gurukulam College of Engineering, Kolenchery',
+            latitude: 9.9876,
+            longitude: 76.6543,
+            placeId: 'place-college',
           ),
-        ],
-        resolved: const ResolvedPlace(
-          label: 'Kolenchery Government Hospital, Kerala',
-          latitude: 9.9911,
-          longitude: 76.6622,
-          placeId: 'place-hospital',
-        ),
-      );
-      final controller = TextEditingController();
-      double? latitude = 10.0;
-      double? longitude = 76.0;
+        );
+        final controller = TextEditingController();
+        double? latitude;
+        double? longitude;
 
-      await tester.pumpWidget(_host(StatefulBuilder(
-        builder: (context, setState) => RequesterLocationPicker(
-          placeController: controller,
-          latitude: latitude,
-          longitude: longitude,
-          locationService: service,
-          showMapPreview: false,
-          searchDebounce: const Duration(milliseconds: 10),
-          onUseCurrentLocation: () async => null,
-          onLocationChanged: (lat, lng) => setState(() {
-            latitude = lat;
-            longitude = lng;
-          }),
-        ),
-      )));
+        await tester.pumpWidget(
+          _host(
+            StatefulBuilder(
+              builder: (context, setState) => RequesterLocationPicker(
+                placeController: controller,
+                latitude: latitude,
+                longitude: longitude,
+                locationService: service,
+                showMapPreview: false,
+                onUseCurrentLocation: () async =>
+                    const GeoPoint(9.9876, 76.6543),
+                onLocationChanged: (lat, lng) => setState(() {
+                  latitude = lat;
+                  longitude = lng;
+                }),
+              ),
+            ),
+          ),
+        );
 
-      await tester.enterText(
-          find.byKey(const Key('location-search-field')), 'hospital');
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('use-current-location-button')));
+        await tester.pumpAndSettle();
 
-      expect(service.autocompleteCalls, <String>['hospital']);
-      // Nearby bias uses the coordinates the requester already has.
-      expect(service.autocompleteBiases.single, const GeoPoint(10.0, 76.0));
-      expect(find.text('Kolenchery Government Hospital'), findsOneWidget);
+        expect(
+          controller.text,
+          'Sree Narayana Gurukulam College of Engineering, Kolenchery',
+        );
+        expect(latitude, 9.9876);
+        expect(longitude, 76.6543);
+        expect(
+          service.reverseGeocodeCalls.single,
+          const GeoPoint(9.9876, 76.6543),
+        );
+        expect(find.textContaining('Location detected'), findsOneWidget);
+        expect(find.textContaining('9.9876'), findsOneWidget);
+      },
+    );
 
-      await tester.tap(find.byKey(const Key('prediction-place-hospital')));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'B. reverse geocode failure keeps coordinates and asks for manual place',
+      (tester) async {
+        final service = FakeLocationService(reverseError: 'ZERO_RESULTS');
+        final controller = TextEditingController();
+        double? latitude;
+        double? longitude;
 
-      expect(controller.text, 'Kolenchery Government Hospital, Kerala');
-      expect(latitude, 9.9911);
-      expect(longitude, 76.6622);
-      expect(find.textContaining('Selected:'), findsOneWidget);
-    });
+        await tester.pumpWidget(
+          _host(
+            StatefulBuilder(
+              builder: (context, setState) => RequesterLocationPicker(
+                placeController: controller,
+                latitude: latitude,
+                longitude: longitude,
+                locationService: service,
+                showMapPreview: false,
+                onUseCurrentLocation: () async => const GeoPoint(10.1, 76.2),
+                onLocationChanged: (lat, lng) => setState(() {
+                  latitude = lat;
+                  longitude = lng;
+                }),
+              ),
+            ),
+          ),
+        );
 
-    testWidgets('map tap updates coordinates and reverse geocodes them',
-        (tester) async {
+        await tester.tap(find.byKey(const Key('use-current-location-button')));
+        await tester.pumpAndSettle();
+
+        // Coordinates retained, nothing fabricated, field still editable.
+        expect(latitude, 10.1);
+        expect(longitude, 76.2);
+        expect(controller.text, isEmpty);
+        expect(
+          find.textContaining('place name could not be determined'),
+          findsOneWidget,
+        );
+
+        await tester.enterText(
+          find.byKey(const Key('location-place-field')),
+          'Near Kolenchery junction',
+        );
+        expect(controller.text, 'Near Kolenchery junction');
+      },
+    );
+
+    testWidgets(
+      'C. place selection sets both the place text and exact coordinates',
+      (tester) async {
+        final service = FakeLocationService(
+          predictions: const <PlacePrediction>[
+            PlacePrediction(
+              placeId: 'place-hospital',
+              primaryText: 'Kolenchery Government Hospital',
+              secondaryText: 'Kerala, India',
+            ),
+          ],
+          resolved: const ResolvedPlace(
+            label: 'Kolenchery Government Hospital, Kerala',
+            latitude: 9.9911,
+            longitude: 76.6622,
+            placeId: 'place-hospital',
+          ),
+        );
+        final controller = TextEditingController();
+        double? latitude = 10.0;
+        double? longitude = 76.0;
+
+        await tester.pumpWidget(
+          _host(
+            StatefulBuilder(
+              builder: (context, setState) => RequesterLocationPicker(
+                placeController: controller,
+                latitude: latitude,
+                longitude: longitude,
+                locationService: service,
+                showMapPreview: false,
+                searchDebounce: const Duration(milliseconds: 10),
+                onUseCurrentLocation: () async => null,
+                onLocationChanged: (lat, lng) => setState(() {
+                  latitude = lat;
+                  longitude = lng;
+                }),
+              ),
+            ),
+          ),
+        );
+
+        await tester.enterText(
+          find.byKey(const Key('location-search-field')),
+          'hospital',
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pumpAndSettle();
+
+        expect(service.autocompleteCalls, <String>['hospital']);
+        // Nearby bias uses the coordinates the requester already has.
+        expect(service.autocompleteBiases.single, const GeoPoint(10.0, 76.0));
+        expect(find.text('Kolenchery Government Hospital'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('prediction-place-hospital')));
+        await tester.pumpAndSettle();
+
+        expect(controller.text, 'Kolenchery Government Hospital, Kerala');
+        expect(latitude, 9.9911);
+        expect(longitude, 76.6622);
+        expect(find.textContaining('Selected:'), findsOneWidget);
+      },
+    );
+
+    testWidgets('map tap updates coordinates and reverse geocodes them', (
+      tester,
+    ) async {
       final service = FakeLocationService(
         reverseResult: const ResolvedPlace(
           label: 'Tapped point, Kerala',
@@ -295,26 +321,31 @@ void main() {
 
       final key = GlobalKey<State<RequesterLocationPicker>>();
 
-      await tester.pumpWidget(_host(StatefulBuilder(
-        builder: (context, setState) => RequesterLocationPicker(
-          key: key,
-          placeController: controller,
-          latitude: latitude,
-          longitude: longitude,
-          locationService: service,
-          showMapPreview: false,
-          onUseCurrentLocation: () async => null,
-          onLocationChanged: (lat, lng) => setState(() {
-            latitude = lat;
-            longitude = lng;
-          }),
+      await tester.pumpWidget(
+        _host(
+          StatefulBuilder(
+            builder: (context, setState) => RequesterLocationPicker(
+              key: key,
+              placeController: controller,
+              latitude: latitude,
+              longitude: longitude,
+              locationService: service,
+              showMapPreview: false,
+              onUseCurrentLocation: () async => null,
+              onLocationChanged: (lat, lng) => setState(() {
+                latitude = lat;
+                longitude = lng;
+              }),
+            ),
+          ),
         ),
-      )));
+      );
 
       // Simulate the GoogleMap onTap callback without instantiating a
       // platform map view in the unit-test environment.
-      await (key.currentState as dynamic)
-          .handleMapTap(const LatLng(10.5, 76.5));
+      await (key.currentState as dynamic).handleMapTap(
+        const LatLng(10.5, 76.5),
+      );
       await tester.pumpAndSettle();
 
       expect(latitude, 10.5);
@@ -337,17 +368,21 @@ void main() {
 
       _useDesktopSizedSurface(tester);
 
-      await tester.pumpWidget(_host(NewRequestPanel(
-        resources: const <BackendResource>[_ambulance],
-        locationService: service,
-        showMapPreview: false,
-        onReload: () {},
-        onUseCurrentLocation: gps,
-        onSubmit: (payload) async {
-          submitted = payload;
-          return true;
-        },
-      )));
+      await tester.pumpWidget(
+        _host(
+          NewRequestPanel(
+            resources: const <BackendResource>[_ambulance],
+            locationService: service,
+            showMapPreview: false,
+            onReload: () {},
+            onUseCurrentLocation: gps,
+            onSubmit: (payload) async {
+              submitted = payload;
+              return true;
+            },
+          ),
+        ),
+      );
 
       if (descriptionText != null) {
         await tester.enterText(_descriptionField(), descriptionText);
@@ -362,7 +397,9 @@ void main() {
 
       if (typedPlace != null) {
         await tester.enterText(
-            find.byKey(const Key('location-place-field')), typedPlace);
+          find.byKey(const Key('location-place-field')),
+          typedPlace,
+        );
         await tester.pump();
       }
 
@@ -438,8 +475,9 @@ void main() {
       expect(payload!.description, isNull);
     });
 
-    testWidgets('F. whitespace-only description -> submitted as empty/null',
-        (tester) async {
+    testWidgets('F. whitespace-only description -> submitted as empty/null', (
+      tester,
+    ) async {
       final service = FakeLocationService(
         reverseResult: const ResolvedPlace(
           label: 'Kolenchery, Kerala',
@@ -460,7 +498,9 @@ void main() {
       expect(payload!.description, isNull);
     });
 
-    testWidgets('G. non-empty description is preserved exactly', (tester) async {
+    testWidgets('G. non-empty description is preserved exactly', (
+      tester,
+    ) async {
       const description = '  Two people trapped near the east gate.  ';
       final service = FakeLocationService(
         reverseResult: const ResolvedPlace(
@@ -497,51 +537,59 @@ void main() {
     });
 
     testWidgets(
-        'I. place typed but no coordinates -> stored without a fabricated pin',
-        (tester) async {
-      final service = FakeLocationService();
+      'I. place typed but no coordinates -> stored without a fabricated pin',
+      (tester) async {
+        final service = FakeLocationService();
 
-      final payload = await pumpPanelAndSubmit(
-        tester,
-        service: service,
-        gps: () async => null,
-        typedPlace: 'Somewhere in Thrissur',
-      );
+        final payload = await pumpPanelAndSubmit(
+          tester,
+          service: service,
+          gps: () async => null,
+          typedPlace: 'Somewhere in Thrissur',
+        );
 
-      expect(payload, isNotNull);
-      expect(payload!.latitude, isNull);
-      expect(payload.longitude, isNull);
-      expect(payload.hasPreciseLocation, isFalse);
-      // No reverse geocoding was triggered by typing text.
-      expect(service.reverseGeocodeCalls, isEmpty);
-    });
+        expect(payload, isNotNull);
+        expect(payload!.latitude, isNull);
+        expect(payload.longitude, isNull);
+        expect(payload.hasPreciseLocation, isFalse);
+        // No reverse geocoding was triggered by typing text.
+        expect(service.reverseGeocodeCalls, isEmpty);
+      },
+    );
   });
 
   group('J. Socket.IO live responder location', () {
-    test('live location updates never trigger reverse geocoding or nearby search', () {
-      final service = FakeLocationService();
-      final store = LiveLocationStore();
-      addTearDown(store.dispose);
+    test(
+      'live location updates never trigger reverse geocoding or nearby search',
+      () {
+        final service = FakeLocationService();
+        final store = LiveLocationStore();
+        addTearDown(store.dispose);
 
-      store.applyUpdate(LiveResponderLocation(
-        requestId: 1,
-        responderId: 9,
-        latitude: 10.11,
-        longitude: 76.22,
-        updatedAt: DateTime.utc(2026, 9, 26, 10),
-      ));
-      store.applyUpdate(LiveResponderLocation(
-        requestId: 1,
-        responderId: 9,
-        latitude: 10.12,
-        longitude: 76.23,
-        updatedAt: DateTime.utc(2026, 9, 26, 10, 1),
-      ));
+        store.applyUpdate(
+          LiveResponderLocation(
+            requestId: 1,
+            responderId: 9,
+            latitude: 10.11,
+            longitude: 76.22,
+            updatedAt: DateTime.utc(2026, 9, 26, 10),
+          ),
+        );
+        store.applyUpdate(
+          LiveResponderLocation(
+            requestId: 1,
+            responderId: 9,
+            latitude: 10.12,
+            longitude: 76.23,
+            updatedAt: DateTime.utc(2026, 9, 26, 10, 1),
+          ),
+        );
 
-      expect(store.locationFor(1)!.latitude, 10.12);
-      expect(service.reverseGeocodeCalls, isEmpty);
-      expect(service.autocompleteCalls, isEmpty);
-      expect(service.nearbyCalls, isEmpty);
-    });
+        expect(store.locationFor(1)!.latitude, 10.12);
+        expect(service.reverseGeocodeCalls, isEmpty);
+        expect(service.autocompleteCalls, isEmpty);
+        expect(service.nearbyCalls, isEmpty);
+      },
+    );
   });
 }

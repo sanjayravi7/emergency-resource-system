@@ -64,7 +64,10 @@ void main() {
     );
 
     expect(snapshots.map((marker) => marker.id), contains('request-101'));
-    expect(snapshots.map((marker) => marker.id), isNot(contains('request-102')));
+    expect(
+      snapshots.map((marker) => marker.id),
+      isNot(contains('request-102')),
+    );
 
     final marker = snapshots.singleWhere((item) => item.id == 'request-101');
     expect(marker.kind, OperationalMapMarkerKind.activeRequest);
@@ -77,9 +80,7 @@ void main() {
 
   test('distinguishes pending request markers from active emergencies', () {
     final snapshots = builder.buildSnapshots(
-      requests: <EmergencyRequest>[
-        _request(111, status: 'PENDING'),
-      ],
+      requests: <EmergencyRequest>[_request(111, status: 'PENDING')],
       liveLocations: const <int, LiveResponderLocation>{},
     );
 
@@ -93,7 +94,9 @@ void main() {
       liveLocations: <int, LiveResponderLocation>{201: _live(201)},
     );
 
-    final marker = snapshots.singleWhere((item) => item.id == 'responder-201-9');
+    final marker = snapshots.singleWhere(
+      (item) => item.id == 'responder-201-9',
+    );
     expect(marker.kind, OperationalMapMarkerKind.liveResponder);
     expect(marker.position.latitude, 10.530000);
     expect(marker.position.longitude, 76.220000);
@@ -112,26 +115,35 @@ void main() {
       },
     );
 
-    final firstMarker = first.singleWhere((item) => item.id == 'responder-301-9');
-    final secondMarker = second.singleWhere((item) => item.id == 'responder-301-9');
+    final firstMarker = first.singleWhere(
+      (item) => item.id == 'responder-301-9',
+    );
+    final secondMarker = second.singleWhere(
+      (item) => item.id == 'responder-301-9',
+    );
 
     expect(secondMarker.id, firstMarker.id);
     expect(secondMarker.position.latitude, 10.540000);
     expect(secondMarker.position.longitude, 76.230000);
   });
 
-  test('live to last-known transition keeps the marker but changes its state', () {
-    final snapshots = builder.buildSnapshots(
-      requests: <EmergencyRequest>[_request(401)],
-      liveLocations: <int, LiveResponderLocation>{
-        401: _live(401).asNotLive(),
-      },
-    );
+  test(
+    'live to last-known transition keeps the marker but changes its state',
+    () {
+      final snapshots = builder.buildSnapshots(
+        requests: <EmergencyRequest>[_request(401)],
+        liveLocations: <int, LiveResponderLocation>{
+          401: _live(401).asNotLive(),
+        },
+      );
 
-    final marker = snapshots.singleWhere((item) => item.id == 'responder-401-9');
-    expect(marker.kind, OperationalMapMarkerKind.lastKnownResponder);
-    expect(marker.title, contains('LAST KNOWN'));
-  });
+      final marker = snapshots.singleWhere(
+        (item) => item.id == 'responder-401-9',
+      );
+      expect(marker.kind, OperationalMapMarkerKind.lastKnownResponder);
+      expect(marker.title, contains('LAST KNOWN'));
+    },
+  );
 
   test('completed and cancelled requests remove active map tracking', () {
     final snapshots = builder.buildSnapshots(
@@ -164,15 +176,20 @@ void main() {
       liveLocations: store.locations,
     );
 
-    final responderA =
-        snapshots.singleWhere((item) => item.id == 'responder-601-9');
-    final responderB =
-        snapshots.singleWhere((item) => item.id == 'responder-602-9');
+    final responderA = snapshots.singleWhere(
+      (item) => item.id == 'responder-601-9',
+    );
+    final responderB = snapshots.singleWhere(
+      (item) => item.id == 'responder-602-9',
+    );
 
     expect(responderA.position.latitude, 10.528000);
     expect(responderA.position.longitude, 76.215000);
     expect(responderB.position.latitude, 9.931233);
     expect(responderB.position.longitude, 76.267303);
-    expect(snapshots.map((item) => item.id).toSet(), hasLength(snapshots.length));
+    expect(
+      snapshots.map((item) => item.id).toSet(),
+      hasLength(snapshots.length),
+    );
   });
 }

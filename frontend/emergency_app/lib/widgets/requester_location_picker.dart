@@ -85,7 +85,8 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   String? _nearbyStatusMessage;
   int _nearbyToken = 0;
 
-  bool get _hasCoordinates => widget.latitude != null && widget.longitude != null;
+  bool get _hasCoordinates =>
+      widget.latitude != null && widget.longitude != null;
 
   @override
   void dispose() {
@@ -152,8 +153,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     required String successMessage,
   }) async {
     try {
-      final place =
-          await widget.locationService.reverseGeocode(point.latitude, point.longitude);
+      final place = await widget.locationService.reverseGeocode(
+        point.latitude,
+        point.longitude,
+      );
       if (!mounted) return;
       widget.placeController.text = place.label;
       widget.onPlaceTextChanged?.call();
@@ -165,8 +168,9 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       // webpage is not allowed to use the geocoder") additionally names the
       // Google Cloud setting that has to be fixed — the raw Google text is
       // always kept so the error is never hidden.
-      final hint =
-          isGeocodingApiDeniedError(error.message) ? kGeocodingApiDeniedHint : '';
+      final hint = isGeocodingApiDeniedError(error.message)
+          ? kGeocodingApiDeniedHint
+          : '';
       _setStatus(
         'Location detected, but place name could not be determined. Please '
         'enter a nearby place.$hint (${error.message})',
@@ -476,7 +480,11 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
           decoration: fieldDecoration(
             hintText: 'Search for a place, landmark, address…',
           ).copyWith(
-            prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textFaint),
+            prefixIcon: const Icon(
+              Icons.search,
+              size: 18,
+              color: AppColors.textFaint,
+            ),
             suffixIcon: _searching
                 ? const Padding(
                     padding: EdgeInsets.all(12),
@@ -518,7 +526,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
               label: Text(_locating ? 'Locating…' : 'Use my current location'),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.blue,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 textStyle: const TextStyle(fontSize: 12.5),
               ),
             ),
@@ -531,7 +542,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textDim,
                   side: const BorderSide(color: AppColors.border),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   textStyle: const TextStyle(fontSize: 12.5),
                 ),
               ),
@@ -596,8 +610,11 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         children: [
           Row(
             children: [
-              const Icon(Icons.near_me_rounded,
-                  size: 14, color: AppColors.teal),
+              const Icon(
+                Icons.near_me_rounded,
+                size: 14,
+                color: AppColors.teal,
+              ),
               const SizedBox(width: 7),
               const Expanded(
                 child: Text(
@@ -618,15 +635,17 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
             'Real places around your current coordinates '
             '(Google Places API (New) Nearby Search, ranked by distance).',
             style: TextStyle(
-                fontSize: 10.5, color: AppColors.textFaint, height: 1.35),
+              fontSize: 10.5,
+              color: AppColors.textFaint,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 9),
           if (_nearbyUnavailable)
             Container(
               key: const Key('nearby-unavailable-text'),
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: BoxDecoration(
                 color: AppColors.amberDim,
                 borderRadius: BorderRadius.circular(5),
@@ -740,10 +759,9 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     final category = _nearbyCategory;
     if (category == null) return const SizedBox.shrink();
 
-    final center = _nearbyCenter ??
-        GeoPoint(widget.latitude!, widget.longitude!);
-    final centerText =
-        formatCoordinatePair(center.latitude, center.longitude);
+    final center =
+        _nearbyCenter ?? GeoPoint(widget.latitude!, widget.longitude!);
+    final centerText = formatCoordinatePair(center.latitude, center.longitude);
 
     return Container(
       key: const Key('nearby-result-list'),
@@ -774,7 +792,9 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                   'Within ${_radiusKilometersLabel()} of $centerText · '
                   'ranked by distance',
                   style: const TextStyle(
-                      fontSize: 10.5, color: AppColors.textFaint),
+                    fontSize: 10.5,
+                    color: AppColors.textFaint,
+                  ),
                 ),
               ],
             ),
@@ -792,16 +812,17 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   Widget _nearbyResultRow(NearbyPlace place) {
     return InkWell(
       key: Key('nearby-result-${place.placeId}'),
-      onTap: widget.enabled
-          ? () => unawaited(selectNearbyPlace(place))
-          : null,
+      onTap: widget.enabled ? () => unawaited(selectNearbyPlace(place)) : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.place_outlined,
-                size: 15, color: AppColors.textFaint),
+            const Icon(
+              Icons.place_outlined,
+              size: 15,
+              color: AppColors.textFaint,
+            ),
             const SizedBox(width: 9),
             Expanded(
               child: Column(
@@ -864,12 +885,17 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                   ? () => unawaited(selectPrediction(prediction))
                   : null,
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
-                    const Icon(Icons.place_outlined,
-                        size: 16, color: AppColors.textFaint),
+                    const Icon(
+                      Icons.place_outlined,
+                      size: 16,
+                      color: AppColors.textFaint,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -878,13 +904,17 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                           Text(
                             prediction.primaryText,
                             style: const TextStyle(
-                                fontSize: 12.5, color: AppColors.text),
+                              fontSize: 12.5,
+                              color: AppColors.text,
+                            ),
                           ),
                           if (prediction.secondaryText.isNotEmpty)
                             Text(
                               prediction.secondaryText,
                               style: const TextStyle(
-                                  fontSize: 11, color: AppColors.textFaint),
+                                fontSize: 11,
+                                color: AppColors.textFaint,
+                              ),
                             ),
                         ],
                       ),
@@ -942,7 +972,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                 title: widget.placeController.text.isEmpty
                     ? 'Selected location'
                     : widget.placeController.text,
-                snippet: formatCoordinatePair(target.latitude, target.longitude),
+                snippet: formatCoordinatePair(
+                  target.latitude,
+                  target.longitude,
+                ),
               ),
             ),
           },

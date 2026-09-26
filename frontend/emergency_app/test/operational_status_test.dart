@@ -52,8 +52,9 @@ Widget _app(Widget child) => MaterialApp(
     );
 
 void main() {
-  testWidgets('request timeline shows the complete operational sequence',
-      (tester) async {
+  testWidgets('request timeline shows the complete operational sequence', (
+    tester,
+  ) async {
     await tester.pumpWidget(_app(OperationalTimeline(request: _request())));
 
     for (final label in <String>[
@@ -68,9 +69,11 @@ void main() {
     }
   });
 
-  testWidgets('allocation row shows resource quantity responder and status',
-      (tester) async {
-    final allocation = _request(allocationStatus: 'DELIVERED').allocations.single;
+  testWidgets('allocation row shows resource quantity responder and status', (
+    tester,
+  ) async {
+    final allocation =
+        _request(allocationStatus: 'DELIVERED').allocations.single;
     await tester.pumpWidget(
       _app(AllocationOperationalRow(allocation: allocation)),
     );
@@ -81,8 +84,9 @@ void main() {
     expect(find.text('Delivered'), findsOneWidget);
   });
 
-  testWidgets('connection indicator exposes all operational states',
-      (tester) async {
+  testWidgets('connection indicator exposes all operational states', (
+    tester,
+  ) async {
     for (final entry in <(RealtimeConnectionStatus, String)>[
       (RealtimeConnectionStatus.connected, 'CONNECTED'),
       (RealtimeConnectionStatus.reconnecting, 'RECONNECTING'),
@@ -95,22 +99,26 @@ void main() {
     }
   });
 
-  testWidgets('responder availability uses backend status and unfinished count',
-      (tester) async {
-    const responder = BackendResponder(
-      id: 9,
-      name: 'Responder',
-      email: 'responder@test.com',
-      status: 'BUSY',
-    );
-    await tester.pumpWidget(
-      _app(const ResponderAvailabilityBanner(
-        responder: responder,
-        unfinishedAllocations: 2,
-      )),
-    );
+  testWidgets(
+    'responder availability uses backend status and unfinished count',
+    (tester) async {
+      const responder = BackendResponder(
+        id: 9,
+        name: 'Responder',
+        email: 'responder@test.com',
+        status: 'BUSY',
+      );
+      await tester.pumpWidget(
+        _app(
+          const ResponderAvailabilityBanner(
+            responder: responder,
+            unfinishedAllocations: 2,
+          ),
+        ),
+      );
 
-    expect(find.text('BUSY'), findsOneWidget);
-    expect(find.text('2 unfinished allocations'), findsOneWidget);
-  });
+      expect(find.text('BUSY'), findsOneWidget);
+      expect(find.text('2 unfinished allocations'), findsOneWidget);
+    },
+  );
 }

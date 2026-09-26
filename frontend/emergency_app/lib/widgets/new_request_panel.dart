@@ -249,10 +249,12 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       allowGpsFallback: allowGpsFallback,
       requiredResources: lines
           .where((l) => l.resourceId != null)
-          .map((l) => <String, int>{
-                'resourceId': l.resourceId!,
-                'quantity': l.quantity,
-              })
+          .map(
+            (l) => <String, int>{
+              'resourceId': l.resourceId!,
+              'quantity': l.quantity,
+            },
+          )
           .toList(),
     );
 
@@ -320,8 +322,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.teal,
                     ),
-                    label: const Text('Add another resource',
-                        style: TextStyle(fontSize: 12.5)),
+                    label: const Text(
+                      'Add another resource',
+                      style: TextStyle(fontSize: 12.5),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -331,7 +335,9 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.redDim,
                       borderRadius: BorderRadius.circular(5),
@@ -339,7 +345,9 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     child: Text(
                       errorMessage!,
                       style: const TextStyle(
-                          fontSize: 12.5, color: AppColors.red),
+                        fontSize: 12.5,
+                        color: AppColors.red,
+                      ),
                     ),
                   ),
                 ],
@@ -369,7 +377,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                   'the place text is only its human readable label. ERAS never fabricates '
                   'coordinates from typed text.',
                   style: TextStyle(
-                      fontSize: 11.5, color: AppColors.textFaint, height: 1.5),
+                    fontSize: 11.5,
+                    color: AppColors.textFaint,
+                    height: 1.5,
+                  ),
                 ),
               ],
             );
@@ -391,8 +402,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
           isExpanded: true,
           decoration: fieldDecoration(),
           items: kEmergencyTypes
-              .map((type) =>
-                  DropdownMenuItem<String>(value: type, child: Text(type)))
+              .map(
+                (type) =>
+                    DropdownMenuItem<String>(value: type, child: Text(type)),
+              )
               .toList(),
           onChanged: (value) {
             if (value == null) return;
@@ -426,10 +439,12 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
           isExpanded: true,
           decoration: fieldDecoration(),
           items: kPriorities
-              .map((value) => DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(titleCase(value)),
-                  ))
+              .map(
+                (value) => DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(titleCase(value)),
+                ),
+              )
               .toList(),
           onChanged: (value) {
             if (value == null) return;
@@ -544,9 +559,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
-                      color: r.isSelectable
-                          ? AppColors.text
-                          : AppColors.textFaint,
+                      color:
+                          r.isSelectable ? AppColors.text : AppColors.textFaint,
                     ),
                   ),
                 ),
@@ -555,8 +569,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                   r.isOutOfStock ? 'Out of stock' : r.shortAvailability,
                   style: TextStyle(
                     fontSize: 11,
-                    color:
-                        r.isOutOfStock ? AppColors.red : AppColors.textFaint,
+                    color: r.isOutOfStock ? AppColors.red : AppColors.textFaint,
                   ),
                 ),
               ],
@@ -593,12 +606,15 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         const SizedBox(height: 6),
         DropdownButtonFormField<int>(
           key: ValueKey(
-              'resource-${identityHashCode(line)}-${line.resourceId}'),
+            'resource-${identityHashCode(line)}-${line.resourceId}',
+          ),
           initialValue: line.resourceId,
           isExpanded: true,
           decoration: fieldDecoration(),
-          hint: const Text('Select a resource',
-              style: TextStyle(fontSize: 13, color: AppColors.textFaint)),
+          hint: const Text(
+            'Select a resource',
+            style: TextStyle(fontSize: 13, color: AppColors.textFaint),
+          ),
           items: items,
           onChanged: (value) {
             if (value == null) return;
@@ -672,7 +688,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
               Text(
                 '${line.quantity}',
                 style: monoStyle(
-                    size: 14, color: AppColors.text, weight: FontWeight.w600),
+                  size: 14,
+                  color: AppColors.text,
+                  weight: FontWeight.w600,
+                ),
               ),
               IconButton(
                 onPressed:
@@ -759,7 +778,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
           const Text(
             'REQUIRED',
             style: TextStyle(
-                fontSize: 10, color: AppColors.textFaint, letterSpacing: .6),
+              fontSize: 10,
+              color: AppColors.textFaint,
+              letterSpacing: .6,
+            ),
           ),
           const SizedBox(height: 6),
           ...chosen.map((line) {

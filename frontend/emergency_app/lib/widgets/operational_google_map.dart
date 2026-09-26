@@ -48,7 +48,8 @@ class OperationalMapMarkerSnapshot {
         OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
         OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
         OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
-        OperationalMapMarkerKind.lastKnownResponder => BitmapDescriptor.hueAzure,
+        OperationalMapMarkerKind.lastKnownResponder =>
+          BitmapDescriptor.hueAzure,
       };
 
   Marker toMarker() => Marker(
@@ -203,10 +204,7 @@ class OperationalGoogleMap extends StatefulWidget {
 
 class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   static const _markerBuilder = OperationalMapMarkerBuilder();
-  static const _fallbackCamera = CameraPosition(
-    target: LatLng(0, 0),
-    zoom: 2,
-  );
+  static const _fallbackCamera = CameraPosition(target: LatLng(0, 0), zoom: 2);
 
   GoogleMapController? _controller;
   bool _initialCameraApplied = false;
@@ -249,10 +247,12 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
         .toSet();
 
     final newResponderMarkers = _snapshots
-        .where((snapshot) =>
-            snapshot.isResponder &&
-            !oldResponderMarkerIds.contains(snapshot.id) &&
-            !_autoFittedResponderMarkers.contains(snapshot.id))
+        .where(
+          (snapshot) =>
+              snapshot.isResponder &&
+              !oldResponderMarkerIds.contains(snapshot.id) &&
+              !_autoFittedResponderMarkers.contains(snapshot.id),
+        )
         .toList(growable: false);
 
     if (newResponderMarkers.isEmpty) return;
@@ -322,7 +322,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                 width: double.infinity,
                                 child: _MapControls(
                                   onCenterEmergency: _centerOnEmergency,
-                                  onFitPins: markers.isEmpty ? null : _fitAllPins,
+                                  onFitPins:
+                                      markers.isEmpty ? null : _fitAllPins,
                                   isMobile: true,
                                 ),
                               ),
@@ -344,9 +345,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                     ),
                     if (markers.isEmpty)
                       const Positioned.fill(
-                        child: IgnorePointer(
-                          child: _NoPreciseMarkersOverlay(),
-                        ),
+                        child: IgnorePointer(child: _NoPreciseMarkersOverlay()),
                       ),
                   ],
                 ),
@@ -458,7 +457,9 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     return pendingEmergency?.position;
   }
 
-  Future<void> _centerOnEmergency({bool showMessageWhenUnavailable = true}) async {
+  Future<void> _centerOnEmergency({
+    bool showMessageWhenUnavailable = true,
+  }) async {
     final controller = _controller;
     final focus = _emergencyFocus(_snapshots);
     if (controller == null || focus == null) {
@@ -643,10 +644,7 @@ class _MapControls extends StatelessWidget {
             TextButton.icon(
               onPressed:
                   onFitPins == null ? null : () => unawaited(onFitPins!()),
-              icon: Icon(
-                Icons.fit_screen_rounded,
-                size: isMobile ? 15 : 16,
-              ),
+              icon: Icon(Icons.fit_screen_rounded, size: isMobile ? 15 : 16),
               label: const Text('Fit pins'),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.blue,
@@ -778,10 +776,7 @@ class NavigationInfoCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Direct distance: ${connection.directDistanceLabel}',
-            style: const TextStyle(
-              fontSize: 11.5,
-              color: AppColors.textDim,
-            ),
+            style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),
           ),
           const Text(
             'Straight-line only, not a road distance.',
@@ -947,10 +942,7 @@ class NavigationInfoCard extends StatelessWidget {
       style: TextButton.styleFrom(
         backgroundColor: AppColors.tealDim,
         foregroundColor: AppColors.teal,
-        textStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         minimumSize: const Size.fromHeight(46),
         tapTargetSize: MaterialTapTargetSize.padded,

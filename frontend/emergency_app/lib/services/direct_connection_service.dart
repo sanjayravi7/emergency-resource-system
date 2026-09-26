@@ -141,7 +141,8 @@ double distanceBetweenMeters(GeoPoint a, GeoPoint b) {
 }
 
 /// Base of the Google Maps universal (cross-platform, key-less) URL scheme.
-const String kGoogleMapsDirectionsBase = 'https://www.google.com/maps/dir/?api=1';
+const String kGoogleMapsDirectionsBase =
+    'https://www.google.com/maps/dir/?api=1';
 
 /// Builds the Google Maps universal Directions URL used by "Get directions".
 ///

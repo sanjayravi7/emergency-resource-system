@@ -147,10 +147,7 @@ class LiveLocationStore extends ChangeNotifier {
     if (removedLocation || removedActive || removedLocal) notifyListeners();
   }
 
-  bool _sameLocation(
-    LiveResponderLocation? left,
-    LiveResponderLocation right,
-  ) {
+  bool _sameLocation(LiveResponderLocation? left, LiveResponderLocation right) {
     return left != null &&
         left.requestId == right.requestId &&
         left.responderId == right.responderId &&

@@ -45,10 +45,7 @@ class WebLocationService implements LocationService {
     return available?.toDart ?? false;
   }
 
-  Future<Map<String, dynamic>> _call(
-    String method,
-    List<JSAny?> args,
-  ) async {
+  Future<Map<String, dynamic>> _call(String method, List<JSAny?> args) async {
     final bridge = _bridge;
     if (bridge == null) {
       throw const LocationServiceException(
@@ -59,17 +56,16 @@ class WebLocationService implements LocationService {
 
     final JSAny? raw;
     try {
-      final promise = bridge.callMethodVarArgs<JSPromise>(
-        method.toJS,
-        args,
-      );
+      final promise = bridge.callMethodVarArgs<JSPromise>(method.toJS, args);
       raw = await promise.toDart;
     } catch (error) {
       throw LocationServiceException('Google place lookup failed: $error');
     }
 
     if (raw == null) {
-      throw const LocationServiceException('Google place lookup returned no data.');
+      throw const LocationServiceException(
+        'Google place lookup returned no data.',
+      );
     }
 
     final decoded = jsonDecode((raw as JSString).toDart);
@@ -87,7 +83,10 @@ class WebLocationService implements LocationService {
   }
 
   @override
-  Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
+  Future<ResolvedPlace> reverseGeocode(
+    double latitude,
+    double longitude,
+  ) async {
     try {
       final result = await ApiService.reverseGeocode(
         latitude: latitude,
@@ -143,10 +142,9 @@ class WebLocationService implements LocationService {
 
   @override
   Future<ResolvedPlace> resolvePrediction(PlacePrediction prediction) async {
-    final result = await _call(
-      'placeDetails',
-      <JSAny?>[prediction.placeId.toJS],
-    );
+    final result = await _call('placeDetails', <JSAny?>[
+      prediction.placeId.toJS,
+    ]);
 
     final latitude = (result['latitude'] as num?)?.toDouble();
     final longitude = (result['longitude'] as num?)?.toDouble();
