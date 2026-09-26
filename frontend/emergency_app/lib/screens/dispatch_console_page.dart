@@ -194,7 +194,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         if (requestId == sharingRequestId) {
           await _stopLocalLocationSharing(requestId);
         }
-        if (requestId != null) setState(() => liveLocations.remove(requestId));
+        // The `mounted` guard at the top of this handler is stale by now:
+        // the awaited reloads above yield to the event loop, so the page can
+        // be disposed (for example logout during a socket.invalidated storm)
+        // before this setState runs.
+        if (requestId != null && mounted) {
+          setState(() => liveLocations.remove(requestId));
+        }
       }
     }
   }

@@ -1,0 +1,9 @@
+# Generated Flutter build artifacts must never be committed.
+/build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Temporary analyzer/log dumps.
+errors.txt
+errors_lib.txt

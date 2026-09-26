@@ -1,3 +1,10 @@
+// Load backend/.env first so a locally configured PostgreSQL test database is
+// detected. Without this, the suite silently skipped even when a working
+// DATABASE_URL/JWT_SECRET existed in .env, because the guard below read
+// process.env before dotenv ran (dotenv is only loaded lazily via
+// src/config/env when the app is required, which happens after this check).
+require('dotenv').config();
+
 const bcrypt = require('bcrypt');
 const http = require('http');
 const request = require('supertest');
