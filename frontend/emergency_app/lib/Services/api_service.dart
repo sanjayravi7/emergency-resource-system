@@ -102,6 +102,32 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------
+  // LOCATION
+  // ---------------------------------------------------------------------
+
+  /// Reverse geocodes only an explicitly selected requester location. The
+  /// backend owns the Photon call so no browser geocoding key is required.
+  static Future<Map<String, dynamic>> reverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/location/reverse').replace(queryParameters: {
+        'latitude': latitude.toString(),
+        'longitude': longitude.toString(),
+      }),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not determine an address for these coordinates');
+    }
+    final data = body['data'];
+    if (data is! Map) _fail(body, 'Invalid reverse geocoding response');
+    return Map<String, dynamic>.from(data);
+  }
+
+  // ---------------------------------------------------------------------
   // EMERGENCY REQUESTS
   // ---------------------------------------------------------------------
 

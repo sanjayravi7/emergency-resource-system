@@ -197,8 +197,6 @@
         row('libraries', 'google.maps.version', '<code>' + escapeHtml(hasMaps ? google.maps.version : '-') + '</code>');
         row('libraries', 'google.maps.places (places library)', flag(hasPlaces));
         row('libraries', 'Places API (New) classes available', flag(hasNewPlaces));
-        row('libraries', 'google.maps.Geocoder available', flag(hasMaps && !!google.maps.Geocoder));
-
         document.getElementById('run').addEventListener('click', runProbes);
         runProbes();
       }
@@ -237,7 +235,6 @@
 
         var report = JSON.parse(await bridge.diagnostics(lat, lng));
         var problems = '';
-        problems += apiVerdict('Geocoding API · reverseGeocode', report.probes.geocoding, 'Geocoding API');
         problems += apiVerdict(
           'Places API (New) · AutocompleteSuggestion',
           report.probes.placesAutocomplete,
@@ -254,10 +251,9 @@
             escapeHtml(report.key.masked) +
             '):</b><ul>' +
             problems +
-            '</ul>1. APIs &amp; Services → Library: enable <b>Maps JavaScript API</b>, ' +
-            '<b>Places API (New)</b> and <b>Geocoding API</b>.<br>' +
-            '2. Credentials → this key → <b>API restrictions</b>: the key must list all three ' +
-            '(a key restricted to Maps JavaScript API only returns exactly these errors).<br>' +
+            '</ul>1. APIs &amp; Services → Library: enable <b>Maps JavaScript API</b> and ' +
+            '<b>Places API (New)</b>.<br>' +
+            '2. Credentials → this key → <b>API restrictions</b>: list Maps JavaScript API and Places API (New).<br>' +
             '3. Credentials → this key → <b>Application restrictions → HTTP referrers</b>: add ' +
             '<code>' +
             escapeHtml(window.location.origin) +

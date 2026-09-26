@@ -3,6 +3,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'location_service.dart';
+import '../Services/api_service.dart';
 
 /// Flutter Web implementation.
 ///
@@ -10,7 +11,7 @@ import 'location_service.dart';
 /// the Maps JavaScript API that `web/index.html` already loads with the
 /// referrer-restricted browser key from `web/google_maps_config.js`:
 ///
-///   * reverse geocoding -> google.maps.Geocoder
+///   * reverse geocoding -> authenticated ERAS backend (Photon)
 ///   * autocomplete      -> google.maps.places.AutocompleteSuggestion
 ///                          (Place Autocomplete Data API, new)
 ///                          with a legacy AutocompleteService fallback
@@ -87,26 +88,27 @@ class WebLocationService implements LocationService {
 
   @override
   Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
-    final result = await _call(
-      'reverseGeocode',
-      <JSAny?>[latitude.toJS, longitude.toJS],
-    );
-
-    final label = (result['label'] as String?)?.trim() ?? '';
-    if (label.isEmpty) {
-      throw const LocationServiceException(
-        'Google returned no address for these coordinates.',
+    try {
+      final result = await ApiService.reverseGeocode(
+        latitude: latitude,
+        longitude: longitude,
       );
+      final label = (result['displayName'] as String?)?.trim() ?? '';
+      if (label.isEmpty) {
+        throw const LocationServiceException(
+          'The reverse geocoding service returned no address.',
+        );
+      }
+      return ResolvedPlace(
+        label: label,
+        latitude: latitude,
+        longitude: longitude,
+      );
+    } on LocationServiceException {
+      rethrow;
+    } catch (error) {
+      throw LocationServiceException('Reverse geocoding failed: $error');
     }
-
-    // The coordinates the caller passed in stay canonical: reverse geocoding
-    // only produces the human readable label.
-    return ResolvedPlace(
-      label: label,
-      latitude: latitude,
-      longitude: longitude,
-      placeId: result['placeId'] as String?,
-    );
   }
 
   @override

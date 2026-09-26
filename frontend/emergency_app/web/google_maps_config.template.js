@@ -10,7 +10,9 @@
 //   Enabled APIs + key "API restrictions" list (both are needed):
 //     * Maps JavaScript API   - map rendering
 //     * Places API (New)      - autocomplete, place details, Nearby Search
-//     * Geocoding API         - reverse geocoding (google.maps.Geocoder)
+//
+// Reverse geocoding uses Photon through the authenticated ERAS backend; no
+// Google Geocoding API key or browser API restriction is required.
 //
 //   Application restrictions -> HTTP referrers (web sites):
 //     http://localhost:8080/*

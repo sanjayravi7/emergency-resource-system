@@ -10,7 +10,7 @@ ERAS uses **two separate Google API keys**. They can never be the same key, beca
 | --- | --- | --- |
 | Stored in | `frontend/emergency_app/web/google_maps_config.js` (git-ignored) | `backend/.env` → `GOOGLE_ROUTES_API_KEY` (git-ignored) |
 | Visible to users | **Yes** — it is downloaded by every browser | **No** — it never leaves the server process |
-| APIs (enabled *and* in the key's API restrictions) | **Maps JavaScript API**, **Places API (New)**, **Geocoding API** | **Routes API** |
+| APIs (enabled *and* in the key's API restrictions) | **Maps JavaScript API**, **Places API (New)** | **Routes API** |
 | Application restrictions | HTTP referrers (web sites) | IP addresses (server egress IPs); unrestricted is acceptable only for local development |
 | Used by | `web/index.html`, `web/eras_location_bridge.js`, `google_maps_flutter` | `backend/src/services/routesService.js` only |
 
@@ -27,12 +27,12 @@ Why the split:
 
 ## 2. Enable the required APIs
 
-**APIs & Services → Library**, enable all four:
+**APIs & Services → Library**, enable the Google APIs listed below:
 
 | API | Key | Used by |
 | --- | --- | --- |
 | **Maps JavaScript API** | browser | map rendering (`GoogleMap`, `operational_google_map.dart`) and the location bridge |
-| **Geocoding API** | browser | reverse geocoding (`google.maps.Geocoder`) — GPS/map-tap coordinates → human readable place |
+| Photon reverse geocoding | **server** | GPS/map-tap coordinates → human-readable place via `GET /api/location/reverse` |
 | **Places API (New)** | browser | requester place autocomplete (`google.maps.places.AutocompleteSuggestion`), `Place.fetchFields` for the selected place's exact coordinates, and the NEARBY PLACES selector (`Place.searchNearby` — Nearby Search (New)) |
 | **Routes API** | **server** | real road route + distance + traffic-aware ETA between the responder's live position and the emergency (`POST /api/routes/compute`) |
 
@@ -42,21 +42,21 @@ Enabling an API is only half of the configuration — the key's own **API restri
 
 | Browser symptom | Cause | Fix |
 | --- | --- | --- |
-| `GEOCODER_GEOCODE: REQUEST_DENIED: The webpage is not allowed to use the geocoder.` | The **Geocoding API** is not enabled on the project **or** not in the browser key's *API restrictions* list **or** the page origin is not an allowed HTTP referrer. The map itself keeps working because it only needs the Maps JavaScript API. | Enable Geocoding API, add it to the key's API restrictions, add the origin to the referrer list. |
+| `No address found` from `GET /api/location/reverse` | Photon returned no feature for the selected coordinates. Coordinates are retained and the Place field remains editable. | Enter a place manually or choose a Google Places result. |
 | `Requests to this API places.googleapis.com method google.maps.places.v1.Places.AutocompletePlaces are blocked.` | The new Places surface (`places.googleapis.com`) is not covered by the key. **Places API (New)** is a *different* entry from the legacy *Places API* — selecting only the legacy one blocks every `AutocompleteSuggestion` / `Place.fetchFields` / `Place.searchNearby` call. | Enable **Places API (New)** and add exactly that entry to the key's API restrictions. |
 | `RefererNotAllowedMapError`, `InvalidKeyMapError`, `ApiNotActivatedMapError` (reported by `gm_authFailure` in the console) | The key itself is rejected for this origin. | Add `<origin>/*` to the key's HTTP referrers. |
 | `Google Routes API error (HTTP 403)` from `POST /api/routes/compute` | The **Routes API** is not enabled, or the *server* key is restricted to other APIs / other IPs. | Enable Routes API and fix the server key restrictions. This never involves the browser key. |
 
-> Note: the map and reverse geocoding use different APIs, so "the map renders" never proves that geocoding or Places is authorized. Use the diagnostics page in §3c to test all three individually.
+> Note: reverse geocoding is not a Google browser feature in ERAS. The authenticated backend endpoint calls Photon, so no Google Geocoding API billing, key, or browser restriction is needed for this feature.
 
 ## 3. Create and restrict the keys
 
 Create the keys under **APIs & Services → Credentials**. Do not commit unrestricted keys or production secrets.
 
-### 3a. Browser key (Maps JavaScript API + Places API (New) + Geocoding API)
+### 3a. Browser key (Maps JavaScript API + Places API (New))
 
 - **Application restrictions:** HTTP referrers (web sites)
-- **API restrictions → Restrict key:** `Maps JavaScript API`, `Places API (New)`, `Geocoding API`
+- **API restrictions → Restrict key:** `Maps JavaScript API`, `Places API (New)`
 - **Development referrers** — the local Flutter Web origins ERAS is served from:
   - `http://localhost:8080/*`
   - `http://127.0.0.1:8080/*`
@@ -131,12 +131,12 @@ If the key is missing, ERAS logs a browser-console warning and the map cannot lo
 `web/index.html` loads the Maps JavaScript API with `&libraries=places`, then `web/eras_location_bridge.js`, then Flutter.
 
 - `lib/services/location_service.dart` — platform-agnostic contract (`reverseGeocode`, `autocomplete`, `resolvePrediction`, `searchNearbyPlaces`) plus the `GeoPoint` / `ResolvedPlace` / `PlacePrediction` / `NearbyPlace` models and the `NearbyPlaceCategory` → Google place-type mapping.
-- `lib/services/location_service_web.dart` — Flutter Web implementation, calls `window.erasLocationBridge` through `dart:js_interop` (no raw JS in widgets).
+- `lib/services/location_service_web.dart` — Flutter Web implementation; reverse geocoding calls the authenticated ERAS backend, while Google Places calls remain in `window.erasLocationBridge`.
 - `lib/services/location_service_stub.dart` — non-web target; reports `isAvailable == false` and never fabricates results.
 - `lib/widgets/requester_location_picker.dart` — search field + "Use my current location" + place field + coordinate readout + NEARBY PLACES selector + tap-to-pin preview map.
-- `web/eras_location_bridge.js` — the JS bridge: Geocoder, AutocompleteSuggestion, `Place.fetchFields` and `Place.searchNearby` (Nearby Search (New)).
+- `web/eras_location_bridge.js` — the JS bridge: AutocompleteSuggestion, `Place.fetchFields` and `Place.searchNearby` (Nearby Search (New)).
 
-Reverse geocoding runs **only** on explicit requester actions (current location, map tap). Socket.IO responder location updates are never reverse geocoded.
+Reverse geocoding runs **only** on explicit requester actions (current location, map tap) through authenticated `GET /api/location/reverse`. The backend calls Photon with timeout handling and a small coordinate cache. Socket.IO responder location updates are never reverse geocoded. Photon is a public service: do not poll it for autocomplete and do not call it for telemetry updates.
 
 Nearby bias: autocomplete requests include `locationBias` (a 30 km circle around the requester's current coordinates) whenever coordinates are already known. This is a *bias*, not a restriction, and belongs to the manual-search feature only — it is intentionally not the Nearby Search radius.
 
@@ -189,7 +189,7 @@ It is **never** called from responder Socket.IO location updates (`LiveLocationS
 
 > Nearby places unavailable. Enable Places API (New) in Google Cloud.
 
-Nothing crashes and the current-location + reverse-geocoding workflow (Geocoding API) keeps working. **Refresh** retries once the API has been enabled in Google Cloud.
+Nothing crashes and the current-location + reverse-geocoding workflow uses the authenticated backend Photon endpoint. **Refresh** retries the nearby Google Places request.
 
 `tool/eras_location_bridge_test.mjs` (plain Node, no Flutter needed) verifies the bridge's request shape: field mask, 5 km circle around the requester, `includedTypes`, `rankPreference = DISTANCE`, result mapping, the disabled-API error path, the verbatim geocoder/Places authorization errors plus their fix hints, and the `diagnostics()` report. Run it with `node tool/eras_location_bridge_test.mjs`.
 
