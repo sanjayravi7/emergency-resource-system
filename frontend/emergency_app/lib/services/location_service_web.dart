@@ -26,8 +26,11 @@ class WebLocationService implements LocationService {
   JSObject? get _bridge {
     if (!globalContext.hasProperty(_bridgeName.toJS).toDart) return null;
     final bridge = globalContext.getProperty<JSAny?>(_bridgeName.toJS);
-    if (bridge == null || bridge is! JSObject) return null;
-    return bridge;
+    // `is`/`is!` against a dart:js_interop type is not platform-consistent
+    // (JS values are not differentiated at runtime on Wasm), so use the
+    // supported `isA<JSObject>()` interop check instead.
+    if (bridge == null || !bridge.isA<JSObject>()) return null;
+    return bridge as JSObject;
   }
 
   @override

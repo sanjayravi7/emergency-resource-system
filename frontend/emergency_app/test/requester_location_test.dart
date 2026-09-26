@@ -89,6 +89,28 @@ Widget _host(Widget child) => MaterialApp(
       home: Scaffold(body: SingleChildScrollView(child: child)),
     );
 
+/// The requester form is a tall page (emergency fields + location workflow +
+/// resource rows + submit button). The default 800x600 test viewport pushes the
+/// resource dropdown and the submit button below the render tree, so any tap on
+/// them would be dispatched outside the view. Giving the test a realistically
+/// sized surface — plus [WidgetTester.ensureVisible] before every tap — keeps
+/// the interactions inside the render tree without touching production code.
+void _useDesktopSizedSurface(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1200, 1800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+}
+
+/// Scrolls [finder] into view and taps it, so no tap is ever dispatched at an
+/// offset outside the root of the render tree.
+Future<void> _scrollIntoViewAndTap(WidgetTester tester, Finder finder) async {
+  expect(finder, findsOneWidget);
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   group('RequesterLocationPicker', () {
     testWidgets(
@@ -288,6 +310,8 @@ void main() {
     }) async {
       NewRequestPayload? submitted;
 
+      _useDesktopSizedSurface(tester);
+
       await tester.pumpWidget(_host(NewRequestPanel(
         resources: const <BackendResource>[_ambulance],
         locationService: service,
@@ -303,8 +327,10 @@ void main() {
       await tester.enterText(_descriptionField(), 'Two people trapped');
 
       if (selectPlaceFirst) {
-        await tester.tap(find.byKey(const Key('use-current-location-button')));
-        await tester.pumpAndSettle();
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('use-current-location-button')),
+        );
       }
 
       if (typedPlace != null) {
@@ -313,15 +339,29 @@ void main() {
         await tester.pump();
       }
 
-      // Pick the single resource.
-      await tester.tap(find.byType(DropdownButtonFormField<int>).last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Ambulance').last);
+      // Pick the single resource. There is exactly one resource line, so the
+      // resource dropdown is unambiguous (the other dropdowns in the panel are
+      // DropdownButtonFormField<String> for type/priority).
+      await _scrollIntoViewAndTap(
+        tester,
+        find.byType(DropdownButtonFormField<int>),
+      );
+
+      // While the dropdown is closed, DropdownButton keeps an off-stage copy of
+      // every item inside an IndexedStack for sizing, so plain find.text would
+      // be ambiguous. `hitTestable()` keeps only the entry the requester can
+      // really tap: the one rendered in the opened menu.
+      final menuItem = find.text('Ambulance').hitTestable();
+      expect(menuItem, findsOneWidget);
+      await tester.tap(menuItem);
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Submit request'));
-      await tester.tap(find.text('Submit request'));
-      await tester.pumpAndSettle();
+      // The dropdown really committed a resource: the summary block only
+      // renders once a resource line has a resourceId.
+      expect(find.text('No resources selected yet.'), findsNothing);
+      expect(find.text('REQUIRED'), findsOneWidget);
+
+      await _scrollIntoViewAndTap(tester, find.text('Submit request'));
 
       return submitted;
     }

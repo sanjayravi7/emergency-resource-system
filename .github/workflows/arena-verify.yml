@@ -1,0 +1,45 @@
+name: Arena verification (temporary)
+
+on:
+  push:
+    branches: ["arena/01a0dcd4-emergency-resource-system"]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze project source
+        if: always()
+        run: flutter analyze
+
+      - name: Run requester location tests
+        if: always()
+        run: flutter test test/requester_location_test.dart
+
+      - name: Run all tests
+        if: always()
+        run: flutter test
+
+      - name: Formatting report (informational)
+        if: always()
+        run: dart format --output=none --show=changed . || true
