@@ -49,6 +49,13 @@ jobs:
           echo '### dart format --output=none --set-exit-if-changed .' >> "$report"
           echo '```' >> "$report"; dart format --output=none --set-exit-if-changed . >> "$report" 2>&1; echo "exit=$?" >> "$report"; echo '```' >> "$report"
 
+          echo '### dart format diff for the two touched files' >> "$report"
+          dart format lib/services/location_service_web.dart test/requester_location_test.dart > /dev/null 2>&1
+          echo '```diff' >> "$report"
+          git diff -- lib/services/location_service_web.dart test/requester_location_test.dart >> "$report" 2>&1
+          echo '```' >> "$report"
+          git checkout -- lib/services/location_service_web.dart test/requester_location_test.dart
+
           cat "$report" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish report as a commit comment
