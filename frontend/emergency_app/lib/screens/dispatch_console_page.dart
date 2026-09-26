@@ -7,6 +7,7 @@ import '../Services/api_service.dart';
 import '../Services/live_location_store.dart';
 import '../Services/socket_service.dart';
 import '../models/eras_models.dart';
+import '../services/location_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/allocation_dialog.dart';
 import '../widgets/board_panel.dart';
@@ -543,6 +544,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         .toList();
   }
 
+  /// Same GPS read, exposed to the requester form as a plain GeoPoint so the
+  /// form never depends on the geolocator plugin types.
+  Future<GeoPoint?> _tryReadEmergencyGeoPoint() async {
+    final position = await _tryReadEmergencyPosition();
+    if (position == null) return null;
+    return GeoPoint(position.latitude, position.longitude);
+  }
+
   Future<Position?> _tryReadEmergencyPosition() async {
     if (!isRequester) return null;
 
@@ -577,13 +586,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     setState(() => submitting = true);
 
     try {
-      final shouldTryGpsFallback =
-          !payload.hasPreciseLocation && payload.allowGpsFallback;
-      final emergencyPosition = shouldTryGpsFallback
-          ? await _tryReadEmergencyPosition()
-          : null;
-      final latitude = payload.latitude ?? emergencyPosition?.latitude;
-      final longitude = payload.longitude ?? emergencyPosition?.longitude;
+      // The coordinates resolved in the form (GPS, selected Google place or
+      // tapped map point) are the single source of truth. No silent GPS read
+      // is performed here, so a typed-only place never gains coordinates it
+      // was not actually verified against.
+      final latitude = payload.latitude;
+      final longitude = payload.longitude;
 
       await ApiService.createRequest(
         emergencyType: payload.emergencyType,
@@ -1135,7 +1143,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           submitting: submitting,
           onSubmit: submitRequest,
           onReload: loadResources,
-          onUseCurrentLocation: _tryReadEmergencyPosition,
+          onUseCurrentLocation: _tryReadEmergencyGeoPoint,
         ),
       );
     }

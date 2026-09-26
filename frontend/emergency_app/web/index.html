@@ -56,6 +56,17 @@
         document.body.appendChild(flutterScript);
       }
 
+      function loadLocationBridge(done) {
+        var bridgeScript = document.createElement('script');
+        bridgeScript.src = 'eras_location_bridge.js';
+        bridgeScript.onload = done;
+        bridgeScript.onerror = function () {
+          console.error('ERAS location bridge failed to load.');
+          done();
+        };
+        document.head.appendChild(bridgeScript);
+      }
+
       function configureGoogleMaps() {
         var key = window.ERAS_GOOGLE_MAPS_API_KEY;
         if (!key) {
@@ -78,8 +89,13 @@
         mapsScript.src =
           'https://maps.googleapis.com/maps/api/js?key=' +
           encodeURIComponent(key) +
-          '&v=weekly';
-        mapsScript.onload = startFlutter;
+          // The places library powers the requester place autocomplete in
+          // web/eras_location_bridge.js. Geocoder (reverse geocoding) is part
+          // of the core Maps JavaScript API bundle loaded here.
+          '&libraries=places&v=weekly';
+        mapsScript.onload = function () {
+          loadLocationBridge(startFlutter);
+        };
         mapsScript.onerror = function () {
           console.error('ERAS Google Maps JavaScript API failed to load.');
           startFlutter();
