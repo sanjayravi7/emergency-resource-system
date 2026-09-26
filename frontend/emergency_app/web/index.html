@@ -89,10 +89,11 @@
         mapsScript.src =
           'https://maps.googleapis.com/maps/api/js?key=' +
           encodeURIComponent(key) +
-          // The places library powers the requester place autocomplete in
-          // web/eras_location_bridge.js. Geocoder (reverse geocoding) is part
-          // of the core Maps JavaScript API bundle loaded here.
-          '&libraries=places&v=weekly';
+        // The places library powers the requester place autocomplete and the
+        // Nearby Search (New) selector in web/eras_location_bridge.js.
+        // Geocoder (reverse geocoding) is part of the core Maps JavaScript
+        // API bundle loaded here.
+        '&libraries=places&v=weekly';
         mapsScript.onload = function () {
           loadLocationBridge(startFlutter);
         };

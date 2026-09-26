@@ -4,6 +4,9 @@
 ///   * reverse geocoding (latitude/longitude -> human readable place)
 ///   * place autocomplete predictions (biased to the requester location)
 ///   * resolving a selected prediction back to exact coordinates
+///   * nearby places around the requester's GPS position (Google Places API
+///     (New) Nearby Search), so the requester can pick a real named place
+///     such as a hospital or police station instead of typing
 ///
 /// Architectural rules honoured here:
 ///   * latitude/longitude stay the canonical, precise location.
@@ -14,6 +17,8 @@
 ///     browser key configured in web/google_maps_config.js is reused and no
 ///     key is ever embedded in Dart or backend source.
 library;
+
+import 'dart:math' as math;
 
 import 'location_service_stub.dart'
     if (dart.library.js_interop) 'location_service_web.dart' as impl;
@@ -79,6 +84,180 @@ class PlacePrediction {
       secondaryText.isEmpty ? primaryText : '$primaryText, $secondaryText';
 }
 
+// ---------------------------------------------------------------------------
+// Nearby places (Google Places API (New) Nearby Search)
+// ---------------------------------------------------------------------------
+
+/// Search radius for the requester-visible NEARBY PLACES list: 5 km.
+///
+/// 5 km is a neighbourhood-scale radius: the list exists to name the
+/// requester's immediate surroundings, and results are ranked with
+/// `rankPreference = DISTANCE`, so a wider circle would only add farther
+/// places, never better ones. (The 30 km circle used by autocomplete is a
+/// *bias*, not a restriction, and belongs to the separate search feature.)
+const double kNearbySearchRadiusMeters = 5000;
+
+/// Nearby Search (New) accepts 1..20 results. 10 keeps the visible list short
+/// and the request cheap.
+const int kNearbySearchMaxResultCount = 10;
+
+/// Categories offered in the NEARBY PLACES section of the requester form.
+///
+/// Every category maps to real Google Places API (New) place types from
+/// Table A of https://developers.google.com/maps/documentation/places/web-service/place-types
+/// — only Table A values may be used as `includedTypes` filters in Nearby
+/// Search (New). That is why, for example, the Landmark category searches
+/// `tourist_attraction`/`cultural_landmark`/… instead of the Table B type
+/// `landmark`, and why there is no Junction category (`intersection` is also a
+/// Table B value that Nearby Search cannot filter by).
+enum NearbyPlaceCategory {
+  hospital('Hospital', 'Hospitals', <String>['hospital']),
+  police('Police', 'Police stations', <String>['police']),
+  fireStation('Fire Station', 'Fire stations', <String>['fire_station']),
+  school('School', 'Schools', <String>[
+    'school',
+    'primary_school',
+    'secondary_school',
+  ]),
+  college('College', 'Colleges', <String>['university']),
+  railwayStation('Railway', 'Railway stations', <String>[
+    'train_station',
+    'light_rail_station',
+    'subway_station',
+  ]),
+  busStation('Bus Station', 'Bus stations', <String>[
+    'bus_station',
+    'bus_stop',
+  ]),
+  landmark('Landmark', 'Landmarks', <String>[
+    'cultural_landmark',
+    'historical_landmark',
+    'monument',
+    'historical_place',
+    'tourist_attraction',
+    'plaza',
+  ]),
+  church('Church', 'Churches', <String>['church']),
+  temple('Temple', 'Temples', <String>[
+    'hindu_temple',
+    'buddhist_temple',
+    'shinto_shrine',
+  ]),
+  mosque('Mosque', 'Mosques', <String>['mosque']);
+
+  const NearbyPlaceCategory(this.label, this.pluralLabel, this.googleTypes);
+
+  /// Short chip label shown in the requester form.
+  final String label;
+
+  /// Header above the result list ("Hospitals").
+  final String pluralLabel;
+
+  /// Google Places API (New) Table A types sent as `includedTypes`.
+  final List<String> googleTypes;
+}
+
+/// A real place returned by Google Places API (New) Nearby Search.
+///
+/// Everything here comes from Google — ERAS never fabricates nearby places,
+/// and [latitude]/[longitude] are the place's own coordinates, not the
+/// requester's search text.
+class NearbyPlace {
+  const NearbyPlace({
+    required this.placeId,
+    required this.name,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    this.distanceMeters,
+  });
+
+  final String placeId;
+  final String name;
+  final String address;
+  final double latitude;
+  final double longitude;
+
+  /// Straight-line distance from the search center (the requester's position)
+  /// in metres, computed locally from the real coordinates.
+  final double? distanceMeters;
+
+  /// Human readable label used for the place field: "Name, address".
+  String get label {
+    if (name.isEmpty) return address;
+    if (address.isEmpty) return name;
+    return '$name, $address';
+  }
+
+  /// "350 m" / "1.2 km" readout, or an empty string when no distance is known.
+  String get distanceLabel {
+    final meters = distanceMeters;
+    if (meters == null) return '';
+    if (meters < 1000) return '${meters.round()} m';
+    return '${(meters / 1000).toStringAsFixed(1)} km';
+  }
+
+  GeoPoint get point => GeoPoint(latitude, longitude);
+
+  /// Great-circle distance in metres between two coordinates (haversine).
+  /// Earth radius per mean radius defined by Google/WGS-84 (~6371008.8 m).
+  static double haversineDistanceMeters(
+    double latitude1,
+    double longitude1,
+    double latitude2,
+    double longitude2,
+  ) {
+    const earthRadiusMeters = 6371008.8;
+    const toRadians = math.pi / 180;
+
+    final dLat = (latitude2 - latitude1) * toRadians;
+    final dLng = (longitude2 - longitude1) * toRadians;
+    final sinLat = math.sin(dLat / 2);
+    final sinLng = math.sin(dLng / 2);
+    final a = sinLat * sinLat +
+        math.cos(latitude1 * toRadians) *
+            math.cos(latitude2 * toRadians) *
+            sinLng *
+            sinLng;
+    final c = 2 * math.asin(math.sqrt(a.clamp(0.0, 1.0)));
+    return earthRadiusMeters * c;
+  }
+}
+
+/// Raised when Google Places API (New) is disabled, has never been used by the
+/// project, or is blocked for the key. The UI must degrade gracefully: the
+/// NEARBY PLACES section shows the guidance below, while the map, GPS and
+/// reverse geocoding (other Google APIs) keep working.
+class PlacesApiDisabledException implements LocationServiceException {
+  const PlacesApiDisabledException({this.details});
+
+  /// Exact message the requester sees in the NEARBY PLACES section.
+  static const String userMessage =
+      'Nearby places unavailable. Enable Places API (New) in Google Cloud.';
+
+  @override
+  String get message => userMessage;
+
+  /// Original Google error text, kept for logging/debugging.
+  final String? details;
+
+  @override
+  String toString() => userMessage;
+}
+
+/// Whether a Google error [message] means the Places API (New) is disabled,
+/// not yet used, or not authorized for this project/key.
+bool isPlacesApiDisabledError(String message) {
+  final text = message.toLowerCase();
+  if (text.contains('places api (new) has not been used')) return true;
+  if (text.contains('places api') && text.contains('disabled')) return true;
+  if (text.contains('request_denied')) return true;
+  if (text.contains('permission_denied')) return true;
+  if (text.contains('apitargetblockedmaperror')) return true;
+  if (text.contains('is not authorized to use this service')) return true;
+  return false;
+}
+
 /// Raised when Google could not resolve a location. The caller must keep the
 /// coordinates it already has and must not invent a place name.
 class LocationServiceException implements Exception {
@@ -108,6 +287,25 @@ abstract class LocationService {
 
   /// Resolves a selected prediction into label + exact coordinates.
   Future<ResolvedPlace> resolvePrediction(PlacePrediction prediction);
+
+  /// Google Places API (New) Nearby Search around the requester's position.
+  ///
+  /// [latitude]/[longitude] are the search center — normally the requester's
+  /// current GPS coordinates. Searches a [kNearbySearchRadiusMeters] circle
+  /// with `rankPreference = DISTANCE` so the nearest real places come first,
+  /// and requests only the fields the UI needs (`id`, `displayName`,
+  /// `formattedAddress`, `location`).
+  ///
+  /// Call policy: only on explicit requester actions (current location
+  /// obtained, category selected/refreshed, requester location changed) —
+  /// never from responder Socket.IO location updates.
+  Future<List<NearbyPlace>> searchNearbyPlaces({
+    required double latitude,
+    required double longitude,
+    required NearbyPlaceCategory category,
+    double radiusMeters = kNearbySearchRadiusMeters,
+    int maxResults = kNearbySearchMaxResultCount,
+  });
 }
 
 /// Returns the platform implementation (Google Maps JS on web, unavailable

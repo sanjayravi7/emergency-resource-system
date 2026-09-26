@@ -11,11 +11,17 @@ import 'common_widgets.dart';
 
 /// Requester location workflow:
 ///
-///   GPS -> reverse geocode -> place text filled automatically
-///   or
-///   search -> Google place prediction -> label + exact coordinates
-///   or (web only)
-///   tap the preview map -> reverse geocode the tapped point
+///   A. GPS -> reverse geocode -> place text filled automatically
+///   B. search -> Google place prediction -> label + exact coordinates
+///   C. nearby -> Google Places API (New) Nearby Search around the GPS
+///      coordinates -> requester taps a real hospital / police station /
+///      school / … -> its own name + exact coordinates become the location
+///   D. (web only) tap the preview map -> reverse geocode the tapped point
+///
+/// Autocomplete (B) and Nearby Search (C) are deliberately separate features:
+/// autocomplete answers "find this named place anywhere (biased near me)",
+/// Nearby Search answers "which real places of this category are around me
+/// right now".
 ///
 /// latitude/longitude always remain the canonical location; the place text is
 /// only the human readable label for those coordinates.
@@ -70,6 +76,15 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   bool _statusIsError = false;
   GoogleMapController? _previewController;
 
+  // Nearby places (Google Places API (New) Nearby Search).
+  NearbyPlaceCategory? _nearbyCategory;
+  bool _nearbyLoading = false;
+  bool _nearbyUnavailable = false;
+  List<NearbyPlace> _nearbyResults = const <NearbyPlace>[];
+  GeoPoint? _nearbyCenter;
+  String? _nearbyStatusMessage;
+  int _nearbyToken = 0;
+
   bool get _hasCoordinates => widget.latitude != null && widget.longitude != null;
 
   @override
@@ -122,6 +137,13 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     await _reverseGeocodeInto(point, successMessage: 'Location detected ✓');
     await _movePreviewCamera(point.latitude, point.longitude);
 
+    // The requester's own location (re)appeared: refresh the nearby list
+    // around it, but only when a category was already chosen (one request per
+    // explicit action, never from responder Socket.IO updates).
+    if (_nearbyCategory != null) {
+      await _refreshNearbyPlaces(center: point);
+    }
+
     if (mounted) setState(() => _locating = false);
   }
 
@@ -156,7 +178,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   }
 
   // ------------------------------------------------------------------
-  // 2. Nearby place search (Google Places autocomplete, location biased)
+  // 2. Manual place search (Google Places autocomplete, location biased)
   // ------------------------------------------------------------------
   void _onSearchChanged(String value) {
     _debounce?.cancel();
@@ -239,6 +261,12 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       });
 
       await _movePreviewCamera(place.latitude, place.longitude);
+
+      // The requester's location changed to the selected place: re-query the
+      // nearby list around the new center (only when a category is active).
+      if (_nearbyCategory != null) {
+        await _refreshNearbyPlaces(center: place.point);
+      }
     } on LocationServiceException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -259,7 +287,124 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   }
 
   // ------------------------------------------------------------------
-  // 3. Optional map pin selection
+  // 3. Nearby places (Google Places API (New) Nearby Search)
+  // ------------------------------------------------------------------
+  /// Runs one Nearby Search (New) around [center] (the requester's current
+  /// coordinates) for [category] — or the already selected category when
+  /// [category] is null (the Refresh button).
+  ///
+  /// Call policy, kept deliberately restrictive to avoid excessive API
+  /// requests — Nearby Search runs only when:
+  ///   * the requester's current location is obtained,
+  ///   * the requester selects/re-selects a category or taps Refresh,
+  ///   * the requester changes location (map tap, searched place, nearby
+  ///     place selection).
+  /// It is never triggered by responder Socket.IO location updates or by
+  /// typing in the search field.
+  Future<void> _refreshNearbyPlaces({
+    NearbyPlaceCategory? category,
+    GeoPoint? center,
+  }) async {
+    final selected = category ?? _nearbyCategory;
+    if (selected == null) return;
+
+    final origin = center ??
+        (widget.latitude != null && widget.longitude != null
+            ? GeoPoint(widget.latitude!, widget.longitude!)
+            : null);
+    if (origin == null) return;
+
+    // May be reached after awaits (e.g. from useCurrentLocation), so the
+    // widget could have been disposed in the meantime.
+    if (!mounted) return;
+
+    final token = ++_nearbyToken;
+
+    setState(() {
+      _nearbyCategory = selected;
+      _nearbyLoading = true;
+      _nearbyUnavailable = false;
+      _nearbyStatusMessage = null;
+    });
+
+    try {
+      final results = await widget.locationService.searchNearbyPlaces(
+        latitude: origin.latitude,
+        longitude: origin.longitude,
+        category: selected,
+      );
+
+      if (!mounted || token != _nearbyToken) return;
+      setState(() {
+        _nearbyLoading = false;
+        _nearbyResults = results;
+        _nearbyCenter = origin;
+        _nearbyStatusMessage = results.isEmpty
+            ? 'No ${selected.pluralLabel.toLowerCase()} found within '
+                '${_radiusKilometersLabel()} of the current location. Try '
+                'another category or search by name.'
+            : null;
+      });
+    } on PlacesApiDisabledException {
+      // Places API (New) disabled/not enabled: degrade gracefully. The map,
+      // GPS and reverse geocoding use other APIs and keep working.
+      if (!mounted || token != _nearbyToken) return;
+      setState(() {
+        _nearbyLoading = false;
+        _nearbyUnavailable = true;
+        _nearbyResults = const <NearbyPlace>[];
+        _nearbyCenter = null;
+      });
+    } on LocationServiceException catch (error) {
+      if (!mounted || token != _nearbyToken) return;
+      setState(() {
+        _nearbyLoading = false;
+        _nearbyResults = const <NearbyPlace>[];
+        _nearbyCenter = null;
+        _nearbyStatusMessage = 'Nearby places unavailable: ${error.message}';
+      });
+    } catch (error) {
+      if (!mounted || token != _nearbyToken) return;
+      setState(() {
+        _nearbyLoading = false;
+        _nearbyResults = const <NearbyPlace>[];
+        _nearbyCenter = null;
+        _nearbyStatusMessage =
+            'Nearby places failed to load. Tap Refresh to retry.';
+      });
+    }
+  }
+
+  /// The requester picks (or re-picks, = refresh) a nearby category chip.
+  Future<void> selectNearbyCategory(NearbyPlaceCategory category) =>
+      _refreshNearbyPlaces(category: category);
+
+  /// The requester taps a nearby result: that real Google place becomes the
+  /// request location. Its own name/address becomes the place label and its
+  /// own coordinates become the canonical latitude/longitude — the search
+  /// text is never used as a coordinate source. The preview marker and
+  /// camera follow the new coordinates, so the request can be submitted.
+  Future<void> selectNearbyPlace(NearbyPlace place) async {
+    widget.placeController.text = place.label;
+    widget.onLocationChanged(place.latitude, place.longitude);
+    widget.onPlaceTextChanged?.call();
+
+    _setStatus('Selected: ${place.name}');
+    await _movePreviewCamera(place.latitude, place.longitude);
+
+    // The location changed to the selected place: re-query the nearby list
+    // around it so the distances stay truthful (only when a category is
+    // active; one request per explicit tap).
+    if (_nearbyCategory != null) {
+      await _refreshNearbyPlaces(center: place.point);
+    }
+  }
+
+  String _radiusKilometersLabel() =>
+      '${(kNearbySearchRadiusMeters / 1000).round()} km';
+
+  // ------------------------------------------------------------------
+  // 4. Optional map pin selection
   // ------------------------------------------------------------------
   Future<void> handleMapTap(LatLng position) async {
     widget.onLocationChanged(position.latitude, position.longitude);
@@ -269,6 +414,14 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       GeoPoint(position.latitude, position.longitude),
       successMessage: 'Map point selected ✓',
     );
+
+    // The requester changed the location by tapping the map: re-query the
+    // nearby list around the new point (only when a category is active).
+    if (_nearbyCategory != null) {
+      await _refreshNearbyPlaces(
+        center: GeoPoint(position.latitude, position.longitude),
+      );
+    }
   }
 
   Future<void> _movePreviewCamera(double latitude, double longitude) async {
@@ -284,15 +437,22 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     widget.placeController.clear();
     widget.onPlaceTextChanged?.call();
     _searchController.clear();
+    _nearbyToken++; // drop any in-flight nearby request
     setState(() {
       _predictions = const <PlacePrediction>[];
       _statusMessage = 'Location cleared.';
       _statusIsError = false;
+      _nearbyResults = const <NearbyPlace>[];
+      _nearbyCenter = null;
+      _nearbyStatusMessage = null;
+      _nearbyUnavailable = false;
+      // The selected category is kept: re-detecting the current location
+      // re-queries it around the new GPS position.
     });
   }
 
   // ------------------------------------------------------------------
-  // UI
+  // 5. UI
   // ------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
@@ -389,6 +549,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         ),
         const SizedBox(height: 8),
         _coordinateBox(),
+        if (_hasCoordinates) ...[
+          const SizedBox(height: 12),
+          _nearbyPlacesSection(),
+        ],
         if (_statusMessage != null) ...[
           const SizedBox(height: 6),
           Text(
@@ -406,6 +570,275 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
           _mapPreview(),
         ],
       ],
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Nearby places UI (shown once coordinates exist)
+  // ------------------------------------------------------------------
+  Widget _nearbyPlacesSection() {
+    return Container(
+      key: const Key('nearby-places-section'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.near_me_rounded,
+                  size: 14, color: AppColors.teal),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text(
+                  'NEARBY PLACES',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .8,
+                    color: AppColors.textDim,
+                  ),
+                ),
+              ),
+              _nearbyRefreshButton(),
+            ],
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'Real places around your current coordinates '
+            '(Google Places API (New) Nearby Search, ranked by distance).',
+            style: TextStyle(
+                fontSize: 10.5, color: AppColors.textFaint, height: 1.35),
+          ),
+          const SizedBox(height: 9),
+          if (_nearbyUnavailable)
+            Container(
+              key: const Key('nearby-unavailable-text'),
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              decoration: BoxDecoration(
+                color: AppColors.amberDim,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: AppColors.amber.withValues(alpha: .35),
+                ),
+              ),
+              child: const Text(
+                PlacesApiDisabledException.userMessage,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: AppColors.amber,
+                ),
+              ),
+            )
+          else ...[
+            _nearbyCategoryChips(),
+            if (_nearbyStatusMessage != null) ...[
+              const SizedBox(height: 7),
+              Text(
+                _nearbyStatusMessage!,
+                key: const Key('nearby-status-text'),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: AppColors.amber,
+                ),
+              ),
+            ],
+            if (_nearbyLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            if (_nearbyResults.isNotEmpty) _nearbyResultsList(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _nearbyRefreshButton() {
+    final canRefresh =
+        widget.enabled && !_nearbyLoading && _nearbyCategory != null;
+
+    return OutlinedButton.icon(
+      key: const Key('nearby-refresh-button'),
+      onPressed: canRefresh ? () => unawaited(_refreshNearbyPlaces()) : null,
+      icon: _nearbyLoading
+          ? const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.refresh, size: 14),
+      label: const Text('Refresh'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.teal,
+        side: const BorderSide(color: AppColors.border),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        textStyle: const TextStyle(fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _nearbyCategoryChips() {
+    final enabled = widget.enabled && !_nearbyLoading;
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final category in NearbyPlaceCategory.values)
+          ChoiceChip(
+            key: Key('nearby-category-${category.name}'),
+            label: Text(category.label),
+            selected: _nearbyCategory == category,
+            onSelected: enabled
+                ? (_) => unawaited(selectNearbyCategory(category))
+                : null,
+            showCheckmark: false,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            backgroundColor: AppColors.surface,
+            selectedColor: AppColors.tealDim,
+            side: BorderSide(
+              color: _nearbyCategory == category
+                  ? AppColors.teal.withValues(alpha: .4)
+                  : AppColors.border,
+            ),
+            labelStyle: TextStyle(
+              fontSize: 11.5,
+              color: _nearbyCategory == category
+                  ? AppColors.teal
+                  : AppColors.textDim,
+              fontWeight: _nearbyCategory == category
+                  ? FontWeight.w600
+                  : FontWeight.w400,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _nearbyResultsList() {
+    final category = _nearbyCategory;
+    if (category == null) return const SizedBox.shrink();
+
+    final center = _nearbyCenter ??
+        GeoPoint(widget.latitude!, widget.longitude!);
+    final centerText =
+        formatCoordinatePair(center.latitude, center.longitude);
+
+    return Container(
+      key: const Key('nearby-result-list'),
+      margin: const EdgeInsets.only(top: 9),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 9, 12, 7),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  category.pluralLabel,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Within ${_radiusKilometersLabel()} of $centerText · '
+                  'ranked by distance',
+                  style: const TextStyle(
+                      fontSize: 10.5, color: AppColors.textFaint),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          for (var index = 0; index < _nearbyResults.length; index++) ...[
+            if (index > 0) const Divider(height: 1, color: AppColors.border),
+            _nearbyResultRow(_nearbyResults[index]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _nearbyResultRow(NearbyPlace place) {
+    return InkWell(
+      key: Key('nearby-result-${place.placeId}'),
+      onTap: widget.enabled
+          ? () => unawaited(selectNearbyPlace(place))
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.place_outlined,
+                size: 15, color: AppColors.textFaint),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    place.name,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  if (place.address.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        place.address,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          height: 1.3,
+                          color: AppColors.textFaint,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (place.distanceLabel.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(
+                place.distanceLabel,
+                style: monoStyle(
+                  size: 11,
+                  color: AppColors.teal,
+                  weight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
