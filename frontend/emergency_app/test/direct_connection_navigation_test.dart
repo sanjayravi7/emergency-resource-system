@@ -431,6 +431,221 @@ void main() {
           tester.getSize(find.widgetWithText(TextButton, 'Get directions'));
       expect(buttonSize.width, lessThan(cardSize.width));
     });
+
+    testWidgets('last-known responder state renders LAST KNOWN',
+        (tester) async {
+      final lastKnownConnection = selectDirectConnection(
+        requests: <EmergencyRequest>[request()],
+        liveLocations: <int, LiveResponderLocation>{
+          501: live(isLive: false),
+        },
+      )!;
+
+      await tester.pumpWidget(
+        host(
+          SizedBox(
+            width: 360,
+            child: NavigationInfoCard(
+              connection: lastKnownConnection,
+              onGetDirections: () {},
+              isMobile: true,
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Responder location:'), findsOneWidget);
+      expect(find.text('LAST KNOWN'), findsOneWidget);
+      expect(find.text('Emergency location:'), findsOneWidget);
+      expect(find.text('SET'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Get directions'), findsOneWidget);
+    });
+  });
+
+  group('OperationalGoogleMap responsive layout', () {
+    final activeRequest = request();
+    final liveLoc = live();
+
+    testWidgets('mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow',
+        (tester) async {
+      addTearDown(tester.view.reset);
+
+      for (final width in <double>[320, 360, 390, 430]) {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+
+        final launcher = FakeUrlLauncher();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: SizedBox(
+                  width: width,
+                  child: OperationalGoogleMap(
+                    requests: <EmergencyRequest>[activeRequest],
+                    liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                    isMobile: true,
+                    urlLauncher: launcher,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(tester.takeException(), isNull,
+            reason: 'Should render without overflow at width $width');
+
+        // Map controls: compact mobile labels
+        expect(find.text('Center'), findsOneWidget);
+        expect(find.text('Fit pins'), findsOneWidget);
+
+        // Navigation info card placed below map
+        expect(find.text('RESPONDER → EMERGENCY'), findsOneWidget);
+        expect(find.text('Responder location:'), findsOneWidget);
+        expect(find.text('LIVE'), findsOneWidget);
+        expect(find.text('Emergency location:'), findsOneWidget);
+        expect(find.text('SET'), findsOneWidget);
+        expect(find.text('Direct distance:'), findsOneWidget);
+
+        // Get directions button is visible and full-width
+        final directionsButton =
+            find.widgetWithText(TextButton, 'Get directions');
+        expect(directionsButton, findsOneWidget);
+        final buttonSize = tester.getSize(directionsButton);
+        expect(buttonSize.height, greaterThanOrEqualTo(44));
+        expect(buttonSize.width, greaterThanOrEqualTo((width - 24) * .80));
+
+        // Tap Get directions
+        await tester.tap(directionsButton);
+        await tester.pump();
+        expect(launcher.launched, isNotEmpty);
+
+        // Legend items are all present and visible
+        expect(find.text('Active emergency'), findsOneWidget);
+        expect(find.text('Pending request'), findsOneWidget);
+        expect(find.text('LIVE responder'), findsOneWidget);
+        expect(find.text('LAST KNOWN responder'), findsOneWidget);
+        expect(
+          find.text('Direct connection (straight line)'),
+          findsOneWidget,
+        );
+      }
+    });
+
+    testWidgets('completed/cancelled requests remove navigation card on mobile',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      for (final status in ['COMPLETED', 'CANCELLED']) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 360,
+                child: OperationalGoogleMap(
+                  requests: <EmergencyRequest>[request(status: status)],
+                  liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                  isMobile: true,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('RESPONDER → EMERGENCY'), findsNothing);
+        expect(find.widgetWithText(TextButton, 'Get directions'), findsNothing);
+        expect(
+          find.text('Direct connection (straight line)'),
+          findsNothing,
+        );
+      }
+    });
+
+    testWidgets('desktop width keeps overlay layout with full control labels',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              child: OperationalGoogleMap(
+                requests: <EmergencyRequest>[activeRequest],
+                liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                isMobile: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Center on emergency'), findsOneWidget);
+      expect(find.text('Fit pins'), findsOneWidget);
+      expect(find.text('RESPONDER → EMERGENCY'), findsOneWidget);
+      expect(find.text('Responder location: LIVE'), findsOneWidget);
+    });
+  });
+
+  group('Emergency request description optionality', () {
+    test('accepts empty description', () {
+      final req = EmergencyRequest.fromJson(<String, dynamic>{
+        'id': 601,
+        'emergencyType': 'Medical',
+        'description': '',
+        'location': 'Kochi',
+        'priority': 'HIGH',
+        'status': 'PENDING',
+        'createdAt': '2026-09-26T09:00:00.000Z',
+        'updatedAt': '2026-09-26T10:00:00.000Z',
+        'requiredResources': <dynamic>[],
+        'allocations': <dynamic>[],
+      });
+      expect(req.description, '');
+    });
+
+    test('accepts null/missing description', () {
+      final req = EmergencyRequest.fromJson(<String, dynamic>{
+        'id': 602,
+        'emergencyType': 'Medical',
+        'location': 'Kochi',
+        'priority': 'HIGH',
+        'status': 'PENDING',
+        'createdAt': '2026-09-26T09:00:00.000Z',
+        'updatedAt': '2026-09-26T10:00:00.000Z',
+        'requiredResources': <dynamic>[],
+        'allocations': <dynamic>[],
+      });
+      expect(req.description, isNull);
+    });
+
+    test('preserves non-empty description', () {
+      final req = EmergencyRequest.fromJson(<String, dynamic>{
+        'id': 603,
+        'emergencyType': 'Medical',
+        'description': '  Two people trapped near east gate.  ',
+        'location': 'Kochi',
+        'priority': 'HIGH',
+        'status': 'PENDING',
+        'createdAt': '2026-09-26T09:00:00.000Z',
+        'updatedAt': '2026-09-26T10:00:00.000Z',
+        'requiredResources': <dynamic>[],
+        'allocations': <dynamic>[],
+      });
+      expect(req.description, '  Two people trapped near east gate.  ');
+    });
   });
 
   test('direct distance is straight-line only', () {

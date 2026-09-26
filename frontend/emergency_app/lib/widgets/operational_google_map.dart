@@ -280,15 +280,18 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final height = widget.isMobile
-            ? 300.0
+        final isMobileLayout = widget.isMobile ||
+            (constraints.hasBoundedWidth && constraints.maxWidth < 600);
+
+        final mapHeight = isMobileLayout
+            ? 340.0
             : math.max(340.0, math.min(460.0, constraints.maxWidth * .38));
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: height,
+              height: mapHeight,
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(0),
@@ -301,7 +304,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                       polylines: polylines,
                       mapToolbarEnabled: false,
                       myLocationButtonEnabled: false,
-                      zoomControlsEnabled: !widget.isMobile,
+                      zoomControlsEnabled: !isMobileLayout,
                       compassEnabled: true,
                       onMapCreated: (controller) {
                         _controller = controller;
@@ -309,27 +312,32 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                       },
                     ),
                     Positioned(
-                      left: 12,
-                      right: 12,
-                      top: 12,
-                      child: _MapOverlayControls(
-                        controls: _MapControls(
-                          onCenterEmergency: _centerOnEmergency,
-                          // The user keeps full pan/zoom control: the camera is
-                          // only moved by these explicit buttons, never by an
-                          // incoming responder GPS update.
-                          onFitPins: markers.isEmpty ? null : _fitAllPins,
-                          onGetDirections:
-                              connection == null ? null : _openDirections,
-                        ),
-                        navigationInfoCard: connection == null
-                            ? null
-                            : NavigationInfoCard(
-                                connection: connection,
-                                onGetDirections: () =>
-                                    unawaited(_openDirections()),
+                      left: 10,
+                      right: 10,
+                      top: 10,
+                      child: isMobileLayout
+                          ? Align(
+                              alignment: Alignment.topLeft,
+                              child: _MapControls(
+                                onCenterEmergency: _centerOnEmergency,
+                                onFitPins: markers.isEmpty ? null : _fitAllPins,
+                                isMobile: true,
                               ),
-                      ),
+                            )
+                          : _MapOverlayControls(
+                              controls: _MapControls(
+                                onCenterEmergency: _centerOnEmergency,
+                                onFitPins: markers.isEmpty ? null : _fitAllPins,
+                                isMobile: false,
+                              ),
+                              navigationInfoCard: connection == null
+                                  ? null
+                                  : NavigationInfoCard(
+                                      connection: connection,
+                                      onGetDirections: () =>
+                                          unawaited(_openDirections()),
+                                    ),
+                            ),
                     ),
                     if (markers.isEmpty)
                       const Positioned.fill(
@@ -341,14 +349,28 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                 ),
               ),
             ),
+            if (isMobileLayout && connection != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                child: NavigationInfoCard(
+                  connection: connection,
+                  isMobile: true,
+                  onGetDirections: () => unawaited(_openDirections()),
+                ),
+              ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              padding: EdgeInsets.fromLTRB(
+                isMobileLayout ? 12 : 16,
+                isMobileLayout ? 10 : 10,
+                isMobileLayout ? 12 : 16,
+                12,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Wrap(
-                    spacing: 12,
-                    runSpacing: 6,
+                    spacing: isMobileLayout ? 8 : 12,
+                    runSpacing: isMobileLayout ? 6 : 6,
                     children: [
                       const LegendItem(
                         color: AppColors.red,
@@ -567,11 +589,13 @@ class _MapControls extends StatelessWidget {
     required this.onCenterEmergency,
     this.onFitPins,
     this.onGetDirections,
+    this.isMobile = false,
   });
 
   final Future<void> Function() onCenterEmergency;
   final Future<void> Function()? onFitPins;
   final Future<void> Function()? onGetDirections;
+  final bool isMobile;
 
   @override
   Widget build(BuildContext context) {
@@ -589,44 +613,66 @@ class _MapControls extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(6),
+        padding: EdgeInsets.all(isMobile ? 4 : 6),
         child: Wrap(
-          spacing: 6,
-          runSpacing: 6,
+          spacing: isMobile ? 4 : 6,
+          runSpacing: isMobile ? 4 : 6,
           children: [
             TextButton.icon(
               onPressed: () => unawaited(onCenterEmergency()),
-              icon: const Icon(Icons.emergency_share_rounded, size: 16),
-              label: const Text('Center on emergency'),
+              icon: Icon(
+                Icons.emergency_share_rounded,
+                size: isMobile ? 15 : 16,
+              ),
+              label: Text(isMobile ? 'Center' : 'Center on emergency'),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.red,
-                textStyle: const TextStyle(fontSize: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                textStyle: TextStyle(
+                  fontSize: isMobile ? 11.5 : 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 7 : 8,
+                  vertical: isMobile ? 6 : 7,
+                ),
+                minimumSize: isMobile ? const Size(36, 34) : Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
             TextButton.icon(
               onPressed:
                   onFitPins == null ? null : () => unawaited(onFitPins!()),
-              icon: const Icon(Icons.fit_screen_rounded, size: 16),
+              icon: Icon(
+                Icons.fit_screen_rounded,
+                size: isMobile ? 15 : 16,
+              ),
               label: const Text('Fit pins'),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.blue,
-                textStyle: const TextStyle(fontSize: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                textStyle: TextStyle(
+                  fontSize: isMobile ? 11.5 : 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 7 : 8,
+                  vertical: isMobile ? 6 : 7,
+                ),
+                minimumSize: isMobile ? const Size(36, 34) : Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
-            TextButton.icon(
-              onPressed: onGetDirections == null
-                  ? null
-                  : () => unawaited(onGetDirections!()),
-              icon: const Icon(Icons.directions_rounded, size: 16),
-              label: const Text('Get directions'),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.teal,
-                textStyle: const TextStyle(fontSize: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            if (onGetDirections != null && !isMobile)
+              TextButton.icon(
+                onPressed: () => unawaited(onGetDirections!()),
+                icon: const Icon(Icons.directions_rounded, size: 16),
+                label: const Text('Get directions'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.teal,
+                  textStyle: const TextStyle(fontSize: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -646,6 +692,7 @@ class NavigationInfoCard extends StatelessWidget {
     required this.connection,
     required this.onGetDirections,
     this.showDirectDistance = true,
+    this.isMobile = false,
   });
 
   static const double _compactMaxWidth = 250;
@@ -653,11 +700,13 @@ class NavigationInfoCard extends StatelessWidget {
   final DirectConnection connection;
   final VoidCallback onGetDirections;
   final bool showDirectDistance;
+  final bool isMobile;
 
   bool _shouldUseExpandedLayout(
     BuildContext context,
     BoxConstraints constraints,
   ) {
+    if (isMobile) return true;
     if (constraints.hasBoundedWidth &&
         constraints.maxWidth < _compactMaxWidth) {
       return true;
@@ -688,8 +737,8 @@ class NavigationInfoCard extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 blurRadius: 16,
-                offset: const Offset(0, 6),
-                color: Colors.black.withValues(alpha: .08),
+                offset: const Offset(0, 4),
+                color: Colors.black.withValues(alpha: .06),
               ),
             ],
           ),
@@ -699,10 +748,10 @@ class NavigationInfoCard extends StatelessWidget {
                 ? const BoxConstraints()
                 : const BoxConstraints(maxWidth: _compactMaxWidth),
             padding: EdgeInsets.fromLTRB(
-              expandedLayout ? 14 : 12,
-              expandedLayout ? 12 : 10,
-              expandedLayout ? 14 : 12,
-              expandedLayout ? 12 : 8,
+              expandedLayout ? 12 : 12,
+              expandedLayout ? 10 : 10,
+              expandedLayout ? 12 : 12,
+              expandedLayout ? 10 : 8,
             ),
             child: expandedLayout ? _expandedContent() : _compactContent(),
           ),
@@ -777,34 +826,50 @@ class NavigationInfoCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _heading(),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         const Divider(height: 1, color: AppColors.border),
-        const SizedBox(height: 10),
-        _mobileFact(
-          label: 'Responder location:',
-          value: connection.responderIsLive ? 'LIVE' : 'LAST KNOWN',
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _mobileFact(
+                label: 'Responder location:',
+                value: connection.responderIsLive ? 'LIVE' : 'LAST KNOWN',
+                valueColor: connection.responderIsLive
+                    ? AppColors.teal
+                    : AppColors.blue,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _mobileFact(
+                label: 'Emergency location:',
+                value: 'SET',
+                valueColor: AppColors.red,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 10),
-        _mobileFact(label: 'Emergency location:', value: 'SET'),
         if (showDirectDistance) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           _mobileFact(
             label: 'Direct distance:',
             value: connection.directDistanceLabel,
-            helpText: 'Straight-line only, not road distance',
+            helpText: 'Straight-line only, not a road distance',
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: _directionsButton(expanded: true),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         const Text(
           'Driving directions open in Google Maps.',
           style: TextStyle(
-            fontSize: 10.5,
-            height: 1.3,
+            fontSize: 10,
+            height: 1.25,
             color: AppColors.textFaint,
           ),
         ),
@@ -827,6 +892,7 @@ class NavigationInfoCard extends StatelessWidget {
   Widget _mobileFact({
     required String label,
     required String value,
+    Color? valueColor,
     String? helpText,
   }) {
     return Column(
@@ -836,27 +902,27 @@ class NavigationInfoCard extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 11.5,
+            fontSize: 11,
             fontWeight: FontWeight.w600,
             color: AppColors.textDim,
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 13,
+          style: TextStyle(
+            fontSize: 12.5,
             fontWeight: FontWeight.w800,
-            color: AppColors.text,
+            color: valueColor ?? AppColors.text,
           ),
         ),
         if (helpText != null) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: 1),
           Text(
             helpText,
             style: const TextStyle(
-              fontSize: 10.5,
-              height: 1.3,
+              fontSize: 10,
+              height: 1.25,
               color: AppColors.textFaint,
             ),
           ),
@@ -896,7 +962,7 @@ class NavigationInfoCard extends StatelessWidget {
           fontSize: 13,
           fontWeight: FontWeight.w700,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         minimumSize: const Size.fromHeight(46),
         tapTargetSize: MaterialTapTargetSize.padded,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -912,9 +978,9 @@ class _NoPreciseMarkersOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 360),
-        margin: const EdgeInsets.all(18),
-        padding: const EdgeInsets.all(14),
+        constraints: const BoxConstraints(maxWidth: 320),
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.surface.withValues(alpha: .94),
           border: Border.all(color: AppColors.border),
@@ -924,11 +990,11 @@ class _NoPreciseMarkersOverlay extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.location_off_outlined, color: AppColors.textFaint),
-            SizedBox(height: 8),
+            SizedBox(height: 6),
             Text(
               'No precise map pins yet',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w700,
                 color: AppColors.text,
               ),
@@ -938,8 +1004,8 @@ class _NoPreciseMarkersOverlay extends StatelessWidget {
               'Requests without latitude/longitude remain text-only and no fake coordinates are generated.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 11.5,
-                height: 1.35,
+                fontSize: 11,
+                height: 1.3,
                 color: AppColors.textDim,
               ),
             ),
