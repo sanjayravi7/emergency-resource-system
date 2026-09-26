@@ -30,7 +30,17 @@ jobs:
 
       - name: Analyze project source
         if: always()
-        run: flutter analyze
+        run: |
+          set +e
+          flutter analyze 2>&1 | tee /tmp/analyze.txt
+          code=${PIPESTATUS[0]}
+          {
+            echo '## flutter analyze'
+            echo '```'
+            cat /tmp/analyze.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
 
       - name: Run requester location tests
         if: always()
@@ -42,4 +52,13 @@ jobs:
 
       - name: Formatting report (informational)
         if: always()
-        run: dart format --output=none --show=changed . || true
+        run: |
+          set +e
+          dart format --output=none --set-exit-if-changed . 2>&1 | tee /tmp/fmt.txt
+          code=${PIPESTATUS[0]}
+          {
+            echo "## dart format (exit $code)"
+            echo '```'
+            tail -60 /tmp/fmt.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
