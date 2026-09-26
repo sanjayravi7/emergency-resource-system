@@ -41,32 +41,6 @@ const env = {
     { min: 5000 }
   ),
 
-  // ---------------------------------------------------------------------
-  // Google Routes API (server side only)
-  //
-  // This key is DIFFERENT from the browser Maps JavaScript key used by
-  // Flutter Web (frontend/emergency_app/web/google_maps_config.js):
-  //
-  //   * browser key  -> Maps JavaScript API + Places API (New) + Geocoding
-  //                     API, restricted by HTTP referrer, necessarily public.
-  //   * server key   -> Routes API only, restricted by IP (or unrestricted in
-  //                     development), and never shipped to the browser.
-  //
-  // The key is read from the environment only. It is never returned by an
-  // endpoint, never logged and never sent to the Flutter client.
-  // ---------------------------------------------------------------------
-  GOOGLE_ROUTES_API_KEY: (process.env.GOOGLE_ROUTES_API_KEY || '').trim(),
-  GOOGLE_ROUTES_API_URL:
-    (process.env.GOOGLE_ROUTES_API_URL || '').trim() ||
-    'https://routes.googleapis.com/directions/v2:computeRoutes',
-  GOOGLE_ROUTES_LANGUAGE_CODE:
-    (process.env.GOOGLE_ROUTES_LANGUAGE_CODE || '').trim() || 'en-US',
-  GOOGLE_ROUTES_TIMEOUT_MS: integerFromEnv(
-    'GOOGLE_ROUTES_TIMEOUT_MS',
-    8000,
-    { min: 1000 }
-  ),
-
   // Photon public reverse-geocoding service. This is server-side only; no
   // Google Geocoding key is used or sent to Flutter.
   PHOTON_REVERSE_URL: (process.env.PHOTON_REVERSE_URL || 'https://photon.komoot.io/reverse').trim(),
