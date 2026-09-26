@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 /// Thin HTTP data layer for the ERAS backend.
@@ -27,9 +28,9 @@ class ApiService {
   static bool get isAdmin => currentRole == 'ADMIN';
 
   static Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
+    'Content-Type': 'application/json',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
 
   static Map<String, dynamic> _decode(http.Response response) {
     if (response.body.isEmpty) {
@@ -59,13 +60,8 @@ class ApiService {
   ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
     );
 
     final body = _decode(response);
@@ -112,10 +108,12 @@ class ApiService {
     required double longitude,
   }) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/location/reverse').replace(queryParameters: {
-        'latitude': latitude.toString(),
-        'longitude': longitude.toString(),
-      }),
+      Uri.parse('$baseUrl/location/reverse').replace(
+        queryParameters: {
+          'latitude': latitude.toString(),
+          'longitude': longitude.toString(),
+        },
+      ),
       headers: _headers,
     );
     final body = _decode(response);
@@ -534,9 +532,7 @@ class ApiService {
     final response = await http.patch(
       Uri.parse('$baseUrl/allocations/$allocationId/status'),
       headers: _headers,
-      body: jsonEncode({
-        'status': status,
-      }),
+      body: jsonEncode({'status': status}),
     );
 
     final body = _decode(response);

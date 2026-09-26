@@ -45,18 +45,18 @@ class OperationalMapMarkerSnapshot {
   bool get isLiveResponder => kind == OperationalMapMarkerKind.liveResponder;
 
   double get _hue => switch (kind) {
-        OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
-        OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
-        OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
-        OperationalMapMarkerKind.lastKnownResponder => BitmapDescriptor.hueAzure,
-      };
+    OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
+    OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
+    OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
+    OperationalMapMarkerKind.lastKnownResponder => BitmapDescriptor.hueAzure,
+  };
 
   Marker toMarker() => Marker(
-        markerId: markerId,
-        position: position,
-        icon: BitmapDescriptor.defaultMarkerWithHue(_hue),
-        infoWindow: InfoWindow(title: title, snippet: snippet),
-      );
+    markerId: markerId,
+    position: position,
+    icon: BitmapDescriptor.defaultMarkerWithHue(_hue),
+    infoWindow: InfoWindow(title: title, snippet: snippet),
+  );
 }
 
 class OperationalMapMarkerBuilder {
@@ -203,10 +203,7 @@ class OperationalGoogleMap extends StatefulWidget {
 
 class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   static const _markerBuilder = OperationalMapMarkerBuilder();
-  static const _fallbackCamera = CameraPosition(
-    target: LatLng(0, 0),
-    zoom: 2,
-  );
+  static const _fallbackCamera = CameraPosition(target: LatLng(0, 0), zoom: 2);
 
   GoogleMapController? _controller;
   bool _initialCameraApplied = false;
@@ -220,9 +217,9 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   /// follows live GPS updates and disappears as soon as the request is
   /// completed/cancelled, the assignment is removed, or coordinates vanish.
   DirectConnection? get _connection => selectDirectConnection(
-        requests: widget.requests,
-        liveLocations: widget.liveLocations,
-      );
+    requests: widget.requests,
+    liveLocations: widget.liveLocations,
+  );
 
   List<OperationalMapMarkerSnapshot> get _snapshots =>
       _markerBuilder.buildSnapshots(
@@ -249,10 +246,12 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
         .toSet();
 
     final newResponderMarkers = _snapshots
-        .where((snapshot) =>
-            snapshot.isResponder &&
-            !oldResponderMarkerIds.contains(snapshot.id) &&
-            !_autoFittedResponderMarkers.contains(snapshot.id))
+        .where(
+          (snapshot) =>
+              snapshot.isResponder &&
+              !oldResponderMarkerIds.contains(snapshot.id) &&
+              !_autoFittedResponderMarkers.contains(snapshot.id),
+        )
         .toList(growable: false);
 
     if (newResponderMarkers.isEmpty) return;
@@ -280,7 +279,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobileLayout = widget.isMobile ||
+        final isMobileLayout =
+            widget.isMobile ||
             (constraints.hasBoundedWidth && constraints.maxWidth < 600);
 
         final mapHeight = isMobileLayout
@@ -322,7 +322,9 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                 width: double.infinity,
                                 child: _MapControls(
                                   onCenterEmergency: _centerOnEmergency,
-                                  onFitPins: markers.isEmpty ? null : _fitAllPins,
+                                  onFitPins: markers.isEmpty
+                                      ? null
+                                      : _fitAllPins,
                                   isMobile: true,
                                 ),
                               ),
@@ -344,9 +346,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                     ),
                     if (markers.isEmpty)
                       const Positioned.fill(
-                        child: IgnorePointer(
-                          child: _NoPreciseMarkersOverlay(),
-                        ),
+                        child: IgnorePointer(child: _NoPreciseMarkersOverlay()),
                       ),
                   ],
                 ),
@@ -420,7 +420,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   }
 
   CameraPosition _initialCamera(List<OperationalMapMarkerSnapshot> snapshots) {
-    final focus = _emergencyFocus(snapshots) ??
+    final focus =
+        _emergencyFocus(snapshots) ??
         (snapshots.isNotEmpty ? snapshots.first.position : null);
     if (focus == null) return _fallbackCamera;
     return CameraPosition(target: focus, zoom: 14);
@@ -458,7 +459,9 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     return pendingEmergency?.position;
   }
 
-  Future<void> _centerOnEmergency({bool showMessageWhenUnavailable = true}) async {
+  Future<void> _centerOnEmergency({
+    bool showMessageWhenUnavailable = true,
+  }) async {
     final controller = _controller;
     final focus = _emergencyFocus(_snapshots);
     if (controller == null || focus == null) {
@@ -641,12 +644,10 @@ class _MapControls extends StatelessWidget {
               ),
             ),
             TextButton.icon(
-              onPressed:
-                  onFitPins == null ? null : () => unawaited(onFitPins!()),
-              icon: Icon(
-                Icons.fit_screen_rounded,
-                size: isMobile ? 15 : 16,
-              ),
+              onPressed: onFitPins == null
+                  ? null
+                  : () => unawaited(onFitPins!()),
+              icon: Icon(Icons.fit_screen_rounded, size: isMobile ? 15 : 16),
               label: const Text('Fit pins'),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.blue,
@@ -778,10 +779,7 @@ class NavigationInfoCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Direct distance: ${connection.directDistanceLabel}',
-            style: const TextStyle(
-              fontSize: 11.5,
-              color: AppColors.textDim,
-            ),
+            style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),
           ),
           const Text(
             'Straight-line only, not a road distance.',
@@ -947,10 +945,7 @@ class NavigationInfoCard extends StatelessWidget {
       style: TextButton.styleFrom(
         backgroundColor: AppColors.tealDim,
         foregroundColor: AppColors.teal,
-        textStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         minimumSize: const Size.fromHeight(46),
         tapTargetSize: MaterialTapTargetSize.padded,

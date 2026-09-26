@@ -51,9 +51,8 @@ class _LoginScreenState extends State<LoginScreen> {
               onSaved: () {
                 Navigator.of(readinessContext).pushReplacement(
                   MaterialPageRoute<void>(
-                    builder: (_) => const DispatchConsolePage(
-                      readinessSuccess: true,
-                    ),
+                    builder: (_) =>
+                        const DispatchConsolePage(readinessSuccess: true),
                   ),
                 );
               },
@@ -162,7 +161,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.redDim,
                         borderRadius: BorderRadius.circular(5),
@@ -170,7 +171,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text(
                         errorMessage!,
                         style: const TextStyle(
-                            fontSize: 12.5, color: AppColors.red),
+                          fontSize: 12.5,
+                          color: AppColors.red,
+                        ),
                       ),
                     ),
                   ],
@@ -193,15 +196,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Sign in',
-                            style: TextStyle(fontSize: 14)),
+                        : const Text('Sign in', style: TextStyle(fontSize: 14)),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'API: ${ApiService.baseUrl}',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.textFaint),
+                      fontSize: 11,
+                      color: AppColors.textFaint,
+                    ),
                   ),
                 ],
               ),

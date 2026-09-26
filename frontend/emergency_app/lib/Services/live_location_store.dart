@@ -56,7 +56,8 @@ class LiveLocationStore extends ChangeNotifier {
 
   void beginLocalSharing(int requestId) {
     if (requestId <= 0) return;
-    final changed = _localSharingRequestId != requestId ||
+    final changed =
+        _localSharingRequestId != requestId ||
         !_activelySharing.contains(requestId);
     _localSharingRequestId = requestId;
     _activelySharing.add(requestId);
@@ -147,10 +148,7 @@ class LiveLocationStore extends ChangeNotifier {
     if (removedLocation || removedActive || removedLocal) notifyListeners();
   }
 
-  bool _sameLocation(
-    LiveResponderLocation? left,
-    LiveResponderLocation right,
-  ) {
+  bool _sameLocation(LiveResponderLocation? left, LiveResponderLocation right) {
     return left != null &&
         left.requestId == right.requestId &&
         left.responderId == right.responderId &&

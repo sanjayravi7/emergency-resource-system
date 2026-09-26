@@ -8,11 +8,7 @@ import 'operational_status.dart';
 /// Closed / after-action log. Completed and cancelled requests straight from
 /// the database - no session-only memory.
 class LogPanel extends StatelessWidget {
-  const LogPanel({
-    super.key,
-    required this.logEntries,
-    this.isMobile = false,
-  });
+  const LogPanel({super.key, required this.logEntries, this.isMobile = false});
 
   final List<EmergencyRequest> logEntries;
   final bool isMobile;
@@ -25,93 +21,104 @@ class LogPanel extends StatelessWidget {
       child: logEntries.isEmpty
           ? const EmptyState('Nothing closed out yet.')
           : isMobile
-              ? Column(
-                  children: logEntries
-                      .take(50)
-                      .map((entry) => _LogCard(request: entry))
-                      .toList(),
-                )
-              : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DataTable(
-                    headingTextStyle: tableHeadStyle(),
-                    dataTextStyle: const TextStyle(
-                        fontSize: 13, color: AppColors.text),
-                    dataRowMinHeight: 72,
-                    dataRowMaxHeight: 180,
-                    columns: const [
-                      DataColumn(label: Text('REQUEST ID')),
-                      DataColumn(label: Text('EMERGENCY')),
-                      DataColumn(label: Text('LOCATION')),
-                      DataColumn(label: Text('RESOURCES')),
-                      DataColumn(label: Text('RESPONDER')),
-                      DataColumn(label: Text('CREATED')),
-                      DataColumn(label: Text('STATUS')),
-                    ],
-                    rows: logEntries.take(50).map((entry) {
-                      return DataRow(cells: [
-                        DataCell(Text(
+          ? Column(
+              children: logEntries
+                  .take(50)
+                  .map((entry) => _LogCard(request: entry))
+                  .toList(),
+            )
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingTextStyle: tableHeadStyle(),
+                dataTextStyle: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.text,
+                ),
+                dataRowMinHeight: 72,
+                dataRowMaxHeight: 180,
+                columns: const [
+                  DataColumn(label: Text('REQUEST ID')),
+                  DataColumn(label: Text('EMERGENCY')),
+                  DataColumn(label: Text('LOCATION')),
+                  DataColumn(label: Text('RESOURCES')),
+                  DataColumn(label: Text('RESPONDER')),
+                  DataColumn(label: Text('CREATED')),
+                  DataColumn(label: Text('STATUS')),
+                ],
+                rows: logEntries.take(50).map((entry) {
+                  return DataRow(
+                    cells: [
+                      DataCell(
+                        Text(
                           entry.displayId,
-                          style:
-                              monoStyle(size: 12.5, color: AppColors.textDim),
-                        )),
-                        DataCell(Text(entry.emergencyType)),
-                        DataCell(Text(entry.location)),
-                        DataCell(
-                          Column(
+                          style: monoStyle(
+                            size: 12.5,
+                            color: AppColors.textDim,
+                          ),
+                        ),
+                      ),
+                      DataCell(Text(entry.emergencyType)),
+                      DataCell(Text(entry.location)),
+                      DataCell(
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            if (entry.requiredResources.isEmpty)
+                              const Text(
+                                '-',
+                                style: TextStyle(color: AppColors.textFaint),
+                              )
+                            else
+                              ...entry.requiredResources.map(
+                                (line) => ResourceChip(
+                                  name: line.resourceName,
+                                  type: line.resourceType,
+                                  quantity: line.quantity,
+                                ),
+                              ),
+                            if (entry.allocations.isNotEmpty) ...[
+                              const Divider(height: 6, color: AppColors.border),
+                              ...entry.allocations.map(
+                                (allocation) => AllocationOperationalRow(
+                                  allocation: allocation,
+                                  compact: true,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      DataCell(Text(entry.acceptedBy?.name ?? '-')),
+                      DataCell(
+                        Text(
+                          formatDateTime(entry.createdAt),
+                          style: monoStyle(size: 12, color: AppColors.textDim),
+                        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 430,
+                          child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              if (entry.requiredResources.isEmpty)
-                                const Text('-',
-                                    style: TextStyle(
-                                        color: AppColors.textFaint))
-                              else
-                                ...entry.requiredResources.map(
-                                  (line) => ResourceChip(
-                                    name: line.resourceName,
-                                    type: line.resourceType,
-                                    quantity: line.quantity,
-                                  ),
-                                ),
-                              if (entry.allocations.isNotEmpty) ...[
-                                const Divider(height: 6, color: AppColors.border),
-                                ...entry.allocations.map(
-                                  (allocation) => AllocationOperationalRow(
-                                    allocation: allocation,
-                                    compact: true,
-                                  ),
-                                ),
-                              ],
+                            children: [
+                              StatusPill(status: entry.status),
+                              const SizedBox(height: 7),
+                              OperationalTimeline(
+                                request: entry,
+                                compact: true,
+                              ),
                             ],
                           ),
                         ),
-                        DataCell(Text(entry.acceptedBy?.name ?? '-')),
-                        DataCell(Text(
-                          formatDateTime(entry.createdAt),
-                          style: monoStyle(size: 12, color: AppColors.textDim),
-                        )),
-                        DataCell(
-                          SizedBox(
-                            width: 430,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                StatusPill(status: entry.status),
-                                const SizedBox(height: 7),
-                                OperationalTimeline(
-                                  request: entry,
-                                  compact: true,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ]);
-                    }).toList(),
-                  ),
-                ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
     );
   }
 }
@@ -136,27 +143,34 @@ class _LogCard extends StatelessWidget {
                 Text(
                   request.displayId,
                   style: monoStyle(
-                      size: 12.5,
-                      color: AppColors.textDim,
-                      weight: FontWeight.w600),
+                    size: 12.5,
+                    color: AppColors.textDim,
+                    weight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   '${request.emergencyType} · ${request.location}',
                   style: const TextStyle(
-                      fontSize: 12, color: AppColors.textDim),
+                    fontSize: 12,
+                    color: AppColors.textDim,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   request.resourcesSummary,
                   style: const TextStyle(
-                      fontSize: 11.5, color: AppColors.textFaint),
+                    fontSize: 11.5,
+                    color: AppColors.textFaint,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Responder: ${request.acceptedBy?.name ?? '-'}',
                   style: const TextStyle(
-                      fontSize: 11.5, color: AppColors.textFaint),
+                    fontSize: 11.5,
+                    color: AppColors.textFaint,
+                  ),
                 ),
                 if (request.allocations.isNotEmpty) ...[
                   const SizedBox(height: 5),

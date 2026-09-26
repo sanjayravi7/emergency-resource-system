@@ -29,12 +29,15 @@ class NearbyRecordingLocationService implements LocationService {
   String reverseLabel;
   String? reverseError;
 
-  final List<({
-    double latitude,
-    double longitude,
-    NearbyPlaceCategory category,
-    double radiusMeters,
-  })> nearbyCalls = [];
+  final List<
+    ({
+      double latitude,
+      double longitude,
+      NearbyPlaceCategory category,
+      double radiusMeters,
+    })
+  >
+  nearbyCalls = [];
 
   final List<GeoPoint> reverseGeocodeCalls = <GeoPoint>[];
   final List<String> autocompleteCalls = <String>[];
@@ -43,7 +46,10 @@ class NearbyRecordingLocationService implements LocationService {
   bool get isAvailable => true;
 
   @override
-  Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
+  Future<ResolvedPlace> reverseGeocode(
+    double latitude,
+    double longitude,
+  ) async {
     reverseGeocodeCalls.add(GeoPoint(latitude, longitude));
     if (reverseError != null) {
       throw LocationServiceException(reverseError!);
@@ -125,15 +131,15 @@ const List<NearbyPlace> _hospitals = <NearbyPlace>[
 ];
 
 Finder _descriptionField() => find.byWidgetPredicate(
-      (widget) =>
-          widget is TextField &&
-          widget.decoration?.hintText ==
-              'What happened, how many people are affected…',
-    );
+  (widget) =>
+      widget is TextField &&
+      widget.decoration?.hintText ==
+          'What happened, how many people are affected…',
+);
 
 Widget _host(Widget child) => MaterialApp(
-      home: Scaffold(body: SingleChildScrollView(child: child)),
-    );
+  home: Scaffold(body: SingleChildScrollView(child: child)),
+);
 
 /// The requester form is a tall page; give the test a realistically sized
 /// surface so every tap stays inside the render tree (same approach as
@@ -165,22 +171,26 @@ Future<void> _pumpPicker(
   double? latitude;
   double? longitude;
 
-  return tester.pumpWidget(_host(StatefulBuilder(
-    builder: (context, setState) => RequesterLocationPicker(
-      key: key,
-      placeController: placeController,
-      latitude: latitude,
-      longitude: longitude,
-      locationService: service,
-      showMapPreview: false,
-      searchDebounce: searchDebounce,
-      onUseCurrentLocation: gps,
-      onLocationChanged: (lat, lng) => setState(() {
-        latitude = lat;
-        longitude = lng;
-      }),
+  return tester.pumpWidget(
+    _host(
+      StatefulBuilder(
+        builder: (context, setState) => RequesterLocationPicker(
+          key: key,
+          placeController: placeController,
+          latitude: latitude,
+          longitude: longitude,
+          locationService: service,
+          showMapPreview: false,
+          searchDebounce: searchDebounce,
+          onUseCurrentLocation: gps,
+          onLocationChanged: (lat, lng) => setState(() {
+            latitude = lat;
+            longitude = lng;
+          }),
+        ),
+      ),
     ),
-  )));
+  );
 }
 
 void main() {
@@ -240,7 +250,8 @@ void main() {
           expect(
             forbiddenTableBTypes.contains(type),
             isFalse,
-            reason: '$category -> "$type" is a Table B type and cannot be '
+            reason:
+                '$category -> "$type" is a Table B type and cannot be '
                 'used as a Nearby Search (New) filter',
           );
         }
@@ -250,8 +261,9 @@ void main() {
     test('2b. specific categories map to the expected Google types', () {
       expect(NearbyPlaceCategory.hospital.googleTypes, <String>['hospital']);
       expect(NearbyPlaceCategory.police.googleTypes, <String>['police']);
-      expect(NearbyPlaceCategory.fireStation.googleTypes,
-          <String>['fire_station']);
+      expect(NearbyPlaceCategory.fireStation.googleTypes, <String>[
+        'fire_station',
+      ]);
       expect(
         NearbyPlaceCategory.school.googleTypes,
         containsAll(<String>['school', 'primary_school', 'secondary_school']),
@@ -266,7 +278,9 @@ void main() {
         ]),
       );
       expect(
-          NearbyPlaceCategory.busStation.googleTypes, contains('bus_station'));
+        NearbyPlaceCategory.busStation.googleTypes,
+        contains('bus_station'),
+      );
       expect(
         NearbyPlaceCategory.landmark.googleTypes,
         containsAll(<String>['tourist_attraction', 'cultural_landmark']),
@@ -328,8 +342,12 @@ void main() {
 
     test('haversine distance matches real-world scale', () {
       // ~111 km per degree of latitude.
-      final oneDegree =
-          NearbyPlace.haversineDistanceMeters(10.0, 76.0, 11.0, 76.0);
+      final oneDegree = NearbyPlace.haversineDistanceMeters(
+        10.0,
+        76.0,
+        11.0,
+        76.0,
+      );
       expect(oneDegree, closeTo(111000, 500));
 
       // Same point -> zero.
@@ -369,44 +387,48 @@ void main() {
 
   group('Nearby places — requester workflow', () {
     testWidgets(
-        '1. nearby request uses the current GPS latitude/longitude (5 km)',
-        (tester) async {
-      final service = NearbyRecordingLocationService(nearbyResults: _hospitals);
-      final controller = TextEditingController();
+      '1. nearby request uses the current GPS latitude/longitude (5 km)',
+      (tester) async {
+        final service = NearbyRecordingLocationService(
+          nearbyResults: _hospitals,
+        );
+        final controller = TextEditingController();
 
-      _useDesktopSizedSurface(tester);
-      await _pumpPicker(
-        tester,
-        service: service,
-        placeController: controller,
-        gps: () async => const GeoPoint(9.9876, 76.6543),
-      );
+        _useDesktopSizedSurface(tester);
+        await _pumpPicker(
+          tester,
+          service: service,
+          placeController: controller,
+          gps: () async => const GeoPoint(9.9876, 76.6543),
+        );
 
-      await _scrollIntoViewAndTap(
-        tester,
-        find.byKey(const Key('use-current-location-button')),
-      );
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('use-current-location-button')),
+        );
 
-      // Obtaining GPS alone performs no Nearby Search: a category must be
-      // picked first (call policy: explicit requester actions only).
-      expect(service.nearbyCalls, isEmpty);
+        // Obtaining GPS alone performs no Nearby Search: a category must be
+        // picked first (call policy: explicit requester actions only).
+        expect(service.nearbyCalls, isEmpty);
 
-      await _scrollIntoViewAndTap(
-        tester,
-        find.byKey(const Key('nearby-category-hospital')),
-      );
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('nearby-category-hospital')),
+        );
 
-      expect(service.nearbyCalls, hasLength(1));
-      final call = service.nearbyCalls.single;
-      expect(call.latitude, 9.9876);
-      expect(call.longitude, 76.6543);
-      expect(call.category, NearbyPlaceCategory.hospital);
-      // 5 km radius, not the 30 km autocomplete bias.
-      expect(call.radiusMeters, kNearbySearchRadiusMeters);
-    });
+        expect(service.nearbyCalls, hasLength(1));
+        final call = service.nearbyCalls.single;
+        expect(call.latitude, 9.9876);
+        expect(call.longitude, 76.6543);
+        expect(call.category, NearbyPlaceCategory.hospital);
+        // 5 km radius, not the 30 km autocomplete bias.
+        expect(call.radiusMeters, kNearbySearchRadiusMeters);
+      },
+    );
 
-    testWidgets('3. nearby results render name, distance and address',
-        (tester) async {
+    testWidgets('3. nearby results render name, distance and address', (
+      tester,
+    ) async {
       final service = NearbyRecordingLocationService(nearbyResults: _hospitals);
       final controller = TextEditingController();
 
@@ -437,24 +459,27 @@ void main() {
       expect(find.text('Church Road, Kolenchery'), findsOneWidget);
     });
 
-    testWidgets(
-        '4. selecting a nearby place updates the form label + exact '
+    testWidgets('4. selecting a nearby place updates the form label + exact '
         'coordinates and allows submission', (tester) async {
       final service = NearbyRecordingLocationService(nearbyResults: _hospitals);
       NewRequestPayload? submitted;
 
       _useDesktopSizedSurface(tester);
-      await tester.pumpWidget(_host(NewRequestPanel(
-        resources: const <BackendResource>[_ambulance],
-        locationService: service,
-        showMapPreview: false,
-        onReload: () {},
-        onUseCurrentLocation: () async => const GeoPoint(9.9876, 76.6543),
-        onSubmit: (payload) async {
-          submitted = payload;
-          return true;
-        },
-      )));
+      await tester.pumpWidget(
+        _host(
+          NewRequestPanel(
+            resources: const <BackendResource>[_ambulance],
+            locationService: service,
+            showMapPreview: false,
+            onReload: () {},
+            onUseCurrentLocation: () async => const GeoPoint(9.9876, 76.6543),
+            onSubmit: (payload) async {
+              submitted = payload;
+              return true;
+            },
+          ),
+        ),
+      );
 
       await tester.enterText(_descriptionField(), 'Two people trapped');
       await _scrollIntoViewAndTap(
@@ -472,8 +497,9 @@ void main() {
 
       // The selected Google place's own name/address becomes the label and
       // its own coordinates become canonical.
-      final placeField =
-          tester.widget<TextField>(find.byKey(const Key('location-place-field')));
+      final placeField = tester.widget<TextField>(
+        find.byKey(const Key('location-place-field')),
+      );
       expect(placeField.controller!.text, 'Hospital A, Main Road, Kolenchery');
       expect(find.textContaining('Coordinates: 9.991000'), findsOneWidget);
       expect(find.textContaining('Selected: Hospital A'), findsOneWidget);
@@ -503,12 +529,12 @@ void main() {
       expect(submitted!.hasPreciseLocation, isTrue);
     });
 
-    testWidgets(
-        '5. Places API (New) disabled -> graceful message, no crash, form '
+    testWidgets('5. Places API (New) disabled -> graceful message, no crash, form '
         'keeps working', (tester) async {
       final service = NearbyRecordingLocationService(
         nearbyError: const PlacesApiDisabledException(
-          details: 'Places API (New) has not been used in project 3804150054 '
+          details:
+              'Places API (New) has not been used in project 3804150054 '
               'before or it is disabled.',
         ),
       );
@@ -537,7 +563,8 @@ void main() {
 
       expect(
         find.text(
-            'Nearby places unavailable. Enable Places API (New) in Google Cloud.'),
+          'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
+        ),
         findsOneWidget,
       );
       expect(find.byKey(const Key('nearby-unavailable-text')), findsOneWidget);
@@ -553,8 +580,9 @@ void main() {
       expect(find.byKey(const Key('nearby-refresh-button')), findsOneWidget);
     });
 
-    testWidgets('5b. generic nearby failure -> status text, no crash',
-        (tester) async {
+    testWidgets('5b. generic nearby failure -> status text, no crash', (
+      tester,
+    ) async {
       final service = NearbyRecordingLocationService(
         nearbyError: const LocationServiceException(
           'Google Places library is not loaded.',
@@ -581,71 +609,76 @@ void main() {
 
       expect(
         find.text(
-            'Nearby places unavailable: Google Places library is not loaded.'),
+          'Nearby places unavailable: Google Places library is not loaded.',
+        ),
         findsOneWidget,
       );
       // The Places-API-disabled guidance is only shown for that failure mode.
       expect(
         find.text(
-            'Nearby places unavailable. Enable Places API (New) in Google Cloud.'),
+          'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
+        ),
         findsNothing,
       );
       expect(tester.takeException(), isNull);
     });
 
     testWidgets(
-        '6. existing autocomplete still works while nearby is unavailable',
-        (tester) async {
-      final service = NearbyRecordingLocationService(
-        nearbyError: const PlacesApiDisabledException(),
-        predictions: const <PlacePrediction>[
-          PlacePrediction(
-            placeId: 'place-junction',
-            primaryText: 'Kolenchery Junction',
-            secondaryText: 'Kerala, India',
+      '6. existing autocomplete still works while nearby is unavailable',
+      (tester) async {
+        final service = NearbyRecordingLocationService(
+          nearbyError: const PlacesApiDisabledException(),
+          predictions: const <PlacePrediction>[
+            PlacePrediction(
+              placeId: 'place-junction',
+              primaryText: 'Kolenchery Junction',
+              secondaryText: 'Kerala, India',
+            ),
+          ],
+        );
+        final controller = TextEditingController();
+
+        _useDesktopSizedSurface(tester);
+        await _pumpPicker(
+          tester,
+          service: service,
+          placeController: controller,
+          gps: () async => const GeoPoint(9.9876, 76.6543),
+          searchDebounce: const Duration(milliseconds: 10),
+        );
+
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('use-current-location-button')),
+        );
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('nearby-category-hospital')),
+        );
+        expect(
+          find.text(
+            'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
           ),
-        ],
-      );
-      final controller = TextEditingController();
+          findsOneWidget,
+        );
 
-      _useDesktopSizedSurface(tester);
-      await _pumpPicker(
-        tester,
-        service: service,
-        placeController: controller,
-        gps: () async => const GeoPoint(9.9876, 76.6543),
-        searchDebounce: const Duration(milliseconds: 10),
-      );
+        // Manual search is a separate feature and keeps working.
+        await tester.enterText(
+          find.byKey(const Key('location-search-field')),
+          'kolenchery',
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pumpAndSettle();
 
-      await _scrollIntoViewAndTap(
-        tester,
-        find.byKey(const Key('use-current-location-button')),
-      );
-      await _scrollIntoViewAndTap(
-        tester,
-        find.byKey(const Key('nearby-category-hospital')),
-      );
-      expect(
-        find.text(
-            'Nearby places unavailable. Enable Places API (New) in Google Cloud.'),
-        findsOneWidget,
-      );
+        expect(service.autocompleteCalls, <String>['kolenchery']);
+        expect(find.text('Kolenchery Junction'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-      // Manual search is a separate feature and keeps working.
-      await tester.enterText(
-        find.byKey(const Key('location-search-field')),
-        'kolenchery',
-      );
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pumpAndSettle();
-
-      expect(service.autocompleteCalls, <String>['kolenchery']);
-      expect(find.text('Kolenchery Junction'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('7. reverse geocoding keeps working after nearby failures',
-        (tester) async {
+    testWidgets('7. reverse geocoding keeps working after nearby failures', (
+      tester,
+    ) async {
       final service = NearbyRecordingLocationService(
         nearbyError: const PlacesApiDisabledException(),
       );
@@ -679,65 +712,71 @@ void main() {
       expect(controller.text, 'Kolenchery, Kerala');
       expect(
         find.text(
-            'Nearby places unavailable. Enable Places API (New) in Google Cloud.'),
+          'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
+        ),
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
     });
 
     testWidgets(
-        'explicit refresh and location changes re-query; typing never does',
-        (tester) async {
-      final service = NearbyRecordingLocationService(nearbyResults: _hospitals);
-      final controller = TextEditingController();
-      final key = GlobalKey<State<RequesterLocationPicker>>();
+      'explicit refresh and location changes re-query; typing never does',
+      (tester) async {
+        final service = NearbyRecordingLocationService(
+          nearbyResults: _hospitals,
+        );
+        final controller = TextEditingController();
+        final key = GlobalKey<State<RequesterLocationPicker>>();
 
-      var gpsPoint = const GeoPoint(10.0, 76.0);
+        var gpsPoint = const GeoPoint(10.0, 76.0);
 
-      _useDesktopSizedSurface(tester);
-      await _pumpPicker(
-        tester,
-        service: service,
-        placeController: controller,
-        gps: () async => gpsPoint,
-        searchDebounce: const Duration(milliseconds: 10),
-        key: key,
-      );
+        _useDesktopSizedSurface(tester);
+        await _pumpPicker(
+          tester,
+          service: service,
+          placeController: controller,
+          gps: () async => gpsPoint,
+          searchDebounce: const Duration(milliseconds: 10),
+          key: key,
+        );
 
-      await _scrollIntoViewAndTap(
-        tester,
-        find.byKey(const Key('use-current-location-button')),
-      );
-      await _scrollIntoViewAndTap(
-        tester,
-        find.byKey(const Key('nearby-category-hospital')),
-      );
-      expect(service.nearbyCalls, hasLength(1));
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('use-current-location-button')),
+        );
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('nearby-category-hospital')),
+        );
+        expect(service.nearbyCalls, hasLength(1));
 
-      // Refresh re-runs the selected category at the same coordinates.
-      await _scrollIntoViewAndTap(
-        tester,
-        find.byKey(const Key('nearby-refresh-button')),
-      );
-      expect(service.nearbyCalls, hasLength(2));
-      expect(service.nearbyCalls.last.latitude, 10.0);
+        // Refresh re-runs the selected category at the same coordinates.
+        await _scrollIntoViewAndTap(
+          tester,
+          find.byKey(const Key('nearby-refresh-button')),
+        );
+        expect(service.nearbyCalls, hasLength(2));
+        expect(service.nearbyCalls.last.latitude, 10.0);
 
-      // Typing triggers autocomplete only — never Nearby Search.
-      await tester.enterText(
-        find.byKey(const Key('location-search-field')),
-        'hospital',
-      );
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.pumpAndSettle();
-      expect(service.nearbyCalls, hasLength(2));
+        // Typing triggers autocomplete only — never Nearby Search.
+        await tester.enterText(
+          find.byKey(const Key('location-search-field')),
+          'hospital',
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pumpAndSettle();
+        expect(service.nearbyCalls, hasLength(2));
 
-      // A location change (map tap) re-queries around the new point.
-      await (key.currentState as dynamic).handleMapTap(const LatLng(10.5, 76.5));
-      await tester.pumpAndSettle();
-      expect(service.nearbyCalls, hasLength(3));
-      expect(service.nearbyCalls.last.latitude, 10.5);
-      expect(service.nearbyCalls.last.longitude, 76.5);
-    });
+        // A location change (map tap) re-queries around the new point.
+        await (key.currentState as dynamic).handleMapTap(
+          const LatLng(10.5, 76.5),
+        );
+        await tester.pumpAndSettle();
+        expect(service.nearbyCalls, hasLength(3));
+        expect(service.nearbyCalls.last.latitude, 10.5);
+        expect(service.nearbyCalls.last.longitude, 76.5);
+      },
+    );
 
     testWidgets('no coordinates -> nearby section hidden', (tester) async {
       final service = NearbyRecordingLocationService();
@@ -761,20 +800,24 @@ void main() {
       final store = LiveLocationStore();
       addTearDown(store.dispose);
 
-      store.applyUpdate(LiveResponderLocation(
-        requestId: 1,
-        responderId: 9,
-        latitude: 10.11,
-        longitude: 76.22,
-        updatedAt: DateTime.utc(2026, 9, 26, 10),
-      ));
-      store.applyUpdate(LiveResponderLocation(
-        requestId: 1,
-        responderId: 9,
-        latitude: 10.12,
-        longitude: 76.23,
-        updatedAt: DateTime.utc(2026, 9, 26, 10, 1),
-      ));
+      store.applyUpdate(
+        LiveResponderLocation(
+          requestId: 1,
+          responderId: 9,
+          latitude: 10.11,
+          longitude: 76.22,
+          updatedAt: DateTime.utc(2026, 9, 26, 10),
+        ),
+      );
+      store.applyUpdate(
+        LiveResponderLocation(
+          requestId: 1,
+          responderId: 9,
+          latitude: 10.12,
+          longitude: 76.23,
+          updatedAt: DateTime.utc(2026, 9, 26, 10, 1),
+        ),
+      );
 
       expect(store.locationFor(1)!.latitude, 10.12);
       expect(service.nearbyCalls, isEmpty);

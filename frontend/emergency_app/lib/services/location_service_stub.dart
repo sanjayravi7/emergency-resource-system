@@ -14,7 +14,10 @@ class UnavailableLocationService implements LocationService {
   bool get isAvailable => false;
 
   @override
-  Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
+  Future<ResolvedPlace> reverseGeocode(
+    double latitude,
+    double longitude,
+  ) async {
     throw const LocationServiceException(_message);
   }
 

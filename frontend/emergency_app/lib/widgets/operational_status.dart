@@ -31,15 +31,16 @@ class OperationalTimeline extends StatelessWidget {
     final allocations = request.allocations
         .where((allocation) => allocation.status != 'CANCELLED')
         .toList(growable: false);
-    final accepted = request.acceptedBy != null ||
-        request.status != RequestStatus.pending;
+    final accepted =
+        request.acceptedBy != null || request.status != RequestStatus.pending;
     final allocated = allocations.isNotEmpty;
     final dispatched = allocations.any(
       (allocation) =>
           allocation.status == 'DISPATCHED' || allocation.status == 'DELIVERED',
     );
-    final delivered =
-        allocations.any((allocation) => allocation.status == 'DELIVERED');
+    final delivered = allocations.any(
+      (allocation) => allocation.status == 'DELIVERED',
+    );
     final completed = request.status == RequestStatus.completed;
     final states = <(String, bool)>[
       ('PENDING', true),
@@ -131,14 +132,16 @@ class _TerminalNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 5),
-          Text(label,
-              style: monoStyle(size: 10, color: color, weight: FontWeight.w700)),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 14, color: color),
+      const SizedBox(width: 5),
+      Text(
+        label,
+        style: monoStyle(size: 10, color: color, weight: FontWeight.w700),
+      ),
+    ],
+  );
 }
 
 /// One backend Allocation row: resource, quantity, responder and current
@@ -256,14 +259,14 @@ class LocationSharingSummary extends StatelessWidget {
     final color = isActive ? AppColors.teal : AppColors.textFaint;
     final title = isActive
         ? location == null
-            ? 'LOCATION SHARING ACTIVE · WAITING FOR GPS'
-            : 'LOCATION SHARING ACTIVE'
+              ? 'LOCATION SHARING ACTIVE · WAITING FOR GPS'
+              : 'LOCATION SHARING ACTIVE'
         : 'LAST-KNOWN RESPONDER LOCATION';
     final detail = location == null
         ? null
         : '${location!.latitude.toStringAsFixed(5)}, '
-            '${location!.longitude.toStringAsFixed(5)} · '
-            'updated ${formatDateTime(location!.updatedAt)}';
+              '${location!.longitude.toStringAsFixed(5)} · '
+              'updated ${formatDateTime(location!.updatedAt)}';
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -339,8 +342,8 @@ class ResponderAvailabilityBanner extends StatelessWidget {
     final color = isBusy
         ? AppColors.amber
         : isAvailable
-            ? AppColors.teal
-            : AppColors.textFaint;
+        ? AppColors.teal
+        : AppColors.textFaint;
     final detail = unfinishedAllocations == 0
         ? 'No unfinished work'
         : '$unfinishedAllocations unfinished allocation${unfinishedAllocations == 1 ? '' : 's'}';
@@ -377,7 +380,10 @@ class ResponderAvailabilityBanner extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   detail,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textDim),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textDim,
+                  ),
                 ),
                 if (isBusy)
                   const Text(

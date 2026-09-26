@@ -64,8 +64,7 @@ void main() {
       expect(store.isActivelySharing(21), isFalse);
       expect(store.locationFor(21), isNotNull);
       expect(store.locationFor(21)!.isLive, isFalse);
-      expect(store.locationFor(21)!.updatedAt,
-          DateTime.utc(2026, 9, 26, 10));
+      expect(store.locationFor(21)!.updatedAt, DateTime.utc(2026, 9, 26, 10));
     });
 
     test('disconnect stops local sharing and marks every point stale', () {

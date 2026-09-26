@@ -89,8 +89,8 @@ Set<Polyline> polylinesFor({
 }
 
 Widget host(Widget child) => MaterialApp(
-      home: Scaffold(body: Center(child: child)),
-    );
+  home: Scaffold(body: Center(child: child)),
+);
 
 void main() {
   group('direct connection line', () {
@@ -196,9 +196,7 @@ void main() {
     test('a last-known responder point still draws the connection', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{
-          501: live(isLive: false),
-        },
+        liveLocations: <int, LiveResponderLocation>{501: live(isLive: false)},
       );
 
       expect(polylines, hasLength(1));
@@ -263,52 +261,64 @@ void main() {
       expect(uri.path, '/maps/dir/');
     });
 
-    test('dir_action=navigate is omitted when navigation is not appropriate',
-        () {
-      final uri = buildGoogleMapsDirectionsUri(
-        origin: connection.responder,
-        destination: connection.emergency,
-        navigate: false,
-      );
+    test(
+      'dir_action=navigate is omitted when navigation is not appropriate',
+      () {
+        final uri = buildGoogleMapsDirectionsUri(
+          origin: connection.responder,
+          destination: connection.emergency,
+          navigate: false,
+        );
 
-      expect(uri.queryParameters.containsKey('dir_action'), isFalse);
-      expect(uri.queryParameters['travelmode'], 'driving');
-    });
+        expect(uri.queryParameters.containsKey('dir_action'), isFalse);
+        expect(uri.queryParameters['travelmode'], 'driving');
+      },
+    );
 
     // 10 ------------------------------------------------------------------
-    test('the URL opens through the injected URL launcher abstraction',
-        () async {
-      final launcher = FakeUrlLauncher();
+    test(
+      'the URL opens through the injected URL launcher abstraction',
+      () async {
+        final launcher = FakeUrlLauncher();
 
-      final opened = await openGoogleMapsDirections(
-        connection: connection,
-        launcher: launcher,
-      );
+        final opened = await openGoogleMapsDirections(
+          connection: connection,
+          launcher: launcher,
+        );
 
-      expect(opened, isTrue);
-      expect(launcher.launched, hasLength(1));
-      expect(launcher.last.host, 'www.google.com');
-      expect(launcher.last.queryParameters['origin'], '10.00846,76.45163');
-      expect(launcher.last.queryParameters['destination'], '10.05276,76.35211');
-      expect(launcher.last.queryParameters['travelmode'], 'driving');
-      expect(launcher.last.queryParameters['dir_action'], 'navigate');
-    });
+        expect(opened, isTrue);
+        expect(launcher.launched, hasLength(1));
+        expect(launcher.last.host, 'www.google.com');
+        expect(launcher.last.queryParameters['origin'], '10.00846,76.45163');
+        expect(
+          launcher.last.queryParameters['destination'],
+          '10.05276,76.35211',
+        );
+        expect(launcher.last.queryParameters['travelmode'], 'driving');
+        expect(launcher.last.queryParameters['dir_action'], 'navigate');
+      },
+    );
 
-    test('a last-known responder position does not force navigate mode',
-        () async {
-      final lastKnown = selectDirectConnection(
-        requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{501: live(isLive: false)},
-      )!;
-      final launcher = FakeUrlLauncher();
+    test(
+      'a last-known responder position does not force navigate mode',
+      () async {
+        final lastKnown = selectDirectConnection(
+          requests: <EmergencyRequest>[request()],
+          liveLocations: <int, LiveResponderLocation>{501: live(isLive: false)},
+        )!;
+        final launcher = FakeUrlLauncher();
 
-      await openGoogleMapsDirections(
-        connection: lastKnown,
-        launcher: launcher,
-      );
+        await openGoogleMapsDirections(
+          connection: lastKnown,
+          launcher: launcher,
+        );
 
-      expect(launcher.last.queryParameters.containsKey('dir_action'), isFalse);
-    });
+        expect(
+          launcher.last.queryParameters.containsKey('dir_action'),
+          isFalse,
+        );
+      },
+    );
 
     test('a launcher failure is reported instead of thrown', () async {
       final launcher = FakeUrlLauncher()..error = Exception('no handler');
@@ -329,24 +339,19 @@ void main() {
       liveLocations: <int, LiveResponderLocation>{501: live()},
     )!;
 
-    testWidgets('shows LIVE/SET state and a clearly labelled direct distance',
-        (tester) async {
+    testWidgets('shows LIVE/SET state and a clearly labelled direct distance', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         host(
-          NavigationInfoCard(
-            connection: connection,
-            onGetDirections: () {},
-          ),
+          NavigationInfoCard(connection: connection, onGetDirections: () {}),
         ),
       );
 
       expect(find.text('RESPONDER → EMERGENCY'), findsOneWidget);
       expect(find.text('Responder location: LIVE'), findsOneWidget);
       expect(find.text('Emergency location: SET'), findsOneWidget);
-      expect(
-        find.textContaining('Direct distance:'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Direct distance:'), findsOneWidget);
       expect(find.textContaining('ETA'), findsNothing);
       expect(find.textContaining('Driving distance'), findsNothing);
     });
@@ -368,8 +373,9 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('mobile widths use a full-width tappable directions button',
-        (tester) async {
+    testWidgets('mobile widths use a full-width tappable directions button', (
+      tester,
+    ) async {
       addTearDown(tester.view.reset);
 
       for (final width in <double>[320, 360, 390, 430]) {
@@ -413,10 +419,7 @@ void main() {
 
       await tester.pumpWidget(
         host(
-          NavigationInfoCard(
-            connection: connection,
-            onGetDirections: () {},
-          ),
+          NavigationInfoCard(connection: connection, onGetDirections: () {}),
         ),
       );
 
@@ -427,18 +430,18 @@ void main() {
       final cardSize = tester.getSize(find.byType(NavigationInfoCard));
       expect(cardSize.width, lessThanOrEqualTo(250));
 
-      final buttonSize =
-          tester.getSize(find.widgetWithText(TextButton, 'Get directions'));
+      final buttonSize = tester.getSize(
+        find.widgetWithText(TextButton, 'Get directions'),
+      );
       expect(buttonSize.width, lessThan(cardSize.width));
     });
 
-    testWidgets('last-known responder state renders LAST KNOWN',
-        (tester) async {
+    testWidgets('last-known responder state renders LAST KNOWN', (
+      tester,
+    ) async {
       final lastKnownConnection = selectDirectConnection(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, LiveResponderLocation>{
-          501: live(isLive: false),
-        },
+        liveLocations: <int, LiveResponderLocation>{501: live(isLive: false)},
       )!;
 
       await tester.pumpWidget(
@@ -467,110 +470,120 @@ void main() {
     final activeRequest = request();
     final liveLoc = live();
 
-    testWidgets('mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow',
-        (tester) async {
-      addTearDown(tester.view.reset);
+    testWidgets(
+      'mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow',
+      (tester) async {
+        addTearDown(tester.view.reset);
 
-      for (final width in <double>[320, 360, 390, 430]) {
-        tester.view.physicalSize = Size(width, 900);
-        tester.view.devicePixelRatio = 1;
+        for (final width in <double>[320, 360, 390, 430]) {
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1;
 
-        final launcher = FakeUrlLauncher();
+          final launcher = FakeUrlLauncher();
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: SizedBox(
-                  width: width,
-                  child: OperationalGoogleMap(
-                    requests: <EmergencyRequest>[activeRequest],
-                    liveLocations: <int, LiveResponderLocation>{501: liveLoc},
-                    isMobile: true,
-                    urlLauncher: launcher,
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: SizedBox(
+                    width: width,
+                    child: OperationalGoogleMap(
+                      requests: <EmergencyRequest>[activeRequest],
+                      liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                      isMobile: true,
+                      urlLauncher: launcher,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        );
-        await tester.pump();
+          );
+          await tester.pump();
 
-        expect(tester.takeException(), isNull,
-            reason: 'Should render without overflow at width $width');
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'Should render without overflow at width $width',
+          );
 
-        // Map controls: compact mobile labels
-        expect(find.text('Center'), findsOneWidget);
-        expect(find.text('Fit pins'), findsOneWidget);
+          // Map controls: compact mobile labels
+          expect(find.text('Center'), findsOneWidget);
+          expect(find.text('Fit pins'), findsOneWidget);
 
-        // Navigation info card placed below map
-        expect(find.text('RESPONDER → EMERGENCY'), findsOneWidget);
-        expect(find.text('Responder location:'), findsOneWidget);
-        expect(find.text('LIVE'), findsOneWidget);
-        expect(find.text('Emergency location:'), findsOneWidget);
-        expect(find.text('SET'), findsOneWidget);
-        expect(find.text('Direct distance:'), findsOneWidget);
+          // Navigation info card placed below map
+          expect(find.text('RESPONDER → EMERGENCY'), findsOneWidget);
+          expect(find.text('Responder location:'), findsOneWidget);
+          expect(find.text('LIVE'), findsOneWidget);
+          expect(find.text('Emergency location:'), findsOneWidget);
+          expect(find.text('SET'), findsOneWidget);
+          expect(find.text('Direct distance:'), findsOneWidget);
 
-        // Get directions button is visible and full-width
-        final directionsButton =
-            find.widgetWithText(TextButton, 'Get directions');
-        expect(directionsButton, findsOneWidget);
-        final buttonSize = tester.getSize(directionsButton);
-        expect(buttonSize.height, greaterThanOrEqualTo(44));
-        expect(buttonSize.width, greaterThanOrEqualTo((width - 24) * .80));
+          // Get directions button is visible and full-width
+          final directionsButton = find.widgetWithText(
+            TextButton,
+            'Get directions',
+          );
+          expect(directionsButton, findsOneWidget);
+          final buttonSize = tester.getSize(directionsButton);
+          expect(buttonSize.height, greaterThanOrEqualTo(44));
+          expect(buttonSize.width, greaterThanOrEqualTo((width - 24) * .80));
 
-        // Tap Get directions
-        await tester.tap(directionsButton);
-        await tester.pump();
-        expect(launcher.launched, isNotEmpty);
+          // Tap Get directions
+          await tester.tap(directionsButton);
+          await tester.pump();
+          expect(launcher.launched, isNotEmpty);
 
-        // Legend items are all present and visible
-        expect(find.text('Active emergency'), findsOneWidget);
-        expect(find.text('Pending request'), findsOneWidget);
-        expect(find.text('LIVE responder'), findsOneWidget);
-        expect(find.text('LAST KNOWN responder'), findsOneWidget);
-        expect(
-          find.text('Direct connection (straight line)'),
-          findsOneWidget,
-        );
-      }
-    });
+          // Legend items are all present and visible
+          expect(find.text('Active emergency'), findsOneWidget);
+          expect(find.text('Pending request'), findsOneWidget);
+          expect(find.text('LIVE responder'), findsOneWidget);
+          expect(find.text('LAST KNOWN responder'), findsOneWidget);
+          expect(
+            find.text('Direct connection (straight line)'),
+            findsOneWidget,
+          );
+        }
+      },
+    );
 
-    testWidgets('completed/cancelled requests remove navigation card on mobile',
-        (tester) async {
-      tester.view.physicalSize = const Size(360, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
+    testWidgets(
+      'completed/cancelled requests remove navigation card on mobile',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
 
-      for (final status in ['COMPLETED', 'CANCELLED']) {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: SizedBox(
-                width: 360,
-                child: OperationalGoogleMap(
-                  requests: <EmergencyRequest>[request(status: status)],
-                  liveLocations: <int, LiveResponderLocation>{501: liveLoc},
-                  isMobile: true,
+        for (final status in ['COMPLETED', 'CANCELLED']) {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Scaffold(
+                body: SizedBox(
+                  width: 360,
+                  child: OperationalGoogleMap(
+                    requests: <EmergencyRequest>[request(status: status)],
+                    liveLocations: <int, LiveResponderLocation>{501: liveLoc},
+                    isMobile: true,
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-        await tester.pump();
+          );
+          await tester.pump();
 
-        expect(tester.takeException(), isNull);
-        expect(find.text('RESPONDER → EMERGENCY'), findsNothing);
-        expect(find.widgetWithText(TextButton, 'Get directions'), findsNothing);
-        expect(
-          find.text('Direct connection (straight line)'),
-          findsNothing,
-        );
-      }
-    });
+          expect(tester.takeException(), isNull);
+          expect(find.text('RESPONDER → EMERGENCY'), findsNothing);
+          expect(
+            find.widgetWithText(TextButton, 'Get directions'),
+            findsNothing,
+          );
+          expect(find.text('Direct connection (straight line)'), findsNothing);
+        }
+      },
+    );
 
-    testWidgets('desktop width keeps overlay layout with full control labels',
-        (tester) async {
+    testWidgets('desktop width keeps overlay layout with full control labels', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(1200, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);

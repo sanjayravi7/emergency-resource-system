@@ -13,10 +13,10 @@ class UrlLauncherAdapter implements ExternalUrlLauncher {
 
   @override
   Future<bool> launch(Uri url) => launchUrl(
-        url,
-        mode: LaunchMode.externalApplication,
-        webOnlyWindowName: '_blank',
-      );
+    url,
+    mode: LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
+  );
 }
 
 /// Default launcher used by the operational map.

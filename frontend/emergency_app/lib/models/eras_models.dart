@@ -164,7 +164,9 @@ class BackendResource {
       return '$count responder${count == 1 ? '' : 's'} available';
     }
 
-    final suffix = (unit == null || unit!.isEmpty) ? 'available' : '$unit available';
+    final suffix = (unit == null || unit!.isEmpty)
+        ? 'available'
+        : '$unit available';
     return '$availableQuantity $suffix';
   }
 
@@ -281,7 +283,8 @@ class UserSummary {
 
     return UserSummary(
       id: id,
-      name: _asTrimmedString(json['name']) ??
+      name:
+          _asTrimmedString(json['name']) ??
           _asTrimmedString(json['email']) ??
           'User #$id',
       email: _asTrimmedString(json['email']),
@@ -324,22 +327,22 @@ class LiveResponderLocation {
   }
 
   LiveResponderLocation asNotLive() => LiveResponderLocation(
-        requestId: requestId,
-        responderId: responderId,
-        latitude: latitude,
-        longitude: longitude,
-        updatedAt: updatedAt,
-        isLive: false,
-      );
+    requestId: requestId,
+    responderId: responderId,
+    latitude: latitude,
+    longitude: longitude,
+    updatedAt: updatedAt,
+    isLive: false,
+  );
 
   LiveResponderLocation asLive() => LiveResponderLocation(
-        requestId: requestId,
-        responderId: responderId,
-        latitude: latitude,
-        longitude: longitude,
-        updatedAt: updatedAt,
-        isLive: true,
-      );
+    requestId: requestId,
+    responderId: responderId,
+    latitude: latitude,
+    longitude: longitude,
+    updatedAt: updatedAt,
+    isLive: true,
+  );
 }
 
 class BackendResponder {
@@ -452,8 +455,7 @@ class BackendResponderResource {
       availableQuantity: _asInt(json['availableQuantity']),
       status: json['status']?.toString() ?? 'UNAVAILABLE',
       isEnabled: json['isEnabled'] == true,
-      responderName:
-          _asTrimmedString(responder['name']) ?? 'Unknown responder',
+      responderName: _asTrimmedString(responder['name']) ?? 'Unknown responder',
       responderEmail: _asTrimmedString(responder['email']) ?? '',
       responderStatus:
           _asTrimmedString(responder['responderStatus']) ?? 'OFFLINE',
@@ -589,35 +591,44 @@ RequestStatus requestStatusFromApi(String? value) {
 }
 
 String statusLabel(RequestStatus status) => switch (status) {
-      RequestStatus.pending => 'PENDING',
-      RequestStatus.accepted => 'ACCEPTED',
-      RequestStatus.inProgress => 'IN PROGRESS',
-      RequestStatus.partiallyAllocated => 'PARTIAL',
-      RequestStatus.completed => 'COMPLETED',
-      RequestStatus.cancelled => 'CANCELLED',
-    };
+  RequestStatus.pending => 'PENDING',
+  RequestStatus.accepted => 'ACCEPTED',
+  RequestStatus.inProgress => 'IN PROGRESS',
+  RequestStatus.partiallyAllocated => 'PARTIAL',
+  RequestStatus.completed => 'COMPLETED',
+  RequestStatus.cancelled => 'CANCELLED',
+};
 
 PillColors statusColors(RequestStatus status) => switch (status) {
-      RequestStatus.pending =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.accepted =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.inProgress =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.partiallyAllocated =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.completed =>
-        const PillColors(AppColors.tealDim, AppColors.teal),
-      RequestStatus.cancelled =>
-        const PillColors(AppColors.surface2, AppColors.textFaint),
-    };
+  RequestStatus.pending => const PillColors(
+    AppColors.amberDim,
+    AppColors.amber,
+  ),
+  RequestStatus.accepted => const PillColors(AppColors.blueDim, AppColors.blue),
+  RequestStatus.inProgress => const PillColors(
+    AppColors.blueDim,
+    AppColors.blue,
+  ),
+  RequestStatus.partiallyAllocated => const PillColors(
+    AppColors.amberDim,
+    AppColors.amber,
+  ),
+  RequestStatus.completed => const PillColors(
+    AppColors.tealDim,
+    AppColors.teal,
+  ),
+  RequestStatus.cancelled => const PillColors(
+    AppColors.surface2,
+    AppColors.textFaint,
+  ),
+};
 
 PillColors priorityColors(String priority) => switch (priority.toUpperCase()) {
-      'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
-      'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
-      'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
-      _ => const PillColors(AppColors.surface2, AppColors.textDim),
-    };
+  'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
+  'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
+  'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
+  _ => const PillColors(AppColors.surface2, AppColors.textDim),
+};
 
 class EmergencyRequest {
   const EmergencyRequest({
@@ -661,9 +672,8 @@ class EmergencyRequest {
 
   bool get hasPreciseLocation => latitude != null && longitude != null;
 
-  String? get coordinateLabel => hasPreciseLocation
-      ? formatCoordinatePair(latitude!, longitude!)
-      : null;
+  String? get coordinateLabel =>
+      hasPreciseLocation ? formatCoordinatePair(latitude!, longitude!) : null;
 
   bool get isOpen =>
       status != RequestStatus.completed && status != RequestStatus.cancelled;
@@ -788,33 +798,51 @@ ResourceMeta resourceMetaFor(String typeOrName) {
 
   if (value.contains('AMBULANCE') || value.contains('MEDICAL')) {
     return const ResourceMeta(
-        Icons.local_hospital, AppColors.redDim, AppColors.red);
+      Icons.local_hospital,
+      AppColors.redDim,
+      AppColors.red,
+    );
   }
   if (value.contains('BLOOD')) {
     return const ResourceMeta(
-        Icons.water_drop, Color(0xFFFCE4F3), Color(0xFFC23E96));
+      Icons.water_drop,
+      Color(0xFFFCE4F3),
+      Color(0xFFC23E96),
+    );
   }
   if (value.contains('OXYGEN')) {
     return const ResourceMeta(Icons.air, AppColors.blueDim, AppColors.blue);
   }
   if (value.contains('FIRE')) {
     return const ResourceMeta(
-        Icons.local_fire_department, AppColors.amberDim, AppColors.amber);
+      Icons.local_fire_department,
+      AppColors.amberDim,
+      AppColors.amber,
+    );
   }
   if (value.contains('VOLUNTEER') || value.contains('PEOPLE')) {
     return const ResourceMeta(Icons.groups, AppColors.tealDim, AppColors.teal);
   }
   if (value.contains('BOAT') || value.contains('RESCUE')) {
     return const ResourceMeta(
-        Icons.directions_boat, AppColors.blueDim, AppColors.blue);
+      Icons.directions_boat,
+      AppColors.blueDim,
+      AppColors.blue,
+    );
   }
   if (value.contains('FOOD') || value.contains('WATER')) {
     return const ResourceMeta(
-        Icons.local_drink, AppColors.tealDim, AppColors.teal);
+      Icons.local_drink,
+      AppColors.tealDim,
+      AppColors.teal,
+    );
   }
 
   return const ResourceMeta(
-      Icons.inventory_2, AppColors.surface2, AppColors.textDim);
+    Icons.inventory_2,
+    AppColors.surface2,
+    AppColors.textDim,
+  );
 }
 
 Color responderStatusColor(String status) {
@@ -847,8 +875,16 @@ List<NavItem> navItemsForRole(String? role) {
     const NavItem(ConsoleView.board, Icons.dashboard_outlined, 'Board'),
     if (role == 'REQUESTER')
       const NavItem(ConsoleView.newRequest, Icons.add_circle_outline, 'New'),
-    const NavItem(ConsoleView.resources, Icons.inventory_2_outlined, 'Resources'),
-    const NavItem(ConsoleView.responders, Icons.groups_2_outlined, 'Responders'),
+    const NavItem(
+      ConsoleView.resources,
+      Icons.inventory_2_outlined,
+      'Resources',
+    ),
+    const NavItem(
+      ConsoleView.responders,
+      Icons.groups_2_outlined,
+      'Responders',
+    ),
     const NavItem(ConsoleView.log, Icons.receipt_long_outlined, 'Log'),
   ];
 }
@@ -862,9 +898,4 @@ const List<String> kEmergencyTypes = <String>[
   'Other',
 ];
 
-const List<String> kPriorities = <String>[
-  'LOW',
-  'MEDIUM',
-  'HIGH',
-  'CRITICAL',
-];
+const List<String> kPriorities = <String>['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];

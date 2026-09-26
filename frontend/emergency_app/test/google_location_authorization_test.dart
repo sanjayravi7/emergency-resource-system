@@ -36,14 +36,17 @@ void main() {
       expect(isGeocodingApiDeniedError('ApiTargetBlockedMapError'), isTrue);
     });
 
-    test('does not treat an empty Google answer as an authorization failure', () {
-      expect(isGeocodingApiDeniedError('ZERO_RESULTS'), isFalse);
-      expect(
-        isGeocodingApiDeniedError('No address found for these coordinates.'),
-        isFalse,
-      );
-      expect(isGeocodingApiDeniedError('OVER_QUERY_LIMIT'), isFalse);
-    });
+    test(
+      'does not treat an empty Google answer as an authorization failure',
+      () {
+        expect(isGeocodingApiDeniedError('ZERO_RESULTS'), isFalse);
+        expect(
+          isGeocodingApiDeniedError('No address found for these coordinates.'),
+          isFalse,
+        );
+        expect(isGeocodingApiDeniedError('OVER_QUERY_LIMIT'), isFalse);
+      },
+    );
 
     test('the hint names the Google Cloud settings that must be fixed', () {
       expect(kGeocodingApiDeniedHint, contains('Geocoding API'));
