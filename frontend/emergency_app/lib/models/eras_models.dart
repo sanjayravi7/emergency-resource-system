@@ -31,6 +31,12 @@ String? _asTrimmedString(dynamic value) {
   return text.isEmpty ? null : text;
 }
 
+String _asOptionalStoredText(dynamic value) {
+  if (value == null) return '';
+  final text = value.toString();
+  return text.trim().isEmpty ? '' : text;
+}
+
 DateTime? _asDate(dynamic value) {
   if (value == null) return null;
   return DateTime.tryParse(value.toString());
@@ -739,7 +745,7 @@ class EmergencyRequest {
     return EmergencyRequest(
       id: _asInt(json['id']),
       emergencyType: _asTrimmedString(json['emergencyType']) ?? 'Emergency',
-      description: _asTrimmedString(json['description']) ?? '',
+      description: _asOptionalStoredText(json['description']),
       location: _asTrimmedString(json['location']) ?? 'Unknown',
       priority: (json['priority'] ?? 'MEDIUM').toString(),
       status: requestStatusFromApi(statusRaw),

@@ -21,7 +21,7 @@ class NewRequestPayload {
   });
 
   final String emergencyType;
-  final String description;
+  final String? description;
   final String location;
   final String priority;
   final double? latitude;
@@ -163,10 +163,6 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       return 'Enter the emergency type';
     }
 
-    if (descriptionController.text.trim().isEmpty) {
-      return 'Describe the emergency';
-    }
-
     if (locationController.text.trim().isEmpty) {
       return 'Select or enter a place. Use "Use my current location" or search '
           'for a nearby place.';
@@ -239,9 +235,13 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         ? customTypeController.text.trim()
         : emergencyType.trim();
 
+    final rawDescription = descriptionController.text;
+    final normalizedDescription =
+        rawDescription.trim().isEmpty ? null : rawDescription;
+
     final payload = NewRequestPayload(
       emergencyType: resolvedType,
-      description: descriptionController.text.trim(),
+      description: normalizedDescription,
       location: locationController.text.trim(),
       priority: priority,
       latitude: latitude,
@@ -445,7 +445,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     final descriptionField = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const FieldLabel('Description'),
+        const FieldLabel('Description (optional)'),
         const SizedBox(height: 6),
         TextField(
           controller: descriptionController,
