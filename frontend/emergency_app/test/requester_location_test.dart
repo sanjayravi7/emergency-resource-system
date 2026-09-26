@@ -8,7 +8,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import 'package:flutter_test/flutter_test.dart';
 
 /// Fake Google-backed location service. It records every call so the tests can
-/// prove that reverse geocoding only happens on explicit requester actions.
+/// prove that reverse geocoding and nearby search only happen on explicit
+/// requester actions.
 class FakeLocationService implements LocationService {
   FakeLocationService({
     this.reverseResult,
@@ -16,6 +17,8 @@ class FakeLocationService implements LocationService {
     this.predictions = const <PlacePrediction>[],
     this.resolved,
     this.resolveError,
+    this.nearbyResults = const <NearbyPlace>[],
+    this.nearbyError,
   });
 
   ResolvedPlace? reverseResult;
@@ -23,11 +26,15 @@ class FakeLocationService implements LocationService {
   List<PlacePrediction> predictions;
   ResolvedPlace? resolved;
   String? resolveError;
+  List<NearbyPlace> nearbyResults;
+  Object? nearbyError;
 
   final List<GeoPoint> reverseGeocodeCalls = <GeoPoint>[];
   final List<String> autocompleteCalls = <String>[];
   final List<GeoPoint?> autocompleteBiases = <GeoPoint?>[];
   final List<String> resolveCalls = <String>[];
+  final List<({double latitude, double longitude, NearbyPlaceCategory category})>
+      nearbyCalls = [];
 
   @override
   bool get isAvailable => true;
@@ -64,6 +71,23 @@ class FakeLocationService implements LocationService {
       throw LocationServiceException(resolveError!);
     }
     return resolved!;
+  }
+
+  @override
+  Future<List<NearbyPlace>> searchNearbyPlaces({
+    required double latitude,
+    required double longitude,
+    required NearbyPlaceCategory category,
+    double radiusMeters = kNearbySearchRadiusMeters,
+    int maxResults = kNearbySearchMaxResultCount,
+  }) async {
+    nearbyCalls.add((
+      latitude: latitude,
+      longitude: longitude,
+      category: category,
+    ));
+    if (nearbyError != null) throw nearbyError!;
+    return nearbyResults;
   }
 }
 
@@ -425,7 +449,7 @@ void main() {
   });
 
   group('G. Socket.IO live responder location', () {
-    test('live location updates never trigger reverse geocoding', () {
+    test('live location updates never trigger reverse geocoding or nearby search', () {
       final service = FakeLocationService();
       final store = LiveLocationStore();
       addTearDown(store.dispose);
@@ -448,6 +472,7 @@ void main() {
       expect(store.locationFor(1)!.latitude, 10.12);
       expect(service.reverseGeocodeCalls, isEmpty);
       expect(service.autocompleteCalls, isEmpty);
+      expect(service.nearbyCalls, isEmpty);
     });
   });
 }

@@ -8,7 +8,8 @@
  * Google APIs used (must be enabled on the Google Cloud project):
  *   - Maps JavaScript API   (map rendering + this bridge)
  *   - Geocoding API         (google.maps.Geocoder -> reverse geocoding)
- *   - Places API (New)      (AutocompleteSuggestion + Place.fetchFields)
+ *   - Places API (New)      (AutocompleteSuggestion + Place.fetchFields +
+ *                            Place.searchNearby -> Nearby Search (New))
  *
  * The browser key comes from web/google_maps_config.js (git-ignored,
  * HTTP-referrer restricted). No key is read or stored here.
@@ -34,6 +35,13 @@
 
   function fail(message) {
     return JSON.stringify({ ok: false, error: String(message) });
+  }
+
+  /** Best-effort text for any thrown/rejected Google error. */
+  function errorText(error) {
+    if (!error) return 'Unknown Google error.';
+    if (error.message) return String(error.message);
+    return String(error);
   }
 
   async function ensurePlaces() {
@@ -272,6 +280,100 @@
     }
   }
 
+  /**
+   * Nearby Search (New).
+   * https://developers.google.com/maps/documentation/places/web-service/nearby-search
+   *
+   * Called with the requester's own GPS coordinates as the circle center and
+   * a category's Google place types (Table A) as includedTypes. Results are
+   * ranked by distance (rankPreference = DISTANCE) so the nearest real places
+   * come first, and only the fields the UI renders are requested:
+   * id, displayName, formattedAddress, location.
+   *
+   * When Places API (New) is disabled/not enabled for the project the promise
+   * rejects (for example "Places API (New) has not been used in project ...
+   * or it is disabled"); the rejection text is passed through so the Dart
+   * side can degrade the NEARBY PLACES section gracefully.
+   */
+  async function searchNearby(
+    latitude,
+    longitude,
+    includedTypes,
+    radiusMeters,
+    maxResults
+  ) {
+    if (!(await ensurePlaces())) {
+      return fail('Google Places library is not loaded.');
+    }
+
+    var Place = google.maps.places.Place;
+    if (!Place || typeof Place.searchNearby !== 'function') {
+      return fail(
+        'Nearby Search (New) is not available in this Maps JavaScript API ' +
+          'release.'
+      );
+    }
+
+    var types = (Array.isArray(includedTypes) ? includedTypes : [])
+      .map(function (type) {
+        return String(type || '').trim();
+      })
+      .filter(Boolean);
+    if (!types.length) return fail('No place types were requested.');
+
+    // Nearby Search (New) bounds: 0 < radius <= 50000 m, 1..20 results.
+    var radius = Number(radiusMeters) || 5000;
+    radius = Math.max(1, Math.min(radius, 50000));
+    var limit = Number(maxResults) || 10;
+    limit = Math.max(1, Math.min(limit, 20));
+
+    var rankPreference = 'DISTANCE';
+    try {
+      var preference = google.maps.places.SearchNearbyRankPreference;
+      if (preference && preference.DISTANCE) {
+        rankPreference = preference.DISTANCE;
+      }
+    } catch (e) {
+      /* keep the literal enum value */
+    }
+
+    try {
+      var response = await Place.searchNearby({
+        // Field mask: only what the UI renders (and is billed for).
+        fields: ['id', 'displayName', 'formattedAddress', 'location'],
+        includedTypes: types,
+        locationRestriction: {
+          center: { lat: Number(latitude), lng: Number(longitude) },
+          radius: radius,
+        },
+        maxResultCount: limit,
+        rankPreference: rankPreference,
+      });
+
+      var places = (response && response.places) || [];
+      var results = [];
+      for (var i = 0; i < places.length; i++) {
+        var place = places[i];
+        if (!place || !place.location) continue;
+        var name = place.displayName ? String(place.displayName) : '';
+        if (!name) continue;
+        results.push({
+          placeId: place.id ? String(place.id) : '',
+          name: name,
+          address: place.formattedAddress
+            ? String(place.formattedAddress)
+            : '',
+          latitude: place.location.lat(),
+          longitude: place.location.lng(),
+        });
+      }
+
+      return ok({ places: results });
+    } catch (error) {
+      return fail(errorText(error));
+    }
+  }
+
   window.erasLocationBridge = {
     isAvailable: function () {
       return mapsReady();
@@ -279,5 +381,6 @@
     reverseGeocode: reverseGeocode,
     autocomplete: autocomplete,
     placeDetails: placeDetails,
+    searchNearby: searchNearby,
   };
 })();

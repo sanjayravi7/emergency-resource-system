@@ -15,6 +15,9 @@ import 'location_service.dart';
 ///                          (Place Autocomplete Data API, new)
 ///                          with a legacy AutocompleteService fallback
 ///   * prediction detail -> google.maps.places.Place#fetchFields(location)
+///   * nearby places     -> google.maps.places.Place.searchNearby
+///                          (Nearby Search (New): circle + includedTypes +
+///                          rankPreference DISTANCE)
 ///
 /// The bridge always resolves with a JSON string so the Dart side never has to
 /// walk untyped JS objects.
@@ -160,6 +163,76 @@ class WebLocationService implements LocationService {
       longitude: longitude,
       placeId: prediction.placeId,
     );
+  }
+
+  @override
+  Future<List<NearbyPlace>> searchNearbyPlaces({
+    required double latitude,
+    required double longitude,
+    required NearbyPlaceCategory category,
+    double radiusMeters = kNearbySearchRadiusMeters,
+    int maxResults = kNearbySearchMaxResultCount,
+  }) async {
+    // Nearby Search (New) bounds: 0 < radius <= 50000 m, 1..20 results.
+    final radius = radiusMeters.clamp(1.0, 50000.0).toDouble();
+    final limit = maxResults.clamp(1, 20).toInt();
+    final types = category.googleTypes
+        .map((type) => type.toJS)
+        .toList()
+        .toJS; // JSArray<JSString>
+
+    final Map<String, dynamic> result;
+    try {
+      result = await _call('searchNearby', <JSAny?>[
+        latitude.toJS,
+        longitude.toJS,
+        types,
+        radius.toJS,
+        limit.toJS,
+      ]);
+    } on LocationServiceException catch (error) {
+      // The screenshot failure mode: Places API (New) disabled/not enabled.
+      // Surface it as a distinct, actionable error so the NEARBY PLACES
+      // section can degrade gracefully without touching the rest of the form.
+      if (isPlacesApiDisabledError(error.message)) {
+        throw PlacesApiDisabledException(details: error.message);
+      }
+      rethrow;
+    }
+
+    final places = (result['places'] as List?) ?? const <dynamic>[];
+    return places
+        .whereType<Map>()
+        .map((item) {
+          final placeLatitude = (item['latitude'] as num?)?.toDouble();
+          final placeLongitude = (item['longitude'] as num?)?.toDouble();
+          final placeId = (item['placeId'] as String?) ?? '';
+          final name = (item['name'] as String?) ?? '';
+
+          if (placeLatitude == null ||
+              placeLongitude == null ||
+              placeId.isEmpty ||
+              name.isEmpty) {
+            return null;
+          }
+
+          return NearbyPlace(
+            placeId: placeId,
+            name: name,
+            address: (item['address'] as String?) ?? '',
+            latitude: placeLatitude,
+            longitude: placeLongitude,
+            // Straight-line distance from the requester's own position.
+            distanceMeters: NearbyPlace.haversineDistanceMeters(
+              latitude,
+              longitude,
+              placeLatitude,
+              placeLongitude,
+            ),
+          );
+        })
+        .whereType<NearbyPlace>()
+        .toList(growable: false);
   }
 }
 

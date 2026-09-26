@@ -31,6 +31,19 @@ class UnavailableLocationService implements LocationService {
   Future<ResolvedPlace> resolvePrediction(PlacePrediction prediction) async {
     throw const LocationServiceException(_message);
   }
+
+  @override
+  Future<List<NearbyPlace>> searchNearbyPlaces({
+    required double latitude,
+    required double longitude,
+    required NearbyPlaceCategory category,
+    double radiusMeters = kNearbySearchRadiusMeters,
+    int maxResults = kNearbySearchMaxResultCount,
+  }) async {
+    // Nearby Search needs the Places API (New), which only the web build can
+    // reach through the Maps JavaScript API bridge. Nothing is fabricated.
+    throw const LocationServiceException(_message);
+  }
 }
 
 LocationService createPlatformLocationService() =>
