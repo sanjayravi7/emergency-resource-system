@@ -23,6 +23,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # Resolve and commit the lockfile against the PR branch, not GitHub's
+          # synthetic pull-request merge ref.
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
