@@ -344,11 +344,12 @@ class BoardPanel extends StatelessWidget {
       child: DataTable(
         headingTextStyle: tableHeadStyle(),
         dataTextStyle: const TextStyle(fontSize: 13, color: AppColors.text),
-        // Content-driven rows kept in the compact 68-88px band; only rows with
-        // several required resources are allowed to grow a little more.
+        // Rows are content-driven. Multi-responder emergencies can contain
+        // several participant/contact/location rows, so the desktop ceiling
+        // must accommodate 3+ responders instead of clipping a fixed card.
         headingRowHeight: 40,
         dataRowMinHeight: 104,
-        dataRowMaxHeight: 220,
+        dataRowMaxHeight: 520,
         columnSpacing: 22,
         horizontalMargin: 16,
         columns: const [
