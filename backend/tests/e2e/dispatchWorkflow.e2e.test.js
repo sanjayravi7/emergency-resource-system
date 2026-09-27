@@ -939,6 +939,60 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       expect(adminRow.allocations).toHaveLength(1);
       expect(adminRow.requiredResources).toHaveLength(1);
 
+      // Admin cancellation must use the same cleanup path as requester
+      // cancellation rather than stranding inventory or unfinished rows.
+      const adminCancellationTarget = (await createEmergency([
+        { resourceId: resources.blood.id, quantity: 1 },
+      ], { description: 'Admin cancellation cleanup' })).body.request;
+      await accept(tokens.responderA, adminCancellationTarget.id);
+      const adminAllocation = await allocateBlood(
+        adminCancellationTarget.id,
+        'responderA',
+        1
+      );
+      const forcedCompletion = await request(app)
+        .patch(`/api/admin/requests/${adminCancellationTarget.id}/status`)
+        .set(auth(tokens.admin))
+        .send({ status: 'COMPLETED' });
+      expect(forcedCompletion.statusCode).toBe(200);
+      expect(forcedCompletion.body.request.status).toBe('COMPLETED');
+      expect(
+        (await prisma.allocation.findUnique({
+          where: { id: adminAllocation.body.allocation.id },
+        })).status
+      ).toBe('CANCELLED');
+      expect(
+        (await prisma.responderResource.findUnique({
+          where: { id: capabilities.bloodA.id },
+        })).availableQuantity
+      ).toBe(19);
+
+      const cancellationTarget = (await createEmergency([
+        { resourceId: resources.blood.id, quantity: 1 },
+      ], { description: 'Admin cancellation cleanup' })).body.request;
+      await accept(tokens.responderA, cancellationTarget.id);
+      const cancellationAllocation = await allocateBlood(
+        cancellationTarget.id,
+        'responderA',
+        1
+      );
+      const adminCancelled = await request(app)
+        .patch(`/api/admin/requests/${cancellationTarget.id}/status`)
+        .set(auth(tokens.admin))
+        .send({ status: 'CANCELLED' });
+      expect(adminCancelled.statusCode).toBe(200);
+      expect(adminCancelled.body.request.status).toBe('CANCELLED');
+      expect(
+        (await prisma.allocation.findUnique({
+          where: { id: cancellationAllocation.body.allocation.id },
+        })).status
+      ).toBe('CANCELLED');
+      expect(
+        (await prisma.responderResource.findUnique({
+          where: { id: capabilities.bloodA.id },
+        })).availableQuantity
+      ).toBe(19);
+
       await prisma.user.update({
         where: { id: users.responderC.id },
         data: { isActive: false },

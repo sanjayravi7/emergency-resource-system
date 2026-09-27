@@ -252,6 +252,71 @@ exports.getRequestById = async (id) => {
   return request;
 };
 
+async function cancelUnfinishedAllocations(tx, requestId) {
+  const candidates = await tx.allocation.findMany({
+    where: {
+      requestId,
+      status: { in: ['RESERVED', 'DISPATCHED'] },
+    },
+    select: { id: true, responderId: true },
+  });
+
+  for (const candidate of candidates) {
+    const lockedAllocations = await tx.$queryRaw`
+      SELECT id, "responderId", "responderResourceId", "resourceId", quantity, status
+      FROM "Allocation"
+      WHERE id = ${candidate.id}
+      FOR UPDATE
+    `;
+    const allocation = lockedAllocations[0];
+    if (
+      !allocation ||
+      (allocation.status !== 'RESERVED' && allocation.status !== 'DISPATCHED')
+    ) {
+      continue;
+    }
+
+    const allocationResource = await tx.resource.findUnique({
+      where: { id: allocation.resourceId },
+      select: { mode: true },
+    });
+
+    // SERVICE capabilities never decrement or restore inventory. Unfinished
+    // CONSUMABLE reservations return exactly the quantity they held.
+    if (!allocationResource || allocationResource.mode === 'CONSUMABLE') {
+      const lockedResources = await tx.$queryRaw`
+        SELECT id, "availableQuantity", "totalQuantity", "isEnabled", status
+        FROM "ResponderResource"
+        WHERE id = ${allocation.responderResourceId}
+        FOR UPDATE
+      `;
+      const responderResource = lockedResources[0];
+      if (!responderResource) throw new Error('Responder resource not found');
+
+      const restoredQuantity =
+        responderResource.availableQuantity + allocation.quantity;
+      if (restoredQuantity > responderResource.totalQuantity) {
+        throw new Error('Inventory restoration would exceed total quantity');
+      }
+      await tx.responderResource.update({
+        where: { id: allocation.responderResourceId },
+        data: {
+          availableQuantity: restoredQuantity,
+          ...(responderResource.isEnabled && restoredQuantity > 0
+            ? { status: 'AVAILABLE' }
+            : {}),
+        },
+      });
+    }
+    await tx.allocation.update({
+      where: { id: allocation.id },
+      data: { status: 'CANCELLED' },
+    });
+  }
+
+  return [...new Set(candidates.map((row) => row.responderId))];
+}
+
 /**
  * Cancel is a cleanup transaction, not only a request flag update. Every
  * reservation or dispatch is converted to CANCELLED exactly once and its
@@ -284,80 +349,20 @@ exports.cancelEmergencyRequest = async (userId, id) => {
       throw new Error('Completed requests cannot be cancelled');
     }
 
-    const [candidates, activeAssignments] = await Promise.all([
-      tx.allocation.findMany({
-        where: {
-          requestId,
-          status: { in: ['RESERVED', 'DISPATCHED'] },
-        },
-        select: { id: true, responderId: true },
-      }),
-      tx.responderAssignment.findMany({
-        where: { requestId, status: 'ACTIVE' },
-        select: { responderId: true },
-      }),
-    ]);
+    const activeAssignments = await tx.responderAssignment.findMany({
+      where: { requestId, status: 'ACTIVE' },
+      select: { responderId: true },
+    });
+    const allocationResponderIds = await cancelUnfinishedAllocations(
+      tx,
+      requestId
+    );
     const terminalResponderIds = [
       ...new Set([
-        ...candidates.map((row) => row.responderId),
+        ...allocationResponderIds,
         ...activeAssignments.map((row) => row.responderId),
       ]),
     ];
-
-    for (const candidate of candidates) {
-      const lockedAllocations = await tx.$queryRaw`
-        SELECT id, "responderId", "responderResourceId", "resourceId", quantity, status
-        FROM "Allocation"
-        WHERE id = ${candidate.id}
-        FOR UPDATE
-      `;
-      const allocation = lockedAllocations[0];
-      if (
-        !allocation ||
-        (allocation.status !== 'RESERVED' && allocation.status !== 'DISPATCHED')
-      ) {
-        continue;
-      }
-
-      const allocationResource = await tx.resource.findUnique({
-        where: { id: allocation.resourceId },
-        select: { mode: true },
-      });
-
-      // Restore inventory only for CONSUMABLE allocations that were not
-      // DELIVERED. SERVICE allocations never decremented inventory, so
-      // cancelling them must never fabricate stock.
-      if (!allocationResource || allocationResource.mode === 'CONSUMABLE') {
-        const lockedResources = await tx.$queryRaw`
-          SELECT id, "availableQuantity", "totalQuantity", "isEnabled", status
-          FROM "ResponderResource"
-          WHERE id = ${allocation.responderResourceId}
-          FOR UPDATE
-        `;
-        const responderResource = lockedResources[0];
-        if (!responderResource) throw new Error('Responder resource not found');
-
-        const restoredQuantity =
-          responderResource.availableQuantity + allocation.quantity;
-        if (restoredQuantity > responderResource.totalQuantity) {
-          throw new Error('Inventory restoration would exceed total quantity');
-        }
-
-        await tx.responderResource.update({
-          where: { id: allocation.responderResourceId },
-          data: {
-            availableQuantity: restoredQuantity,
-            ...(responderResource.isEnabled && restoredQuantity > 0
-              ? { status: 'AVAILABLE' }
-              : {}),
-          },
-        });
-      }
-      await tx.allocation.update({
-        where: { id: allocation.id },
-        data: { status: 'CANCELLED' },
-      });
-    }
 
     // Terminal cleanup is part of the same transaction as the request
     // transition. acceptedById is deliberately untouched for history.
@@ -374,7 +379,7 @@ exports.cancelEmergencyRequest = async (userId, id) => {
 
     // Availability is request-scoped: cancelling releases every responder
     // attached to this request - including assignment holders who never
-    // created an allocation (they are not in the candidates loop above).
+    // created an allocation.
     const syncedResponderIds = await syncResponderAvailabilityForRequest(
       tx,
       requestId
@@ -854,18 +859,34 @@ exports.updateRequestStatus = async (requestId, status) => {
       where: { requestId: numericRequestId, status: 'ACTIVE' },
       select: { responderId: true },
     });
+    // Preserve the established admin force-completion contract while making
+    // it a real terminal cleanup: unfinished work is cancelled, CONSUMABLE
+    // inventory is restored, SERVICE quantities remain untouched, and every
+    // ACTIVE assignment ends atomically. Naturally delivered allocations are
+    // left DELIVERED by the helper.
+    const allocationResponderIds = await cancelUnfinishedAllocations(
+      tx,
+      numericRequestId
+    );
     await tx.responderAssignment.updateMany({
       where: { requestId: numericRequestId, status: 'ACTIVE' },
       data: { status: 'ENDED', endedAt: new Date() },
     });
     const updated = await tx.emergencyRequest.update({
-      where: { id: numericRequestId }, data: { status }, include: requestInclude,
+      where: { id: numericRequestId },
+      data: { status: 'COMPLETED' },
+      include: requestInclude,
     });
     const syncedResponderIds = await syncResponderAvailabilityForRequest(tx, numericRequestId);
     return {
       updated,
       syncedResponderIds,
-      terminalResponderIds: activeAssignments.map((row) => row.responderId),
+      terminalResponderIds: [
+        ...new Set([
+          ...allocationResponderIds,
+          ...activeAssignments.map((row) => row.responderId),
+        ]),
+      ],
     };
   });
   await emitAfterCommit(async () => {
