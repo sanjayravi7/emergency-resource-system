@@ -1,0 +1,33 @@
+name: Arena Phase H bootstrap
+
+on:
+  push:
+    branches:
+      - arena/01a0e194-emergency-resource-system
+
+jobs:
+  prisma-engines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npx prisma generate
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@127.0.0.1:5432/placeholder
+      - name: Package Prisma engines and generated runtime
+        run: |
+          tar -czf /tmp/prisma-runtime.tgz \
+            backend/node_modules/@prisma/engines \
+            backend/node_modules/.prisma
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prisma-runtime-linux
+          path: /tmp/prisma-runtime.tgz
+          retention-days: 1
