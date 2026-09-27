@@ -125,13 +125,18 @@ async function syncResponderAvailability(tx, responderId) {
 
 /**
  * Re-derive availability for every responder attached to a request: the lead
- * responder (acceptedById), every ACTIVE assignment holder, and every
- * responder holding an allocation row on the request (any allocation status -
- * a request-wide cancellation or a completion can change the BUSY basis of
- * responders who did not act in the current transaction).
+ * responder (acceptedById), every assignment holder (ACTIVE *or* ENDED), and
+ * every responder holding an allocation row on the request (any allocation
+ * status - a request-wide cancellation or a completion can change the BUSY
+ * basis of responders who did not act in the current transaction).
  *
- * Re-syncing is a pure derived-state recompute, so syncing a superset is
- * always safe: it can only remove stale statuses, never invent work.
+ * ENDED assignment holders are deliberately included: terminal transitions
+ * (cancel / complete) END every ACTIVE assignment in the SAME transaction
+ * BEFORE calling this helper, so filtering by ACTIVE here would miss exactly
+ * the non-lead responders that were just released and leave them stuck BUSY
+ * (and without a realtime availability emit). Re-syncing is a pure
+ * derived-state recompute, so syncing a superset is always safe: it can only
+ * remove stale statuses, never invent work.
  *
  * @param {*} tx transaction/Prisma client owning the mutation
  * @param {number|string} requestId request whose attached responders re-sync
@@ -163,7 +168,7 @@ async function syncResponderAvailabilityForRequest(
 
   const [assignmentRows, allocationRows] = await Promise.all([
     tx.responderAssignment.findMany({
-      where: { requestId: numericRequestId, status: 'ACTIVE' },
+      where: { requestId: numericRequestId },
       select: { responderId: true },
     }),
     tx.allocation.findMany({

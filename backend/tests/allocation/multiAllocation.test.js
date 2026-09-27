@@ -762,15 +762,16 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       expect(await responderStatus(joiner.id)).toBe('AVAILABLE');
       expect(await responderStatus(lead.id)).toBe('AVAILABLE');
 
-      // Ending assignment rows when a request reaches a terminal state is
-      // deliberately deferred to a later phase: the rows stay ACTIVE and
-      // simply stop counting for availability once the request is terminal.
+      // Phase G lifecycle cleanup: a terminal (CANCELLED) transition ENDS
+      // every ACTIVE assignment row in the same transaction. The rows are
+      // retained for history (never deleted) with endedAt populated.
       const assignments = await prisma.responderAssignment.findMany({
         where: { requestId: emergency.id },
         orderBy: { responderId: 'asc' },
       });
       expect(assignments).toHaveLength(2);
-      expect(assignments.every((row) => row.status === 'ACTIVE')).toBe(true);
+      expect(assignments.every((row) => row.status === 'ENDED')).toBe(true);
+      expect(assignments.every((row) => row.endedAt !== null)).toBe(true);
 
       const stored = await prisma.emergencyRequest.findUnique({
         where: { id: emergency.id },

@@ -821,12 +821,12 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       });
       expect(stored.status).toBe('CANCELLED');
 
-      // Either the acceptance lost the race (no assignment at all) or it
-      // committed first and the assignment row remains ACTIVE - ending
-      // assignment rows on terminal requests is deliberately deferred to a
-      // later phase - but in BOTH cases the responder must be freed: the
-      // cancellation re-derives availability for every attached responder,
-      // including assignment-only ones.
+      // Either the acceptance lost the race (no assignment row at all) or it
+      // committed first and the cancellation's Phase G lifecycle cleanup then
+      // ENDED that row in its own transaction. In BOTH cases the responder is
+      // freed: the cancellation re-derives availability for every attached
+      // responder (including assignment-only ones) and never leaves an ACTIVE
+      // assignment behind on a terminal request.
       const assignments = await prisma.responderAssignment.findMany({
         where: { requestId: emergency.id, responderId: responder.id },
       });
@@ -834,8 +834,15 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
         acceptResult.statusCode === 200 ? 1 : 0
       );
       if (assignments.length === 1) {
-        expect(assignments[0].status).toBe('ACTIVE');
+        expect(assignments[0].status).toBe('ENDED');
+        expect(assignments[0].endedAt).not.toBeNull();
       }
+      // No ACTIVE assignment survives a terminal transition, whichever way
+      // the accept-vs-cancel race resolved.
+      const activeForRequest = await prisma.responderAssignment.count({
+        where: { requestId: emergency.id, status: 'ACTIVE' },
+      });
+      expect(activeForRequest).toBe(0);
 
       expect(await responderStatus(responder.id)).toBe('AVAILABLE');
 
