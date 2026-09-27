@@ -84,9 +84,8 @@ void main() {
     test('an ENDED assignment is never active work', () {
       final request = _multiResponderRequest();
 
-      expect(request.assignments
-          .firstWhere((a) => a.responderId == 12)
-          .isEnded, isTrue);
+      expect(request.assignments.firstWhere((a) => a.responderId == 12).isEnded,
+          isTrue);
       expect(request.isAssignedTo(12), isFalse);
       expect(request.participatesAsResponder(12), isFalse);
       expect(
@@ -147,8 +146,7 @@ void main() {
       expect(withLeadRow.participatesAsResponder(9), isFalse);
     });
 
-    test('an allocation-only responder participates without an assignment',
-        () {
+    test('an allocation-only responder participates without an assignment', () {
       final request = EmergencyRequest.fromJson(<String, dynamic>{
         'id': 46,
         'emergencyType': 'Medical',

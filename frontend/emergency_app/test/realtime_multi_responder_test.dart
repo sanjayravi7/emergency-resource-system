@@ -13,9 +13,10 @@ void main() {
   group('realtime multi-responder events (Phase F)', () {
     // Phase F case 13 ------------------------------------------------------
     test('responder.assigned adds the assignment and updates the board', () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-          ]));
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+        ]));
 
       board.handle('responder.assigned', <String, dynamic>{
         'requestId': 42,
@@ -36,12 +37,12 @@ void main() {
     });
 
     // Phase F case 14 ------------------------------------------------------
-    test('a duplicate responder.assigned never duplicates the assignment',
-        () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-            _assignmentJson(11),
-          ]));
+    test('a duplicate responder.assigned never duplicates the assignment', () {
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+        ]));
 
       // Re-delivery of the same event (reconnect replay, duplicate emit).
       board.handle('responder.assigned', <String, dynamic>{
@@ -71,9 +72,10 @@ void main() {
     });
 
     test('responder.assigned without a snapshot merges the single row', () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-          ]));
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+        ]));
 
       // Fallback path: only the assignment row is present.
       board.handle('responder.assigned', <String, dynamic>{
@@ -88,9 +90,10 @@ void main() {
 
     // Phase F case 15 ------------------------------------------------------
     test('request.updated refreshes the assignments of a known request', () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-          ]));
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+        ]));
 
       board.handle('request.updated', <String, dynamic>{
         'requestId': 42,
@@ -114,7 +117,8 @@ void main() {
           reason: 'acceptedBy lead semantics survive request.updated');
     });
 
-    test('a redacted request.updated keeps a still-joinable pending card and '
+    test(
+        'a redacted request.updated keeps a still-joinable pending card and '
         'removes a no-longer-joinable one', () {
       final board = _ResponderBoard()
         ..seedPending(_requestSnapshot(id: 77, status: 'PENDING'));
@@ -139,8 +143,7 @@ void main() {
     });
 
     // Phase F case 16 ------------------------------------------------------
-    test('location updates from two responders are stored by responderId',
-        () {
+    test('location updates from two responders are stored by responderId', () {
       final board = _ResponderBoard()..seed(_requestSnapshot());
 
       board.handle('responder.location.update', <String, dynamic>{
@@ -167,10 +170,11 @@ void main() {
 
     // Phase F case 17 ------------------------------------------------------
     test('responder.location.stop removes only that responder stream', () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-            _assignmentJson(11),
-          ]));
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+        ]));
 
       board.handle('responder.location.update', <String, dynamic>{
         'requestId': 42,
@@ -202,10 +206,11 @@ void main() {
     // Phase F case 18 ------------------------------------------------------
     test('terminal cleanup removes every responder location of the request',
         () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-            _assignmentJson(11),
-          ]));
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+        ]));
 
       board.handle('responder.location.update', <String, dynamic>{
         'requestId': 42,
@@ -239,10 +244,11 @@ void main() {
     // Phase F case 18b ----------------------------------------------------
     test('per-responder stops never cross-clear, the terminal request does',
         () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-            _assignmentJson(11),
-          ]));
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+        ]));
 
       for (final responderId in <int>[9, 11]) {
         board.handle('responder.location.update', <String, dynamic>{
@@ -288,12 +294,12 @@ void main() {
     });
 
     // Phase F case 18c ----------------------------------------------------
-    test('a redacted terminal request.updated also clears every location',
-        () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-            _assignmentJson(11),
-          ]));
+    test('a redacted terminal request.updated also clears every location', () {
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+        ]));
 
       for (final responderId in <int>[9, 11]) {
         board.handle('responder.location.update', <String, dynamic>{
@@ -320,11 +326,11 @@ void main() {
     });
 
     // Phase F case 15b ----------------------------------------------------
-    test('a full snapshot REPLACES assignments, an incremental row MERGES',
-        () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-          ]));
+    test('a full snapshot REPLACES assignments, an incremental row MERGES', () {
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+        ]));
 
       // A: full request.updated snapshot with three assignments.
       board.handle('request.updated', <String, dynamic>{
@@ -368,12 +374,12 @@ void main() {
       expect(merged.where((a) => a.responderId == 12), hasLength(1));
     });
 
-    test('allocation.updated patches a request without losing assignments',
-        () {
-      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
-            _assignmentJson(9),
-            _assignmentJson(11),
-          ]));
+    test('allocation.updated patches a request without losing assignments', () {
+      final board = _ResponderBoard()
+        ..seed(_requestSnapshot(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+        ]));
 
       board.handle('allocation.updated', <String, dynamic>{
         'allocationId': 900,
@@ -521,8 +527,7 @@ class _ResponderBoard {
   }
 }
 
-Map<String, dynamic> _assignmentJson(int responderId) =>
-    <String, dynamic>{
+Map<String, dynamic> _assignmentJson(int responderId) => <String, dynamic>{
       'id': responderId,
       'requestId': 42,
       'responderId': responderId,
@@ -564,4 +569,3 @@ EmergencyRequest _requestSnapshot({
     _requestJson(id: id, status: status, assignments: assignments),
   );
 }
-

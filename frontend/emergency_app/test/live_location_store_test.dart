@@ -158,8 +158,8 @@ void main() {
       expect(store.isActivelySharing(31), isFalse);
       expect(store.locationFor(31, 9), isNotNull);
       expect(store.locationFor(31, 9)!.isLive, isFalse);
-      expect(store.locationFor(31, 9)!.updatedAt,
-          DateTime.utc(2026, 9, 26, 10));
+      expect(
+          store.locationFor(31, 9)!.updatedAt, DateTime.utc(2026, 9, 26, 10));
     });
 
     test('local sharing is tracked per responder identity', () {
@@ -293,8 +293,7 @@ void main() {
       final store = LiveLocationStore();
       addTearDown(store.dispose);
 
-      expect(store.singleLocationFor(93), isNull,
-          reason: 'no point at all');
+      expect(store.singleLocationFor(93), isNull, reason: 'no point at all');
 
       store.applyUpdate(_location(93, responderId: 7, latitude: 10.7));
       expect(store.singleLocationFor(93)!.responderId, 7);

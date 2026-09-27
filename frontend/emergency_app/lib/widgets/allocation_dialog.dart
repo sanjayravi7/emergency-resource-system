@@ -195,8 +195,7 @@ class _AllocationDialogState extends State<AllocationDialog> {
                               else if (allocation.isDelivered)
                                 const Text('Delivered',
                                     style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.teal)),
+                                        fontSize: 11, color: AppColors.teal)),
                               if (!allocation.isDelivered)
                                 TextButton(
                                   onPressed: busy
@@ -301,9 +300,7 @@ class _AllocationDialogState extends State<AllocationDialog> {
                 Text(
                   '$quantity',
                   style: monoStyle(
-                      size: 14,
-                      color: AppColors.text,
-                      weight: FontWeight.w600),
+                      size: 14, color: AppColors.text, weight: FontWeight.w600),
                 ),
                 IconButton(
                   onPressed: busy || quantity >= maxQuantity
@@ -324,8 +321,8 @@ class _AllocationDialogState extends State<AllocationDialog> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
-                  child: const Text('Allocate',
-                      style: TextStyle(fontSize: 12.5)),
+                  child:
+                      const Text('Allocate', style: TextStyle(fontSize: 12.5)),
                 ),
               ],
             ),

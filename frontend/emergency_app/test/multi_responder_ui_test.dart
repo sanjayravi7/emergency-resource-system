@@ -146,7 +146,7 @@ void main() {
     // Part 7 gate A/B: participates via ACTIVE assignment -> may allocate
     // and share location, even though acceptedBy is somebody else.
     expect(find.text('Allocate'), findsOneWidget);
-    expect(find.textContaining('Share Live Location'), findsOneWidget);
+    expect(find.text('Start Live Location'), findsOneWidget);
   });
 
   testWidgets('an ENDED-only responder gets no responder actions',
@@ -174,7 +174,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Allocate'), findsNothing);
-    expect(find.textContaining('Share Live Location'), findsNothing);
+    expect(find.text('Start Live Location'), findsNothing);
   });
 
   // Phase F case 27 --------------------------------------------------------
@@ -232,7 +232,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Confirm & Dispatch · Blood'), findsOneWidget);
-    expect(find.textContaining('Share Live Location'), findsOneWidget);
+    expect(find.text('Start Live Location'), findsOneWidget);
   });
 
   // Phase F case 28 --------------------------------------------------------
@@ -286,12 +286,14 @@ void main() {
 
       expect(tester.takeException(), isNull,
           reason: 'no overflow at width $width');
-      expect(find.text('Asha Menon'), findsOneWidget);
+      // The lead name appears in both the lead summary and responder row.
+      expect(find.text('Asha Menon'), findsWidgets);
       expect(find.text('Rahul Pillai'), findsOneWidget);
       // Per-responder location rows are labelled with the responder name.
       expect(find.textContaining('LOCATION SHARING ACTIVE · Asha Menon'),
           findsOneWidget);
-      expect(find.textContaining('LAST-KNOWN RESPONDER LOCATION · Rahul Pillai'),
+      expect(
+          find.textContaining('LAST-KNOWN RESPONDER LOCATION · Rahul Pillai'),
           findsOneWidget);
     }
   });

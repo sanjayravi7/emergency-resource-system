@@ -113,8 +113,8 @@ class EmptyState extends StatelessWidget {
               ],
               Text(
                 text,
-                style:
-                    const TextStyle(fontSize: 12.5, color: AppColors.textFaint, height: 1.4),
+                style: const TextStyle(
+                    fontSize: 12.5, color: AppColors.textFaint, height: 1.4),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -183,12 +183,21 @@ class ConnectionStatusIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color, icon) = switch (status) {
-      RealtimeConnectionStatus.connected =>
-        ('CONNECTED', AppColors.teal, Icons.wifi_rounded),
-      RealtimeConnectionStatus.reconnecting =>
-        ('RECONNECTING', AppColors.amber, Icons.sync_rounded),
-      RealtimeConnectionStatus.offline =>
-        ('OFFLINE', AppColors.red, Icons.wifi_off_rounded),
+      RealtimeConnectionStatus.connected => (
+          'CONNECTED',
+          AppColors.teal,
+          Icons.wifi_rounded
+        ),
+      RealtimeConnectionStatus.reconnecting => (
+          'RECONNECTING',
+          AppColors.amber,
+          Icons.sync_rounded
+        ),
+      RealtimeConnectionStatus.offline => (
+          'OFFLINE',
+          AppColors.red,
+          Icons.wifi_off_rounded
+        ),
     };
 
     return Semantics(
@@ -589,8 +598,7 @@ class Rail extends StatelessWidget {
                 Expanded(
                   child: Text(
                     clock,
-                    style:
-                        monoStyle(size: 12.5, color: AppColors.textDim),
+                    style: monoStyle(size: 12.5, color: AppColors.textDim),
                   ),
                 ),
                 IconButton(
@@ -712,8 +720,8 @@ class DesktopTopBar extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textFaint),
+                  style:
+                      const TextStyle(fontSize: 12, color: AppColors.textFaint),
                 ),
               ],
             ),

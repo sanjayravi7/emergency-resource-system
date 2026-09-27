@@ -133,7 +133,8 @@ class SocketService {
     socket.onReconnectFailed((_) {
       _setConnection(const SocketConnectionState(
         status: RealtimeConnectionStatus.offline,
-        message: 'Realtime connection unavailable. REST refresh remains active.',
+        message:
+            'Realtime connection unavailable. REST refresh remains active.',
       ));
     });
 
@@ -178,13 +179,14 @@ class SocketService {
 
   void subscribeToRequest(int requestId) {
     if (requestId <= 0) return;
-    _socket?.emit('request.subscribe', <String, dynamic>{'requestId': requestId});
+    _socket
+        ?.emit('request.subscribe', <String, dynamic>{'requestId': requestId});
   }
 
   void unsubscribeFromRequest(int requestId) {
     if (requestId <= 0) return;
-    _socket
-        ?.emit('request.unsubscribe', <String, dynamic>{'requestId': requestId});
+    _socket?.emit(
+        'request.unsubscribe', <String, dynamic>{'requestId': requestId});
   }
 
   Future<bool> startLocationSharing(int requestId) async {

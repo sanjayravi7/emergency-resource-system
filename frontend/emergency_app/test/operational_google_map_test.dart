@@ -66,7 +66,8 @@ void main() {
     );
 
     expect(snapshots.map((marker) => marker.id), contains('request-101'));
-    expect(snapshots.map((marker) => marker.id), isNot(contains('request-102')));
+    expect(
+        snapshots.map((marker) => marker.id), isNot(contains('request-102')));
 
     final marker = snapshots.singleWhere((item) => item.id == 'request-101');
     expect(marker.kind, OperationalMapMarkerKind.activeRequest);
@@ -92,10 +93,13 @@ void main() {
   test('creates a LIVE responder marker from Socket.IO location state', () {
     final snapshots = builder.buildSnapshots(
       requests: <EmergencyRequest>[_request(201)],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{201: <int, LiveResponderLocation>{9: _live(201)}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{
+        201: <int, LiveResponderLocation>{9: _live(201)}
+      },
     );
 
-    final marker = snapshots.singleWhere((item) => item.id == 'responder-201-9');
+    final marker =
+        snapshots.singleWhere((item) => item.id == 'responder-201-9');
     expect(marker.kind, OperationalMapMarkerKind.liveResponder);
     expect(marker.position.latitude, 10.530000);
     expect(marker.position.longitude, 76.220000);
@@ -105,7 +109,9 @@ void main() {
   test('responder location update moves the same stable marker id', () {
     final first = builder.buildSnapshots(
       requests: <EmergencyRequest>[_request(301)],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{301: <int, LiveResponderLocation>{9: _live(301)}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{
+        301: <int, LiveResponderLocation>{9: _live(301)}
+      },
     );
     final second = builder.buildSnapshots(
       requests: <EmergencyRequest>[_request(301)],
@@ -116,15 +122,18 @@ void main() {
       },
     );
 
-    final firstMarker = first.singleWhere((item) => item.id == 'responder-301-9');
-    final secondMarker = second.singleWhere((item) => item.id == 'responder-301-9');
+    final firstMarker =
+        first.singleWhere((item) => item.id == 'responder-301-9');
+    final secondMarker =
+        second.singleWhere((item) => item.id == 'responder-301-9');
 
     expect(secondMarker.id, firstMarker.id);
     expect(secondMarker.position.latitude, 10.540000);
     expect(secondMarker.position.longitude, 76.230000);
   });
 
-  test('live to last-known transition keeps the marker but changes its state', () {
+  test('live to last-known transition keeps the marker but changes its state',
+      () {
     final snapshots = builder.buildSnapshots(
       requests: <EmergencyRequest>[_request(401)],
       liveLocations: <int, Map<int, LiveResponderLocation>>{
@@ -134,7 +143,8 @@ void main() {
       },
     );
 
-    final marker = snapshots.singleWhere((item) => item.id == 'responder-401-9');
+    final marker =
+        snapshots.singleWhere((item) => item.id == 'responder-401-9');
     expect(marker.kind, OperationalMapMarkerKind.lastKnownResponder);
     expect(marker.title, contains('LAST KNOWN'));
   });
@@ -235,8 +245,7 @@ void main() {
       },
     );
 
-    final lead =
-        snapshots.singleWhere((item) => item.id == 'responder-801-9');
+    final lead = snapshots.singleWhere((item) => item.id == 'responder-801-9');
     expect(lead.title, contains('Responder 9'),
         reason: 'legacy acceptedBy name is used for the lead');
 
@@ -329,6 +338,7 @@ void main() {
     expect(responderA.position.longitude, 76.215000);
     expect(responderB.position.latitude, 9.931233);
     expect(responderB.position.longitude, 76.267303);
-    expect(snapshots.map((item) => item.id).toSet(), hasLength(snapshots.length));
+    expect(
+        snapshots.map((item) => item.id).toSet(), hasLength(snapshots.length));
   });
 }

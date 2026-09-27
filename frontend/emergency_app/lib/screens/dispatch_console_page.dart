@@ -239,10 +239,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         // is no longer joinable.
         final requestId = _asEventInt(event.payload['requestId']);
         final stillJoinable = event.payload['available'] == true;
-        if (isResponder &&
-            requestId != null &&
-            !stillJoinable &&
-            mounted) {
+        if (isResponder && requestId != null && !stillJoinable && mounted) {
           setState(() {
             pendingCompatible.removeWhere((request) => request.id == requestId);
           });
@@ -630,7 +627,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       }
 
       return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 5));
     } catch (_) {
       // A requester can still create an emergency with a real text location if
@@ -895,7 +893,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       final authorized =
           await SocketService.instance.startLocationSharing(request.id);
       if (!authorized) {
-        throw Exception('Location sharing was not authorized for this request.');
+        throw Exception(
+            'Location sharing was not authorized for this request.');
       }
       locationStore.beginLocalSharing(
         request.id,
@@ -1291,8 +1290,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             onStartLocationSharing: startLocationSharing,
             onStopLocationSharing: stopLocationSharing,
             liveLocations: locationStore.locationsByRequest,
-            activelySharingRequestIds:
-                locationStore.activelySharingRequestIds,
+            activelySharingRequestIds: locationStore.activelySharingRequestIds,
             sharingRequestId: locationStore.localSharingRequestId,
             connectionStatus: connectionStatus,
             isMobile: isMobile,
@@ -1334,8 +1332,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             onCancelRequest: isRequester ? cancelRequest : null,
             onConfirmReceipt: isRequester ? confirmReceipt : null,
             liveLocations: locationStore.locationsByRequest,
-            activelySharingRequestIds:
-                locationStore.activelySharingRequestIds,
+            activelySharingRequestIds: locationStore.activelySharingRequestIds,
             connectionStatus: connectionStatus,
             isMobile: isMobile,
           ),

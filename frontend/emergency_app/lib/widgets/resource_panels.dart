@@ -38,8 +38,8 @@ class ResourceCatalogPanel extends StatelessWidget {
               onPressed: onCreate,
               icon: const Icon(Icons.add, size: 16),
               style: TextButton.styleFrom(foregroundColor: AppColors.teal),
-              label: const Text('New resource',
-                  style: TextStyle(fontSize: 12.5)),
+              label:
+                  const Text('New resource', style: TextStyle(fontSize: 12.5)),
             )
           : null,
       child: resources.isEmpty
@@ -54,8 +54,8 @@ class ResourceCatalogPanel extends StatelessWidget {
                     color: AppColors.amberDim,
                     child: Text(
                       '$lowStock low stock · $outOfStock out of stock',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.amber),
+                      style:
+                          const TextStyle(fontSize: 12, color: AppColors.amber),
                     ),
                   ),
                 ...resources.map(
@@ -87,8 +87,8 @@ class _ResourceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final meta = resourceMetaFor(
-        resource.type.isEmpty ? resource.name : resource.type);
+    final meta =
+        resourceMetaFor(resource.type.isEmpty ? resource.name : resource.type);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -314,7 +314,9 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
     return AlertDialog(
       backgroundColor: AppColors.surface,
       title: Text(
-        widget.resource == null ? 'New resource' : 'Edit ${widget.resource!.name}',
+        widget.resource == null
+            ? 'New resource'
+            : 'Edit ${widget.resource!.name}',
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
       ),
       content: SizedBox(
@@ -439,8 +441,7 @@ class ResponderResourcesPanel extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: const BoxDecoration(
-                    border:
-                        Border(bottom: BorderSide(color: AppColors.border)),
+                    border: Border(bottom: BorderSide(color: AppColors.border)),
                   ),
                   child: Row(
                     children: [
@@ -562,8 +563,7 @@ class BackendRespondersPanel extends StatelessWidget {
                     vertical: 12,
                   ),
                   decoration: const BoxDecoration(
-                    border:
-                        Border(bottom: BorderSide(color: AppColors.border)),
+                    border: Border(bottom: BorderSide(color: AppColors.border)),
                   ),
                   child: Row(
                     children: [
@@ -587,8 +587,7 @@ class BackendRespondersPanel extends StatelessWidget {
                               Text(
                                 r.phone!,
                                 style: const TextStyle(
-                                    fontSize: 11.5,
-                                    color: AppColors.textFaint),
+                                    fontSize: 11.5, color: AppColors.textFaint),
                               ),
                             ],
                             if (r.location != null &&

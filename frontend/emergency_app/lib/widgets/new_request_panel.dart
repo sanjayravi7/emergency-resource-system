@@ -338,8 +338,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     ),
                     child: Text(
                       errorMessage!,
-                      style: const TextStyle(
-                          fontSize: 12.5, color: AppColors.red),
+                      style:
+                          const TextStyle(fontSize: 12.5, color: AppColors.red),
                     ),
                   ),
                 ],
@@ -544,9 +544,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
-                      color: r.isSelectable
-                          ? AppColors.text
-                          : AppColors.textFaint,
+                      color:
+                          r.isSelectable ? AppColors.text : AppColors.textFaint,
                     ),
                   ),
                 ),
@@ -555,8 +554,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                   r.isOutOfStock ? 'Out of stock' : r.shortAvailability,
                   style: TextStyle(
                     fontSize: 11,
-                    color:
-                        r.isOutOfStock ? AppColors.red : AppColors.textFaint,
+                    color: r.isOutOfStock ? AppColors.red : AppColors.textFaint,
                   ),
                 ),
               ],
@@ -592,8 +590,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         const FieldLabel('Resource'),
         const SizedBox(height: 6),
         DropdownButtonFormField<int>(
-          key: ValueKey(
-              'resource-${identityHashCode(line)}-${line.resourceId}'),
+          key:
+              ValueKey('resource-${identityHashCode(line)}-${line.resourceId}'),
           initialValue: line.resourceId,
           isExpanded: true,
           decoration: fieldDecoration(),

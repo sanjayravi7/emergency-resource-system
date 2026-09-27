@@ -65,7 +65,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           ..addAll(resources);
         _inventoryByResourceId
           ..clear()
-          ..addEntries(inventory.map((item) => MapEntry(item.resourceId, item)));
+          ..addEntries(
+              inventory.map((item) => MapEntry(item.resourceId, item)));
         _selected
           ..clear()
           ..addEntries(resources.map((resource) {
@@ -208,13 +209,15 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                       const Text(
                         'Help types are separate from live inventory. Only enabled '
                         'resources with available stock can receive requests.',
-                        style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
+                        style:
+                            TextStyle(fontSize: 12.5, color: AppColors.textDim),
                       ),
                       const SizedBox(height: 16),
                       if (_error != null) _message(_error!, AppColors.red),
                       if (_notice != null) _message(_notice!, AppColors.amber),
                       if (_resources.isEmpty)
-                        _message('No active resources are available in the catalog.',
+                        _message(
+                            'No active resources are available in the catalog.',
                             AppColors.textFaint)
                       else
                         Container(
@@ -233,8 +236,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                       OutlinedButton.icon(
                         onPressed: _saving
                             ? null
-                            : () => setState(
-                                () => _showQuantityControls = !_showQuantityControls),
+                            : () => setState(() =>
+                                _showQuantityControls = !_showQuantityControls),
                         icon: const Icon(Icons.tune, size: 17),
                         label: const Text('EDIT MY HELP TYPES'),
                       ),
@@ -301,8 +304,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 value: selected,
                 onChanged: _saving
                     ? null
-                    : (value) => setState(
-                        () => _selected[resource.id] = value ?? false),
+                    : (value) =>
+                        setState(() => _selected[resource.id] = value ?? false),
                 activeColor: AppColors.teal,
               ),
               Expanded(
@@ -336,7 +339,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
               child: Row(
                 children: <Widget>[
                   const Text('Available quantity',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textDim)),
+                      style:
+                          TextStyle(fontSize: 11.5, color: AppColors.textDim)),
                   const Spacer(),
                   IconButton(
                     onPressed: _saving || available <= 0

@@ -70,7 +70,8 @@ void main() {
 
   testWidgets('allocation row shows resource quantity responder and status',
       (tester) async {
-    final allocation = _request(allocationStatus: 'DELIVERED').allocations.single;
+    final allocation =
+        _request(allocationStatus: 'DELIVERED').allocations.single;
     await tester.pumpWidget(
       _app(AllocationOperationalRow(allocation: allocation)),
     );

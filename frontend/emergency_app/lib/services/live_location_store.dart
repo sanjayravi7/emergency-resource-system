@@ -45,8 +45,8 @@ class LiveLocationStore extends ChangeNotifier {
 
   /// Requests with at least one actively streaming responder.
   Set<int> get activelySharingRequestIds =>
-      Set<int>.unmodifiable(_activelySharingByRequest.keys
-          .where((requestId) => _activelySharingByRequest[requestId]!.isNotEmpty));
+      Set<int>.unmodifiable(_activelySharingByRequest.keys.where(
+          (requestId) => _activelySharingByRequest[requestId]!.isNotEmpty));
 
   int? get localSharingRequestId => _localSharingRequestId;
   int? get localSharingResponderId => _localSharingResponderId;
@@ -94,9 +94,9 @@ class LiveLocationStore extends ChangeNotifier {
     _activelySharingByRequest
         .putIfAbsent(location.requestId, () => <int>{})
         .add(location.responderId);
-    _locationsByRequest
-        .putIfAbsent(location.requestId, () => <int, LiveResponderLocation>{})
-        [location.responderId] = location.asLive();
+    _locationsByRequest.putIfAbsent(location.requestId,
+            () => <int, LiveResponderLocation>{})[location.responderId] =
+        location.asLive();
     notifyListeners();
   }
 
@@ -188,8 +188,8 @@ class LiveLocationStore extends ChangeNotifier {
   /// A disconnected socket cannot carry live telemetry. GPS streaming is
   /// stopped by the page and every existing point becomes last-known.
   void markConnectionLost() {
-    var changed = _activelySharingByRequest.isNotEmpty ||
-        _localSharingRequestId != null;
+    var changed =
+        _activelySharingByRequest.isNotEmpty || _localSharingRequestId != null;
     _activelySharingByRequest.clear();
     _localSharingRequestId = null;
     _localSharingResponderId = null;
@@ -251,8 +251,7 @@ class LiveLocationStore extends ChangeNotifier {
 
       final activeResponders = _activelySharingByRequest[request.id];
       if (activeResponders != null) {
-        for (final responderId
-            in activeResponders.toList(growable: false)) {
+        for (final responderId in activeResponders.toList(growable: false)) {
           if (request.participatesAsResponder(responderId)) continue;
           activeResponders.remove(responderId);
           changed = true;
@@ -279,9 +278,8 @@ class LiveLocationStore extends ChangeNotifier {
         );
 
         if (!_sameLocation(existing, persisted)) {
-          _locationsByRequest
-              .putIfAbsent(request.id, () => <int, LiveResponderLocation>{})
-              [summary.id] = persisted;
+          _locationsByRequest.putIfAbsent(request.id,
+              () => <int, LiveResponderLocation>{})[summary.id] = persisted;
           changed = true;
         }
       }

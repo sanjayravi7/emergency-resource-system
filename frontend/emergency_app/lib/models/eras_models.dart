@@ -164,7 +164,8 @@ class BackendResource {
       return '$count responder${count == 1 ? '' : 's'} available';
     }
 
-    final suffix = (unit == null || unit!.isEmpty) ? 'available' : '$unit available';
+    final suffix =
+        (unit == null || unit!.isEmpty) ? 'available' : '$unit available';
     return '$availableQuantity $suffix';
   }
 
@@ -452,8 +453,7 @@ class BackendResponderResource {
       availableQuantity: _asInt(json['availableQuantity']),
       status: json['status']?.toString() ?? 'UNAVAILABLE',
       isEnabled: json['isEnabled'] == true,
-      responderName:
-          _asTrimmedString(responder['name']) ?? 'Unknown responder',
+      responderName: _asTrimmedString(responder['name']) ?? 'Unknown responder',
       responderEmail: _asTrimmedString(responder['email']) ?? '',
       responderStatus:
           _asTrimmedString(responder['responderStatus']) ?? 'OFFLINE',
@@ -743,9 +743,8 @@ class EmergencyRequest {
 
   bool get hasPreciseLocation => latitude != null && longitude != null;
 
-  String? get coordinateLabel => hasPreciseLocation
-      ? formatCoordinatePair(latitude!, longitude!)
-      : null;
+  String? get coordinateLabel =>
+      hasPreciseLocation ? formatCoordinatePair(latitude!, longitude!) : null;
 
   bool get isOpen =>
       status != RequestStatus.completed && status != RequestStatus.cancelled;
@@ -780,9 +779,8 @@ class EmergencyRequest {
   /// this request. Allocation intentionally requires no assignment
   /// (Part 7, category B - the allocation-only flow).
   bool ownsUnfinishedAllocation(int? userId) => userId != null
-      ? allocations.any((a) =>
-          a.responderId == userId &&
-          (a.isReserved || a.isDispatched))
+      ? allocations.any(
+          (a) => a.responderId == userId && (a.isReserved || a.isDispatched))
       : false;
 
   /// Full realtime-participation test mirroring the backend Socket.IO rule
@@ -1022,8 +1020,10 @@ List<NavItem> navItemsForRole(String? role) {
     const NavItem(ConsoleView.board, Icons.dashboard_outlined, 'Board'),
     if (role == 'REQUESTER')
       const NavItem(ConsoleView.newRequest, Icons.add_circle_outline, 'New'),
-    const NavItem(ConsoleView.resources, Icons.inventory_2_outlined, 'Resources'),
-    const NavItem(ConsoleView.responders, Icons.groups_2_outlined, 'Responders'),
+    const NavItem(
+        ConsoleView.resources, Icons.inventory_2_outlined, 'Resources'),
+    const NavItem(
+        ConsoleView.responders, Icons.groups_2_outlined, 'Responders'),
     const NavItem(ConsoleView.log, Icons.receipt_long_outlined, 'Log'),
   ];
 }
