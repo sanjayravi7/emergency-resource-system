@@ -5,6 +5,9 @@ on:
     branches:
       - arena/01a0e194-emergency-resource-system
 
+permissions:
+  contents: write
+
 jobs:
   prisma-engines:
     runs-on: ubuntu-latest
@@ -31,3 +34,14 @@ jobs:
           name: prisma-runtime-linux
           path: /tmp/prisma-runtime.tgz
           retention-days: 1
+      - name: Publish temporary bootstrap asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create phase-h-bootstrap
+          /tmp/prisma-runtime.tgz
+          --repo "${{ github.repository }}"
+          --target "${{ github.sha }}"
+          --title "Phase H temporary bootstrap"
+          --notes "Temporary local verification toolchain; remove after Phase H."
+          --prerelease
