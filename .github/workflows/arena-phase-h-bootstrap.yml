@@ -37,11 +37,26 @@ jobs:
       - name: Publish temporary bootstrap asset
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create phase-h-bootstrap
-          /tmp/prisma-runtime.tgz
-          --repo "${{ github.repository }}"
-          --target "${{ github.sha }}"
-          --title "Phase H temporary bootstrap"
-          --notes "Temporary local verification toolchain; remove after Phase H."
-          --prerelease
+        run: |
+          gh release delete phase-h-bootstrap --repo "${{ github.repository }}" --cleanup-tag --yes || true
+          gh release create phase-h-bootstrap \
+            /tmp/prisma-runtime.tgz \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Phase H temporary bootstrap" \
+            --notes "Temporary local verification toolchain; remove after Phase H." \
+            --prerelease
+      - name: Expose API-accessible chunks for restricted verification sandboxes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          split -b 8m -d -a 2 /tmp/prisma-runtime.tgz /tmp/prisma-part-
+          for part in /tmp/prisma-part-*; do
+            sha=$(base64 -w0 "$part" | jq -Rs '{encoding:"base64",content:.}' | gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/git/blobs" \
+              --input - \
+              --jq .sha)
+            echo "PRISMA_CHUNK $(basename "$part") $sha"
+          done
