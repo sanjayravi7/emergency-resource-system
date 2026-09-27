@@ -1,4 +1,4 @@
-package com.example.dispatch_console_flutter
+package io.github.sanjayravi7.eras
 
 import io.flutter.embedding.android.FlutterActivity
 

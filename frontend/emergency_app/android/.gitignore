@@ -4,6 +4,10 @@ gradle-wrapper.jar
 /gradlew
 /gradlew.bat
 /local.properties
+
+# Never commit real API keys — Secrets Gradle Plugin reads this locally.
+# Only local.defaults.properties (placeholder values) is tracked.
+/secrets.properties
 GeneratedPluginRegistrant.java
 .cxx/
 
