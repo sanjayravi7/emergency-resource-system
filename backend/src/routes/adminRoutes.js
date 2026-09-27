@@ -7,6 +7,8 @@ const authorizeRoles = require('../middleware/roleMiddleware');
 router.use(authenticate, authorizeRoles('ADMIN'));
 
 router.get('/requests', adminController.getAllRequests);
+router.patch('/requests/:id/assignments/:responderId/end', adminController.endAssignment);
+router.patch('/requests/:id/status', adminController.updateRequestStatus);
 router.get('/allocations', adminController.getAllAllocations);
 router.get('/responders', adminController.getAllResponders);
 

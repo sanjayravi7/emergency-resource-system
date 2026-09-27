@@ -7,6 +7,7 @@ const {
 } = require('./lifecycleService');
 const {
   emitAllocationUpdated,
+  emitRequestUpdated,
   emitResponderAvailability,
 } = require('../realtime/eventEmitters');
 
@@ -316,7 +317,7 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
 exports.confirmAllocationReceived = async (requesterId, allocationId) => {
   const numericAllocationId = asPositiveInteger(allocationId, 'allocationId');
 
-  const { updated: receivedAllocation, syncedResponderIds } =
+  const { updated: receivedAllocation, syncedResponderIds, requestStatus } =
     await runSerializableTransaction(async (tx) => {
     const allocation = await lockAllocation(tx, numericAllocationId);
     if (!allocation) throw new Error('Allocation not found');
@@ -355,11 +356,15 @@ exports.confirmAllocationReceived = async (requesterId, allocationId) => {
       allocation.requestId,
       [Number(allocation.responderId)]
     );
-    return { updated, syncedResponderIds };
+    const requestAfter = await tx.emergencyRequest.findUnique({
+      where: { id: allocation.requestId }, select: { status: true },
+    });
+    return { updated, syncedResponderIds, requestStatus: requestAfter.status };
   });
 
   await emitAfterCommit(async () => {
     await emitAllocationUpdated(receivedAllocation.id);
+    if (requestStatus === 'COMPLETED') await emitRequestUpdated(receivedAllocation.requestId);
     for (const responderId of syncedResponderIds) {
       await emitResponderAvailability(responderId);
     }

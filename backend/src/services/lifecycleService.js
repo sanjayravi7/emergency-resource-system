@@ -260,6 +260,15 @@ async function syncRequestStatus(tx, requestId) {
     status = 'PENDING';
   }
 
+  if (status === 'COMPLETED') {
+    // Completion and assignment cleanup share the caller's transaction (the
+    // allocation delivery transaction in the normal path).
+    await tx.responderAssignment.updateMany({
+      where: { requestId: numericRequestId, status: 'ACTIVE' },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+  }
+
   if (status === request.status) return request;
 
   return tx.emergencyRequest.update({
