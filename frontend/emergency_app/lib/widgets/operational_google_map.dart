@@ -104,6 +104,13 @@ class OperationalMapMarkerBuilder {
       for (final responderEntry in requestEntry.value.entries) {
         final responderId = responderEntry.key;
         final live = responderEntry.value;
+        // Missed socket events can leave an old point in memory until REST
+        // reconciliation. Never render it unless the authoritative request
+        // snapshot still grants this responder a participation leg.
+        if (!request.participatesAsResponder(responderId) ||
+            !isValidCoordinatePair(live.latitude, live.longitude)) {
+          continue;
+        }
         final responderName = _responderDisplayName(request, responderId);
         final assignedResources = request.activeAllocations
             .where((allocation) => allocation.responderId == responderId)

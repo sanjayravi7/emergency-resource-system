@@ -90,7 +90,11 @@ class LiveLocationStore extends ChangeNotifier {
   /// Store one responder's live point (responder.location.update). Never
   /// touches any other responder's entry.
   void applyUpdate(LiveResponderLocation location) {
-    if (location.requestId <= 0 || location.responderId <= 0) return;
+    if (location.requestId <= 0 ||
+        location.responderId <= 0 ||
+        !isValidCoordinatePair(location.latitude, location.longitude)) {
+      return;
+    }
     _activelySharingByRequest
         .putIfAbsent(location.requestId, () => <int>{})
         .add(location.responderId);

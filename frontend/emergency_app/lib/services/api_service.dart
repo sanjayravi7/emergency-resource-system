@@ -262,6 +262,20 @@ class ApiService {
     return body;
   }
 
+  /// End only the signed-in responder's ACTIVE assignment. An unfinished own
+  /// allocation remains on the board through the backend participation rule.
+  static Future<Map<String, dynamic>> endMyAssignment(int requestId) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/requests/$requestId/assignment/end'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to end assignment');
+    }
+    return body;
+  }
+
   /// Requesters may only cancel their own PENDING requests - the backend
   /// enforces this and is the final authority.
   static Future<Map<String, dynamic>> cancelMyRequest(int requestId) async {

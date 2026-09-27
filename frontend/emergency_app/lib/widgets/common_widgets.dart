@@ -315,7 +315,6 @@ class ResourceChip extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 20,
@@ -327,17 +326,28 @@ class ResourceChip extends StatelessWidget {
             child: Icon(meta.icon, size: 13, color: meta.color),
           ),
           const SizedBox(width: 7),
-          Text(
-            quantity == null ? name : '$name × $quantity',
-            style: const TextStyle(fontSize: 12.5, color: AppColors.text),
-          ),
-          if (trailingText != null) ...[
-            const SizedBox(width: 6),
-            Text(
-              trailingText!,
-              style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 1,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  quantity == null ? name : '$name × $quantity',
+                  style:
+                      const TextStyle(fontSize: 12.5, color: AppColors.text),
+                ),
+                if (trailingText != null)
+                  Text(
+                    trailingText!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textFaint,
+                    ),
+                  ),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );

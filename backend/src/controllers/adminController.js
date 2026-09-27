@@ -68,52 +68,11 @@ exports.deactivateUser = async (req, res, next) => {
 
 exports.getAllRequests = async (req, res, next) => {
   try {
-    const requests = await prisma.emergencyRequest.findMany({
-      include: {
-        requiredResources: {
-          include: {
-            resource: true,
-          },
-        },
-        requester: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-          },
-        },
-        acceptedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            responderStatus: true,
-          },
-        },
-        assignments: {
-          include: {
-            responder: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                responderStatus: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: [
-        { priority: 'desc' },
-        { createdAt: 'asc' },
-      ],
-    });
-
-    // The response was previously never sent, which left the admin
-    // dashboard hanging.
+    // Reuse the operational request contract instead of maintaining a second,
+    // incomplete admin payload. This includes assignments, allocations,
+    // required resources, responder locations, and lead metadata exactly as
+    // requester/responder REST reconciliation receives them.
+    const requests = await requestService.getAllRequests();
     res.json({ success: true, requests });
   } catch (error) {
     next(error);

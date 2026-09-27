@@ -21,6 +21,7 @@ class BoardPanel extends StatelessWidget {
     this.currentUserId,
     this.onAccept,
     this.onAllocate,
+    this.onEndAssignment,
     this.onCancelRequest,
     this.onDispatchAllocation,
     this.onMarkDelivered,
@@ -44,6 +45,7 @@ class BoardPanel extends StatelessWidget {
   final IconData? emptyIcon;
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onAllocate;
+  final void Function(EmergencyRequest request)? onEndAssignment;
   final void Function(EmergencyRequest request)? onCancelRequest;
   final void Function(AllocationLine allocation)? onDispatchAllocation;
   final void Function(AllocationLine allocation)? onMarkDelivered;
@@ -60,7 +62,8 @@ class BoardPanel extends StatelessWidget {
 
   bool _canAccept(EmergencyRequest request) =>
       role == 'RESPONDER' &&
-      request.status == RequestStatus.pending &&
+      request.isOpen &&
+      !request.isFullyAllocated &&
       onAccept != null;
 
   // Part 7 gate classification:
@@ -74,6 +77,12 @@ class BoardPanel extends StatelessWidget {
       request.participatesAsResponder(currentUserId) &&
       request.isOpen &&
       !request.isFullyAllocated;
+
+  bool _canEndAssignment(EmergencyRequest request) =>
+      role == 'RESPONDER' &&
+      currentUserId != null &&
+      request.isAssignedTo(currentUserId!) &&
+      onEndAssignment != null;
 
   bool _canCancel(EmergencyRequest request) =>
       role == 'REQUESTER' &&
@@ -198,6 +207,20 @@ class BoardPanel extends StatelessWidget {
       );
     }
 
+    if (_canEndAssignment(request)) {
+      actions.add(
+        OutlinedButton(
+          onPressed: () => onEndAssignment!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.amber,
+            side: const BorderSide(color: AppColors.amber),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          child: const Text('End Assignment', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    }
+
     if (onDispatchAllocation != null) {
       for (final allocation in _dispatchable(request)) {
         actions.add(
@@ -279,8 +302,10 @@ class BoardPanel extends StatelessWidget {
         request.participatesAsResponder(currentUserId) &&
         request.isOpen;
     if (currentResponderParticipates && onStartLocationSharing != null) {
-      final isSharing = sharingRequestId == request.id ||
-          activelySharingRequestIds.contains(request.id);
+      // Another responder streaming this request must not turn this device's
+      // action into "Stop". Local sharing is isolated by authenticated
+      // responder identity; remote stream state is display-only.
+      final isSharing = sharingRequestId == request.id;
       actions.add(
         isSharing && onStopLocationSharing != null
             ? OutlinedButton(
@@ -319,11 +344,12 @@ class BoardPanel extends StatelessWidget {
       child: DataTable(
         headingTextStyle: tableHeadStyle(),
         dataTextStyle: const TextStyle(fontSize: 13, color: AppColors.text),
-        // Content-driven rows kept in the compact 68-88px band; only rows with
-        // several required resources are allowed to grow a little more.
+        // Rows are content-driven. Multi-responder emergencies can contain
+        // several participant/contact/location rows, so the desktop ceiling
+        // must accommodate 3+ responders instead of clipping a fixed card.
         headingRowHeight: 40,
         dataRowMinHeight: 104,
-        dataRowMaxHeight: 220,
+        dataRowMaxHeight: 520,
         columnSpacing: 22,
         horizontalMargin: 16,
         columns: const [
@@ -539,20 +565,36 @@ class _RequestCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final requestId = Text(
                 request.displayId,
                 style: monoStyle(
-                    size: 12.5,
-                    color: AppColors.textDim,
-                    weight: FontWeight.w600),
-              ),
-              const SizedBox(width: 8),
-              StatusPill(status: request.status),
-              const Spacer(),
-              PriorityPill(priority: request.priority),
-            ],
+                  size: 12.5,
+                  color: AppColors.textDim,
+                  weight: FontWeight.w600,
+                ),
+              );
+              final status = StatusPill(status: request.status);
+              final priority = PriorityPill(priority: request.priority);
+              if (constraints.maxWidth < 360) {
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [requestId, status, priority],
+                );
+              }
+              return Row(
+                children: [
+                  requestId,
+                  const SizedBox(width: 8),
+                  status,
+                  const Spacer(),
+                  priority,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           OperationalTimeline(request: request),
@@ -704,7 +746,27 @@ class _RespondersCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lead = request.acceptedBy;
+    final leadId = lead?.id ?? request.acceptedById;
     final additional = request.additionalActiveAssignments;
+    final activeIds = request.activeParticipantResponderIds;
+    final leadIsActive = leadId != null && activeIds.contains(leadId);
+    final leadHasActiveAssignment =
+        leadId != null && request.isAssignedTo(leadId);
+    final leadIsLegacyActive =
+        leadId != null && request.isLegacyAcceptedBy(leadId);
+    final leadHasAllocationOnlyParticipation = leadId != null &&
+        !leadHasActiveAssignment &&
+        !leadIsLegacyActive &&
+        request.ownsUnfinishedAllocation(leadId);
+    final allocationOnly = <int, AllocationLine>{};
+    for (final allocation in request.allocations) {
+      if (!(allocation.isReserved || allocation.isDispatched) ||
+          request.isAssignedTo(allocation.responderId) ||
+          allocation.responderId == leadId) {
+        continue;
+      }
+      allocationOnly.putIfAbsent(allocation.responderId, () => allocation);
+    }
 
     String? displayName(int responderId) {
       final assignment = firstWhereOrNull(
@@ -720,21 +782,41 @@ class _RespondersCell extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          lead?.name ?? 'unassigned',
-          style: TextStyle(
-            fontSize: 12.5,
-            color: lead == null ? AppColors.textFaint : AppColors.text,
-          ),
+          '${activeIds.length} active responder${activeIds.length == 1 ? '' : 's'}',
+          style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
         ),
-        if (request.acceptedAt != null)
+        if (lead != null) ...[
           Text(
-            'LEAD · ACTIVE · at ${formatDateTime(request.acceptedAt)}',
+            lead.name,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: leadIsActive ? AppColors.text : AppColors.textFaint,
+            ),
+          ),
+          Text(
+            leadHasActiveAssignment || leadIsLegacyActive
+                ? 'LEAD · ACTIVE${request.acceptedAt == null ? '' : ' · at ${formatDateTime(request.acceptedAt)}'}'
+                : leadHasAllocationOnlyParticipation
+                    ? 'LEAD · ASSIGNMENT ENDED · ALLOCATION ACTIVE'
+                    : 'HISTORICAL LEAD · ENDED',
             style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
-        if ((lead?.phone ?? '').isNotEmpty)
-          Text(
-            lead!.phone!,
-            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          if ((lead.phone ?? '').isNotEmpty)
+            Text(
+              lead.phone!,
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+          if ((lead.responderStatus ?? '').isNotEmpty)
+            Text(
+              'STATUS · ${lead.responderStatus}',
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+        ] else
+          const Text(
+            'unassigned',
+            style: TextStyle(fontSize: 12.5, color: AppColors.textFaint),
           ),
         for (final assignment in additional) ...[
           const SizedBox(height: 4),
@@ -750,6 +832,12 @@ class _RespondersCell extends StatelessWidget {
             'ASSIGNED · ${assignment.status}',
             style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
+          if ((assignment.responder?.responderStatus ?? '').isNotEmpty)
+            Text(
+              'STATUS · ${assignment.responder!.responderStatus}',
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
           if ((assignment.responder?.phone ?? '').isNotEmpty)
             Text(
               assignment.responder!.phone!,
@@ -757,19 +845,32 @@ class _RespondersCell extends StatelessWidget {
                   const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
         ],
-        for (final entry in liveLocations.entries) ...[
+        for (final entry in allocationOnly.entries) ...[
           const SizedBox(height: 4),
-          LocationSharingSummary(
-            // Per-responder activeness comes from that responder's own
-            // stream state - one responder sharing must never light up
-            // another responder's stale point.
-            isActive: entry.value.isLive,
-            location: entry.value,
-            connectionStatus: connectionStatus,
-            compact: compact,
-            responderLabel: displayName(entry.key) ?? 'Responder #${entry.key}',
+          Text(
+            entry.value.responderName ?? 'Responder #${entry.key}',
+            style: const TextStyle(fontSize: 12.5, color: AppColors.text),
+          ),
+          const Text(
+            'ALLOCATION · ACTIVE',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
         ],
+        for (final entry in liveLocations.entries)
+          if (request.participatesAsResponder(entry.key)) ...[
+            const SizedBox(height: 4),
+            LocationSharingSummary(
+              // Per-responder activeness comes from that responder's own
+              // stream state - one responder sharing must never light up
+              // another responder's stale point.
+              isActive: entry.value.isLive,
+              location: entry.value,
+              connectionStatus: connectionStatus,
+              compact: compact,
+              responderLabel:
+                  displayName(entry.key) ?? 'Responder #${entry.key}',
+            ),
+          ],
       ],
     );
   }

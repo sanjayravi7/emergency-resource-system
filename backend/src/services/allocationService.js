@@ -65,6 +65,14 @@ async function lockAllocation(tx, allocationId) {
   return locked[0] || null;
 }
 
+async function activeAssignmentResponderIds(tx, requestId) {
+  const rows = await tx.responderAssignment.findMany({
+    where: { requestId: Number(requestId), status: 'ACTIVE' },
+    select: { responderId: true },
+  });
+  return rows.map((row) => row.responderId);
+}
+
 async function lockResponderResource(tx, responderResourceId) {
   const locked = await tx.$queryRaw`
     SELECT id, "responderId", "resourceId", "totalQuantity", "availableQuantity",
@@ -230,8 +238,12 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
     );
   }
 
-  const { updated: updatedAllocation, syncedResponderIds } =
-    await runSerializableTransaction(async (tx) => {
+  const {
+    updated: updatedAllocation,
+    syncedResponderIds,
+    requestStatus,
+    terminalResponderIds,
+  } = await runSerializableTransaction(async (tx) => {
     const allocation = await lockAllocation(tx, numericAllocationId);
     if (!allocation) throw new Error('Allocation not found');
     if (allocation.responderId !== Number(responderId)) {
@@ -292,6 +304,10 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
       data: { status },
     });
 
+    const terminalResponderIds = await activeAssignmentResponderIds(
+      tx,
+      allocation.requestId
+    );
     await syncRequestStatus(tx, allocation.requestId);
     // Delivery (or cancellation) can complete the request, which releases
     // responders attached through assignments even when they hold no
@@ -301,11 +317,23 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
       allocation.requestId,
       [Number(allocation.responderId)]
     );
-    return { updated, syncedResponderIds };
+    const requestAfter = await tx.emergencyRequest.findUnique({
+      where: { id: allocation.requestId },
+      select: { status: true },
+    });
+    return {
+      updated,
+      syncedResponderIds,
+      requestStatus: requestAfter.status,
+      terminalResponderIds,
+    };
   });
 
   await emitAfterCommit(async () => {
     await emitAllocationUpdated(updatedAllocation.id);
+    if (requestStatus === 'COMPLETED') {
+      await emitRequestUpdated(updatedAllocation.requestId, terminalResponderIds);
+    }
     for (const responderId of syncedResponderIds) {
       await emitResponderAvailability(responderId);
     }
@@ -317,8 +345,12 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
 exports.confirmAllocationReceived = async (requesterId, allocationId) => {
   const numericAllocationId = asPositiveInteger(allocationId, 'allocationId');
 
-  const { updated: receivedAllocation, syncedResponderIds, requestStatus } =
-    await runSerializableTransaction(async (tx) => {
+  const {
+    updated: receivedAllocation,
+    syncedResponderIds,
+    requestStatus,
+    terminalResponderIds,
+  } = await runSerializableTransaction(async (tx) => {
     const allocation = await lockAllocation(tx, numericAllocationId);
     if (!allocation) throw new Error('Allocation not found');
 
@@ -348,6 +380,10 @@ exports.confirmAllocationReceived = async (requesterId, allocationId) => {
       data: { status: 'DELIVERED' },
     });
 
+    const terminalResponderIds = await activeAssignmentResponderIds(
+      tx,
+      allocation.requestId
+    );
     await syncRequestStatus(tx, allocation.requestId);
     // Confirming receipt can complete the request, releasing responders
     // attached through assignments even when they did not act here.
@@ -359,12 +395,19 @@ exports.confirmAllocationReceived = async (requesterId, allocationId) => {
     const requestAfter = await tx.emergencyRequest.findUnique({
       where: { id: allocation.requestId }, select: { status: true },
     });
-    return { updated, syncedResponderIds, requestStatus: requestAfter.status };
+    return {
+      updated,
+      syncedResponderIds,
+      requestStatus: requestAfter.status,
+      terminalResponderIds,
+    };
   });
 
   await emitAfterCommit(async () => {
     await emitAllocationUpdated(receivedAllocation.id);
-    if (requestStatus === 'COMPLETED') await emitRequestUpdated(receivedAllocation.requestId);
+    if (requestStatus === 'COMPLETED') {
+      await emitRequestUpdated(receivedAllocation.requestId, terminalResponderIds);
+    }
     for (const responderId of syncedResponderIds) {
       await emitResponderAvailability(responderId);
     }
