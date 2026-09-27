@@ -51,6 +51,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           split -b 8m -d -a 2 /tmp/prisma-runtime.tgz /tmp/prisma-part-
+          : > /tmp/prisma-chunks.txt
           for part in /tmp/prisma-part-*; do
             sha=$(base64 -w0 "$part" | jq -Rs '{encoding:"base64",content:.}' | gh api \
               --method POST \
@@ -58,5 +59,8 @@ jobs:
               "/repos/${{ github.repository }}/git/blobs" \
               --input - \
               --jq .sha)
-            echo "PRISMA_CHUNK $(basename "$part") $sha"
+            echo "PRISMA_CHUNK $(basename "$part") $sha" | tee -a /tmp/prisma-chunks.txt
           done
+          gh release edit phase-h-bootstrap \
+            --repo "${{ github.repository }}" \
+            --notes-file /tmp/prisma-chunks.txt
