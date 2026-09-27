@@ -124,6 +124,17 @@ exports.updateRequestStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.endAssignment = async (req, res, next) => {
+  try {
+    const request = await requestService.endResponderAssignment(
+      req.user, req.params.id, req.user.id
+    );
+    res.json({ success: true, request });
+  } catch (error) {
+    next(error);
+  }
+};
 exports.getAssignedRequests = async (req, res, next) => {
   try {
     const requests =

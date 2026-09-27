@@ -53,6 +53,14 @@ router.patch(
   requestController.acceptRequest
 );
 
+// RESPONDER may end only their own assignment.
+router.patch(
+  "/:id/assignment/end",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  requestController.endAssignment
+);
+
 // REQUESTER cancels their own request
 router.patch(
   "/:id/cancel",

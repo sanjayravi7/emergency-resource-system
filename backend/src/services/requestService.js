@@ -346,6 +346,13 @@ exports.cancelEmergencyRequest = async (userId, id) => {
       });
     }
 
+    // Terminal cleanup is part of the same transaction as the request
+    // transition. acceptedById is deliberately untouched for history.
+    await tx.responderAssignment.updateMany({
+      where: { requestId, status: 'ACTIVE' },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+
     const cancelled = await tx.emergencyRequest.update({
       where: { id: requestId },
       data: { status: 'CANCELLED' },
@@ -402,7 +409,11 @@ exports.getAssignedRequestsForResponder = async (responderId) => {
             },
           },
         },
-        { acceptedById: numericResponderId },
+        {
+          acceptedById: numericResponderId,
+          assignments: { none: { responderId: numericResponderId } },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        },
       ],
     },
     include: requestInclude,
@@ -477,10 +488,10 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   const requests = await prisma.emergencyRequest.findMany({
     where: {
       status: { in: JOINABLE_REQUEST_STATUSES },
-      OR: [
-        { acceptedById: null },
-        { acceptedById: { not: numericResponderId } },
-      ],
+      // acceptedById is historical lead metadata and must not block a
+      // responder whose prior assignment is ENDED from rejoining. Active
+      // membership (and legacy pairs with no assignment row) are handled
+      // explicitly above.
       assignments: {
         none: {
           responderId: numericResponderId,
@@ -606,6 +617,8 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     ) {
       throw new Error('Responder is already assigned to this request');
     }
+    const reactivatingAssignment =
+      existingPairRow && existingPairRow.status === 'ENDED';
 
     const requiredResources = await tx.requestResource.findMany({
       where: { requestId: numericRequestId },
@@ -671,18 +684,23 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
 
     let assignment;
     try {
-      assignment = await tx.responderAssignment.create({
-        data: {
-          requestId: numericRequestId,
-          responderId: numericResponderId,
-          status: 'ACTIVE',
-          acceptedAt,
-        },
-      });
+      // The unique pair row is intentionally reused when a responder rejoins.
+      // This keeps the assignment history stable and makes concurrent rejoin
+      // attempts serialize on the request lock rather than creating rows.
+      assignment = reactivatingAssignment
+        ? await tx.responderAssignment.update({
+            where: { id: existingPairRow.id },
+            data: { status: 'ACTIVE', endedAt: null, acceptedAt },
+          })
+        : await tx.responderAssignment.create({
+            data: {
+              requestId: numericRequestId,
+              responderId: numericResponderId,
+              status: 'ACTIVE',
+              acceptedAt,
+            },
+          });
     } catch (error) {
-      // P2002 = unique (requestId, responderId) violation from a concurrent
-      // accept that committed between our check and this insert. Surface it
-      // as the same business conflict instead of leaking a Prisma error.
       if (error.code === 'P2002') {
         throw new Error('Responder is already assigned to this request');
       }
@@ -731,11 +749,71 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
   return acceptedRequest;
 };
 
-exports.updateRequestStatus = async (requestId, status) => {
-  const updated = await prisma.emergencyRequest.update({
-    where: { id: Number(requestId) },
-    data: { status },
+/** End one assignment, with ownership enforced inside the locked transaction. */
+exports.endResponderAssignment = async (actor, requestId, responderId = actor.id) => {
+  const numericRequestId = Number(requestId);
+  const numericResponderId = Number(responderId);
+  if (actor.role !== 'ADMIN' && actor.role !== 'RESPONDER') {
+    throw new Error('Only responders or admins may end assignments');
+  }
+  if (actor.role !== 'ADMIN' && Number(actor.id) !== numericResponderId) {
+    throw new Error('You may only end your own assignment');
+  }
+
+  const result = await runSerializableTransaction(async (tx) => {
+    const locked = await tx.$queryRaw`
+      SELECT id, status FROM "EmergencyRequest" WHERE id = ${numericRequestId} FOR UPDATE
+    `;
+    if (!locked[0]) throw new Error('Request not found');
+    const assignment = await tx.responderAssignment.findUnique({
+      where: { requestId_responderId: { requestId: numericRequestId, responderId: numericResponderId } },
+      select: { id: true, status: true },
+    });
+    if (!assignment) throw new Error('Assignment not found');
+    if (assignment.status !== 'ACTIVE') throw new Error('Assignment has already ended');
+
+    await tx.responderAssignment.update({
+      where: { id: assignment.id },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+    const syncedResponderIds = await syncResponderAvailabilityForRequest(
+      tx, numericRequestId, [numericResponderId]
+    );
+    const request = await tx.emergencyRequest.findUnique({
+      where: { id: numericRequestId }, include: requestInclude,
+    });
+    return { request, syncedResponderIds };
   });
-  await emitAfterCommit(() => emitRequestUpdated(Number(requestId)));
-  return updated;
+
+  await emitAfterCommit(async () => {
+    await emitRequestUpdated(numericRequestId, [numericResponderId]);
+    for (const id of result.syncedResponderIds) await emitResponderAvailability(id);
+  });
+  return result.request;
+};
+
+exports.updateRequestStatus = async (requestId, status) => {
+  const numericRequestId = Number(requestId);
+  if (!['COMPLETED', 'CANCELLED'].includes(status)) {
+    return prisma.emergencyRequest.update({ where: { id: numericRequestId }, data: { status } });
+  }
+  const result = await runSerializableTransaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "EmergencyRequest" WHERE id = ${numericRequestId} FOR UPDATE`;
+    const existing = await tx.emergencyRequest.findUnique({ where: { id: numericRequestId } });
+    if (!existing) throw new Error('Request not found');
+    await tx.responderAssignment.updateMany({
+      where: { requestId: numericRequestId, status: 'ACTIVE' },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+    const updated = await tx.emergencyRequest.update({
+      where: { id: numericRequestId }, data: { status }, include: requestInclude,
+    });
+    const syncedResponderIds = await syncResponderAvailabilityForRequest(tx, numericRequestId);
+    return { updated, syncedResponderIds };
+  });
+  await emitAfterCommit(async () => {
+    await emitRequestUpdated(numericRequestId);
+    for (const id of result.syncedResponderIds) await emitResponderAvailability(id);
+  });
+  return result.updated;
 };

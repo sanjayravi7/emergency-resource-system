@@ -1,4 +1,25 @@
 const prisma = require('../config/prisma');
+const requestService = require('../services/requestService');
+
+exports.endAssignment = async (req, res, next) => {
+  try {
+    const request = await requestService.endResponderAssignment(
+      req.user, req.params.id, req.params.responderId
+    );
+    res.json({ success: true, request });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateRequestStatus = async (req, res, next) => {
+  try {
+    const request = await requestService.updateRequestStatus(req.params.id, req.body.status);
+    res.json({ success: true, request });
+  } catch (error) {
+    next(error);
+  }
+};
 
 exports.getAllUsers = async (req, res, next) => {
   try {
