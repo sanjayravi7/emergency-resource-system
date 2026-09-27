@@ -31,8 +31,8 @@ class OperationalTimeline extends StatelessWidget {
     final allocations = request.allocations
         .where((allocation) => allocation.status != 'CANCELLED')
         .toList(growable: false);
-    final accepted = request.acceptedBy != null ||
-        request.status != RequestStatus.pending;
+    final accepted =
+        request.acceptedBy != null || request.status != RequestStatus.pending;
     final allocated = allocations.isNotEmpty;
     final dispatched = allocations.any(
       (allocation) =>
@@ -68,9 +68,8 @@ class OperationalTimeline extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_rounded,
                 size: compact ? 10 : 12,
-                color: states[index + 1].$2
-                    ? AppColors.teal
-                    : AppColors.textFaint,
+                color:
+                    states[index + 1].$2 ? AppColors.teal : AppColors.textFaint,
               ),
           ],
         ],
@@ -136,7 +135,8 @@ class _TerminalNotice extends StatelessWidget {
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 5),
           Text(label,
-              style: monoStyle(size: 10, color: color, weight: FontWeight.w700)),
+              style:
+                  monoStyle(size: 10, color: color, weight: FontWeight.w700)),
         ],
       );
 }
@@ -288,20 +288,25 @@ class LocationSharingSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                isActive ? Icons.location_on : Icons.history_rounded,
-                size: compact ? 11 : 14,
-                color: color,
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  isActive ? Icons.location_on : Icons.history_rounded,
+                  size: compact ? 11 : 14,
+                  color: color,
+                ),
               ),
               const SizedBox(width: 4),
-              Text(
-                title,
-                style: monoStyle(
-                  size: compact ? 8.5 : 9.5,
-                  color: color,
-                  weight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  title,
+                  style: monoStyle(
+                    size: compact ? 8.5 : 9.5,
+                    color: color,
+                    weight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -384,7 +389,8 @@ class ResponderAvailabilityBanner extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   detail,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textDim),
+                  style:
+                      const TextStyle(fontSize: 12, color: AppColors.textDim),
                 ),
                 if (isBusy)
                   const Text(

@@ -134,7 +134,9 @@ void main() {
     test('appears for two valid points', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+        },
       );
 
       expect(polylines, hasLength(1));
@@ -152,7 +154,9 @@ void main() {
     test('updates when the responder coordinate changes', () {
       final before = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+        },
       ).single;
 
       final after = polylinesFor(
@@ -175,7 +179,9 @@ void main() {
     test('no line when emergency coordinates are missing', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request(latitude: null, longitude: null)],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+        },
       );
 
       expect(polylines, isEmpty);
@@ -196,7 +202,9 @@ void main() {
         requests: <EmergencyRequest>[
           request(status: 'PENDING', responderId: null),
         ],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+        },
       );
 
       expect(polylines, isEmpty);
@@ -205,7 +213,9 @@ void main() {
     test('no line when the live responder is not the assignee', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request(responderId: 9)],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{42: live(responderId: 42)}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{42: live(responderId: 42)}
+        },
       );
 
       expect(polylines, isEmpty);
@@ -216,7 +226,9 @@ void main() {
       expect(
         polylinesFor(
           requests: <EmergencyRequest>[request()],
-          liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+          liveLocations: <int, Map<int, LiveResponderLocation>>{
+            501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+          },
         ),
         hasLength(1),
       );
@@ -225,7 +237,9 @@ void main() {
         expect(
           polylinesFor(
             requests: <EmergencyRequest>[request(status: terminal)],
-            liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+            liveLocations: <int, Map<int, LiveResponderLocation>>{
+              501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+            },
           ),
           isEmpty,
           reason: '$terminal requests must not keep a connection line',
@@ -250,7 +264,9 @@ void main() {
   group('Google Maps directions URL', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{
+        501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+      },
     )!;
 
     // 6 -------------------------------------------------------------------
@@ -340,7 +356,11 @@ void main() {
         () async {
       final lastKnown = selectDirectConnection(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9, isLive: false)}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{
+          501: <int, LiveResponderLocation>{
+            9: live(responderId: 9, isLive: false)
+          }
+        },
       )!;
       final launcher = FakeUrlLauncher();
 
@@ -368,7 +388,9 @@ void main() {
   group('NavigationInfoCard', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{
+        501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+      },
     )!;
 
     testWidgets('shows LIVE/SET state and a clearly labelled direct distance',
@@ -511,7 +533,8 @@ void main() {
     final activeRequest = request();
     final liveLoc = live(responderId: 9);
 
-    testWidgets('mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow',
+    testWidgets(
+        'mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow',
         (tester) async {
       addTearDown(tester.view.reset);
 
@@ -529,7 +552,9 @@ void main() {
                   width: width,
                   child: OperationalGoogleMap(
                     requests: <EmergencyRequest>[activeRequest],
-                    liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: liveLoc}},
+                    liveLocations: <int, Map<int, LiveResponderLocation>>{
+                      501: <int, LiveResponderLocation>{9: liveLoc}
+                    },
                     isMobile: true,
                     urlLauncher: launcher,
                   ),
@@ -594,7 +619,9 @@ void main() {
                 width: 360,
                 child: OperationalGoogleMap(
                   requests: <EmergencyRequest>[request(status: status)],
-                  liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: liveLoc}},
+                  liveLocations: <int, Map<int, LiveResponderLocation>>{
+                    501: <int, LiveResponderLocation>{9: liveLoc}
+                  },
                   isMobile: true,
                 ),
               ),
@@ -626,7 +653,9 @@ void main() {
               width: 1200,
               child: OperationalGoogleMap(
                 requests: <EmergencyRequest>[activeRequest],
-                liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: liveLoc}},
+                liveLocations: <int, Map<int, LiveResponderLocation>>{
+                  501: <int, LiveResponderLocation>{9: liveLoc}
+                },
                 isMobile: false,
               ),
             ),
@@ -710,7 +739,11 @@ void main() {
 
   group('multi-responder direct connections (Phase F)', () {
     final assignedRequest = request(
-      assignments: [assignment(9), assignment(11), assignment(12, status: 'ENDED')],
+      assignments: [
+        assignment(9),
+        assignment(11),
+        assignment(12, status: 'ENDED')
+      ],
     );
 
     Map<int, Map<int, LiveResponderLocation>> twoResponderLocations() =>
@@ -752,8 +785,8 @@ void main() {
       for (final line in polylines) {
         expect(line.points, hasLength(2));
       }
-      final responder9Line = polylines.firstWhere((line) =>
-          line.polylineId == directConnectionPolylineIdFor(501, 9));
+      final responder9Line = polylines.firstWhere(
+          (line) => line.polylineId == directConnectionPolylineIdFor(501, 9));
       expect(responder9Line.points.first.latitude, 10.05276);
       expect(responder9Line.points.last.latitude, 10.05276,
           reason: 'destination is the emergency coordinate');
@@ -887,16 +920,22 @@ void main() {
       }
 
       expect(launcher.launched, hasLength(2));
-      final urls = launcher.launched.map((url) => url.toString()).toList();
+      final urls = launcher.launched;
       // Both use the existing Google Maps directions launcher - no Routes
       // API, no ETA - and each origin is that responder's live point while
-      // the destination stays the emergency location.
+      // the destination stays the emergency location. Validate decoded query
+      // parameters rather than coupling this test to URI punctuation encoding.
       for (final url in urls) {
-        expect(url, startsWith('https://www.google.com/maps/dir/'));
-        expect(url, contains('destination=10.05276,76.35211'));
+        expect(url.scheme, 'https');
+        expect(url.host, 'www.google.com');
+        expect(url.path, '/maps/dir/');
+        expect(url.queryParameters['api'], '1');
+        expect(url.queryParameters['destination'], '10.05276,76.35211');
+        expect(url.queryParameters['travelmode'], 'driving');
+        expect(url.queryParameters['dir_action'], 'navigate');
       }
-      expect(urls.first, contains('origin=10.05276,76.35211'));
-      expect(urls.last, contains('origin=10.1,76.4'));
+      expect(urls.first.queryParameters['origin'], '10.05276,76.35211');
+      expect(urls.last.queryParameters['origin'], '10.1,76.4');
     });
 
     // Phase F case 23b ---------------------------------------------------
@@ -1026,7 +1065,9 @@ void main() {
   test('direct distance is straight-line only', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{
+        501: <int, LiveResponderLocation>{9: live(responderId: 9)}
+      },
     )!;
 
     // Haversine distance between the two fixed points ≈ 12.0 km.

@@ -69,7 +69,8 @@ class WebLocationService implements LocationService {
     }
 
     if (raw == null) {
-      throw const LocationServiceException('Google place lookup returned no data.');
+      throw const LocationServiceException(
+          'Google place lookup returned no data.');
     }
 
     final decoded = jsonDecode((raw as JSString).toDart);
@@ -87,7 +88,8 @@ class WebLocationService implements LocationService {
   }
 
   @override
-  Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
+  Future<ResolvedPlace> reverseGeocode(
+      double latitude, double longitude) async {
     try {
       final result = await ApiService.reverseGeocode(
         latitude: latitude,

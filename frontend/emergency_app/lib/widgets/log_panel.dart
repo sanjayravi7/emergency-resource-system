@@ -35,8 +35,8 @@ class LogPanel extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     headingTextStyle: tableHeadStyle(),
-                    dataTextStyle: const TextStyle(
-                        fontSize: 13, color: AppColors.text),
+                    dataTextStyle:
+                        const TextStyle(fontSize: 13, color: AppColors.text),
                     dataRowMinHeight: 72,
                     dataRowMaxHeight: 180,
                     columns: const [
@@ -64,8 +64,8 @@ class LogPanel extends StatelessWidget {
                             children: <Widget>[
                               if (entry.requiredResources.isEmpty)
                                 const Text('-',
-                                    style: TextStyle(
-                                        color: AppColors.textFaint))
+                                    style:
+                                        TextStyle(color: AppColors.textFaint))
                               else
                                 ...entry.requiredResources.map(
                                   (line) => ResourceChip(
@@ -75,7 +75,8 @@ class LogPanel extends StatelessWidget {
                                   ),
                                 ),
                               if (entry.allocations.isNotEmpty) ...[
-                                const Divider(height: 6, color: AppColors.border),
+                                const Divider(
+                                    height: 6, color: AppColors.border),
                                 // PHASE F: allocations are grouped by the
                                 // responder who owns them; every status
                                 // (RESERVED/DISPATCHED/DELIVERED/CANCELLED)
@@ -148,8 +149,8 @@ class _LogCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   '${request.emergencyType} · ${request.location}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textDim),
+                  style:
+                      const TextStyle(fontSize: 12, color: AppColors.textDim),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -202,8 +203,7 @@ class _RespondersSummary extends StatelessWidget {
     }
     if (names.isEmpty) {
       return Text(mobile ? 'Responder: -' : '-',
-          style: const TextStyle(
-              fontSize: 11.5, color: AppColors.textFaint));
+          style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint));
     }
 
     if (!mobile) {

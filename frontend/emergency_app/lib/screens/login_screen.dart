@@ -193,8 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Sign in',
-                            style: TextStyle(fontSize: 14)),
+                        : const Text('Sign in', style: TextStyle(fontSize: 14)),
                   ),
                   const SizedBox(height: 16),
                   Text(

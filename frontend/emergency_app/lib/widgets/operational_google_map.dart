@@ -48,7 +48,8 @@ class OperationalMapMarkerSnapshot {
         OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
         OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
         OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
-        OperationalMapMarkerKind.lastKnownResponder => BitmapDescriptor.hueAzure,
+        OperationalMapMarkerKind.lastKnownResponder =>
+          BitmapDescriptor.hueAzure,
       };
 
   Marker toMarker() => Marker(
@@ -359,7 +360,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                 width: double.infinity,
                                 child: _MapControls(
                                   onCenterEmergency: _centerOnEmergency,
-                                  onFitPins: markers.isEmpty ? null : _fitAllPins,
+                                  onFitPins:
+                                      markers.isEmpty ? null : _fitAllPins,
                                   isMobile: true,
                                 ),
                               ),
@@ -497,7 +499,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     return pendingEmergency?.position;
   }
 
-  Future<void> _centerOnEmergency({bool showMessageWhenUnavailable = true}) async {
+  Future<void> _centerOnEmergency(
+      {bool showMessageWhenUnavailable = true}) async {
     final controller = _controller;
     final focus = _emergencyFocus(_snapshots);
     if (controller == null || focus == null) {

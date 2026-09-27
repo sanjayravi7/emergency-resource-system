@@ -33,14 +33,16 @@ class FakeLocationService implements LocationService {
   final List<String> autocompleteCalls = <String>[];
   final List<GeoPoint?> autocompleteBiases = <GeoPoint?>[];
   final List<String> resolveCalls = <String>[];
-  final List<({double latitude, double longitude, NearbyPlaceCategory category})>
+  final List<
+          ({double latitude, double longitude, NearbyPlaceCategory category})>
       nearbyCalls = [];
 
   @override
   bool get isAvailable => true;
 
   @override
-  Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
+  Future<ResolvedPlace> reverseGeocode(
+      double latitude, double longitude) async {
     reverseGeocodeCalls.add(GeoPoint(latitude, longitude));
     if (reverseError != null) {
       throw LocationServiceException(reverseError!);
@@ -160,11 +162,10 @@ void main() {
           locationService: service,
           showMapPreview: false,
           onUseCurrentLocation: () async => const GeoPoint(9.9876, 76.6543),
-          onLocationChanged: (lat, lng) =>
-              setState(() {
-                latitude = lat;
-                longitude = lng;
-              }),
+          onLocationChanged: (lat, lng) => setState(() {
+            latitude = lat;
+            longitude = lng;
+          }),
         ),
       )));
 
@@ -175,8 +176,8 @@ void main() {
           'Sree Narayana Gurukulam College of Engineering, Kolenchery');
       expect(latitude, 9.9876);
       expect(longitude, 76.6543);
-      expect(service.reverseGeocodeCalls.single,
-          const GeoPoint(9.9876, 76.6543));
+      expect(
+          service.reverseGeocodeCalls.single, const GeoPoint(9.9876, 76.6543));
       expect(find.textContaining('Location detected'), findsOneWidget);
       expect(find.textContaining('9.9876'), findsOneWidget);
     });
@@ -460,7 +461,8 @@ void main() {
       expect(payload!.description, isNull);
     });
 
-    testWidgets('G. non-empty description is preserved exactly', (tester) async {
+    testWidgets('G. non-empty description is preserved exactly',
+        (tester) async {
       const description = '  Two people trapped near the east gate.  ';
       final service = FakeLocationService(
         reverseResult: const ResolvedPlace(
@@ -518,7 +520,9 @@ void main() {
   });
 
   group('J. Socket.IO live responder location', () {
-    test('live location updates never trigger reverse geocoding or nearby search', () {
+    test(
+        'live location updates never trigger reverse geocoding or nearby search',
+        () {
       final service = FakeLocationService();
       final store = LiveLocationStore();
       addTearDown(store.dispose);

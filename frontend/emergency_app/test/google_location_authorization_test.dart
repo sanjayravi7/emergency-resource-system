@@ -36,7 +36,8 @@ void main() {
       expect(isGeocodingApiDeniedError('ApiTargetBlockedMapError'), isTrue);
     });
 
-    test('does not treat an empty Google answer as an authorization failure', () {
+    test('does not treat an empty Google answer as an authorization failure',
+        () {
       expect(isGeocodingApiDeniedError('ZERO_RESULTS'), isFalse);
       expect(
         isGeocodingApiDeniedError('No address found for these coordinates.'),

@@ -29,12 +29,13 @@ class NearbyRecordingLocationService implements LocationService {
   String reverseLabel;
   String? reverseError;
 
-  final List<({
-    double latitude,
-    double longitude,
-    NearbyPlaceCategory category,
-    double radiusMeters,
-  })> nearbyCalls = [];
+  final List<
+      ({
+        double latitude,
+        double longitude,
+        NearbyPlaceCategory category,
+        double radiusMeters,
+      })> nearbyCalls = [];
 
   final List<GeoPoint> reverseGeocodeCalls = <GeoPoint>[];
   final List<String> autocompleteCalls = <String>[];
@@ -43,7 +44,8 @@ class NearbyRecordingLocationService implements LocationService {
   bool get isAvailable => true;
 
   @override
-  Future<ResolvedPlace> reverseGeocode(double latitude, double longitude) async {
+  Future<ResolvedPlace> reverseGeocode(
+      double latitude, double longitude) async {
     reverseGeocodeCalls.add(GeoPoint(latitude, longitude));
     if (reverseError != null) {
       throw LocationServiceException(reverseError!);
@@ -472,8 +474,8 @@ void main() {
 
       // The selected Google place's own name/address becomes the label and
       // its own coordinates become canonical.
-      final placeField =
-          tester.widget<TextField>(find.byKey(const Key('location-place-field')));
+      final placeField = tester
+          .widget<TextField>(find.byKey(const Key('location-place-field')));
       expect(placeField.controller!.text, 'Hospital A, Main Road, Kolenchery');
       expect(find.textContaining('Coordinates: 9.991000'), findsOneWidget);
       expect(find.textContaining('Selected: Hospital A'), findsOneWidget);
@@ -732,7 +734,8 @@ void main() {
       expect(service.nearbyCalls, hasLength(2));
 
       // A location change (map tap) re-queries around the new point.
-      await (key.currentState as dynamic).handleMapTap(const LatLng(10.5, 76.5));
+      await (key.currentState as dynamic)
+          .handleMapTap(const LatLng(10.5, 76.5));
       await tester.pumpAndSettle();
       expect(service.nearbyCalls, hasLength(3));
       expect(service.nearbyCalls.last.latitude, 10.5);

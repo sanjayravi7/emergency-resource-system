@@ -27,8 +27,7 @@ class BoardPanel extends StatelessWidget {
     this.onConfirmReceipt,
     this.onStartLocationSharing,
     this.onStopLocationSharing,
-    this.liveLocations =
-        const <int, Map<int, LiveResponderLocation>>{},
+    this.liveLocations = const <int, Map<int, LiveResponderLocation>>{},
     this.activelySharingRequestIds = const <int>{},
     this.sharingRequestId,
     this.connectionStatus = RealtimeConnectionStatus.offline,
@@ -51,6 +50,7 @@ class BoardPanel extends StatelessWidget {
   final void Function(AllocationLine allocation)? onConfirmReceipt;
   final Future<void> Function(EmergencyRequest request)? onStartLocationSharing;
   final Future<void> Function(int? requestId)? onStopLocationSharing;
+
   /// Multi-responder live points: requestId -> responderId -> latest point.
   final Map<int, Map<int, LiveResponderLocation>> liveLocations;
   final Set<int> activelySharingRequestIds;
@@ -80,26 +80,28 @@ class BoardPanel extends StatelessWidget {
       onCancelRequest != null &&
       request.canBeCancelledByRequester;
 
-  List<AllocationLine> _dispatchable(EmergencyRequest request) => request.allocations
-      .where((allocation) =>
-          role == 'RESPONDER' &&
-          allocation.responderId == currentUserId &&
-          allocation.isReserved)
-      .toList(growable: false);
+  List<AllocationLine> _dispatchable(EmergencyRequest request) =>
+      request.allocations
+          .where((allocation) =>
+              role == 'RESPONDER' &&
+              allocation.responderId == currentUserId &&
+              allocation.isReserved)
+          .toList(growable: false);
 
   // Responder-side delivery fallback: the responder may complete their own
   // DISPATCHED allocation when the requester never confirms receipt.
-  List<AllocationLine> _deliverable(EmergencyRequest request) => request.allocations
+  List<AllocationLine> _deliverable(EmergencyRequest request) => request
+      .allocations
       .where((allocation) =>
           role == 'RESPONDER' &&
           allocation.responderId == currentUserId &&
           allocation.isDispatched)
       .toList(growable: false);
 
-  List<AllocationLine> _receivable(EmergencyRequest request) => request.allocations
-      .where((allocation) =>
-          role == 'REQUESTER' && allocation.isDispatched)
-      .toList(growable: false);
+  List<AllocationLine> _receivable(EmergencyRequest request) =>
+      request.allocations
+          .where((allocation) => role == 'REQUESTER' && allocation.isDispatched)
+          .toList(growable: false);
 
   String? _allocationStateText(EmergencyRequest request, int resourceId) {
     final statuses = request.allocations
@@ -273,8 +275,7 @@ class BoardPanel extends StatelessWidget {
 
     // Live-location gate: any responder the backend would authorize
     // (participation rule) may stream, not only the acceptedBy lead.
-    final currentResponderParticipates =
-        role == 'RESPONDER' &&
+    final currentResponderParticipates = role == 'RESPONDER' &&
         request.participatesAsResponder(currentUserId) &&
         request.isOpen;
     if (currentResponderParticipates && onStartLocationSharing != null) {
@@ -294,9 +295,10 @@ class BoardPanel extends StatelessWidget {
                     style: TextStyle(fontSize: 12)),
               )
             : FilledButton(
-                onPressed: connectionStatus == RealtimeConnectionStatus.connected
-                    ? () => onStartLocationSharing!(request)
-                    : null,
+                onPressed:
+                    connectionStatus == RealtimeConnectionStatus.connected
+                        ? () => onStartLocationSharing!(request)
+                        : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.blue,
                   padding:
@@ -383,7 +385,8 @@ class BoardPanel extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 12.5, fontWeight: FontWeight.w600),
                     ),
-                    if (request.description != null && request.description!.isNotEmpty)
+                    if (request.description != null &&
+                        request.description!.isNotEmpty)
                       SizedBox(
                         width: 190,
                         child: Text(
@@ -411,14 +414,16 @@ class BoardPanel extends StatelessWidget {
                             style: TextStyle(color: AppColors.textFaint))
                       else
                         ...request.requiredResources.map((line) {
-                          final allocated = request.allocatedFor(line.resourceId);
+                          final allocated =
+                              request.allocatedFor(line.resourceId);
                           return ResourceChip(
                             name: line.resourceName,
                             type: line.resourceType,
                             quantity: line.quantity,
                             trailingText: allocated > 0
                                 ? '$allocated allocated'
-                                : _allocationStateText(request, line.resourceId),
+                                : _allocationStateText(
+                                    request, line.resourceId),
                           );
                         }),
                       if (request.allocations.isNotEmpty) ...[
@@ -576,12 +581,12 @@ class _RequestCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: InfoChip(
-                      label: 'Email', value: requester?.email ?? '-'),
+                  child:
+                      InfoChip(label: 'Email', value: requester?.email ?? '-'),
                 ),
                 Expanded(
-                  child: InfoChip(
-                      label: 'Phone', value: requester?.phone ?? '-'),
+                  child:
+                      InfoChip(label: 'Phone', value: requester?.phone ?? '-'),
                 ),
               ],
             ),
@@ -590,8 +595,8 @@ class _RequestCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: InfoChip(
-                    label: 'Emergency', value: request.emergencyType),
+                child:
+                    InfoChip(label: 'Emergency', value: request.emergencyType),
               ),
               Expanded(
                 child: InfoChip(
@@ -601,7 +606,8 @@ class _RequestCard extends StatelessWidget {
               ),
             ],
           ),
-          if (request.description != null && request.description!.isNotEmpty) ...[
+          if (request.description != null &&
+              request.description!.isNotEmpty) ...[
             const SizedBox(height: 6),
             InfoChip(label: 'Details', value: request.description!),
           ],
@@ -723,19 +729,18 @@ class _RespondersCell extends StatelessWidget {
         if (request.acceptedAt != null)
           Text(
             'LEAD · ACTIVE · at ${formatDateTime(request.acceptedAt)}',
-            style: const TextStyle(
-                fontSize: 10.5, color: AppColors.textFaint),
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
         if ((lead?.phone ?? '').isNotEmpty)
           Text(
             lead!.phone!,
-            style: const TextStyle(
-                fontSize: 10.5, color: AppColors.textFaint),
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
         for (final assignment in additional) ...[
           const SizedBox(height: 4),
           Text(
-            assignment.responder?.name ?? 'Responder #${assignment.responderId}',
+            assignment.responder?.name ??
+                'Responder #${assignment.responderId}',
             style: const TextStyle(
               fontSize: 12.5,
               color: AppColors.text,
@@ -743,14 +748,13 @@ class _RespondersCell extends StatelessWidget {
           ),
           Text(
             'ASSIGNED · ${assignment.status}',
-            style: const TextStyle(
-                fontSize: 10.5, color: AppColors.textFaint),
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           if ((assignment.responder?.phone ?? '').isNotEmpty)
             Text(
               assignment.responder!.phone!,
-              style: const TextStyle(
-                  fontSize: 10.5, color: AppColors.textFaint),
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
         ],
         for (final entry in liveLocations.entries) ...[
