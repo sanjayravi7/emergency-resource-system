@@ -61,9 +61,24 @@ class LiveLocationStore extends ChangeNotifier {
   bool isResponderActivelySharing(int requestId, int responderId) =>
       _activelySharingByRequest[requestId]?.contains(responderId) ?? false;
 
-  /// The latest point of one responder on one request.
+  /// The latest point of one responder on one request. This pair-keyed
+  /// accessor is the authoritative multi-responder API.
   LiveResponderLocation? locationFor(int requestId, int responderId) =>
       _locationsByRequest[requestId]?[responderId];
+
+  /// Convenience accessor for genuinely single-responder contexts: the only
+  /// tracked point of [requestId].
+  ///
+  /// Returns null when the request has no point at all AND when more than
+  /// one responder is tracked - an arbitrary responder is never returned,
+  /// so a multi-responder emergency can not silently degrade into a
+  /// single-responder view. Call [locationFor] with the explicit responder
+  /// id whenever the responder is known.
+  LiveResponderLocation? singleLocationFor(int requestId) {
+    final points = _locationsByRequest[requestId];
+    if (points == null || points.length != 1) return null;
+    return points.values.first;
+  }
 
   void beginRemoteSharing({required int requestId, required int responderId}) {
     if (requestId <= 0 || responderId <= 0) return;
@@ -292,9 +307,14 @@ class LiveLocationStore extends ChangeNotifier {
   void clearRequest(int requestId) => removeRequest(requestId);
 
   /// Persisted (throttled) coordinates of every responder the backend
-  /// snapshot still associates with the request: ACTIVE assignment holders
-  /// plus the legacy acceptedBy lead (pair-scoped rule: only when the lead
-  /// has no assignment row of their own).
+  /// snapshot still associates with the request. Same participation contract
+  /// as Phase E / [EmergencyRequest.participatesAsResponder]:
+  ///   * ACTIVE assignment holders,
+  ///   * (allocation-only participants keep any live/last-known point they
+  ///     already have - the allocation payload carries no coordinates, so
+  ///     there is nothing to merge for them),
+  ///   * the legacy acceptedBy lead (pair-scoped rule: only when the lead
+  ///     has no assignment row of their own).
   Iterable<UserSummary> _participatingResponderSummaries(
     EmergencyRequest request,
   ) sync* {

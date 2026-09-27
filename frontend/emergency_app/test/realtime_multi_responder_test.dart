@@ -1,4 +1,4 @@
-import 'package:dispatch_console_flutter/Services/live_location_store.dart';
+import 'package:dispatch_console_flutter/services/live_location_store.dart';
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,7 +22,7 @@ void main() {
         'responderId': 11,
         'assignment': _assignmentJson(11),
         'assignments': <dynamic>[_assignmentJson(9), _assignmentJson(11)],
-        'request': _requestSnapshot(assignments: [
+        'request': _requestJson(assignments: [
           _assignmentJson(9),
           _assignmentJson(11),
         ]),
@@ -49,7 +49,7 @@ void main() {
         'responderId': 11,
         'assignment': _assignmentJson(11),
         'assignments': <dynamic>[_assignmentJson(9), _assignmentJson(11)],
-        'request': _requestSnapshot(assignments: [
+        'request': _requestJson(assignments: [
           _assignmentJson(9),
           _assignmentJson(11),
         ]),
@@ -59,7 +59,7 @@ void main() {
         'responderId': 11,
         'assignment': _assignmentJson(11),
         'assignments': <dynamic>[_assignmentJson(9), _assignmentJson(11)],
-        'request': _requestSnapshot(assignments: [
+        'request': _requestJson(assignments: [
           _assignmentJson(9),
           _assignmentJson(11),
         ]),
@@ -97,7 +97,7 @@ void main() {
         'status': 'PARTIALLY_ALLOCATED',
         'acceptedById': 9,
         'acceptedAt': '2026-09-26T09:05:00.000Z',
-        'request': _requestSnapshot(
+        'request': _requestJson(
           status: 'PARTIALLY_ALLOCATED',
           assignments: [
             _assignmentJson(9),
@@ -225,7 +225,7 @@ void main() {
       board.handle('request.updated', <String, dynamic>{
         'requestId': 42,
         'status': 'COMPLETED',
-        'request': _requestSnapshot(
+        'request': _requestJson(
           status: 'COMPLETED',
           assignments: [_assignmentJson(9), _assignmentJson(11)],
         ),
@@ -234,6 +234,138 @@ void main() {
       expect(board.store.locationsForRequest(42), isEmpty);
       expect(board.open, isEmpty);
       expect(board.closed.map((r) => r.id), contains(42));
+    });
+
+    // Phase F case 18b ----------------------------------------------------
+    test('per-responder stops never cross-clear, the terminal request does',
+        () {
+      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
+            _assignmentJson(9),
+            _assignmentJson(11),
+          ]));
+
+      for (final responderId in <int>[9, 11]) {
+        board.handle('responder.location.update', <String, dynamic>{
+          'requestId': 42,
+          'responderId': responderId,
+          'latitude': 10.5 + responderId / 100,
+          'longitude': 76.2,
+          'timestamp': '2026-09-26T11:00:00.000Z',
+        });
+      }
+
+      // Backend behaviour A: one stop per responder. Each stop only ends
+      // that responder's stream; the points stay as last-known.
+      board.handle('responder.location.stop', <String, dynamic>{
+        'requestId': 42,
+        'responderId': 9,
+        'timestamp': '2026-09-26T11:02:00.000Z',
+      });
+      expect(board.store.locationsForRequest(42), hasLength(2));
+      expect(board.store.isResponderActivelySharing(42, 9), isFalse);
+      expect(board.store.isResponderActivelySharing(42, 11), isTrue);
+
+      board.handle('responder.location.stop', <String, dynamic>{
+        'requestId': 42,
+        'responderId': 11,
+        'timestamp': '2026-09-26T11:03:00.000Z',
+      });
+      expect(board.store.locationsForRequest(42), hasLength(2),
+          reason: 'stops keep last-known points until the request ends');
+      expect(board.store.isActivelySharing(42), isFalse);
+
+      // Backend behaviour B: the terminal request itself clears everything.
+      board.handle('request.updated', <String, dynamic>{
+        'requestId': 42,
+        'status': 'CANCELLED',
+        'request': _requestJson(
+          status: 'CANCELLED',
+          assignments: [_assignmentJson(9), _assignmentJson(11)],
+        ),
+      });
+
+      expect(board.store.locationsForRequest(42), isEmpty);
+    });
+
+    // Phase F case 18c ----------------------------------------------------
+    test('a redacted terminal request.updated also clears every location',
+        () {
+      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
+            _assignmentJson(9),
+            _assignmentJson(11),
+          ]));
+
+      for (final responderId in <int>[9, 11]) {
+        board.handle('responder.location.update', <String, dynamic>{
+          'requestId': 42,
+          'responderId': responderId,
+          'latitude': 10.5 + responderId / 100,
+          'longitude': 76.2,
+          'timestamp': '2026-09-26T11:00:00.000Z',
+        });
+      }
+      expect(board.store.locationsForRequest(42), hasLength(2));
+
+      // No snapshot in the payload (redacted for this socket), still
+      // terminal: every responder of the request is dropped.
+      board.handle('request.updated', <String, dynamic>{
+        'requestId': 42,
+        'status': 'COMPLETED',
+        'available': false,
+        'updatedAt': '2026-09-26T12:00:00.000Z',
+      });
+
+      expect(board.store.locationsForRequest(42), isEmpty);
+      expect(board.store.isActivelySharing(42), isFalse);
+    });
+
+    // Phase F case 15b ----------------------------------------------------
+    test('a full snapshot REPLACES assignments, an incremental row MERGES',
+        () {
+      final board = _ResponderBoard()..seed(_requestSnapshot(assignments: [
+            _assignmentJson(9),
+          ]));
+
+      // A: full request.updated snapshot with three assignments.
+      board.handle('request.updated', <String, dynamic>{
+        'requestId': 42,
+        'status': 'ACCEPTED',
+        'request': _requestJson(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+          _assignmentJson(12),
+        ]),
+      });
+      expect(board.open.single.assignments, hasLength(3));
+      expect(
+        board.open.single.assignments.map((a) => a.responderId),
+        <int>[9, 11, 12],
+        reason: 'snapshot order is stable (sorted by assignment id)',
+      );
+
+      // A2: a later snapshot with fewer rows replaces the collection - it is
+      // authoritative, not merged.
+      board.handle('request.updated', <String, dynamic>{
+        'requestId': 42,
+        'status': 'ACCEPTED',
+        'request': _requestJson(assignments: [
+          _assignmentJson(9),
+          _assignmentJson(11),
+        ]),
+      });
+      expect(board.open.single.assignments, hasLength(2));
+
+      // B: snapshot-less responder.assigned merges exactly one row and keeps
+      // the existing ones.
+      board.handle('responder.assigned', <String, dynamic>{
+        'requestId': 42,
+        'responderId': 12,
+        'assignment': _assignmentJson(12),
+      });
+      final merged = board.open.single.assignments;
+      expect(merged, hasLength(3));
+      expect(merged.map((a) => a.responderId), <int>[9, 11, 12]);
+      expect(merged.where((a) => a.responderId == 12), hasLength(1));
     });
 
     test('allocation.updated patches a request without losing assignments',
@@ -316,9 +448,15 @@ class _ResponderBoard {
           return;
         }
         // Redacted invalidation: only remove when no longer joinable.
+        final requestId = payload['requestId'];
         if (payload['available'] != true) {
-          final requestId = payload['requestId'];
           pending.removeWhere((request) => request.id == requestId);
+        }
+        // A redacted update can still be terminal: the whole request loses
+        // its tracking state (production uses the same helper).
+        if (requestId is int && isTerminalRequestPayload(payload)) {
+          open.removeWhere((request) => request.id == requestId);
+          store.clearRequest(requestId);
         }
         return;
 

@@ -93,7 +93,10 @@ EmergencyRequest request({
 
 LiveResponderLocation live({
   int requestId = 501,
-  int responderId = 9,
+  // PHASE F correction: the responder identity is never implicit. The map
+  // key (requestId -> responderId) must equal the point's own responderId,
+  // exactly like LiveLocationStore keys its pair-scoped state.
+  required int responderId,
   double latitude = 10.00846,
   double longitude = 76.45163,
   bool isLive = true,
@@ -131,7 +134,7 @@ void main() {
     test('appears for two valid points', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
       );
 
       expect(polylines, hasLength(1));
@@ -149,14 +152,14 @@ void main() {
     test('updates when the responder coordinate changes', () {
       final before = polylinesFor(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
       ).single;
 
       final after = polylinesFor(
         requests: <EmergencyRequest>[request()],
         liveLocations: <int, Map<int, LiveResponderLocation>>{
           501: <int, LiveResponderLocation>{
-            9: live(latitude: 10.02000, longitude: 76.44000),
+            9: live(responderId: 9, latitude: 10.02000, longitude: 76.44000),
           },
         },
       ).single;
@@ -172,7 +175,7 @@ void main() {
     test('no line when emergency coordinates are missing', () {
       final polylines = polylinesFor(
         requests: <EmergencyRequest>[request(latitude: null, longitude: null)],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
       );
 
       expect(polylines, isEmpty);
@@ -193,7 +196,7 @@ void main() {
         requests: <EmergencyRequest>[
           request(status: 'PENDING', responderId: null),
         ],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
       );
 
       expect(polylines, isEmpty);
@@ -213,7 +216,7 @@ void main() {
       expect(
         polylinesFor(
           requests: <EmergencyRequest>[request()],
-          liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+          liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
         ),
         hasLength(1),
       );
@@ -222,7 +225,7 @@ void main() {
         expect(
           polylinesFor(
             requests: <EmergencyRequest>[request(status: terminal)],
-            liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+            liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
           ),
           isEmpty,
           reason: '$terminal requests must not keep a connection line',
@@ -235,7 +238,7 @@ void main() {
         requests: <EmergencyRequest>[request()],
         liveLocations: <int, Map<int, LiveResponderLocation>>{
           501: <int, LiveResponderLocation>{
-            9: live(isLive: false),
+            9: live(responderId: 9, isLive: false),
           },
         },
       );
@@ -247,7 +250,7 @@ void main() {
   group('Google Maps directions URL', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
     )!;
 
     // 6 -------------------------------------------------------------------
@@ -337,7 +340,7 @@ void main() {
         () async {
       final lastKnown = selectDirectConnection(
         requests: <EmergencyRequest>[request()],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(isLive: false)}},
+        liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9, isLive: false)}},
       )!;
       final launcher = FakeUrlLauncher();
 
@@ -365,7 +368,7 @@ void main() {
   group('NavigationInfoCard', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
     )!;
 
     testWidgets('shows LIVE/SET state and a clearly labelled direct distance',
@@ -477,7 +480,7 @@ void main() {
         requests: <EmergencyRequest>[request()],
         liveLocations: <int, Map<int, LiveResponderLocation>>{
           501: <int, LiveResponderLocation>{
-            9: live(isLive: false),
+            9: live(responderId: 9, isLive: false),
           },
         },
       )!;
@@ -506,7 +509,7 @@ void main() {
 
   group('OperationalGoogleMap responsive layout', () {
     final activeRequest = request();
-    final liveLoc = live();
+    final liveLoc = live(responderId: 9);
 
     testWidgets('mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow',
         (tester) async {
@@ -713,8 +716,8 @@ void main() {
     Map<int, Map<int, LiveResponderLocation>> twoResponderLocations() =>
         <int, Map<int, LiveResponderLocation>>{
           501: <int, LiveResponderLocation>{
-            9: live(latitude: 10.05276, longitude: 76.35211),
-            11: live(latitude: 10.10000, longitude: 76.40000),
+            9: live(responderId: 9, latitude: 10.05276, longitude: 76.35211),
+            11: live(responderId: 11, latitude: 10.10000, longitude: 76.40000),
           },
         };
 
@@ -777,7 +780,7 @@ void main() {
         ],
         liveLocations: <int, Map<int, LiveResponderLocation>>{
           501: <int, LiveResponderLocation>{
-            11: live(latitude: 10.05, longitude: 76.35),
+            11: live(responderId: 11, latitude: 10.05, longitude: 76.35),
           },
         },
       );
@@ -795,7 +798,7 @@ void main() {
         ],
         liveLocations: <int, Map<int, LiveResponderLocation>>{
           501: <int, LiveResponderLocation>{
-            11: live(latitude: 10.05, longitude: 76.35),
+            11: live(responderId: 11, latitude: 10.05, longitude: 76.35),
           },
         },
       );
@@ -817,11 +820,16 @@ void main() {
         requests: <EmergencyRequest>[assignedRequest, secondRequest],
         liveLocations: <int, Map<int, LiveResponderLocation>>{
           501: <int, LiveResponderLocation>{
-            9: live(latitude: 10.05276, longitude: 76.35211),
-            11: live(latitude: 10.10000, longitude: 76.40000),
+            9: live(responderId: 9, latitude: 10.05276, longitude: 76.35211),
+            11: live(responderId: 11, latitude: 10.10000, longitude: 76.40000),
           },
           502: <int, LiveResponderLocation>{
-            9: live(latitude: 10.0, longitude: 76.25),
+            9: live(
+              requestId: 502,
+              responderId: 9,
+              latitude: 10.0,
+              longitude: 76.25,
+            ),
           },
         },
       );
@@ -867,10 +875,16 @@ void main() {
       final buttons = find.widgetWithText(TextButton, 'Get directions');
       expect(buttons, findsNWidgets(2));
 
-      await tester.tap(buttons.first);
-      await tester.pump();
-      await tester.tap(buttons.at(1));
-      await tester.pump();
+      // Both cards are laid out inside the viewport and neither is covered
+      // by the Google Maps platform view: a real (hit-tested) tap reaches
+      // each button. ensureVisible only scrolls the deck when needed - it
+      // never disables the hit-test warning.
+      for (var index = 0; index < 2; index++) {
+        await tester.ensureVisible(buttons.at(index));
+        await tester.pumpAndSettle();
+        await tester.tap(buttons.at(index));
+        await tester.pump();
+      }
 
       expect(launcher.launched, hasLength(2));
       final urls = launcher.launched.map((url) => url.toString()).toList();
@@ -883,6 +897,113 @@ void main() {
       }
       expect(urls.first, contains('origin=10.05276,76.35211'));
       expect(urls.last, contains('origin=10.1,76.4'));
+    });
+
+    // Phase F case 23b ---------------------------------------------------
+    testWidgets('every navigation card can be scrolled to and tapped',
+        (tester) async {
+      tester.view.physicalSize = const Size(1000, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      const responderIds = <int>[9, 11, 13, 15, 17];
+      final manyResponders = request(
+        assignments: [for (final id in responderIds) assignment(id)],
+      );
+      final locations = <int, Map<int, LiveResponderLocation>>{
+        501: <int, LiveResponderLocation>{
+          for (final id in responderIds)
+            id: live(
+              responderId: id,
+              latitude: 10.0 + id / 100,
+              longitude: 76.3 + id / 100,
+            ),
+        },
+      };
+
+      final connections = selectDirectConnections(
+        requests: <EmergencyRequest>[manyResponders],
+        liveLocations: locations,
+      );
+      expect(connections.map((c) => c.responderId), responderIds);
+
+      final launched = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 1000,
+              child: NavigationDeck(
+                connections: connections,
+                onGetDirections: (connection) =>
+                    launched.add(connection.responderId),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      // More cards than fit: the deck scrolls horizontally.
+      expect(find.byKey(NavigationDeck.scrollableKey), findsOneWidget);
+      final buttons = find.widgetWithText(TextButton, 'Get directions');
+      expect(buttons, findsNWidgets(responderIds.length));
+
+      for (var index = 0; index < responderIds.length; index++) {
+        await tester.ensureVisible(buttons.at(index));
+        await tester.pumpAndSettle();
+        // Real hit-tested tap (no warnIfMissed: false anywhere).
+        await tester.tap(buttons.at(index));
+        await tester.pump();
+      }
+
+      expect(launched, responderIds);
+    });
+
+    testWidgets('a navigation card is never clipped by the deck',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final connections = selectDirectConnections(
+        requests: <EmergencyRequest>[assignedRequest],
+        liveLocations: twoResponderLocations(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 1200,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: NavigationDeck(
+                  connections: connections,
+                  onGetDirections: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      final deckHeight = tester.getSize(find.byType(NavigationDeck)).height;
+      for (var index = 0; index < connections.length; index++) {
+        final card = find.byType(NavigationInfoCard).at(index);
+        final cardRect = tester.getRect(card);
+        expect(cardRect.height, lessThanOrEqualTo(deckHeight),
+            reason: 'card $index must fit in the deck, not be clipped');
+        final button =
+            find.widgetWithText(TextButton, 'Get directions').at(index);
+        expect(tester.getRect(button).bottom,
+            lessThanOrEqualTo(cardRect.bottom + 0.5),
+            reason: 'the directions button stays inside its card');
+      }
     });
 
     // Phase F case 24 ----------------------------------------------------
@@ -905,7 +1026,7 @@ void main() {
   test('direct distance is straight-line only', () {
     final connection = selectDirectConnection(
       requests: <EmergencyRequest>[request()],
-      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live()}},
+      liveLocations: <int, Map<int, LiveResponderLocation>>{501: <int, LiveResponderLocation>{9: live(responderId: 9)}},
     )!;
 
     // Haversine distance between the two fixed points ≈ 12.0 km.

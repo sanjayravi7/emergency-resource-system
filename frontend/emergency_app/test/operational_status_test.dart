@@ -1,4 +1,4 @@
-import 'package:dispatch_console_flutter/Services/socket_service.dart';
+import 'package:dispatch_console_flutter/services/socket_service.dart';
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/widgets/common_widgets.dart';
 import 'package:dispatch_console_flutter/widgets/operational_status.dart';

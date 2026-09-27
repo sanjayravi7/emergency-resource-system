@@ -96,15 +96,21 @@ List<DirectConnection> selectDirectConnections({
     final points = liveLocations[request.id];
     if (points == null || points.isEmpty) continue;
 
-    for (final live in points.values) {
+    // The state is pair-keyed (requestId -> responderId -> point), so the
+    // map key IS the responder identity; every participating responder is
+    // evaluated independently and one responder can never mask another.
+    for (final entry in points.entries) {
+      final responderId = entry.key;
+      final live = entry.value;
+
       // Relevance mirrors the backend participation rule; a location of an
       // unrelated responder never yields a connection.
-      if (!request.participatesAsResponder(live.responderId)) continue;
+      if (!request.participatesAsResponder(responderId)) continue;
 
       connections.add(
         DirectConnection(
           requestId: request.id,
-          responderId: live.responderId,
+          responderId: responderId,
           responder: GeoPoint(live.latitude, live.longitude),
           emergency: GeoPoint(request.latitude!, request.longitude!),
           responderIsLive: live.isLive,

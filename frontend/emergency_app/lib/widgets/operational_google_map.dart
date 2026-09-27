@@ -100,24 +100,25 @@ class OperationalMapMarkerBuilder {
       final request = openRequests[requestEntry.key];
       if (request == null) continue;
 
-      for (final live in requestEntry.value.values) {
-        final responderName =
-            _responderDisplayName(request, live.responderId);
+      for (final responderEntry in requestEntry.value.entries) {
+        final responderId = responderEntry.key;
+        final live = responderEntry.value;
+        final responderName = _responderDisplayName(request, responderId);
         final assignedResources = request.activeAllocations
-            .where((allocation) => allocation.responderId == live.responderId)
+            .where((allocation) => allocation.responderId == responderId)
             .map((allocation) => allocation.resourceName)
             .toSet()
             .join(', ');
 
         snapshots.add(
           OperationalMapMarkerSnapshot(
-            id: 'responder-${request.id}-${live.responderId}',
+            id: 'responder-${request.id}-$responderId',
             kind: live.isLive
                 ? OperationalMapMarkerKind.liveResponder
                 : OperationalMapMarkerKind.lastKnownResponder,
             position: LatLng(live.latitude, live.longitude),
             requestId: request.id,
-            responderId: live.responderId,
+            responderId: responderId,
             title: live.isLive
                 ? 'LIVE responder · $responderName'
                 : 'LAST KNOWN responder · $responderName',
@@ -186,7 +187,7 @@ class OperationalMapMarkerBuilder {
 /// the pre-multi-responder single-line id for compatibility.
 const PolylineId kDirectConnectionPolylineId = PolylineId('direct-connection');
 
-/// Unique per-pair polyline id ('direct-connection-<request>-<responder>').
+/// Unique per-pair polyline id (`direct-connection-<request>-<responder>`).
 PolylineId directConnectionPolylineIdFor(
   int requestId,
   int responderId,
@@ -624,10 +625,18 @@ class _MapOverlayControls extends StatelessWidget {
 
 /// PHASE F: one navigation card per responder → emergency connection.
 ///
-/// Mobile: a single connection keeps the familiar full-width card; several
-/// connections render as a horizontally scrollable row of compact cards so
-/// the narrow viewport never overflows. Desktop: compact cards wrap, capped
-/// in height with an inner scroll for very large responder counts.
+/// A single connection keeps the familiar card (full-width on mobile,
+/// compact on desktop). Several connections render as a horizontally
+/// scrollable row of fixed-width cards on every surface:
+///
+///   * the row is laid out in the cross axis by its content, so a card is
+///     never clipped vertically and every "Get directions" button stays
+///     fully hit-testable,
+///   * the cards scroll horizontally when they do not all fit, which keeps
+///     narrow (mobile) viewports overflow-free and lets a large responder
+///     count remain reachable on desktop,
+///   * the deck always paints above the Google Maps platform view, so the
+///     map can never cover a card.
 ///
 /// Straight-line distances and the existing Google Maps URL launcher only -
 /// no ETA, no road routes, no routing API.
@@ -639,56 +648,56 @@ class NavigationDeck extends StatelessWidget {
     this.isMobile = false,
   });
 
+  /// Width of one card inside the multi-connection scroller.
+  static const double cardWidth = 250;
+
+  /// Gap between two cards inside the multi-connection scroller.
+  static const double cardSpacing = 8;
+
   final List<DirectConnection> connections;
   final void Function(DirectConnection connection) onGetDirections;
   final bool isMobile;
+
+  /// Scroll key of the multi-card deck, so tests (and `Scrollable.of`) can
+  /// bring any card into view.
+  static const Key scrollableKey = Key('navigation-deck-scroll');
 
   @override
   Widget build(BuildContext context) {
     if (connections.isEmpty) return const SizedBox.shrink();
 
-    if (isMobile) {
-      if (connections.length == 1) {
-        return NavigationInfoCard(
-          connection: connections.single,
-          isMobile: true,
-          onGetDirections: () => onGetDirections(connections.single),
-        );
-      }
-      return SizedBox(
-        height: 148,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: connections.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, index) {
-            final connection = connections[index];
-            return SizedBox(
-              width: 250,
-              child: NavigationInfoCard(
-                connection: connection,
-                onGetDirections: () => onGetDirections(connection),
-              ),
-            );
-          },
-        ),
+    if (connections.length == 1) {
+      return NavigationInfoCard(
+        connection: connections.single,
+        isMobile: isMobile,
+        onGetDirections: () => onGetDirections(connections.single),
       );
     }
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 190),
-      child: SingleChildScrollView(
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            for (final connection in connections)
-              NavigationInfoCard(
-                connection: connection,
-                onGetDirections: () => onGetDirections(connection),
+    return SingleChildScrollView(
+      key: scrollableKey,
+      scrollDirection: Axis.horizontal,
+      // The deck is an overlay/inline strip, never the page scroll view.
+      primary: false,
+      padding: EdgeInsets.zero,
+      // Plain Row (no IntrinsicHeight: NavigationInfoCard uses a
+      // LayoutBuilder, which cannot answer intrinsic queries). Every card
+      // keeps its natural height, so nothing is ever clipped away.
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          for (var index = 0; index < connections.length; index++) ...<Widget>[
+            if (index > 0) const SizedBox(width: cardSpacing),
+            SizedBox(
+              width: cardWidth,
+              child: NavigationInfoCard(
+                connection: connections[index],
+                onGetDirections: () => onGetDirections(connections[index]),
               ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

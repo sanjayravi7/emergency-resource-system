@@ -3,7 +3,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'location_service.dart';
-import '../Services/api_service.dart';
+import 'api_service.dart';
 
 /// Flutter Web implementation.
 ///
