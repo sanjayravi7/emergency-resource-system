@@ -10,6 +10,7 @@ const prisma = require('../../src/config/prisma');
 const { createSocketServer } = require('../../src/realtime/socketServer');
 const { closeSocketServer } = require('../../src/realtime/socketEvents');
 const errorHandler = require('../../src/middleware/errorMiddleware');
+const logger = require('../../src/config/logger');
 
 const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
 
@@ -1010,8 +1011,17 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
     });
 
     test('error boundary sanitizes Prisma details and logs expected conflicts without stacks', () => {
-      const prismaLog = jest.spyOn(console, 'error').mockImplementation(() => {});
-      const conflictLog = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      // Phase I contract: the error boundary reports through the structured
+      // logger (stable event name + safe metadata), not through raw console
+      // strings. The logger itself stays quiet under NODE_ENV=test unless
+      // LOG_IN_TEST is set, so we enable it here to also assert that the
+      // rendered log line carries no query text or stack trace.
+      const previousLogInTest = process.env.LOG_IN_TEST;
+      process.env.LOG_IN_TEST = '1';
+      const prismaLog = jest.spyOn(logger, 'error');
+      const conflictLog = jest.spyOn(logger, 'warn');
+      const errorSink = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const warnSink = jest.spyOn(console, 'warn').mockImplementation(() => {});
       const response = {
         statusCode: 0,
         body: null,
@@ -1033,16 +1043,42 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
         statusCode: 500,
         body: { success: false, message: 'Database operation failed' },
       });
-      expect(prismaLog).toHaveBeenCalledWith('Database operation failed (P2025)');
+      // Only the safe Prisma code reaches the structured logger.
+      expect(prismaLog).toHaveBeenCalledWith(
+        'database.error',
+        expect.objectContaining({ code: 'P2025' })
+      );
       expect(JSON.stringify(prismaLog.mock.calls)).not.toContain('secret SQL');
+      expect(JSON.stringify(prismaLog.mock.calls)).not.toContain('prisma.user.findMany');
+      // ...and nothing unsafe survives into the emitted log line either.
+      const prismaLine = JSON.stringify(errorSink.mock.calls);
+      expect(prismaLine).toContain('database.error');
+      expect(prismaLine).toContain('P2025');
+      expect(prismaLine).not.toContain('secret SQL');
+      expect(prismaLine).not.toContain('\\n    at ');
 
       errorHandler(new Error('Receipt has already been confirmed'), {}, response, () => {});
       expect(conflictLog).toHaveBeenCalledWith(
-        'Business conflict: Receipt has already been confirmed'
+        'business.conflict',
+        expect.objectContaining({ message: 'Receipt has already been confirmed' })
       );
-      expect(JSON.stringify(conflictLog.mock.calls)).not.toContain('\n    at ');
+      expect(JSON.stringify(conflictLog.mock.calls)).not.toContain('\\n    at ');
+      expect(JSON.stringify(warnSink.mock.calls)).not.toContain('\\n    at ');
+      // Business conflict behaviour is unchanged: message + status preserved.
+      expect(response).toMatchObject({
+        statusCode: 500,
+        body: { success: false, message: 'Receipt has already been confirmed' },
+      });
+
       prismaLog.mockRestore();
       conflictLog.mockRestore();
+      errorSink.mockRestore();
+      warnSink.mockRestore();
+      if (previousLogInTest === undefined) {
+        delete process.env.LOG_IN_TEST;
+      } else {
+        process.env.LOG_IN_TEST = previousLogInTest;
+      }
     });
   }
 );
