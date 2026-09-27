@@ -26,7 +26,20 @@ jobs:
       - run: dart format --output=none lib test
       - run: flutter analyze
       - name: Flutter full suite run 1
-        run: flutter test
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          flutter test > /tmp/flutter-test.log 2>&1
+          code=$?
+          cat /tmp/flutter-test.log
+          if [ "$code" -ne 0 ]; then
+            sha=$(base64 -w0 /tmp/flutter-test.log | jq -Rs '{encoding:"base64",content:.}' | gh api \
+              --method POST -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/git/blobs" --input - --jq .sha)
+            echo "::error title=Flutter test log blob $sha::Retrieve this diagnostic through the Git blob API"
+          fi
+          exit "$code"
       - name: Flutter full suite run 2
         run: flutter test
       - name: Phase H Flutter E2E run 1
