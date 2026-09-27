@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const env = require("../config/env");
 const prisma = require("../config/prisma");
+const logger = require("../config/logger");
 
 async function authMiddleware(req, res, next) {
   try {
@@ -24,12 +25,21 @@ async function authMiddleware(req, res, next) {
 
     const decoded = jwt.verify(token, env.JWT_SECRET);
 
+    const userId = Number(decoded.userId);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired token",
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: {
-        id: Number(decoded.userId),
+        id: userId,
       },
       select: {
         id: true,
+        role: true,
         isActive: true,
       },
     });
@@ -42,15 +52,22 @@ async function authMiddleware(req, res, next) {
     }
 
     if (!user.isActive) {
+      logger.warn("auth.inactive_user_rejected", { userId: user.id });
       return res.status(401).json({
         success: false,
         message: "User is inactive",
       });
     }
 
+    // Role and identity are sourced from the CURRENT database record, never
+    // from the (client-presented) token claims. A demoted or role-changed user
+    // therefore loses/gains privileges immediately, and a tampered token cannot
+    // assert a role the account does not hold.
     req.user = {
       ...decoded,
-      id: decoded.userId,
+      id: user.id,
+      userId: user.id,
+      role: user.role,
     };
 
     next();

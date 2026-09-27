@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 
+const env = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const resourceRoutes = require('./routes/resourceRoutes');
@@ -11,11 +13,44 @@ const adminRoutes = require('./routes/adminRoutes');
 const userRoutes = require('./routes/userRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const errorMiddleware = require('./middleware/errorMiddleware');
+const { authLimiter, apiLimiter } = require('./middleware/rateLimiters');
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+// Trust the reverse proxy / load balancer in production so express-rate-limit
+// and req.ip see the real client address, not the proxy hop. Configurable via
+// TRUST_PROXY; defaults to a single hop in production, off in local dev.
+app.set('trust proxy', env.TRUST_PROXY);
+
+// Never advertise the framework. Helmet also removes this, kept explicit.
+app.disable('x-powered-by');
+
+// Security headers (CSP is intentionally left at helmet defaults; the Flutter
+// web bundle is served separately). helmet is attached to the Express app only
+// and does not affect the Socket.IO handshake, which is served by the raw HTTP
+// server.
+app.use(helmet());
+
+// CORS. Default reflects any origin (historical Flutter web + native client
+// behaviour); a CORS_ORIGINS allowlist locks it down in production.
+app.use(
+  cors({
+    origin: env.CORS_ORIGIN,
+    credentials: true,
+  })
+);
+
+// Bounded JSON body parsing. Oversized bodies are rejected by body-parser with
+// a 413 (surfaced by errorMiddleware) before any controller runs.
+app.use(express.json({ limit: env.JSON_BODY_LIMIT }));
+
+// Generous catch-all limiter for abusive traffic. GPS / heartbeat paths are
+// skipped inside the limiter so emergency location streaming is never throttled.
+app.use('/api', apiLimiter);
+
+// Strict limiter for credential endpoints only.
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/requests', requestRoutes);
@@ -26,6 +61,12 @@ app.use('/api/responder-resources', responderResourceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/location', locationRoutes);
+
+// Unknown routes get a JSON 404 rather than the default HTML body, so clients
+// always receive a consistent, non-leaky envelope.
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Not found' });
+});
 
 app.use(errorMiddleware);
 
