@@ -80,13 +80,23 @@ EmergencyRequest _workflowRequest({
       'requiredResources': <dynamic>[
         <String, dynamic>{
           'resourceId': 4,
-          'resourceName': 'Blood',
           'quantity': 2,
+          'resource': <String, dynamic>{
+            'id': 4,
+            'name': 'Blood',
+            'type': 'Medical',
+            'mode': 'CONSUMABLE',
+          },
         },
         <String, dynamic>{
           'resourceId': 5,
-          'resourceName': 'Fire Service',
           'quantity': 1,
+          'resource': <String, dynamic>{
+            'id': 5,
+            'name': 'Fire Service',
+            'type': 'Fire',
+            'mode': 'SERVICE',
+          },
         },
       ],
       'assignments': assignments ??

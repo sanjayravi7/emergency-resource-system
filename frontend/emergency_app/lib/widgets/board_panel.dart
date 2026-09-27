@@ -564,20 +564,36 @@ class _RequestCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final requestId = Text(
                 request.displayId,
                 style: monoStyle(
-                    size: 12.5,
-                    color: AppColors.textDim,
-                    weight: FontWeight.w600),
-              ),
-              const SizedBox(width: 8),
-              StatusPill(status: request.status),
-              const Spacer(),
-              PriorityPill(priority: request.priority),
-            ],
+                  size: 12.5,
+                  color: AppColors.textDim,
+                  weight: FontWeight.w600,
+                ),
+              );
+              final status = StatusPill(status: request.status);
+              final priority = PriorityPill(priority: request.priority);
+              if (constraints.maxWidth < 360) {
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [requestId, status, priority],
+                );
+              }
+              return Row(
+                children: [
+                  requestId,
+                  const SizedBox(width: 8),
+                  status,
+                  const Spacer(),
+                  priority,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           OperationalTimeline(request: request),
