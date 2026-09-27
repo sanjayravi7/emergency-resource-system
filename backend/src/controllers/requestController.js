@@ -66,7 +66,11 @@ exports.cancelMyRequest = async (req, res, next) => {
 
 exports.getAllRequests = async (req, res, next) => {
   try {
-    const requests = await requestService.getAllRequests();
+    // This legacy responder endpoint is intentionally scoped. Admins use the
+    // separately protected /api/admin/requests endpoint for global oversight.
+    const requests = await requestService.getVisibleRequestsForResponder(
+      req.user.id
+    );
     res.json({ success: true, requests });
   } catch (error) {
     next(error);

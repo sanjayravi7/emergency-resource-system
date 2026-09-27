@@ -19,6 +19,7 @@ const {
   emitRequestUpdated,
   emitResponderAssigned,
   emitResponderAvailability,
+  emitResponderLocationStop,
 } = require('../realtime/eventEmitters');
 const { getIO } = require('../realtime/socketEvents');
 
@@ -263,7 +264,7 @@ exports.cancelEmergencyRequest = async (userId, id) => {
     throw new Error('Request not found');
   }
 
-  const { cancelled, syncedResponderIds } =
+  const { cancelled, syncedResponderIds, terminalResponderIds } =
     await runSerializableTransaction(async (tx) => {
     const lockedRequests = await tx.$queryRaw`
       SELECT id, "requesterId", "acceptedById", status
@@ -283,13 +284,25 @@ exports.cancelEmergencyRequest = async (userId, id) => {
       throw new Error('Completed requests cannot be cancelled');
     }
 
-    const candidates = await tx.allocation.findMany({
-      where: {
-        requestId,
-        status: { in: ['RESERVED', 'DISPATCHED'] },
-      },
-      select: { id: true },
-    });
+    const [candidates, activeAssignments] = await Promise.all([
+      tx.allocation.findMany({
+        where: {
+          requestId,
+          status: { in: ['RESERVED', 'DISPATCHED'] },
+        },
+        select: { id: true, responderId: true },
+      }),
+      tx.responderAssignment.findMany({
+        where: { requestId, status: 'ACTIVE' },
+        select: { responderId: true },
+      }),
+    ]);
+    const terminalResponderIds = [
+      ...new Set([
+        ...candidates.map((row) => row.responderId),
+        ...activeAssignments.map((row) => row.responderId),
+      ]),
+    ];
 
     for (const candidate of candidates) {
       const lockedAllocations = await tx.$queryRaw`
@@ -367,11 +380,11 @@ exports.cancelEmergencyRequest = async (userId, id) => {
       requestId
     );
 
-    return { cancelled, syncedResponderIds };
+    return { cancelled, syncedResponderIds, terminalResponderIds };
   });
 
   await emitAfterCommit(async () => {
-    await emitRequestUpdated(requestId);
+    await emitRequestUpdated(requestId, terminalResponderIds);
     await emitAllocationsForRequest(requestId);
     for (const responderId of syncedResponderIds) {
       await emitResponderAvailability(responderId);
@@ -386,6 +399,24 @@ exports.getAllRequests = async () =>
     include: requestInclude,
     orderBy: { createdAt: 'desc' },
   });
+
+/**
+ * Safe responder overview used by the legacy GET /api/requests route.
+ * Responders may see only work they already participate in or requests the
+ * compatibility contract currently allows them to discover. The old
+ * unfiltered implementation exposed every requester's private emergency.
+ */
+exports.getVisibleRequestsForResponder = async (responderId) => {
+  const [assigned, compatible] = await Promise.all([
+    exports.getAssignedRequestsForResponder(responderId),
+    exports.getCompatibleRequestsForResponder(responderId),
+  ]);
+  const byId = new Map();
+  for (const request of [...assigned, ...compatible]) byId.set(request.id, request);
+  return [...byId.values()].sort((left, right) =>
+    right.createdAt.getTime() - left.createdAt.getTime()
+  );
+};
 
 // ResponderAssignment is authoritative, but the legacy acceptedById rows and
 // the "allocated without accepting" flow are deliberately still returned so
@@ -787,6 +818,14 @@ exports.endResponderAssignment = async (actor, requestId, responderId = actor.id
 
   await emitAfterCommit(async () => {
     await emitRequestUpdated(numericRequestId, [numericResponderId]);
+    const stillParticipatesThroughAllocation = result.request.allocations.some(
+      (allocation) =>
+        allocation.responderId === numericResponderId &&
+        UNFINISHED_ALLOCATION_STATUSES.includes(allocation.status)
+    );
+    if (!stillParticipatesThroughAllocation) {
+      await emitResponderLocationStop(numericRequestId, numericResponderId);
+    }
     for (const id of result.syncedResponderIds) await emitResponderAvailability(id);
   });
   return result.request;
@@ -797,10 +836,24 @@ exports.updateRequestStatus = async (requestId, status) => {
   if (!['COMPLETED', 'CANCELLED'].includes(status)) {
     return prisma.emergencyRequest.update({ where: { id: numericRequestId }, data: { status } });
   }
+  // Admin cancellation follows the exact requester cleanup transaction rather
+  // than bypassing allocation cancellation/inventory restoration.
+  if (status === 'CANCELLED') {
+    const request = await prisma.emergencyRequest.findUnique({
+      where: { id: numericRequestId },
+      select: { requesterId: true },
+    });
+    if (!request) throw new Error('Request not found');
+    return exports.cancelEmergencyRequest(request.requesterId, numericRequestId);
+  }
   const result = await runSerializableTransaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "EmergencyRequest" WHERE id = ${numericRequestId} FOR UPDATE`;
     const existing = await tx.emergencyRequest.findUnique({ where: { id: numericRequestId } });
     if (!existing) throw new Error('Request not found');
+    const activeAssignments = await tx.responderAssignment.findMany({
+      where: { requestId: numericRequestId, status: 'ACTIVE' },
+      select: { responderId: true },
+    });
     await tx.responderAssignment.updateMany({
       where: { requestId: numericRequestId, status: 'ACTIVE' },
       data: { status: 'ENDED', endedAt: new Date() },
@@ -809,10 +862,14 @@ exports.updateRequestStatus = async (requestId, status) => {
       where: { id: numericRequestId }, data: { status }, include: requestInclude,
     });
     const syncedResponderIds = await syncResponderAvailabilityForRequest(tx, numericRequestId);
-    return { updated, syncedResponderIds };
+    return {
+      updated,
+      syncedResponderIds,
+      terminalResponderIds: activeAssignments.map((row) => row.responderId),
+    };
   });
   await emitAfterCommit(async () => {
-    await emitRequestUpdated(numericRequestId);
+    await emitRequestUpdated(numericRequestId, result.terminalResponderIds);
     for (const id of result.syncedResponderIds) await emitResponderAvailability(id);
   });
   return result.updated;

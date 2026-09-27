@@ -104,8 +104,12 @@ List<DirectConnection> selectDirectConnections({
       final live = entry.value;
 
       // Relevance mirrors the backend participation rule; a location of an
-      // unrelated responder never yields a connection.
-      if (!request.participatesAsResponder(responderId)) continue;
+      // unrelated responder never yields a connection. Malformed coordinates
+      // are ignored instead of reaching map geometry/navigation URLs.
+      if (!request.participatesAsResponder(responderId) ||
+          !isValidCoordinatePair(live.latitude, live.longitude)) {
+        continue;
+      }
 
       connections.add(
         DirectConnection(

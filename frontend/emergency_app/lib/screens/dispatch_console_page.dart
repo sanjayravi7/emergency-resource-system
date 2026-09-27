@@ -194,9 +194,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       final requestId = _asEventInt(event.payload['requestId']);
       final responderId = _asEventInt(event.payload['responderId']);
       if (requestId != null && responderId != null) {
-        locationStore.applyUpdate(
-          LiveResponderLocation.fromJson(event.payload),
-        );
+        final location = LiveResponderLocation.tryFromJson(event.payload);
+        if (location != null) locationStore.applyUpdate(location);
       }
       return;
     }
@@ -255,6 +254,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           }
           locationStore.clearRequest(requestId);
         }
+
+        // A redacted invalidation intentionally carries no private snapshot.
+        // REST is authoritative for deciding whether this particular responder
+        // gained/lost compatibility (including ACCEPTED requests that remain
+        // joinable after another responder accepted first).
+        if (isResponder) await loadRequests(silent: true);
       }
       return;
     }
@@ -597,10 +602,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   List<EmergencyRequest> _parseRequests(List<dynamic> data) {
-    return data
-        .map((item) =>
-            EmergencyRequest.fromJson(Map<String, dynamic>.from(item as Map)))
-        .toList();
+    final byId = <int, EmergencyRequest>{};
+    for (final item in data) {
+      if (item is! Map) continue;
+      final request =
+          EmergencyRequest.fromJson(Map<String, dynamic>.from(item));
+      if (request.id > 0) byId[request.id] = request;
+    }
+    return byId.values.toList(growable: false);
   }
 
   /// Same GPS read, exposed to the requester form as a plain GeoPoint so the
@@ -691,6 +700,29 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       showToast('${request.displayId} accepted');
     } catch (error) {
       showToast('Accept failed: ${_clean(error)}');
+    }
+
+    await loadRequests();
+    await loadResponders();
+    await loadMyInventory();
+  }
+
+  Future<void> endAssignment(EmergencyRequest request) async {
+    try {
+      final response = await ApiService.endMyAssignment(request.id);
+      final rawRequest = response['request'];
+      if (rawRequest is Map) {
+        final updated = EmergencyRequest.fromJson(
+          Map<String, dynamic>.from(rawRequest),
+        );
+        if (!updated.participatesAsResponder(ApiService.currentUserId) &&
+            locationStore.localSharingRequestId == request.id) {
+          await _stopLocalLocationSharing(request.id, emitStop: false);
+        }
+      }
+      showToast('${request.displayId} assignment ended');
+    } catch (error) {
+      showToast('End assignment failed: ${_clean(error)}');
     }
 
     await loadRequests();
@@ -1285,6 +1317,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             emptyMessage:
                 'Accept a compatible request below to start working on it.',
             onAllocate: openAllocationDialog,
+            onEndAssignment: endAssignment,
             onDispatchAllocation: dispatchAllocation,
             onMarkDelivered: markAllocationDelivered,
             onStartLocationSharing: startLocationSharing,
@@ -1301,16 +1334,16 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       children.add(const SizedBox(height: 18));
       children.add(
         BoardPanel(
-          title: 'COMPATIBLE PENDING REQUESTS',
-          hint: 'Matched against your available inventory',
+          title: 'COMPATIBLE REQUESTS',
+          hint: 'Outstanding work matched against your capabilities',
           requests: pendingCompatible,
           role: role,
           currentUserId: ApiService.currentUserId,
           emptyTitle: 'NO COMPATIBLE REQUESTS',
           emptyIcon: Icons.inbox_outlined,
-          emptyMessage:
-              'New pending requests will appear here when your available '
-              'inventory matches every required resource.',
+            emptyMessage:
+              'Open requests appear here when at least one outstanding '
+              'resource matches your available capabilities.',
           onAccept: acceptRequest,
           connectionStatus: connectionStatus,
           isMobile: isMobile,

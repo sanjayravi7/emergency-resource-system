@@ -42,6 +42,16 @@ DateTime? _asDate(dynamic value) {
   return DateTime.tryParse(value.toString());
 }
 
+bool isValidCoordinatePair(double? latitude, double? longitude) =>
+    latitude != null &&
+    longitude != null &&
+    latitude.isFinite &&
+    longitude.isFinite &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180;
+
 Map<String, dynamic> _asMap(dynamic value) {
   if (value is Map) {
     return Map<String, dynamic>.from(value);
@@ -313,16 +323,42 @@ class LiveResponderLocation {
   final DateTime updatedAt;
   final bool isLive;
 
-  factory LiveResponderLocation.fromJson(Map<String, dynamic> json) {
+  /// Strict parser for realtime telemetry. Missing or out-of-range coordinates
+  /// are ignored instead of becoming a fabricated marker at 0,0.
+  static LiveResponderLocation? tryFromJson(Map<String, dynamic> json) {
+    final requestId = _asIntOrNull(json['requestId']);
+    final responderId = _asIntOrNull(json['responderId']);
+    final latitude = _asDoubleOrNull(json['latitude']);
+    final longitude = _asDoubleOrNull(json['longitude']);
+    if (requestId == null ||
+        requestId <= 0 ||
+        responderId == null ||
+        responderId <= 0 ||
+        !isValidCoordinatePair(latitude, longitude)) {
+      return null;
+    }
     return LiveResponderLocation(
-      requestId: _asInt(json['requestId']),
-      responderId: _asInt(json['responderId']),
-      latitude: _asDoubleOrNull(json['latitude']) ?? 0,
-      longitude: _asDoubleOrNull(json['longitude']) ?? 0,
+      requestId: requestId,
+      responderId: responderId,
+      latitude: latitude!,
+      longitude: longitude!,
       updatedAt: _asDate(json['timestamp']) ?? DateTime.now(),
       isLive: true,
     );
   }
+
+  /// Backward-compatible non-null factory for existing call sites. Production
+  /// socket ingestion uses [tryFromJson], so malformed payloads never render.
+  factory LiveResponderLocation.fromJson(Map<String, dynamic> json) =>
+      tryFromJson(json) ??
+      LiveResponderLocation(
+        requestId: _asInt(json['requestId']),
+        responderId: _asInt(json['responderId']),
+        latitude: _asDoubleOrNull(json['latitude']) ?? 0,
+        longitude: _asDoubleOrNull(json['longitude']) ?? 0,
+        updatedAt: _asDate(json['timestamp']) ?? DateTime.now(),
+        isLive: true,
+      );
 
   LiveResponderLocation asNotLive() => LiveResponderLocation(
         requestId: requestId,
@@ -616,6 +652,30 @@ class ResponderAssignmentLine {
 // EMERGENCY REQUEST - mirrors the EmergencyRequest table
 // ---------------------------------------------------------------------------
 
+List<ResponderAssignmentLine> _parseAssignments(dynamic value) {
+  final byResponder = <int, ResponderAssignmentLine>{};
+  for (final json in _asMapList(value)) {
+    final assignment = ResponderAssignmentLine.fromJson(json);
+    // A full REST/socket snapshot is authoritative. If an old proxy duplicated
+    // a row, the last copy wins and one responder still renders exactly once.
+    byResponder[assignment.responderId] = assignment;
+  }
+  final rows = byResponder.values.toList(growable: false)
+    ..sort((left, right) => left.id.compareTo(right.id));
+  return rows;
+}
+
+List<AllocationLine> _parseAllocations(dynamic value) {
+  final byId = <int, AllocationLine>{};
+  for (final json in _asMapList(value)) {
+    final allocation = AllocationLine.fromJson(json);
+    byId[allocation.id] = allocation;
+  }
+  final rows = byId.values.toList(growable: false)
+    ..sort((left, right) => left.id.compareTo(right.id));
+  return rows;
+}
+
 enum RequestStatus {
   pending,
   accepted,
@@ -708,6 +768,7 @@ class EmergencyRequest {
     this.assignments = const <ResponderAssignmentLine>[],
     this.requester,
     this.acceptedBy,
+    this.acceptedById,
     this.acceptedAt,
     this.updatedAt,
     this.latitude,
@@ -735,13 +796,17 @@ class EmergencyRequest {
   /// First/lead responder (legacy compatibility, never overwritten by the
   /// backend). Additional responders live in [assignments].
   final UserSummary? acceptedBy;
+
+  /// Preserved even when an older/redacted payload omits the acceptedBy
+  /// summary. The richer [acceptedBy] object remains the display source.
+  final int? acceptedById;
   final double? latitude;
   final double? longitude;
 
   /// Human readable id used all over the dispatch board (DB-201).
   String get displayId => 'DB-$id';
 
-  bool get hasPreciseLocation => latitude != null && longitude != null;
+  bool get hasPreciseLocation => isValidCoordinatePair(latitude, longitude);
 
   String? get coordinateLabel =>
       hasPreciseLocation ? formatCoordinatePair(latitude!, longitude!) : null;
@@ -772,7 +837,7 @@ class EmergencyRequest {
   /// once the pair has a row (ACTIVE or ENDED), the table alone decides.
   bool isLegacyAcceptedBy(int? userId) =>
       userId != null &&
-      acceptedBy?.id == userId &&
+      (acceptedBy?.id ?? acceptedById) == userId &&
       !assignments.any((a) => a.responderId == userId);
 
   /// The responder owns an unfinished (RESERVED/DISPATCHED) allocation on
@@ -793,6 +858,21 @@ class EmergencyRequest {
           ownsUnfinishedAllocation(userId) ||
           isLegacyAcceptedBy(userId));
 
+  /// De-duplicated responder identities participating through an ACTIVE
+  /// assignment, unfinished allocation, or the pair-scoped legacy lead.
+  Set<int> get activeParticipantResponderIds {
+    final ids = <int>{
+      ...activeAssignments.map((assignment) => assignment.responderId),
+      ...allocations
+          .where((allocation) =>
+              allocation.isReserved || allocation.isDispatched)
+          .map((allocation) => allocation.responderId),
+    }..removeWhere((id) => id <= 0);
+    final leadId = acceptedBy?.id ?? acceptedById;
+    if (leadId != null && isLegacyAcceptedBy(leadId)) ids.add(leadId);
+    return Set<int>.unmodifiable(ids);
+  }
+
   /// ACTIVE assigned responders (assignment summaries), excluding the lead
   /// responder who is rendered separately through the preserved acceptedBy
   /// fields.
@@ -807,18 +887,12 @@ class EmergencyRequest {
   /// The pair (requestId, responderId) is unique in the backend, so an
   /// existing row for the same responder is replaced, never duplicated.
   EmergencyRequest withAssignment(ResponderAssignmentLine assignment) {
-    final nextAssignments = <ResponderAssignmentLine>[];
-    var replaced = false;
-    for (final existing in assignments) {
-      if (existing.responderId == assignment.responderId) {
-        nextAssignments.add(assignment);
-        replaced = true;
-      } else {
-        nextAssignments.add(existing);
-      }
-    }
-    if (!replaced) nextAssignments.add(assignment);
-    nextAssignments.sort((a, b) => a.id.compareTo(b.id));
+    final byResponder = <int, ResponderAssignmentLine>{
+      for (final existing in assignments) existing.responderId: existing,
+      assignment.responderId: assignment,
+    };
+    final nextAssignments = byResponder.values.toList(growable: false)
+      ..sort((a, b) => a.id.compareTo(b.id));
 
     return EmergencyRequest(
       id: id,
@@ -834,6 +908,7 @@ class EmergencyRequest {
       assignments: nextAssignments,
       requester: requester,
       acceptedBy: acceptedBy,
+      acceptedById: acceptedById,
       acceptedAt: acceptedAt,
       updatedAt: updatedAt,
       latitude: latitude,
@@ -883,7 +958,7 @@ class EmergencyRequest {
       for (final existing in allocations)
         if (existing.id != allocation.id) existing,
       allocation,
-    ];
+    ]..sort((left, right) => left.id.compareTo(right.id));
     final nextStatusRaw = backendRequestStatus ?? statusRaw;
 
     return EmergencyRequest(
@@ -900,6 +975,7 @@ class EmergencyRequest {
       assignments: assignments,
       requester: requester,
       acceptedBy: acceptedBy,
+      acceptedById: acceptedById,
       acceptedAt: acceptedAt,
       updatedAt: allocation.updatedAt ?? updatedAt,
       latitude: latitude,
@@ -924,16 +1000,15 @@ class EmergencyRequest {
       requiredResources: _asMapList(json['requiredResources'])
           .map(RequiredResourceLine.fromJson)
           .toList(growable: false),
-      allocations: _asMapList(json['allocations'])
-          .map(AllocationLine.fromJson)
-          .toList(growable: false),
+      allocations: _parseAllocations(json['allocations']),
       // Backward compatible: old payloads without assignments parse to an
-      // empty list (null-safe, no cast failures).
-      assignments: _asMapList(json['assignments'])
-          .map(ResponderAssignmentLine.fromJson)
-          .toList(growable: false),
+      // empty list (null-safe, no cast failures). Duplicate rows from repeated
+      // realtime/reconnect delivery collapse by responder identity.
+      assignments: _parseAssignments(json['assignments']),
       requester: UserSummary.fromJson(json['requester']),
       acceptedBy: UserSummary.fromJson(json['acceptedBy']),
+      acceptedById: _asIntOrNull(json['acceptedById']) ??
+          UserSummary.fromJson(json['acceptedBy'])?.id,
       latitude: _asDoubleOrNull(json['latitude']),
       longitude: _asDoubleOrNull(json['longitude']),
     );

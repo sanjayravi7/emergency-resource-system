@@ -185,14 +185,38 @@ async function loadAllocation(allocationId) {
 function requestRooms(request, extraUserIds = []) {
   const userIds = new Set(extraUserIds.map(Number));
   if (request?.requesterId) userIds.add(request.requesterId);
-  if (request?.acceptedById) userIds.add(request.acceptedById);
 
-  // Multi-responder dispatch: every responder with an ACTIVE assignment on
-  // the request receives the full update through their own user room (they
-  // may not have joined the request room). ResponderAssignment is the
-  // authoritative membership; acceptedById above covers legacy lead rows.
+  const terminal = ['COMPLETED', 'CANCELLED'].includes(request?.status);
+  const leadAssignment = request?.assignments?.find(
+    (assignment) => assignment.responderId === request.acceptedById
+  );
+  // acceptedById is only an active participation fallback when the legacy pair
+  // has no assignment row. An ENDED lead must not keep receiving private
+  // snapshots unless a separate allocation leg (below) remains active.
+  if (
+    request?.acceptedById &&
+    (!leadAssignment || leadAssignment.status === 'ACTIVE')
+  ) {
+    userIds.add(request.acceptedById);
+  }
+
+  // ACTIVE assignment rows receive ordinary snapshots. Terminal lifecycle
+  // callers pass the pre-transition ACTIVE ids through extraUserIds because
+  // those rows are already ENDED by the time the committed snapshot loads.
   for (const assignment of request?.assignments || []) {
     if (assignment.status === 'ACTIVE') userIds.add(assignment.responderId);
+  }
+
+  // Allocation-only responders are participants while work is unfinished.
+  // Non-cancelled owners receive a completion snapshot; a previously
+  // CANCELLED allocation must never revive participation.
+  for (const allocation of request?.allocations || []) {
+    if (
+      (terminal && allocation.status !== 'CANCELLED') ||
+      UNFINISHED_ALLOCATION_STATUSES.includes(allocation.status)
+    ) {
+      userIds.add(allocation.responderId);
+    }
   }
 
   // Full request/allocation snapshots are restricted to the request room,
@@ -314,22 +338,24 @@ async function emitRequestUpdated(requestId, extraUserIds = []) {
   }, [rooms.responders]);
 
   if (['COMPLETED', 'CANCELLED'].includes(request.status)) {
-    // Terminal cleanup is per responder: every participant who may be
-    // streaming a location for this request gets their own stop event, so
-    // one responder's stream ends without terminating anyone else's. The
-    // lead covers legacy rows; ACTIVE assignments cover everyone else.
-    const terminalResponderIds = new Set();
-    if (request.acceptedById) terminalResponderIds.add(request.acceptedById);
-    for (const assignment of request.assignments || []) {
-      if (assignment.status === 'ACTIVE') {
-        terminalResponderIds.add(assignment.responderId);
-      }
+    // Callers supply ids that were ACTIVE immediately before the transaction
+    // ended their assignment rows. Legacy leads without a row and non-
+    // cancelled allocation owners remain derivable from the final snapshot.
+    // Historical ENDED/CANCELLED legs do not regain participation merely
+    // because the request later terminates.
+    const terminalResponderIds = new Set(
+      extraUserIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+    );
+    const leadHasAssignment = (request.assignments || []).some(
+      (assignment) => assignment.responderId === request.acceptedById
+    );
+    if (request.acceptedById && !leadHasAssignment) {
+      terminalResponderIds.add(request.acceptedById);
     }
-    // Allocation-only participants may also be streaming a location
-    // (createAllocation intentionally needs no assignment), so their streams
-    // must stop as well. Extra stop signals are harmless idempotent hints.
     for (const allocation of request.allocations || []) {
-      terminalResponderIds.add(allocation.responderId);
+      if (allocation.status !== 'CANCELLED') {
+        terminalResponderIds.add(allocation.responderId);
+      }
     }
 
     const timestamp = new Date().toISOString();
@@ -346,6 +372,29 @@ async function emitRequestUpdated(requestId, extraUserIds = []) {
       ]);
     }
   }
+}
+
+/**
+ * End one responder's request-scoped stream without disturbing any sibling
+ * responder. Used when an assignment ends and that responder has no unfinished
+ * allocation participation leg left. The event is an idempotent cleanup hint;
+ * the socket server independently re-authorizes every subsequent update.
+ */
+async function emitResponderLocationStop(requestId, responderId) {
+  if (!getIO()) return;
+  const request = await loadRequest(requestId);
+  if (!request) return;
+  const payload = {
+    requestId: Number(requestId),
+    responderId: Number(responderId),
+    timestamp: new Date().toISOString(),
+  };
+  emitToRooms('responder.location.stop', payload, [
+    rooms.request(request.id),
+    rooms.user(request.requesterId),
+    rooms.user(responderId),
+    rooms.admins,
+  ]);
 }
 
 /**
@@ -491,5 +540,6 @@ module.exports = {
   emitRequestUpdated,
   emitResponderAssigned,
   emitResponderAvailability,
+  emitResponderLocationStop,
   requestPayload,
 };

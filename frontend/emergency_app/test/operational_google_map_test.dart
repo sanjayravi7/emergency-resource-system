@@ -217,7 +217,22 @@ void main() {
 
     // Moving responder A must not disturb responder B's marker identity.
     final moved = builder.buildSnapshots(
-      requests: <EmergencyRequest>[_request(701, assignments: const [])],
+      requests: <EmergencyRequest>[
+        _request(701, assignments: [
+          <String, dynamic>{
+            'id': 1,
+            'requestId': 701,
+            'responderId': 9,
+            'status': 'ACTIVE',
+          },
+          <String, dynamic>{
+            'id': 2,
+            'requestId': 701,
+            'responderId': 11,
+            'status': 'ACTIVE',
+          },
+        ])
+      ],
       liveLocations: <int, Map<int, LiveResponderLocation>>{
         701: <int, LiveResponderLocation>{
           9: _live(701, responderId: 9, latitude: 10.599, longitude: 76.299),
@@ -231,7 +246,7 @@ void main() {
     expect(movedB.position.latitude, 10.532);
   });
 
-  test('responder names fall back assignment -> lead -> stable id label', () {
+  test('lead is named and unrelated stale responder points are rejected', () {
     // 9 is the legacy lead (no assignment row), 42 is nobody known.
     final snapshots = builder.buildSnapshots(
       requests: <EmergencyRequest>[
@@ -248,11 +263,9 @@ void main() {
     final lead = snapshots.singleWhere((item) => item.id == 'responder-801-9');
     expect(lead.title, contains('Responder 9'),
         reason: 'legacy acceptedBy name is used for the lead');
-
-    final unknown =
-        snapshots.singleWhere((item) => item.id == 'responder-801-42');
-    expect(unknown.title, contains('Responder #42'),
-        reason: 'unknown responders get a stable non-guessing label');
+    expect(snapshots.map((item) => item.id),
+        isNot(contains('responder-801-42')),
+        reason: 'missed stop events cannot render an unrelated stale point');
   });
 
   test('responder snippets list only that responder\'s allocated resources',

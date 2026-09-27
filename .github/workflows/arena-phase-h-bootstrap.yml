@@ -9,6 +9,33 @@ permissions:
   contents: write
 
 jobs:
+  flutter-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter clean
+      - run: flutter pub get
+      - run: dart format --output=none lib test
+      - run: flutter analyze
+      - name: Flutter full suite run 1
+        run: flutter test
+      - name: Flutter full suite run 2
+        run: flutter test
+      - name: Phase H Flutter E2E run 1
+        run: flutter test test/e2e/phase_h_workflow_test.dart
+      - name: Phase H Flutter E2E run 2
+        run: flutter test test/e2e/phase_h_workflow_test.dart
+      - name: Phase H Flutter E2E run 3
+        run: flutter test test/e2e/phase_h_workflow_test.dart
+
   prisma-engines:
     runs-on: ubuntu-latest
     steps:
