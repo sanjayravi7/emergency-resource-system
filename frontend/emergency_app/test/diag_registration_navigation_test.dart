@@ -61,8 +61,11 @@ class _LoggingObserver extends NavigatorObserver {
       _l('didPop', route, previousRoute);
 
   @override
-  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) =>
-      _l('didReplace', newRoute ?? route!, oldRoute);
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (newRoute != null) {
+      _l('didReplace', newRoute, oldRoute);
+    }
+  }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
