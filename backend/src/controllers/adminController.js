@@ -23,7 +23,11 @@ exports.updateRequestStatus = async (req, res, next) => {
 
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await prisma.user.findMany();
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, email: true, phone: true, role: true,
+        isActive: true, lastActiveAt: true, responderStatus: true, createdAt: true,
+        updatedAt: true },
+    });
     res.json({ success: true, users });
   } catch (error) {
     next(error);
@@ -32,6 +36,13 @@ exports.getAllUsers = async (req, res, next) => {
 
 exports.updateUserRole = async (req, res, next) => {
   try {
+    const allowedRoles = ['REQUESTER', 'RESPONDER', 'ADMIN'];
+    if (!allowedRoles.includes(req.body.role)) {
+      return res.status(400).json({ success: false, message: 'Invalid role' });
+    }
+    if (Number(req.params.id) === req.user.userId && req.body.role !== 'ADMIN') {
+      return res.status(400).json({ success: false, message: 'You cannot demote your own admin account' });
+    }
     const user = await prisma.user.update({
       where: { id: Number(req.params.id) },
       data: { role: req.body.role }

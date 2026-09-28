@@ -53,6 +53,29 @@ class ApiService {
   // AUTH
   // ---------------------------------------------------------------------
 
+  static Future<Map<String, dynamic>> register({
+    required String name,
+    required String email,
+    required String password,
+    String? phone,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'name': name,
+        'email': email,
+        'password': password,
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      }),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 201) {
+      _fail(body, 'Registration failed');
+    }
+    return body;
+  }
+
   static Future<Map<String, dynamic>> login(
     String email,
     String password,

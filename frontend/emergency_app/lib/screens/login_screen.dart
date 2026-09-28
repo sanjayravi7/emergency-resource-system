@@ -5,6 +5,7 @@ import '../services/socket_service.dart';
 import '../theme/app_theme.dart';
 import 'dispatch_console_page.dart';
 import 'responder_readiness_page.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final passwordController = TextEditingController();
 
   bool loading = false;
+  bool obscurePassword = true;
   String? errorMessage;
 
   Future<void> login() async {
@@ -149,10 +151,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 14),
                   TextField(
                     controller: passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: obscurePassword,
+                    decoration: InputDecoration(
                       labelText: 'Password',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        tooltip: 'Show or hide password',
+                        onPressed: () => setState(() => obscurePassword = !obscurePassword),
+                        icon: Icon(obscurePassword ? Icons.visibility : Icons.visibility_off),
+                      ),
                     ),
                     onSubmitted: (_) {
                       if (!loading) login();
@@ -195,9 +202,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           )
                         : const Text('Sign in', style: TextStyle(fontSize: 14)),
                   ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: loading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                    child: const Text("Don't have an account? Create one"),
+                  ),
                   const SizedBox(height: 16),
                   Text(
-                    'API: ${ApiService.baseUrl}',
+                    'ERAS operations console',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.textFaint),
