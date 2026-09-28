@@ -41,7 +41,7 @@ class _RecordingApi {
   int registerStatus = 201;
   String? registerErrorMessage;
 
-  http.MockClient get client => MockClient((request) async {
+  MockClient get client => MockClient((request) async {
         if (request.url.path == '/api/auth/register') {
           registerBody = jsonDecode(request.body) as Map<String, dynamic>;
           if (registerStatus != 201) {
@@ -249,10 +249,10 @@ void main() {
     await tester.pump();
 
     final requesterNode = tester.semantics.find(find.byKey(requesterCardKey));
-    expect(requesterNode.hasFlag(SemanticsFlag.isSelected), isTrue);
+    expect(requesterNode.flagsCollection.isSelected, Tristate.isTrue);
 
     final responderNode = tester.semantics.find(find.byKey(responderCardKey));
-    expect(responderNode.hasFlag(SemanticsFlag.isSelected), isFalse);
+    expect(responderNode.flagsCollection.isSelected, Tristate.isFalse);
 
     handle.dispose();
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
