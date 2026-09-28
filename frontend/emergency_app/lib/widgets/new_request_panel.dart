@@ -347,8 +347,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                       'No active resources are in the catalog yet. An '
                       'administrator can add or restore resources; every '
                       'emergency must name at least one.',
-                      style: TextStyle(
-                          fontSize: 12.5, color: AppColors.textDim),
+                      style:
+                          TextStyle(fontSize: 12.5, color: AppColors.textDim),
                     ),
                   )
                 else

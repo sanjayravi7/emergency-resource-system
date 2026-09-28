@@ -20,7 +20,8 @@ class _StaticLocationService implements LocationService {
     String query, {
     GeoPoint? bias,
     double biasRadiusMeters = 30000,
-  }) async => const <PlacePrediction>[];
+  }) async =>
+      const <PlacePrediction>[];
 
   @override
   Future<ResolvedPlace> resolvePrediction(PlacePrediction prediction) {
@@ -34,7 +35,8 @@ class _StaticLocationService implements LocationService {
     required NearbyPlaceCategory category,
     double radiusMeters = kNearbySearchRadiusMeters,
     int maxResults = kNearbySearchMaxResultCount,
-  }) async => const <NearbyPlace>[];
+  }) async =>
+      const <NearbyPlace>[];
 }
 
 /// A requester must ALWAYS be able to submit an emergency request, no matter
@@ -165,7 +167,8 @@ void main() {
     expect(payload.location, 'Somewhere in Thrissur');
   });
 
-  testWidgets('the requester is told the request queues instead of being blocked',
+  testWidgets(
+      'the requester is told the request queues instead of being blocked',
       (tester) async {
     final payload = await pumpAndSubmit(
       tester,
@@ -192,7 +195,8 @@ void main() {
     expect(payload, isNotNull);
   });
 
-  testWidgets('the explanatory PostgreSQL paragraph is removed', (tester) async {
+  testWidgets('the explanatory PostgreSQL paragraph is removed',
+      (tester) async {
     await pumpAndSubmit(
       tester,
       resources: const <BackendResource>[unstaffedAmbulance],
