@@ -133,9 +133,12 @@ Stream<GeoPoint> watchDeviceLocation() => Geolocator.getPositionStream(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
       ),
-    ).where(
-      (position) => isValidCoordinatePair(position.latitude, position.longitude),
-    ).map((position) => GeoPoint(position.latitude, position.longitude));
+    )
+        .where(
+          (position) =>
+              isValidCoordinatePair(position.latitude, position.longitude),
+        )
+        .map((position) => GeoPoint(position.latitude, position.longitude));
 
 Future<bool> openDeviceLocationSettings() async {
   try {

@@ -335,8 +335,7 @@ class LocationPermissionResult {
   final String message;
 
   bool get isGranted => status == LocationPermissionStatus.granted;
-  bool get isDeniedForever =>
-      status == LocationPermissionStatus.deniedForever;
+  bool get isDeniedForever => status == LocationPermissionStatus.deniedForever;
 }
 
 /// Check the current service + permission state without showing a runtime

@@ -50,8 +50,8 @@ class OperationalMapMarkerSnapshot {
   static final Map<OperationalMapMarkerKind, BitmapDescriptor> _icons =
       <OperationalMapMarkerKind, BitmapDescriptor>{};
 
-  BitmapDescriptor get _icon =>
-      _icons.putIfAbsent(kind, () => BitmapDescriptor.defaultMarkerWithHue(_hue));
+  BitmapDescriptor get _icon => _icons.putIfAbsent(
+      kind, () => BitmapDescriptor.defaultMarkerWithHue(_hue));
 
   double get _hue => switch (kind) {
         OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
@@ -352,151 +352,153 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
         return SizedBox(
           width: mapWidth,
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              height: mapHeight,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(0),
-                ),
-                child: Stack(
-                  children: [
-                    if (markers.isNotEmpty)
-                      GoogleMap(
-                        initialCameraPosition: _initialCamera(snapshots),
-                        markers: markers,
-                        polylines: polylines,
-                        mapToolbarEnabled: false,
-                        // Never ask the Android Maps SDK for its My Location
-                        // layer before Geolocator has granted permission.
-                        myLocationEnabled: widget.locationPermissionGranted,
-                        myLocationButtonEnabled:
-                            widget.locationPermissionGranted,
-                        zoomControlsEnabled: !isMobileLayout,
-                        compassEnabled: true,
-                        onMapCreated: (controller) {
-                          _controller = controller;
-                          unawaited(_applyInitialCamera());
-                        },
-                      )
-                    else
-                      const Positioned.fill(
-                        child: ColoredBox(
-                          color: AppColors.bg,
-                          child: _NoPreciseMarkersOverlay(),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: mapHeight,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(0),
+                  ),
+                  child: Stack(
+                    children: [
+                      if (markers.isNotEmpty)
+                        GoogleMap(
+                          initialCameraPosition: _initialCamera(snapshots),
+                          markers: markers,
+                          polylines: polylines,
+                          mapToolbarEnabled: false,
+                          // Never ask the Android Maps SDK for its My Location
+                          // layer before Geolocator has granted permission.
+                          myLocationEnabled: widget.locationPermissionGranted,
+                          myLocationButtonEnabled:
+                              widget.locationPermissionGranted,
+                          zoomControlsEnabled: !isMobileLayout,
+                          compassEnabled: true,
+                          onMapCreated: (controller) {
+                            _controller = controller;
+                            unawaited(_applyInitialCamera());
+                          },
+                        )
+                      else
+                        const Positioned.fill(
+                          child: ColoredBox(
+                            color: AppColors.bg,
+                            child: _NoPreciseMarkersOverlay(),
+                          ),
                         ),
-                      ),
-                    Positioned(
-                      left: 10,
-                      right: 10,
-                      top: 10,
-                      child: isMobileLayout
-                          ? Align(
-                              alignment: Alignment.topLeft,
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: _MapControls(
-                                  onCenterEmergency: _centerOnEmergency,
-                                  onFitPins:
-                                      markers.isEmpty ? null : _fitAllPins,
-                                  isMobile: true,
-                                ),
-                              ),
-                            )
-                          : _MapOverlayControls(
-                              controls: _MapControls(
-                                onCenterEmergency: _centerOnEmergency,
-                                onFitPins: markers.isEmpty ? null : _fitAllPins,
-                                isMobile: false,
-                              ),
-                              navigationDeck: connections.isEmpty
-                                  ? null
-                                  : NavigationDeck(
-                                      connections: connections,
-                                      onGetDirections: (connection) =>
-                                          unawaited(
-                                              _openDirections(connection)),
-                                    ),
-                            ),
-                    ),
-                    if (markers.isNotEmpty && !widget.locationPermissionGranted)
                       Positioned(
                         left: 10,
                         right: 10,
-                        bottom: 10,
-                        child: _LocationPermissionNotice(
-                          onRequest: widget.onRequestLocationPermission,
-                        ),
+                        top: 10,
+                        child: isMobileLayout
+                            ? Align(
+                                alignment: Alignment.topLeft,
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: _MapControls(
+                                    onCenterEmergency: _centerOnEmergency,
+                                    onFitPins:
+                                        markers.isEmpty ? null : _fitAllPins,
+                                    isMobile: true,
+                                  ),
+                                ),
+                              )
+                            : _MapOverlayControls(
+                                controls: _MapControls(
+                                  onCenterEmergency: _centerOnEmergency,
+                                  onFitPins:
+                                      markers.isEmpty ? null : _fitAllPins,
+                                  isMobile: false,
+                                ),
+                                navigationDeck: connections.isEmpty
+                                    ? null
+                                    : NavigationDeck(
+                                        connections: connections,
+                                        onGetDirections: (connection) =>
+                                            unawaited(
+                                                _openDirections(connection)),
+                                      ),
+                              ),
                       ),
-                  ],
-                ),
-              ),
-            ),
-            if (isMobileLayout && connections.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                child: NavigationDeck(
-                  connections: connections,
-                  isMobile: true,
-                  onGetDirections: (connection) =>
-                      unawaited(_openDirections(connection)),
-                ),
-              ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                isMobileLayout ? 12 : 16,
-                isMobileLayout ? 10 : 10,
-                isMobileLayout ? 12 : 16,
-                12,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: isMobileLayout ? 8 : 12,
-                    runSpacing: isMobileLayout ? 6 : 6,
-                    children: [
-                      const LegendItem(
-                        color: AppColors.red,
-                        label: 'Active emergency',
-                      ),
-                      const LegendItem(
-                        color: AppColors.amber,
-                        label: 'Pending request',
-                      ),
-                      const LegendItem(
-                        color: AppColors.teal,
-                        label: 'LIVE responder',
-                      ),
-                      const LegendItem(
-                        color: AppColors.blue,
-                        label: 'LAST KNOWN responder',
-                      ),
-                      if (connections.isNotEmpty)
-                        const LegendItem(
-                          color: AppColors.blue,
-                          label: 'Direct connection (straight line)',
+                      if (markers.isNotEmpty &&
+                          !widget.locationPermissionGranted)
+                        Positioned(
+                          left: 10,
+                          right: 10,
+                          bottom: 10,
+                          child: _LocationPermissionNotice(
+                            onRequest: widget.onRequestLocationPermission,
+                          ),
                         ),
                     ],
                   ),
-                  if (textOnlyOpenRequests.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      '${textOnlyOpenRequests.length} open request${textOnlyOpenRequests.length == 1 ? '' : 's'} '
-                      'have text-only locations. Precise map pins are unavailable until GPS coordinates are provided.',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppColors.textFaint,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
-          ],
-        ),
+              if (isMobileLayout && connections.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                  child: NavigationDeck(
+                    connections: connections,
+                    isMobile: true,
+                    onGetDirections: (connection) =>
+                        unawaited(_openDirections(connection)),
+                  ),
+                ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  isMobileLayout ? 12 : 16,
+                  isMobileLayout ? 10 : 10,
+                  isMobileLayout ? 12 : 16,
+                  12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: isMobileLayout ? 8 : 12,
+                      runSpacing: isMobileLayout ? 6 : 6,
+                      children: [
+                        const LegendItem(
+                          color: AppColors.red,
+                          label: 'Active emergency',
+                        ),
+                        const LegendItem(
+                          color: AppColors.amber,
+                          label: 'Pending request',
+                        ),
+                        const LegendItem(
+                          color: AppColors.teal,
+                          label: 'LIVE responder',
+                        ),
+                        const LegendItem(
+                          color: AppColors.blue,
+                          label: 'LAST KNOWN responder',
+                        ),
+                        if (connections.isNotEmpty)
+                          const LegendItem(
+                            color: AppColors.blue,
+                            label: 'Direct connection (straight line)',
+                          ),
+                      ],
+                    ),
+                    if (textOnlyOpenRequests.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '${textOnlyOpenRequests.length} open request${textOnlyOpenRequests.length == 1 ? '' : 's'} '
+                        'have text-only locations. Precise map pins are unavailable until GPS coordinates are provided.',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textFaint,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

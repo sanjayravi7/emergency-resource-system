@@ -334,8 +334,7 @@ class ResourceChip extends StatelessWidget {
               children: [
                 Text(
                   quantity == null ? name : '$name × $quantity',
-                  style:
-                      const TextStyle(fontSize: 12.5, color: AppColors.text),
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.text),
                 ),
                 if (trailingText != null)
                   Text(
@@ -785,7 +784,6 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: const BoxDecoration(

@@ -247,7 +247,8 @@ Future<LocationPermissionResult> checkDeviceLocationPermission() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       return const LocationPermissionResult(
         status: LocationPermissionStatus.serviceDisabled,
-        message: 'Location services are disabled. Enable browser/device location.',
+        message:
+            'Location services are disabled. Enable browser/device location.',
       );
     }
     return _permissionResult(await Geolocator.checkPermission());
@@ -264,7 +265,8 @@ Future<LocationPermissionResult> ensureDeviceLocationPermission() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       return const LocationPermissionResult(
         status: LocationPermissionStatus.serviceDisabled,
-        message: 'Location services are disabled. Enable browser/device location.',
+        message:
+            'Location services are disabled. Enable browser/device location.',
       );
     }
     var permission = await Geolocator.checkPermission();
@@ -321,9 +323,12 @@ Stream<GeoPoint> watchDeviceLocation() => Geolocator.getPositionStream(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
       ),
-    ).where(
-      (position) => isValidCoordinatePair(position.latitude, position.longitude),
-    ).map((position) => GeoPoint(position.latitude, position.longitude));
+    )
+        .where(
+          (position) =>
+              isValidCoordinatePair(position.latitude, position.longitude),
+        )
+        .map((position) => GeoPoint(position.latitude, position.longitude));
 
 Future<bool> openDeviceLocationSettings() async {
   try {
