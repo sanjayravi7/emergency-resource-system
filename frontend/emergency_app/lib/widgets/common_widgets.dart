@@ -472,25 +472,37 @@ class Brand extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'ERAS',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.text,
+        // The wordmark block must never widen this Row beyond the space the
+        // parent allows (the fixed 208px desktop rail, or the remaining
+        // app-bar width on mobile). A long "name · ROLE" subtitle therefore
+        // ellipsizes instead of overflowing the layout.
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'ERAS',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text,
+                ),
               ),
-            ),
-            if (subtitle != null)
-              Text(
-                subtitle!,
-                style:
-                    const TextStyle(fontSize: 10, color: AppColors.textFaint),
-              ),
-          ],
+              if (subtitle != null)
+                Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textFaint,
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );
@@ -708,12 +720,19 @@ class DesktopTopBar extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.text,
+                    // The heading shares the bar with the live counters, so
+                    // it has to flex and ellipsize rather than overflow on
+                    // narrow desktop windows.
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.text,
+                        ),
                       ),
                     ),
                     if (loading) ...[
@@ -729,8 +748,12 @@ class DesktopTopBar extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style:
-                      const TextStyle(fontSize: 12, color: AppColors.textFaint),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textFaint,
+                  ),
                 ),
               ],
             ),
