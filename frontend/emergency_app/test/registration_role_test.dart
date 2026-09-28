@@ -329,8 +329,16 @@ void main() {
         expect(api.registerBody!['email'], 'role.user@example.com');
 
         await tester.tap(find.text('Continue'));
-        await tester.pump(const Duration(milliseconds: 400));
-        await tester.pump(const Duration(milliseconds: 400));
+
+        // The dialog dismissal and the login route's entrance transition run
+        // back to back, and Navigator keeps the replaced RegisterScreen route
+        // mounted until the replacement's transition has finished animating
+        // in. That transition lasts 450ms on the default Android page
+        // transitions theme (ZoomPageTransitionsBuilder) and only starts
+        // ticking at the first pumped frame, so two fixed 400ms pumps leave
+        // it at 400/450 with RegisterScreen still in the tree. Settling the
+        // frame pipeline keeps this independent of the transition duration.
+        await tester.pumpAndSettle();
 
         expect(find.byType(LoginScreen), findsOneWidget);
         expect(find.byType(RegisterScreen), findsNothing);

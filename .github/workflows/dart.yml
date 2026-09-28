@@ -43,7 +43,8 @@ jobs:
           import json
 
           names = {}
-          failures = []
+          prints = {}
+          failed = []
           with open('test-results.json', errors='replace') as handle:
               for line in handle:
                   line = line.strip()
@@ -53,19 +54,27 @@ jobs:
                       event = json.loads(line)
                   except ValueError:
                       continue
-                  if event.get('type') == 'testStart':
+                  kind = event.get('type')
+                  if kind == 'testStart':
                       test = event.get('test', {})
                       names[test.get('id')] = test.get('name', '?')
-                  elif event.get('type') == 'error':
-                      failures.append((
-                          names.get(event.get('testID'), '?'),
-                          str(event.get('error', '')),
-                          str(event.get('stackTrace', '')),
-                      ))
+                  elif kind == 'print':
+                      prints.setdefault(event.get('testID'), []).append(
+                          str(event.get('message', '')))
+                  elif kind == 'error':
+                      tid = event.get('testID')
+                      if tid not in failed:
+                          failed.append(tid)
+                      prints.setdefault(tid, []).append(
+                          str(event.get('error', '')))
 
-          for name, error, stack in failures:
-              detail = '{} || {} || {}'.format(name, error, stack)
-              detail = detail.replace('\n', ' ~ ')[:4000]
-              print('::error::' + detail)
+          for tid in failed:
+              detail = '{} || {}'.format(
+                  names.get(tid, '?'),
+                  '\n'.join(prints.get(tid, [])) or '(no output captured)',
+              )
+              detail = detail.replace('\n', ' ~ ')
+              for index in range(0, min(len(detail), 12000), 3000):
+                  print('::error::' + detail[index:index + 3000])
           PY
           exit $status
