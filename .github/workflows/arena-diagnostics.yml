@@ -1,0 +1,121 @@
+# TEMPORARY diagnostics workflow for the arena working branch ONLY.
+#
+# Why it exists: the development sandbox has no Flutter SDK and cannot reach
+# the Actions log host, so "did dart format / analyze / test / build pass?"
+# is otherwise invisible. This workflow mirrors the dart.yml steps, applies
+# `dart format` (same style dart.yml enforces), records every command's
+# output + exit code into /arena-diagnostics/, and commits both the
+# formatting fixes and the diagnostics back to this branch so they can be
+# read via git. It runs only on the arena branch - never on main - and is
+# deleted before this pull request is merged.
+#
+# dart.yml is intentionally untouched.
+
+name: Arena diagnostics (temporary)
+
+on:
+  push:
+    branches:
+      - "arena/01a0e9af-emergency-resource-system"
+
+permissions:
+  contents: write
+
+jobs:
+  flutter-diagnostics:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare diagnostics directory
+        working-directory: .
+        run: mkdir -p arena-diagnostics
+
+      # Each step records its exit code and never fails the job early, so one
+      # run shows the complete picture (pub get -> format -> analyze -> test
+      # -> production web build) instead of stopping at the first problem.
+      - name: Install dependencies
+        run: |
+          set +e
+          flutter pub get > "$GITHUB_WORKSPACE/arena-diagnostics/01-pub-get.txt" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/arena-diagnostics/01-pub-get.exit"
+          exit 0
+
+      - name: Apply dart format
+        run: |
+          set +e
+          dart format . > "$GITHUB_WORKSPACE/arena-diagnostics/02-format.txt" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/arena-diagnostics/02-format.exit"
+          exit 0
+
+      - name: Verify formatting converged
+        run: |
+          set +e
+          dart format --output=none --set-exit-if-changed . > "$GITHUB_WORKSPACE/arena-diagnostics/03-format-check.txt" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/arena-diagnostics/03-format-check.exit"
+          exit 0
+
+      - name: Analyze project source
+        run: |
+          set +e
+          flutter analyze > "$GITHUB_WORKSPACE/arena-diagnostics/04-analyze.txt" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/arena-diagnostics/04-analyze.exit"
+          exit 0
+
+      - name: Run tests
+        run: |
+          set +e
+          flutter test > "$GITHUB_WORKSPACE/arena-diagnostics/05-test.txt" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/arena-diagnostics/05-test.exit"
+          exit 0
+
+      - name: Production web build
+        run: |
+          set +e
+          export ERAS_API_BASE_URL="https://eras.example.com/api"
+          export ERAS_GOOGLE_MAPS_API_KEY="ci-placeholder-browser-key"
+          bash tool/build_production_web.sh > "$GITHUB_WORKSPACE/arena-diagnostics/06-web-build.txt" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/arena-diagnostics/06-web-build.exit"
+          exit 0
+
+      # Commit the converged formatting, the re-resolved pubspec.lock and the
+      # diagnostics. GITHUB_TOKEN pushes do not re-trigger workflows, so this
+      # cannot loop.
+      - name: Commit formatting, lockfile and diagnostics
+        if: always()
+        working-directory: .
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "no changes to commit"
+          else
+            git commit -m "arena: apply dart format, refresh pubspec.lock, record Flutter diagnostics"
+            git push
+          fi
+
+      - name: Verdict
+        if: always()
+        working-directory: .
+        run: |
+          failed=0
+          for f in arena-diagnostics/*.exit; do
+            code="$(cat "$f")"
+            name="$(basename "$f" .exit)"
+            echo "$name: exit $code"
+            if [ "$code" != "0" ]; then failed=1; fi
+          done
+          exit $failed
