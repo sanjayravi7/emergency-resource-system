@@ -29,7 +29,7 @@ http.Response _json(Object body, [int status = 200]) =>
 /// { success, message, data: { user, token } } where user.role is the value
 /// stored in PostgreSQL. Every other endpoint gets an empty-collection
 /// response, exactly like an empty database.
-http.MockClient _backendWithRole(String role) => MockClient(
+MockClient _backendWithRole(String role) => MockClient(
       (request) async {
         if (request.url.path == '/api/auth/login') {
           return _json({
