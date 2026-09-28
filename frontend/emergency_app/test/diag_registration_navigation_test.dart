@@ -15,7 +15,7 @@ import 'package:dispatch_console_flutter/screens/register_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
+import 'package:http/client.dart' as http;
 import 'package:http/testing.dart';
 
 const ValueKey<String> requesterCardKey = ValueKey<String>(
@@ -25,7 +25,7 @@ const ValueKey<String> requesterCardKey = ValueKey<String>(
 http.Response _jsonResponse(Object body, [int status = 200]) =>
     http.Response(jsonEncode(body), status);
 
-MockClient _okRegisterApi() => MockClient((request) async {
+http.MockClient _okRegisterApi() => http.MockClient((request) async {
       if (request.url.path == '/api/auth/register') {
         return _jsonResponse({
           'success': true,
@@ -62,7 +62,7 @@ class _LoggingObserver extends NavigatorObserver {
 
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) =>
-      _l('didReplace', newRoute ?? this.route!, oldRoute);
+      _l('didReplace', newRoute ?? route!, oldRoute);
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
@@ -100,8 +100,10 @@ Future<void> _tapAfterScroll(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
-Future<void> _runFlow(WidgetTester tester, List<String> log) {
-  void snapshot(String label) {
+typedef Snapshot = void Function(String label);
+
+Snapshot _makeSnapshot(WidgetTester tester, void Function(String) log) {
+  return (String label) {
     final login = find.byType(LoginScreen).evaluate();
     final register = find.byType(RegisterScreen).evaluate();
     String routeInfo(Element element) {
@@ -122,11 +124,17 @@ Future<void> _runFlow(WidgetTester tester, List<String> log) {
       '${login.isNotEmpty ? ' | LOGIN: ${routeInfo(login.first)}' : ''}'
       '${register.isNotEmpty ? ' | REG: ${routeInfo(register.first)}' : ''}',
     );
-  }
+  };
+}
 
+Future<void> _runFlow(
+  WidgetTester tester,
+  void Function(String) log,
+  Snapshot snapshot,
+) {
   return http.runWithClient<Future<void>>(
     () async {
-      final observer = _LoggingObserver((line) => log(line));
+      final observer = _LoggingObserver(log);
       await tester.pumpWidget(
         MaterialApp(
           navigatorObservers: [observer],
@@ -151,10 +159,6 @@ Future<void> _runFlow(WidgetTester tester, List<String> log) {
 
       await tester.tap(find.text('Continue'));
       snapshot('continue tapped, no pump');
-
-      final how = tester.binding.clock.now().toString().substring(0, 23);
-      log('(pumping style begins at $how)');
-      return snapshot;
     },
     _okRegisterApi,
   );
@@ -169,7 +173,8 @@ void main() {
       log.add('${(step++).toString().padLeft(3)} $line');
     }
 
-    final snapshot = await _runFlow(tester, note);
+    final snapshot = _makeSnapshot(tester, note);
+    await _runFlow(tester, note, snapshot);
 
     for (var i = 1; i <= 5; i++) {
       await tester.pump(const Duration(milliseconds: 400));
@@ -189,7 +194,8 @@ void main() {
       log.add('${(step++).toString().padLeft(3)} $line');
     }
 
-    final snapshot = await _runFlow(tester, note);
+    final snapshot = _makeSnapshot(tester, note);
+    await _runFlow(tester, note, snapshot);
 
     await tester.pumpAndSettle();
     snapshot('after pumpAndSettle');
