@@ -63,7 +63,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? requiredField(String? v, String label) =>
       v == null || v.trim().isEmpty ? '$label is required' : null;
 
-  String? validEmail(String? v) => requiredField(v, 'Email') ??
+  String? validEmail(String? v) =>
+      requiredField(v, 'Email') ??
       (RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v!.trim())
           ? null
           : 'Enter a valid email address');
@@ -268,7 +269,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                             ),
-                            validator: (v) => requiredField(v, 'Password') ??
+                            validator: (v) =>
+                                requiredField(v, 'Password') ??
                                 (v!.length < 6
                                     ? 'Use at least 6 characters'
                                     : null),
@@ -291,8 +293,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                             ),
-                            validator: (v) =>
-                                v != password.text ? 'Passwords do not match' : null,
+                            validator: (v) => v != password.text
+                                ? 'Passwords do not match'
+                                : null,
                           ),
                           if (error != null)
                             Padding(

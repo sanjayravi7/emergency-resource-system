@@ -43,8 +43,7 @@ class _RecordingApi {
 
   http.MockClient get client => MockClient((request) async {
         if (request.url.path == '/api/auth/register') {
-          registerBody =
-              jsonDecode(request.body) as Map<String, dynamic>;
+          registerBody = jsonDecode(request.body) as Map<String, dynamic>;
           if (registerStatus != 201) {
             return _jsonResponse(
               {
@@ -136,7 +135,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('ADMIN is not offered as a public registration option', (tester) async {
+  testWidgets('ADMIN is not offered as a public registration option',
+      (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
 
@@ -207,7 +207,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('selecting one role deselects the other (single choice)', (tester) async {
+  testWidgets('selecting one role deselects the other (single choice)',
+      (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
 
@@ -238,7 +239,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('role cards expose selected semantics for assistive tech', (tester) async {
+  testWidgets('role cards expose selected semantics for assistive tech',
+      (tester) async {
     final handle = tester.ensureSemantics();
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
@@ -256,7 +258,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('registration cannot submit without a role selection', (tester) async {
+  testWidgets('registration cannot submit without a role selection',
+      (tester) async {
     final api = _RecordingApi();
 
     await http.runWithClient<Future<void>>(
@@ -290,7 +293,9 @@ void main() {
     );
   });
 
-  testWidgets('REQUESTER registration sends role=REQUESTER and navigates to login', (tester) async {
+  testWidgets(
+      'REQUESTER registration sends role=REQUESTER and navigates to login',
+      (tester) async {
     final api = _RecordingApi();
 
     await http.runWithClient<Future<void>>(
@@ -348,7 +353,8 @@ void main() {
     );
   });
 
-  testWidgets('duplicate email shows a friendly message and no second account', (tester) async {
+  testWidgets('duplicate email shows a friendly message and no second account',
+      (tester) async {
     final api = _RecordingApi()
       ..registerStatus = 409
       ..registerErrorMessage = 'Email already registered';
@@ -376,7 +382,8 @@ void main() {
     );
   });
 
-  testWidgets('role cards lay out cleanly across phone and desktop widths', (tester) async {
+  testWidgets('role cards lay out cleanly across phone and desktop widths',
+      (tester) async {
     // The default test surface is 800x600 logical pixels.
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -400,7 +407,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('role selection is keyboard operable (focus + Enter)', (tester) async {
+  testWidgets('role selection is keyboard operable (focus + Enter)',
+      (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
 
@@ -425,7 +433,8 @@ void main() {
       await tester.pump();
       guard++;
     }
-    expect(focusInsideCard(), isTrue, reason: 'REQUESTER card should be reachable by keyboard traversal');
+    expect(focusInsideCard(), isTrue,
+        reason: 'REQUESTER card should be reachable by keyboard traversal');
 
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
