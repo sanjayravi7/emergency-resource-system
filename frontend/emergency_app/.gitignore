@@ -10,3 +10,10 @@ errors_lib.txt
 
 # Local Google Maps API key config for Flutter Web.
 /web/google_maps_config.js
+
+# Firebase CLI state, logs, and local credential files.
+/.firebase/
+/firebase-debug.log
+/firebase-debug.*.log
+/firebase-service-account*.json
+/service-account*.json

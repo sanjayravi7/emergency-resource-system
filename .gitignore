@@ -46,3 +46,12 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Provider CLI state and credentials must remain local.
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firebase-service-account*.json
+service-account*.json
+**/firebase-service-account*.json
+**/service-account*.json

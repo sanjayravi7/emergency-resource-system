@@ -26,6 +26,13 @@ describe('HTTP hardening', () => {
     expect(res.headers).toHaveProperty('x-dns-prefetch-control');
   });
 
+  test('GET /health returns a cheap, non-sensitive liveness response', async () => {
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ success: true, status: 'ok' });
+    expect(JSON.stringify(res.body)).not.toMatch(/password|secret|database|stack/i);
+  });
+
   test('unknown route returns a JSON 404 envelope', async () => {
     const res = await request(app).get('/api/definitely-not-here');
     expect(res.status).toBe(404);
