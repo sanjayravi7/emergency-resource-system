@@ -329,8 +329,11 @@ void main() {
         expect(api.registerBody!['email'], 'role.user@example.com');
 
         await tester.tap(find.text('Continue'));
-        await tester.pump(const Duration(milliseconds: 400));
-        await tester.pump(const Duration(milliseconds: 400));
+        // Two animations run back to back here: the dialog dismissal, and
+        // then - once the awaited showDialog future resolves - the route
+        // replacement that opens the login screen. Settle both instead of
+        // guessing a frame count.
+        await tester.pumpAndSettle();
 
         expect(find.byType(LoginScreen), findsOneWidget);
         expect(find.byType(RegisterScreen), findsNothing);

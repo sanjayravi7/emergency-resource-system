@@ -34,38 +34,4 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        run: |
-          set +e
-          flutter test --reporter=json > test-results.json
-          status=$?
-          set -e
-          python3 - <<'PY'
-          import json
-
-          names = {}
-          failures = []
-          with open('test-results.json', errors='replace') as handle:
-              for line in handle:
-                  line = line.strip()
-                  if not line.startswith('{'):
-                      continue
-                  try:
-                      event = json.loads(line)
-                  except ValueError:
-                      continue
-                  if event.get('type') == 'testStart':
-                      test = event.get('test', {})
-                      names[test.get('id')] = test.get('name', '?')
-                  elif event.get('type') == 'error':
-                      failures.append((
-                          names.get(event.get('testID'), '?'),
-                          str(event.get('error', '')),
-                          str(event.get('stackTrace', '')),
-                      ))
-
-          for name, error, stack in failures:
-              detail = '{} || {} || {}'.format(name, error, stack)
-              detail = detail.replace('\n', ' ~ ')[:4000]
-              print('::error::' + detail)
-          PY
-          exit $status
+        run: flutter test
