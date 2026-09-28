@@ -4,6 +4,7 @@ import 'dart:js_interop_unsafe';
 
 import 'package:geolocator/geolocator.dart';
 
+import '../models/eras_models.dart' show isValidCoordinatePair;
 import 'location_service.dart';
 import 'api_service.dart';
 
@@ -332,7 +333,7 @@ Stream<GeoPoint> watchDeviceLocation() => Geolocator.getPositionStream(
 
 Future<bool> openDeviceLocationSettings() async {
   try {
-    return Geolocator.openAppSettings();
+    return await Geolocator.openAppSettings();
   } catch (_) {
     return false;
   }

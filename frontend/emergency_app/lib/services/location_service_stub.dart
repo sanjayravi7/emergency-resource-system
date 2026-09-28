@@ -1,5 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 
+import '../models/eras_models.dart' show isValidCoordinatePair;
 import 'location_service.dart';
 
 /// Non-web place lookup remains unavailable because the Places JavaScript
@@ -144,9 +145,9 @@ Future<bool> openDeviceLocationSettings() async {
   try {
     final current = await checkDeviceLocationPermission();
     if (current.status == LocationPermissionStatus.serviceDisabled) {
-      return Geolocator.openLocationSettings();
+      return await Geolocator.openLocationSettings();
     }
-    return Geolocator.openAppSettings();
+    return await Geolocator.openAppSettings();
   } catch (_) {
     return false;
   }
