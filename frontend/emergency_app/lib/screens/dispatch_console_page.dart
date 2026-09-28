@@ -1341,27 +1341,27 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       );
       children.add(
         BoardPanel(
-            title: 'MY ACTIVE EMERGENCY',
-            hint: 'Accepted by you',
-            requests: openRequests,
-            role: role,
-            currentUserId: ApiService.currentUserId,
-            emptyTitle: 'NO ACTIVE EMERGENCY',
-            emptyIcon: Icons.check_circle_outline,
-            emptyMessage:
-                'Accept a compatible request below to start working on it.',
-            onAllocate: openAllocationDialog,
-            onEndAssignment: endAssignment,
-            onDispatchAllocation: dispatchAllocation,
-            onMarkDelivered: markAllocationDelivered,
-            onStartLocationSharing: startLocationSharing,
-            onStopLocationSharing: stopLocationSharing,
-            liveLocations: locationStore.locationsByRequest,
-            activelySharingRequestIds: locationStore.activelySharingRequestIds,
-            sharingRequestId: locationStore.localSharingRequestId,
-            connectionStatus: connectionStatus,
-            isMobile: isMobile,
-          ),
+          title: 'MY ACTIVE EMERGENCY',
+          hint: 'Accepted by you',
+          requests: openRequests,
+          role: role,
+          currentUserId: ApiService.currentUserId,
+          emptyTitle: 'NO ACTIVE EMERGENCY',
+          emptyIcon: Icons.check_circle_outline,
+          emptyMessage:
+              'Accept a compatible request below to start working on it.',
+          onAllocate: openAllocationDialog,
+          onEndAssignment: endAssignment,
+          onDispatchAllocation: dispatchAllocation,
+          onMarkDelivered: markAllocationDelivered,
+          onStartLocationSharing: startLocationSharing,
+          onStopLocationSharing: stopLocationSharing,
+          liveLocations: locationStore.locationsByRequest,
+          activelySharingRequestIds: locationStore.activelySharingRequestIds,
+          sharingRequestId: locationStore.localSharingRequestId,
+          connectionStatus: connectionStatus,
+          isMobile: isMobile,
+        ),
       );
 
       children.add(const SizedBox(height: 18));
@@ -1374,7 +1374,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           currentUserId: ApiService.currentUserId,
           emptyTitle: 'NO COMPATIBLE REQUESTS',
           emptyIcon: Icons.inbox_outlined,
-            emptyMessage:
+          emptyMessage:
               'Open requests appear here when at least one outstanding '
               'resource matches your available capabilities.',
           onAccept: acceptRequest,
@@ -1385,21 +1385,21 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     } else {
       children.add(
         BoardPanel(
-            title: isAdmin ? 'ALL ACTIVE REQUESTS' : 'MY ACTIVE REQUESTS',
-            hint: 'Sorted by time received',
-            requests: openRequests,
-            role: role,
-            currentUserId: ApiService.currentUserId,
-            emptyMessage: isRequester
-                ? 'No active requests. Submit one from "New".'
-                : 'No active requests in the database.',
-            onCancelRequest: isRequester ? cancelRequest : null,
-            onConfirmReceipt: isRequester ? confirmReceipt : null,
-            liveLocations: locationStore.locationsByRequest,
-            activelySharingRequestIds: locationStore.activelySharingRequestIds,
-            connectionStatus: connectionStatus,
-            isMobile: isMobile,
-          ),
+          title: isAdmin ? 'ALL ACTIVE REQUESTS' : 'MY ACTIVE REQUESTS',
+          hint: 'Sorted by time received',
+          requests: openRequests,
+          role: role,
+          currentUserId: ApiService.currentUserId,
+          emptyMessage: isRequester
+              ? 'No active requests. Submit one from "New".'
+              : 'No active requests in the database.',
+          onCancelRequest: isRequester ? cancelRequest : null,
+          onConfirmReceipt: isRequester ? confirmReceipt : null,
+          liveLocations: locationStore.locationsByRequest,
+          activelySharingRequestIds: locationStore.activelySharingRequestIds,
+          connectionStatus: connectionStatus,
+          isMobile: isMobile,
+        ),
       );
     }
 

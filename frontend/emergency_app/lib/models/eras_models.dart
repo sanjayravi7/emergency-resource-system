@@ -863,8 +863,8 @@ class EmergencyRequest {
     final ids = <int>{
       ...activeAssignments.map((assignment) => assignment.responderId),
       ...allocations
-          .where((allocation) =>
-              allocation.isReserved || allocation.isDispatched)
+          .where(
+              (allocation) => allocation.isReserved || allocation.isDispatched)
           .map((allocation) => allocation.responderId),
     }..removeWhere((id) => id <= 0);
     final leadId = acceptedBy?.id ?? acceptedById;

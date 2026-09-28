@@ -334,7 +334,8 @@ void main() {
       }
     });
 
-    testWidgets('ended lead, active assignment, and allocation-only owner render once',
+    testWidgets(
+        'ended lead, active assignment, and allocation-only owner render once',
         (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1;
@@ -367,7 +368,8 @@ void main() {
       expect(find.textContaining('LEAD · ACTIVE'), findsNothing);
     });
 
-    testWidgets('location and end controls are isolated to the signed-in responder',
+    testWidgets(
+        'location and end controls are isolated to the signed-in responder',
         (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1;

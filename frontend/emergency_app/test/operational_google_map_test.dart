@@ -263,8 +263,8 @@ void main() {
     final lead = snapshots.singleWhere((item) => item.id == 'responder-801-9');
     expect(lead.title, contains('Responder 9'),
         reason: 'legacy acceptedBy name is used for the lead');
-    expect(snapshots.map((item) => item.id),
-        isNot(contains('responder-801-42')),
+    expect(
+        snapshots.map((item) => item.id), isNot(contains('responder-801-42')),
         reason: 'missed stop events cannot render an unrelated stale point');
   });
 
