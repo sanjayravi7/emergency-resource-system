@@ -4,9 +4,11 @@ ERAS uses the official `google_maps_flutter` package. On Flutter Web, that packa
 
 ERAS does **not** compute driving directions itself. The operational map draws a simple direct connection line between the responder and the emergency (local map geometry), and real driving directions are handed to Google Maps through a **Google Maps URL** — see §7. No Routes API and no server-side routing key are involved.
 
-## 0. One key, and one key only
+## 0. Separate client keys
 
-ERAS needs a **single browser Google API key**.
+ERAS uses one browser-restricted key for Flutter Web and a separate
+Android-application-restricted key for Flutter Android. Never reuse the Web
+key in the Android manifest or the Android key in `web/google_maps_config.js`.
 
 | | **BROWSER key** |
 | --- | --- |
@@ -33,7 +35,8 @@ Notes:
 
 | API | Key | Used by |
 | --- | --- | --- |
-| **Maps JavaScript API** | browser | map rendering (`GoogleMap`, `operational_google_map.dart`) and the location bridge |
+| **Maps JavaScript API** | browser | Web map rendering (`GoogleMap`, `operational_google_map.dart`) and the location bridge |
+| **Maps SDK for Android** | Android | Android `google_maps_flutter` map tiles and platform view |
 | Photon reverse geocoding | **server** | GPS/map-tap coordinates → human-readable place via `GET /api/location/reverse` |
 | **Places API (New)** | browser | requester place autocomplete (`google.maps.places.AutocompleteSuggestion`), `Place.fetchFields` for the selected place's exact coordinates, and the NEARBY PLACES selector (`Place.searchNearby` — Nearby Search (New)) |
 
@@ -67,13 +70,42 @@ Create the keys under **APIs & Services → Credentials**. Do not commit unrestr
   - Arena preview hosts, for example `https://*-*.e2b.app/*`
 - **Production referrers:** add only the exact deployed ERAS origin(s), for example `https://eras.example.org/*`
 
-Reuse the project's existing browser key — do not create a second one. Adding the two missing APIs to the existing key is the whole fix.
+Reuse the project's existing browser key — do not create another browser key. Adding the two missing APIs to that browser key is the Web configuration fix.
 
-### 3b. Server key — not needed
+### 3b. Android key (Maps SDK for Android)
+
+The Android build reads `MAPS_API_KEY` through the Google Secrets Gradle
+Plugin. Create `frontend/emergency_app/android/secrets.properties` locally
+(the file is ignored by Git) with:
+
+```properties
+MAPS_API_KEY=YOUR_ANDROID_KEY
+```
+
+Do not put a real value in `AndroidManifest.xml`, Dart, Kotlin, Gradle source,
+or this document. The tracked `local.defaults.properties` value is only a
+non-secret build placeholder and cannot authorize Maps tiles.
+
+Configure that Android key in Google Cloud as follows:
+
+- **Application restriction:** Android apps.
+- **Package name:** `io.github.sanjayravi7.eras`.
+- **SHA-1:** add the SHA-1 for the certificate that signs the APK being tested.
+  For a debug APK, obtain the actual value from `./gradlew signingReport` or
+  the environment's debug keystore; do not assume a SHA-1 from another machine.
+- **API restriction:** allow **Maps SDK for Android**.
+- Enable **Maps SDK for Android** in the same billed Google Cloud project.
+
+The manifest intentionally uses only `${MAPS_API_KEY}`. After configuring the
+local secret, verify the merged manifest/APK metadata with the Android build
+tools without printing the key. A package/SHA-1 mismatch or a disabled Maps SDK
+still produces an authorization failure even when the Flutter build succeeds.
+
+### 3c. Server key — not needed
 
 ERAS requires **no server-side Google API key**. Driving directions are delegated to Google Maps URLs (§7), which need no key, and reverse geocoding uses Photon.
 
-### 3c. Verify the browser key in the browser (no guessing)
+### 3d. Verify the browser key in the browser (no guessing)
 
 `web/eras_location_diagnostics.html` is served next to the app. Open it on the **same origin and port** the app runs on:
 

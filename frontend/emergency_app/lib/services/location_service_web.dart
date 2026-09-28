@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
+import 'package:geolocator/geolocator.dart';
+
 import 'location_service.dart';
 import 'api_service.dart';
 
@@ -237,6 +239,97 @@ class WebLocationService implements LocationService {
         })
         .whereType<NearbyPlace>()
         .toList(growable: false);
+  }
+}
+
+Future<LocationPermissionResult> checkDeviceLocationPermission() async {
+  try {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return const LocationPermissionResult(
+        status: LocationPermissionStatus.serviceDisabled,
+        message: 'Location services are disabled. Enable browser/device location.',
+      );
+    }
+    return _permissionResult(await Geolocator.checkPermission());
+  } catch (_) {
+    return const LocationPermissionResult(
+      status: LocationPermissionStatus.unavailable,
+      message: 'The browser location service is unavailable.',
+    );
+  }
+}
+
+Future<LocationPermissionResult> ensureDeviceLocationPermission() async {
+  try {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return const LocationPermissionResult(
+        status: LocationPermissionStatus.serviceDisabled,
+        message: 'Location services are disabled. Enable browser/device location.',
+      );
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    return _permissionResult(permission);
+  } catch (_) {
+    return const LocationPermissionResult(
+      status: LocationPermissionStatus.unavailable,
+      message: 'The browser location service is unavailable.',
+    );
+  }
+}
+
+LocationPermissionResult _permissionResult(LocationPermission permission) {
+  switch (permission) {
+    case LocationPermission.always:
+    case LocationPermission.whileInUse:
+      return const LocationPermissionResult(
+        status: LocationPermissionStatus.granted,
+        message: 'Location permission granted.',
+      );
+    case LocationPermission.deniedForever:
+      return const LocationPermissionResult(
+        status: LocationPermissionStatus.deniedForever,
+        message: 'Location permission is blocked in browser settings.',
+      );
+    case LocationPermission.denied:
+    case LocationPermission.unableToDetermine:
+      return const LocationPermissionResult(
+        status: LocationPermissionStatus.denied,
+        message: 'Location permission was not granted.',
+      );
+  }
+}
+
+Future<GeoPoint?> readDeviceLocation() async {
+  try {
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    ).timeout(const Duration(seconds: 8));
+    if (!isValidCoordinatePair(position.latitude, position.longitude)) {
+      return null;
+    }
+    return GeoPoint(position.latitude, position.longitude);
+  } catch (_) {
+    return null;
+  }
+}
+
+Stream<GeoPoint> watchDeviceLocation() => Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).where(
+      (position) => isValidCoordinatePair(position.latitude, position.longitude),
+    ).map((position) => GeoPoint(position.latitude, position.longitude));
+
+Future<bool> openDeviceLocationSettings() async {
+  try {
+    return Geolocator.openAppSettings();
+  } catch (_) {
+    return false;
   }
 }
 

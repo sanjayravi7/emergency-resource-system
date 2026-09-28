@@ -44,6 +44,15 @@ class OperationalMapMarkerSnapshot {
   bool get isRequest => responderId == null;
   bool get isLiveResponder => kind == OperationalMapMarkerKind.liveResponder;
 
+  // Bitmap descriptors are platform objects. Reuse the four static icons
+  // instead of allocating a new descriptor for every marker on every GPS
+  // update; only the moving marker's position/state changes.
+  static final Map<OperationalMapMarkerKind, BitmapDescriptor> _icons =
+      <OperationalMapMarkerKind, BitmapDescriptor>{};
+
+  BitmapDescriptor get _icon =>
+      _icons.putIfAbsent(kind, () => BitmapDescriptor.defaultMarkerWithHue(_hue));
+
   double get _hue => switch (kind) {
         OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
         OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
@@ -55,7 +64,7 @@ class OperationalMapMarkerSnapshot {
   Marker toMarker() => Marker(
         markerId: markerId,
         position: position,
-        icon: BitmapDescriptor.defaultMarkerWithHue(_hue),
+        icon: _icon,
         infoWindow: InfoWindow(title: title, snippet: snippet),
       );
 }
@@ -226,6 +235,8 @@ class OperationalGoogleMap extends StatefulWidget {
     super.key,
     required this.requests,
     required this.liveLocations,
+    this.locationPermissionGranted = false,
+    this.onRequestLocationPermission,
     this.isMobile = false,
     this.urlLauncher,
   });
@@ -234,6 +245,11 @@ class OperationalGoogleMap extends StatefulWidget {
 
   /// Multi-responder live points: requestId -> responderId -> latest point.
   final Map<int, Map<int, LiveResponderLocation>> liveLocations;
+
+  /// Google Maps must not enable its My Location layer until the platform
+  /// permission has actually been granted by Geolocator.
+  final bool locationPermissionGranted;
+  final Future<void> Function()? onRequestLocationPermission;
   final bool isMobile;
 
   /// Opens the external Google Maps Directions URL. Defaults to the
@@ -246,11 +262,6 @@ class OperationalGoogleMap extends StatefulWidget {
 
 class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   static const _markerBuilder = OperationalMapMarkerBuilder();
-  static const _fallbackCamera = CameraPosition(
-    target: LatLng(0, 0),
-    zoom: 2,
-  );
-
   GoogleMapController? _controller;
   bool _initialCameraApplied = false;
   final Set<String> _autoFittedResponderMarkers = <String>{};
@@ -331,8 +342,16 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
         final mapHeight = isMobileLayout
             ? 340.0
             : math.max(340.0, math.min(460.0, constraints.maxWidth * .38));
+        // Platform views must receive a real, non-zero width. The fallback is
+        // only for an accidentally unbounded parent; it is never a geographic
+        // fallback coordinate.
+        final mapWidth = constraints.hasBoundedWidth && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : math.max(1.0, MediaQuery.of(context).size.width);
 
-        return Column(
+        return SizedBox(
+          width: mapWidth,
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
@@ -343,19 +362,31 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                 ),
                 child: Stack(
                   children: [
-                    GoogleMap(
-                      initialCameraPosition: _initialCamera(snapshots),
-                      markers: markers,
-                      polylines: polylines,
-                      mapToolbarEnabled: false,
-                      myLocationButtonEnabled: false,
-                      zoomControlsEnabled: !isMobileLayout,
-                      compassEnabled: true,
-                      onMapCreated: (controller) {
-                        _controller = controller;
-                        unawaited(_applyInitialCamera());
-                      },
-                    ),
+                    if (markers.isNotEmpty)
+                      GoogleMap(
+                        initialCameraPosition: _initialCamera(snapshots),
+                        markers: markers,
+                        polylines: polylines,
+                        mapToolbarEnabled: false,
+                        // Never ask the Android Maps SDK for its My Location
+                        // layer before Geolocator has granted permission.
+                        myLocationEnabled: widget.locationPermissionGranted,
+                        myLocationButtonEnabled:
+                            widget.locationPermissionGranted,
+                        zoomControlsEnabled: !isMobileLayout,
+                        compassEnabled: true,
+                        onMapCreated: (controller) {
+                          _controller = controller;
+                          unawaited(_applyInitialCamera());
+                        },
+                      )
+                    else
+                      const Positioned.fill(
+                        child: ColoredBox(
+                          color: AppColors.bg,
+                          child: _NoPreciseMarkersOverlay(),
+                        ),
+                      ),
                     Positioned(
                       left: 10,
                       right: 10,
@@ -389,10 +420,13 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                     ),
                             ),
                     ),
-                    if (markers.isEmpty)
-                      const Positioned.fill(
-                        child: IgnorePointer(
-                          child: _NoPreciseMarkersOverlay(),
+                    if (markers.isNotEmpty && !widget.locationPermissionGranted)
+                      Positioned(
+                        left: 10,
+                        right: 10,
+                        bottom: 10,
+                        child: _LocationPermissionNotice(
+                          onRequest: widget.onRequestLocationPermission,
                         ),
                       ),
                   ],
@@ -462,15 +496,17 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
               ),
             ),
           ],
+        ),
         );
       },
     );
   }
 
   CameraPosition _initialCamera(List<OperationalMapMarkerSnapshot> snapshots) {
-    final focus = _emergencyFocus(snapshots) ??
-        (snapshots.isNotEmpty ? snapshots.first.position : null);
-    if (focus == null) return _fallbackCamera;
+    // GoogleMap is only built when a real request/responder coordinate exists.
+    // This assertion prevents a synthetic (0,0) camera from ever becoming a
+    // silent substitute for a missing location.
+    final focus = _emergencyFocus(snapshots) ?? snapshots.first.position;
     return CameraPosition(target: focus, zoom: 14);
   }
 
@@ -1081,6 +1117,48 @@ class NavigationInfoCard extends StatelessWidget {
         minimumSize: const Size.fromHeight(46),
         tapTargetSize: MaterialTapTargetSize.padded,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
+}
+
+class _LocationPermissionNotice extends StatelessWidget {
+  const _LocationPermissionNotice({this.onRequest});
+
+  final Future<void> Function()? onRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: .94),
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        child: Row(
+          children: [
+            const Icon(Icons.location_disabled_outlined,
+                size: 16, color: AppColors.amber),
+            const SizedBox(width: 7),
+            const Expanded(
+              child: Text(
+                'My Location is unavailable until location permission is granted.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textDim),
+              ),
+            ),
+            if (onRequest != null)
+              TextButton(
+                onPressed: () => unawaited(onRequest!()),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Allow', style: TextStyle(fontSize: 11.5)),
+              ),
+          ],
+        ),
       ),
     );
   }
