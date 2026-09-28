@@ -15,7 +15,7 @@ import 'package:dispatch_console_flutter/screens/register_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/client.dart' as http;
+import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 const ValueKey<String> requesterCardKey = ValueKey<String>(
