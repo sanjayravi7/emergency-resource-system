@@ -5,10 +5,15 @@ plugins {
     id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
 }
 
+secrets {
+    defaultPropertiesFileName = "local.defaults.properties"
+    propertiesFileName = "secrets.properties"
+}
+
 android {
     namespace = "io.github.sanjayravi7.eras"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "30.0.16248370"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

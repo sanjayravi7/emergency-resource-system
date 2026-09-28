@@ -1,3 +1,12 @@
+// Remove conflicting ANDROID_PREFS_ROOT if ANDROID_USER_HOME is present to fix AGP AndroidLocationsException
+try {
+    val peClass = Class.forName("java.lang.ProcessEnvironment")
+    val envField = peClass.getDeclaredField("theEnvironment").apply { isAccessible = true }
+    (envField.get(null) as? MutableMap<String, String>)?.remove("ANDROID_PREFS_ROOT")
+    val ciEnvField = peClass.getDeclaredField("theCaseInsensitiveEnvironment").apply { isAccessible = true }
+    (ciEnvField.get(null) as? MutableMap<String, String>)?.remove("ANDROID_PREFS_ROOT")
+} catch (_: Exception) {}
+
 pluginManagement {
     val flutterSdkPath =
         run {
