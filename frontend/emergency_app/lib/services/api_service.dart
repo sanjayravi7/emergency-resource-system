@@ -53,10 +53,15 @@ class ApiService {
   // AUTH
   // ---------------------------------------------------------------------
 
+  /// Public registration. The chosen role ('REQUESTER' or 'RESPONDER') is
+  /// stored on the User record by the backend - it is never a client-only
+  /// preference. The server validates the role and refuses to create ADMIN or
+  /// any other value; public signup can only produce the two public roles.
   static Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String password,
+    required String role,
     String? phone,
   }) async {
     final response = await http.post(
@@ -66,6 +71,7 @@ class ApiService {
         'name': name,
         'email': email,
         'password': password,
+        'role': role,
         if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
       }),
     );

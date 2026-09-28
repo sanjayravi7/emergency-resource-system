@@ -6,6 +6,13 @@ const env = require("../config/env");
 
 const SALT_ROUNDS = 10;
 
+// Roles that PUBLIC registration may create. ADMIN is deliberately absent:
+// administrative accounts must be provisioned through an authenticated,
+// administrator-controlled workflow. The client-supplied role field is never
+// trusted as-is; it must match this allowlist exactly (no case folding, no
+// unknown values) so public signup can never escalate privileges.
+const PUBLIC_REGISTRATION_ROLES = ["REQUESTER", "RESPONDER"];
+
 function createToken(user) {
   return jwt.sign(
     {
@@ -19,14 +26,36 @@ function createToken(user) {
   );
 }
 
+// Resolve the role for a public registration. Throws a stable error code the
+// controller maps to a 400 - this is the security boundary, the validator in
+// authValidator.js only provides the friendly message for normal clients.
+function resolvePublicRegistrationRole(role) {
+  const normalized = typeof role === "string" ? role.trim() : "";
+
+  if (!normalized) {
+    throw new Error("REGISTRATION_ROLE_REQUIRED");
+  }
+
+  if (!PUBLIC_REGISTRATION_ROLES.includes(normalized)) {
+    throw new Error("INVALID_REGISTRATION_ROLE");
+  }
+
+  // Return the exact allowlisted constant, never the raw client value, so no
+  // arbitrary enum can be injected into the create call below.
+  return normalized;
+}
+
 async function registerUser({
   name,
   email,
   password,
   phone,
   location,
+  role,
 }) {
   const normalizedEmail = email.trim().toLowerCase();
+
+  const userRole = resolvePublicRegistrationRole(role);
 
   const existingUser = await prisma.user.findUnique({
     where: {
@@ -43,11 +72,11 @@ async function registerUser({
     SALT_ROUNDS
   );
 
-  // Public registration is deliberately requester-only. Roles with
-  // operational privileges must be provisioned through an authenticated,
-  // administrator-controlled workflow; never trust a client role field.
-  const userRole = "REQUESTER";
-
+  // A RESPONDER created through public registration starts exactly like any
+  // other responder account: responderStatus OFFLINE and zero
+  // ResponderResource rows. Capabilities/resources are provisioned later
+  // through the existing responder readiness / responder-resources workflow -
+  // registration never fabricates capabilities or availability.
   const user = await prisma.user.create({
     data: {
       name: name.trim(),

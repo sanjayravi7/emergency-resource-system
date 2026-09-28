@@ -22,6 +22,16 @@ class _LoginScreenState extends State<LoginScreen> {
   bool obscurePassword = true;
   String? errorMessage;
 
+  /// Login is email + password only: there is deliberately NO role selector
+  /// here. The role is chosen exactly once, during registration, and is
+  /// stored on the User record in PostgreSQL. After a successful sign-in the
+  /// server response (data.user.role, sourced from the database) is the
+  /// single source of truth:
+  ///   - RESPONDER -> responder readiness experience,
+  ///   - REQUESTER / ADMIN -> the shared operations console, which adapts to
+  ///     the authenticated role.
+  /// If an ADMIN later changes a user's role, the next login automatically
+  /// opens the experience that matches the new database role.
   Future<void> login() async {
     FocusScope.of(context).unfocus();
 
