@@ -35,6 +35,23 @@ async function register(req, res, next) {
       });
     }
 
+    // Public registration must be able to create REQUESTER/RESPONDER only.
+    // ADMIN, empty, and unknown role values are rejected with a 400 before
+    // any user record is written.
+    if (error.message === "REGISTRATION_ROLE_REQUIRED") {
+      return res.status(400).json({
+        success: false,
+        message: "Choose how you want to use ERAS",
+      });
+    }
+
+    if (error.message === "INVALID_REGISTRATION_ROLE") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role selection",
+      });
+    }
+
     next(error);
   }
 }
