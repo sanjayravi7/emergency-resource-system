@@ -25,7 +25,6 @@ async function registerUser({
   password,
   phone,
   location,
-  role,
 }) {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -44,10 +43,10 @@ async function registerUser({
     SALT_ROUNDS
   );
 
-  // Public registration can create only requester/responder.
-  // ADMIN should be created separately.
-  const userRole =
-    role === "RESPONDER" ? "RESPONDER" : "REQUESTER";
+  // Public registration is deliberately requester-only. Roles with
+  // operational privileges must be provisioned through an authenticated,
+  // administrator-controlled workflow; never trust a client role field.
+  const userRole = "REQUESTER";
 
   const user = await prisma.user.create({
     data: {
