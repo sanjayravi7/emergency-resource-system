@@ -87,7 +87,8 @@ void main() {
   setUp(_resetApiState);
   tearDown(_resetApiState);
 
-  testWidgets('login page has email, password and sign-in - no role selection', (tester) async {
+  testWidgets('login page has email, password and sign-in - no role selection',
+      (tester) async {
     await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
     await tester.pump();
 

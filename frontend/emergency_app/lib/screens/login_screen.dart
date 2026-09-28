@@ -167,8 +167,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         tooltip: 'Show or hide password',
-                        onPressed: () => setState(() => obscurePassword = !obscurePassword),
-                        icon: Icon(obscurePassword ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () =>
+                            setState(() => obscurePassword = !obscurePassword),
+                        icon: Icon(obscurePassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
                       ),
                     ),
                     onSubmitted: (_) {
@@ -214,7 +217,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: loading ? null : () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                    onPressed: loading
+                        ? null
+                        : () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const RegisterScreen())),
                     child: const Text("Don't have an account? Create one"),
                   ),
                   const SizedBox(height: 16),
