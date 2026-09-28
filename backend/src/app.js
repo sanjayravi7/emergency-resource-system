@@ -40,6 +40,13 @@ app.use(
   })
 );
 
+// Lightweight, unauthenticated liveness probe for the hosting platform. This
+// intentionally does not query PostgreSQL: dependency checks belong in
+// deployment smoke tests, not in a high-frequency health check.
+app.get('/health', (req, res) => {
+  res.status(200).json({ success: true, status: 'ok' });
+});
+
 // Bounded JSON body parsing. Oversized bodies are rejected by body-parser with
 // a 413 (surfaced by errorMiddleware) before any controller runs.
 app.use(express.json({ limit: env.JSON_BODY_LIMIT }));

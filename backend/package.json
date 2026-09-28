@@ -10,7 +10,8 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/seed.js",
+    "provision:admin": "node scripts/provision-admin.js"
   },
   "keywords": [],
   "author": "",
@@ -18,20 +19,20 @@
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.19.3",
     "socket.io": "^4.8.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "bcrypt": "^6.0.0",
     "jest": "^30.5.2",
-    "jsonwebtoken": "^9.0.3",
     "nodemon": "^3.1.14",
-    "prisma": "^6.19.3",
     "socket.io-client": "^4.8.4",
     "supertest": "^7.2.2"
   },

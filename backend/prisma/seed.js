@@ -1,6 +1,10 @@
 /**
  * Development seed data.
  *
+ * This script is intentionally blocked in production. Production test users
+ * must register through the public REQUESTER/RESPONDER flow; administrators
+ * use the separate, explicit one-time provisioning script.
+ *
  * Safe to run repeatedly:
  *  - resources are upserted by their unique name (never duplicated)
  *  - users are upserted by their unique email
@@ -10,6 +14,10 @@
  *
  * Run with:  npm run seed      (or: npx prisma db seed)
  */
+
+if (process.env.NODE_ENV === 'production') {
+  throw new Error('Development seed is disabled when NODE_ENV=production');
+}
 
 const prisma = require('../src/config/prisma');
 
