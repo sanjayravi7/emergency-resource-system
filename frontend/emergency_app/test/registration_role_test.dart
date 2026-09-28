@@ -96,9 +96,22 @@ Future<void> _fillForm(WidgetTester tester) async {
   await tester.pump();
 }
 
-Future<void> _submit(WidgetTester tester) async {
-  await tester.tap(find.text('Create account'));
+/// Scrolls [finder] into the viewport, then taps it.
+///
+/// The registration form is taller than the default 800x600 test surface, so
+/// the submit button (and, once the page has been scrolled, the role cards)
+/// can sit outside the visible area. Tapping such a widget directly derives
+/// an offset that hit-tests nothing, which is exactly what a real user avoids
+/// by scrolling first.
+Future<void> _tapAfterScroll(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
   await tester.pump();
+  await tester.tap(finder);
+  await tester.pump();
+}
+
+Future<void> _submit(WidgetTester tester) async {
+  await _tapAfterScroll(tester, find.text('Create account'));
 }
 
 void main() {
@@ -280,8 +293,7 @@ void main() {
         expect(find.byType(LoginScreen), findsNothing);
 
         // Selecting a role clears the error.
-        await tester.tap(find.byKey(requesterCardKey));
-        await tester.pump();
+        await _tapAfterScroll(tester, find.byKey(requesterCardKey));
         expect(
           find.text('Choose how you want to use ERAS.'),
           findsNothing,
