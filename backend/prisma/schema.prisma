@@ -102,6 +102,42 @@ model User {
 
   acceptedRequests     EmergencyRequest[]    @relation("AcceptedRequests")
   responderAssignments ResponderAssignment[]
+
+  // FCM push targets for this user (responders register one row per installed
+  // device). Tokens are transport metadata only: the EmergencyRequest row
+  // stays the single source of truth and no notification state is derived
+  // from them.
+  deviceTokens PushDeviceToken[]
+}
+
+// ======================================================
+// PUSH DEVICE TOKEN
+//
+// One FCM registration token per installed client. A responder may hold
+// several rows (phone + tablet). Tokens are registered by the authenticated
+// responder through POST /api/responders/device-tokens and removed on logout
+// or when FCM reports them unregistered. They never carry lifecycle state -
+// a missing push can never lose an emergency request.
+// ======================================================
+
+model PushDeviceToken {
+  id Int @id @default(autoincrement())
+
+  userId Int
+  token String @unique
+
+  // Optional client hint (e.g. "android", "ios", "web"). Display/debug only.
+  platform String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Refreshed whenever the device re-registers, so stale rows are visible.
+  lastSeenAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // ======================================================

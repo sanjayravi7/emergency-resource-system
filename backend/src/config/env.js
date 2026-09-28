@@ -132,6 +132,27 @@ const env = {
   PHOTON_REVERSE_URL: (process.env.PHOTON_REVERSE_URL || 'https://photon.komoot.io/reverse').trim(),
   PHOTON_USER_AGENT: (process.env.PHOTON_USER_AGENT || 'ERAS/1.0 (reverse geocoding)').trim(),
   PHOTON_TIMEOUT_MS: integerFromEnv('PHOTON_TIMEOUT_MS', 5000, { min: 500 }),
+
+  // ---------------------------------------------------------------------------
+  // Firebase Cloud Messaging (FCM) push notifications for responders.
+  //
+  // FCM is an OPTIONAL add-on transport: Socket.IO stays the foreground
+  // channel and the EmergencyRequest row in PostgreSQL remains the single
+  // source of truth. When none of these variables is set, push sending is a
+  // logged no-op and every other feature works unchanged.
+  //
+  // Credentials are read (in order):
+  //   1. FCM_SERVICE_ACCOUNT - inline JSON of a Firebase service-account key
+  //      (handy for hosts that only expose plain env vars), or
+  //   2. FCM_SERVICE_ACCOUNT_FILE / GOOGLE_APPLICATION_CREDENTIALS - path to
+  //      the JSON key file on disk.
+  // NEVER commit the key file or its contents; production reads it from the
+  // environment/secret store. backend/.gitignore already ignores .env.
+  // ---------------------------------------------------------------------------
+  FCM_SERVICE_ACCOUNT: process.env.FCM_SERVICE_ACCOUNT || null,
+  FCM_SERVICE_ACCOUNT_FILE:
+    process.env.FCM_SERVICE_ACCOUNT_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS || null,
+  FCM_SEND_TIMEOUT_MS: integerFromEnv('FCM_SEND_TIMEOUT_MS', 10000, { min: 500 }),
 };
 
 if (!env.DATABASE_URL) {

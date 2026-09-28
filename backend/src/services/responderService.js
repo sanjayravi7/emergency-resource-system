@@ -117,3 +117,75 @@ exports.getResponders = async () =>
     },
     orderBy: { id: 'asc' },
   });
+
+// ---------------------------------------------------------------------------
+// FCM DEVICE TOKENS
+//
+// Responders register one row per installed device so pushes about new
+// compatible emergencies can reach backgrounded apps. Tokens are pure
+// transport metadata: they never mutate emergency state and no business
+// decision is derived from them.
+// ---------------------------------------------------------------------------
+
+const MAX_DEVICE_TOKEN_LENGTH = 4096;
+
+/** Accepts a valid FCM registration token, or throws a client error. */
+function assertValidDeviceToken(token) {
+  if (
+    typeof token !== 'string' ||
+    !token.trim() ||
+    token.length > MAX_DEVICE_TOKEN_LENGTH ||
+    // FCM registration tokens are URL-safe; control characters would break
+    // the FCM HTTP API and are rejected up front.
+    /[\u0000-\u001f\u007f]/.test(token)
+  ) {
+    throw new Error('A valid device token is required');
+  }
+  return token.trim();
+}
+
+/**
+ * Register (or refresh) one device token for the authenticated responder.
+ * Re-registering an existing token only refreshes lastSeenAt/platform.
+ */
+exports.registerDeviceToken = async (userId, { token, platform } = {}) => {
+  const normalizedToken = assertValidDeviceToken(token);
+
+  const responder = await prisma.user.findUnique({
+    where: { id: Number(userId) },
+    select: { id: true, role: true },
+  });
+  if (!responder || responder.role !== 'RESPONDER') {
+    throw new Error('Only responders can register device tokens');
+  }
+
+  const normalizedPlatform =
+    typeof platform === 'string' && platform.trim() ? platform.trim().slice(0, 32) : null;
+
+  const deviceToken = await prisma.pushDeviceToken.upsert({
+    where: { token: normalizedToken },
+    update: { lastSeenAt: new Date(), ...(normalizedPlatform ? { platform: normalizedPlatform } : {}) },
+    create: {
+      userId: responder.id,
+      token: normalizedToken,
+      ...(normalizedPlatform ? { platform: normalizedPlatform } : {}),
+    },
+  });
+
+  return deviceToken;
+};
+
+/**
+ * Remove one device token (logout or FCM-reported rotation). Unknown tokens
+ * are not an error: the goal is simply that this device receives no further
+ * pushes.
+ */
+exports.removeDeviceToken = async (userId, token) => {
+  const normalizedToken = assertValidDeviceToken(token);
+
+  await prisma.pushDeviceToken.deleteMany({
+    where: { token: normalizedToken, userId: Number(userId) },
+  });
+
+  return { removed: true };
+};

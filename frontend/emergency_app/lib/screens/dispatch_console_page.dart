@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/live_location_store.dart';
+import '../services/push_notification_service.dart';
 import '../services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../services/location_service.dart';
@@ -106,6 +107,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     );
 
     if (isResponder) {
+      // Register this device for FCM push so backgrounded responders still
+      // hear about new compatible emergencies. Purely additive: on failure it
+      // disables itself silently and Socket.IO plus GET /api/requests/
+      // compatible keep working.
+      unawaited(PushNotificationService.instance.startForResponder());
       // Best-effort activity signal only; a missed request does not flip the
       // responder's status or disturb assigned emergencies.
       ApiService.responderHeartbeat().catchError((_) {});
@@ -1098,6 +1104,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   Future<void> logout() async {
     await stopLocationSharing(locationStore.localSharingRequestId);
     SocketService.instance.disconnect();
+    // Remove this device's FCM registration on the way out (best-effort; the
+    // backend drops stale tokens on its own as well).
+    if (isResponder) {
+      unawaited(PushNotificationService.instance.stop());
+    }
     await ApiService.logout();
     if (!mounted) return;
 

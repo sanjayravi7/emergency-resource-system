@@ -21,7 +21,8 @@ const {
   emitResponderAvailability,
   emitResponderLocationStop,
 } = require('../realtime/eventEmitters');
-const { getIO } = require('../realtime/socketEvents');
+const { getIO, rooms } = require('../realtime/socketEvents');
+const pushNotificationService = require('./pushNotificationService');
 
 async function emitAfterCommit(callback) {
   try {
@@ -217,8 +218,14 @@ exports.createEmergencyRequest = async (userId, data) => {
   // Matching is evaluated only after PostgreSQL has committed the request.
   // The same compatibility implementation used by GET /compatible is reused
   // here; the event never grants acceptance or persistence authority.
+  //
+  // Creation and notification are separate concerns by design: this block
+  // runs AFTER the emergency is durably stored, and emitAfterCommit swallows
+  // every error, so zero online responders, a Socket.IO fault or an FCM
+  // outage can never reject or roll back an already-committed emergency. The
+  // request simply stays PENDING until a compatible responder comes online
+  // and reads GET /api/requests/compatible.
   await emitAfterCommit(async () => {
-    if (!getIO()) return;
     const responders = await prisma.user.findMany({
       where: { role: 'RESPONDER', isActive: true },
       select: { id: true },
@@ -230,7 +237,35 @@ exports.createEmergencyRequest = async (userId, data) => {
         compatibleResponderIds.push(responder.id);
       }
     }
-    await emitRequestCreated(created, compatibleResponderIds);
+
+    // Realtime notification: only compatible responders currently connected
+    // through Socket.IO receive the new-emergency event.
+    const io = getIO();
+    if (io) {
+      await emitRequestCreated(created, compatibleResponderIds);
+    }
+
+    // FCM push covers compatible responders whose app is backgrounded or not
+    // maintaining a Socket.IO connection. Devices with a live socket are
+    // skipped when their connection state is known; on any doubt a responder
+    // is treated as offline (a duplicate push is safer than a missed one).
+    const onlineResponderIds = new Set();
+    if (io) {
+      for (const responderId of compatibleResponderIds) {
+        try {
+          const sockets = await io.in(rooms.user(responderId)).allSockets();
+          if (sockets.size > 0) onlineResponderIds.add(Number(responderId));
+        } catch {
+          // Unknown connection state: leave the responder out of the online
+          // set so they still receive the push.
+        }
+      }
+    }
+    await pushNotificationService.notifyRespondersOfNewEmergency(
+      created,
+      compatibleResponderIds,
+      onlineResponderIds
+    );
   });
 
   return created;
