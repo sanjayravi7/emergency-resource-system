@@ -13,7 +13,6 @@ import 'dart:ui' show Tristate;
 import 'package:dispatch_console_flutter/screens/login_screen.dart';
 import 'package:dispatch_console_flutter/screens/register_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
