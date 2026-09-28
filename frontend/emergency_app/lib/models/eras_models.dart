@@ -347,18 +347,17 @@ class LiveResponderLocation {
     );
   }
 
-  /// Backward-compatible non-null factory for existing call sites. Production
-  /// socket ingestion uses [tryFromJson], so malformed payloads never render.
-  factory LiveResponderLocation.fromJson(Map<String, dynamic> json) =>
-      tryFromJson(json) ??
-      LiveResponderLocation(
-        requestId: _asInt(json['requestId']),
-        responderId: _asInt(json['responderId']),
-        latitude: _asDoubleOrNull(json['latitude']) ?? 0,
-        longitude: _asDoubleOrNull(json['longitude']) ?? 0,
-        updatedAt: _asDate(json['timestamp']) ?? DateTime.now(),
-        isLive: true,
-      );
+  /// Non-null compatibility factory for trusted/test payloads. Invalid
+  /// telemetry is rejected rather than converted to a fabricated 0,0 point;
+  /// production socket ingestion should prefer [tryFromJson] so malformed
+  /// events can be ignored without throwing.
+  factory LiveResponderLocation.fromJson(Map<String, dynamic> json) {
+    final parsed = tryFromJson(json);
+    if (parsed == null) {
+      throw const FormatException('Invalid responder location payload.');
+    }
+    return parsed;
+  }
 
   LiveResponderLocation asNotLive() => LiveResponderLocation(
         requestId: requestId,

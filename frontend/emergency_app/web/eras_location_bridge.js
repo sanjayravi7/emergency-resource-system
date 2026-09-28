@@ -113,6 +113,30 @@
   }
 
   /**
+   * Compatibility/diagnostic reverse-geocoder export.
+   *
+   * The requester form deliberately uses the authenticated ERAS Photon
+   * endpoint for reverse geocoding; this bridge method exists for the browser
+   * diagnostics page and older integrations only. It never supplies GPS
+   * coordinates or participates in responder telemetry.
+   */
+  async function reverseGeocode(latitude, longitude) {
+    if (!mapsReady() || typeof google.maps.Geocoder !== 'function') {
+      return fail('Google Maps Geocoder is not loaded.');
+    }
+
+    try {
+      var geocoder = new google.maps.Geocoder();
+      var response = await geocoder.geocode({
+        location: { lat: Number(latitude), lng: Number(longitude) },
+      });
+      return ok({ results: (response && response.results) || [] });
+    } catch (error) {
+      return fail(withAuthorizationHint(errorText(error), 'Geocoding API'));
+    }
+  }
+
+  /**
    * Place autocomplete (Place Autocomplete Data API, new).
    * https://developers.google.com/maps/documentation/javascript/place-autocomplete-data
    *
@@ -433,6 +457,9 @@
     };
 
     if (lat !== null && lng !== null) {
+      report.probes.geocoding = JSON.parse(
+        await reverseGeocode(lat, lng)
+      );
       report.probes.placesAutocomplete = JSON.parse(
         await autocomplete('hospital', lat, lng, 30000)
       );
@@ -448,6 +475,7 @@
     isAvailable: function () {
       return mapsReady();
     },
+    reverseGeocode: reverseGeocode,
     autocomplete: autocomplete,
     placeDetails: placeDetails,
     searchNearby: searchNearby,

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../services/api_service.dart';
 import '../services/live_location_store.dart';
@@ -59,10 +58,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   Timer? heartbeatTimer;
   StreamSubscription<RealtimeEvent>? realtimeEventsSubscription;
   StreamSubscription<SocketConnectionState>? socketStateSubscription;
-  StreamSubscription<Position>? locationSubscription;
+  StreamSubscription<GeoPoint>? locationSubscription;
   final LiveLocationStore locationStore = LiveLocationStore();
   final Set<int> _subscribedRequestIds = <int>{};
   RealtimeConnectionStatus connectionStatus = RealtimeConnectionStatus.offline;
+  bool locationPermissionGranted = false;
+  bool _locationStartInProgress = false;
   bool _hasConnectedOnce = false;
   bool _needsReconnectReconciliation = false;
 
@@ -83,6 +84,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     );
     SocketService.instance.connect();
     connectionStatus = SocketService.instance.currentConnection.status;
+    // Read the existing state without prompting. The first explicit GPS action
+    // owns the runtime permission dialog, and this flag gates Google Maps'
+    // My Location layer safely until that action succeeds.
+    unawaited(_refreshLocationPermissionState());
     refreshAll();
 
     clockTimer = Timer.periodic(
@@ -213,6 +218,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       // last-known; every other responder's stream is untouched.
       if (requestId != null) {
         locationStore.stopSharing(requestId, responderId: responderId);
+        // Lifecycle changes update the board controls/labels once. Subsequent
+        // GPS points repaint only the map AnimatedBuilder below.
+        if (mounted) setState(() {});
       }
       return;
     }
@@ -612,39 +620,67 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     return byId.values.toList(growable: false);
   }
 
-  /// Same GPS read, exposed to the requester form as a plain GeoPoint so the
-  /// form never depends on the geolocator plugin types.
-  Future<GeoPoint?> _tryReadEmergencyGeoPoint() async {
-    final position = await _tryReadEmergencyPosition();
-    if (position == null) return null;
-    return GeoPoint(position.latitude, position.longitude);
+  Future<void> _refreshLocationPermissionState() async {
+    final result = await checkDeviceLocationPermission();
+    if (!mounted) return;
+    setState(() => locationPermissionGranted = result.isGranted);
   }
 
-  Future<Position?> _tryReadEmergencyPosition() async {
+  /// The only requester GPS entry point. Permission/service checks live in the
+  /// shared location service so requester and responder cannot drift into
+  /// different Android permission behaviour.
+  Future<GeoPoint?> _tryReadEmergencyGeoPoint() async {
     if (!isRequester) return null;
 
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) return null;
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return null;
-      }
-
-      return await Geolocator.getCurrentPosition(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.high),
-      ).timeout(const Duration(seconds: 5));
-    } catch (_) {
-      // A requester can still create an emergency with a real text location if
-      // the browser/device does not provide GPS. No client-side coordinate is
-      // fabricated as a substitute.
+    final permission = await ensureDeviceLocationPermission();
+    if (mounted) {
+      setState(() => locationPermissionGranted = permission.isGranted);
+    }
+    if (!permission.isGranted) {
+      await _showLocationRecovery(permission);
       return null;
     }
+
+    final point = await readDeviceLocation();
+    if (point == null && mounted) {
+      showToast(
+        'Precise GPS location is unavailable. You can still enter a text-only location.',
+      );
+    }
+    return point;
+  }
+
+  Future<void> _showLocationRecovery(LocationPermissionResult result) async {
+    if (!mounted) return;
+
+    if (result.isDeniedForever ||
+        result.status == LocationPermissionStatus.serviceDisabled) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(result.isDeniedForever
+              ? 'Location permission blocked'
+              : 'Location services disabled'),
+          content: Text(result.message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Not now'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                unawaited(openDeviceLocationSettings());
+              },
+              child: const Text('Open settings'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    showToast(result.message);
   }
 
   // -------------------------------------------------------------------
@@ -906,21 +942,24 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       showToast('Live location requires a connected realtime service.');
       return;
     }
+    if (_locationStartInProgress) {
+      showToast('Live location is already starting.');
+      return;
+    }
+    _locationStartInProgress = true;
 
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        throw Exception('Location services are disabled on this device.');
+      final permission = await ensureDeviceLocationPermission();
+      if (mounted) {
+        setState(() => locationPermissionGranted = permission.isGranted);
+      }
+      if (!permission.isGranted) {
+        await _showLocationRecovery(permission);
+        return;
       }
 
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        throw Exception('Location permission was not granted.');
-      }
-
+      // Cancel the old stream before authorizing a new request. This keeps the
+      // device on one GPS subscription and one authenticated request room.
       await stopLocationSharing(locationStore.localSharingRequestId);
       final authorized =
           await SocketService.instance.startLocationSharing(request.id);
@@ -932,35 +971,28 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         request.id,
         responderId: ApiService.currentUserId,
       );
+      if (mounted) setState(() {});
 
-      try {
-        final initialPosition = await Geolocator.getCurrentPosition(
-          locationSettings:
-              const LocationSettings(accuracy: LocationAccuracy.high),
-        ).timeout(const Duration(seconds: 5));
+      // Send one real initial fix when available, then continue over the
+      // existing Socket.IO telemetry channel. A missing fix never becomes a
+      // fake coordinate; the stream may still deliver one later.
+      final initialPoint = await readDeviceLocation();
+      if (initialPoint != null && SocketService.instance.isConnected) {
         SocketService.instance.updateLocation(
           requestId: request.id,
-          latitude: initialPosition.latitude,
-          longitude: initialPosition.longitude,
+          latitude: initialPoint.latitude,
+          longitude: initialPoint.longitude,
         );
-      } catch (_) {
-        // The stream below may still provide a fix; do not fabricate one.
       }
 
-      const settings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-      );
-      locationSubscription = Geolocator.getPositionStream(
-        locationSettings: settings,
-      ).listen(
-        (position) {
+      locationSubscription = watchDeviceLocation().listen(
+        (point) {
           final requestId = locationStore.localSharingRequestId;
           if (requestId == null || !SocketService.instance.isConnected) return;
           SocketService.instance.updateLocation(
             requestId: requestId,
-            latitude: position.latitude,
-            longitude: position.longitude,
+            latitude: point.latitude,
+            longitude: point.longitude,
           );
         },
         onError: (Object _) {
@@ -973,6 +1005,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         await stopLocationSharing(request.id);
       }
       showToast('Location sharing failed: ${_clean(error)}');
+    } finally {
+      _locationStartInProgress = false;
     }
   }
 
@@ -985,6 +1019,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     final activeRequestId = requestId ?? locationStore.localSharingRequestId;
     if (activeRequestId == null) return;
     locationStore.endLocalSharing(activeRequestId);
+    if (mounted) setState(() {});
     if (emitStop && SocketService.instance.isConnected) {
       SocketService.instance.stopLocationSharing(activeRequestId);
     }
@@ -1174,6 +1209,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           onRefresh: refreshAll,
           onLogout: logout,
           connectionStatus: connectionStatus,
+          topInset: MediaQuery.of(context).padding.top,
         ),
         body: SafeArea(
           top: false,
@@ -1304,9 +1340,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         ),
       );
       children.add(
-        AnimatedBuilder(
-          animation: locationStore,
-          builder: (context, _) => BoardPanel(
+        BoardPanel(
             title: 'MY ACTIVE EMERGENCY',
             hint: 'Accepted by you',
             requests: openRequests,
@@ -1328,7 +1362,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             connectionStatus: connectionStatus,
             isMobile: isMobile,
           ),
-        ),
       );
 
       children.add(const SizedBox(height: 18));
@@ -1351,9 +1384,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       );
     } else {
       children.add(
-        AnimatedBuilder(
-          animation: locationStore,
-          builder: (context, _) => BoardPanel(
+        BoardPanel(
             title: isAdmin ? 'ALL ACTIVE REQUESTS' : 'MY ACTIVE REQUESTS',
             hint: 'Sorted by time received',
             requests: openRequests,
@@ -1369,11 +1400,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             connectionStatus: connectionStatus,
             isMobile: isMobile,
           ),
-        ),
       );
     }
 
     children.add(const SizedBox(height: 18));
+    // High-frequency GPS notifications are intentionally scoped to the map.
+    // The request board rebuilds only for request/lifecycle changes, not every
+    // responder coordinate.
     children.add(
       AnimatedBuilder(
         animation: locationStore,
@@ -1386,6 +1419,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           child: OperationalGoogleMap(
             requests: [...openRequests, ...pendingCompatible],
             liveLocations: locationStore.locationsByRequest,
+            locationPermissionGranted: locationPermissionGranted,
+            onRequestLocationPermission: () async {
+              final result = await ensureDeviceLocationPermission();
+              if (mounted) {
+                setState(() => locationPermissionGranted = result.isGranted);
+              }
+              if (!result.isGranted) await _showLocationRecovery(result);
+            },
             isMobile: isMobile,
           ),
         ),

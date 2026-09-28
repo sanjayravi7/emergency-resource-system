@@ -760,6 +760,7 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onRefresh,
     required this.onLogout,
     required this.connectionStatus,
+    this.topInset = 0,
   });
 
   final String clock;
@@ -768,19 +769,25 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
   final RealtimeConnectionStatus connectionStatus;
   final VoidCallback onRefresh;
   final VoidCallback onLogout;
+  final double topInset;
 
   @override
-  Size get preferredSize => const Size.fromHeight(96);
+  Size get preferredSize => Size.fromHeight(topInset + 96);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surface,
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
+      // The Scaffold app-bar slot includes [preferredSize]. Keep the status
+      // inset in that same budget instead of letting the Column overflow on
+      // short Android viewports.
+      padding: EdgeInsets.only(top: topInset),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: const BoxDecoration(
               border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
@@ -808,7 +815,7 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Row(
               children: [
                 Expanded(

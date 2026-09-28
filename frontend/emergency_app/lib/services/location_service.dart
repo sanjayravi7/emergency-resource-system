@@ -312,6 +312,56 @@ class LocationServiceException implements Exception {
   String toString() => message;
 }
 
+/// The result of the platform GPS permission/service check.
+///
+/// This is intentionally separate from Geolocator's platform enum. Widgets use
+/// this small, platform-neutral result so Android permission handling remains
+/// centralized without leaking plugin types into the Web location bridge.
+enum LocationPermissionStatus {
+  granted,
+  serviceDisabled,
+  denied,
+  deniedForever,
+  unavailable,
+}
+
+class LocationPermissionResult {
+  const LocationPermissionResult({
+    required this.status,
+    required this.message,
+  });
+
+  final LocationPermissionStatus status;
+  final String message;
+
+  bool get isGranted => status == LocationPermissionStatus.granted;
+  bool get isDeniedForever =>
+      status == LocationPermissionStatus.deniedForever;
+}
+
+/// Check the current service + permission state without showing a runtime
+/// permission dialog. This is used to decide whether Google Maps may enable
+/// its My Location layer.
+Future<LocationPermissionResult> checkDeviceLocationPermission() =>
+    impl.checkDeviceLocationPermission();
+
+/// Check the service and request foreground Android permission when needed.
+/// A denied-forever result is returned to the caller for recovery UI; this
+/// method never fabricates a position and never throws for a normal denial.
+Future<LocationPermissionResult> ensureDeviceLocationPermission() =>
+    impl.ensureDeviceLocationPermission();
+
+/// Read one real device position after [ensureDeviceLocationPermission] has
+/// returned [LocationPermissionStatus.granted].
+Future<GeoPoint?> readDeviceLocation() => impl.readDeviceLocation();
+
+/// Stream real device positions for responder live sharing. The caller owns
+/// and must cancel the returned subscription.
+Stream<GeoPoint> watchDeviceLocation() => impl.watchDeviceLocation();
+
+/// Open the relevant Android settings screen for service/permission recovery.
+Future<bool> openDeviceLocationSettings() => impl.openDeviceLocationSettings();
+
 abstract class LocationService {
   /// True when the Google Maps JavaScript API (with the places library) is
   /// actually loaded. When false the UI falls back to manual place entry.
