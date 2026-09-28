@@ -8,6 +8,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:ui' show Tristate;
 
 import 'package:dispatch_console_flutter/screens/login_screen.dart';
 import 'package:dispatch_console_flutter/screens/register_screen.dart';
