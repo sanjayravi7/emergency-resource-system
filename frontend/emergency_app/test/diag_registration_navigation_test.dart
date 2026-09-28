@@ -25,7 +25,7 @@ const ValueKey<String> requesterCardKey = ValueKey<String>(
 http.Response _jsonResponse(Object body, [int status = 200]) =>
     http.Response(jsonEncode(body), status);
 
-http.MockClient _okRegisterApi() => http.MockClient((request) async {
+MockClient _okRegisterApi() => MockClient((request) async {
       if (request.url.path == '/api/auth/register') {
         return _jsonResponse({
           'success': true,
