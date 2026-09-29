@@ -102,18 +102,18 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         _gateway.getInventory(),
       ]);
       final helpResponse = Map<String, dynamic>.from(results[0] as Map);
-      final categories = (helpResponse['categories'] as List<dynamic>? ??
-              <dynamic>[])
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .map((item) => <String, String>{
-                'value': item['value'].toString(),
-                'label': item['label'].toString(),
-              })
-          .toList();
-      final selected = (helpResponse['selected'] as List<dynamic>? ??
-              <dynamic>[])
-          .map((item) => item.toString())
-          .toSet();
+      final categories =
+          (helpResponse['categories'] as List<dynamic>? ?? <dynamic>[])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .map((item) => <String, String>{
+                    'value': item['value'].toString(),
+                    'label': item['label'].toString(),
+                  })
+              .toList();
+      final selected =
+          (helpResponse['selected'] as List<dynamic>? ?? <dynamic>[])
+              .map((item) => item.toString())
+              .toSet();
       final resources = (results[1] as List<dynamic>)
           .map((item) =>
               BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
@@ -141,16 +141,15 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           ..addAll(resources);
         _inventoryByResourceId
           ..clear()
-          ..addEntries(inventory.map((item) => MapEntry(item.resourceId, item)));
+          ..addEntries(
+              inventory.map((item) => MapEntry(item.resourceId, item)));
         _inventoryEnabled
           ..clear()
-          ..addEntries(resources.map((resource) => MapEntry(
-              resource.id,
+          ..addEntries(resources.map((resource) => MapEntry(resource.id,
               _inventoryByResourceId[resource.id]?.isEnabled ?? false)));
         _available
           ..clear()
-          ..addEntries(resources.map((resource) => MapEntry(
-              resource.id,
+          ..addEntries(resources.map((resource) => MapEntry(resource.id,
               _inventoryByResourceId[resource.id]?.availableQuantity ?? 0)));
         _loading = false;
       });
@@ -352,8 +351,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
               spacing: 8,
               runSpacing: 6,
               children: _helpTypes
-                  .where((item) =>
-                      _selectedHelpTypes.contains(item['value']!))
+                  .where((item) => _selectedHelpTypes.contains(item['value']!))
                   .map((item) => Chip(label: Text(item['label']!)))
                   .toList(),
             ),
@@ -366,8 +364,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                       _editingHelpTypes = !_editingHelpTypes;
                     }),
             icon: const Icon(Icons.edit_outlined, size: 17),
-            label: Text(
-                _editingHelpTypes ? 'DONE EDITING HELP TYPES' : 'EDIT MY HELP TYPES'),
+            label: Text(_editingHelpTypes
+                ? 'DONE EDITING HELP TYPES'
+                : 'EDIT MY HELP TYPES'),
           ),
         ],
       );
@@ -409,8 +408,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
             OutlinedButton.icon(
               onPressed: _saving
                   ? null
-                  : () => setState(() =>
-                      _showQuantityControls = !_showQuantityControls),
+                  : () => setState(
+                      () => _showQuantityControls = !_showQuantityControls),
               icon: const Icon(Icons.inventory_2_outlined, size: 17),
               label: const Text('EDIT RESOURCE INVENTORY'),
             ),
@@ -452,8 +451,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 value: selected,
                 onChanged: _saving
                     ? null
-                    : (value) => setState(() =>
-                        _inventoryEnabled[resource.id] = value ?? false),
+                    : (value) => setState(
+                        () => _inventoryEnabled[resource.id] = value ?? false),
                 activeColor: AppColors.teal,
               ),
               Expanded(
