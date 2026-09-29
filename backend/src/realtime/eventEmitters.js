@@ -243,8 +243,9 @@ function requestStillJoinable(request) {
     return false;
   }
   if (request.status === 'PENDING') {
-    // PENDING is always potentially joinable while required lines exist.
-    return (request.requiredResources || []).length > 0;
+    // Category eligibility, not resource lines, determines discovery now.
+    // Resource-free emergencies are fully valid pending work too.
+    return true;
   }
   const outstandingByResource = computeOutstandingByResource(
     request.requiredResources || [],

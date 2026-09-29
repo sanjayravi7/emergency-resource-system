@@ -144,8 +144,10 @@ class _ResourceRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${resource.availableQuantity}/${resource.totalQuantity}'
-                '${resource.unit == null ? '' : ' ${resource.unit}'}',
+                resource.isService
+                    ? resource.availabilityLabel
+                    : '${resource.availableQuantity}/${resource.totalQuantity}'
+                        '${resource.unit == null ? '' : ' ${resource.unit}'}',
                 style: monoStyle(size: 12.5, color: AppColors.textDim),
               ),
               const SizedBox(height: 4),
@@ -232,12 +234,14 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
   late final TextEditingController locationController;
   late final TextEditingController thresholdController;
 
+  String mode = 'CONSUMABLE';
   String? error;
 
   @override
   void initState() {
     super.initState();
     final resource = widget.resource;
+    mode = resource?.mode ?? 'CONSUMABLE';
 
     nameController = TextEditingController(text: resource?.name ?? '');
     typeController = TextEditingController(text: resource?.type ?? '');
@@ -301,6 +305,7 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
     Navigator.of(context).pop(<String, dynamic>{
       'name': nameController.text.trim(),
       'type': typeController.text.trim(),
+      'mode': mode,
       'totalQuantity': total,
       'availableQuantity': available,
       'unit': unitController.text.trim(),
@@ -328,6 +333,26 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
             children: [
               _field('Name', nameController),
               _field('Type', typeController, hint: 'AMBULANCE, OXYGEN, FIRE…'),
+              const FieldLabel('Mode'),
+              const SizedBox(height: 5),
+              DropdownButtonFormField<String>(
+                initialValue: mode,
+                decoration: fieldDecoration(),
+                items: const <DropdownMenuItem<String>>[
+                  DropdownMenuItem(
+                    value: 'CONSUMABLE',
+                    child: Text('CONSUMABLE · stock is spent'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'SERVICE',
+                    child: Text('SERVICE · reusable capability'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => mode = value);
+                },
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(child: _field('Total quantity', totalController)),

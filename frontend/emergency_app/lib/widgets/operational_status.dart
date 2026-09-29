@@ -28,25 +28,18 @@ class OperationalTimeline extends StatelessWidget {
       );
     }
 
-    final allocations = request.allocations
-        .where((allocation) => allocation.status != 'CANCELLED')
-        .toList(growable: false);
-    final accepted =
-        request.acceptedBy != null || request.status != RequestStatus.pending;
-    final allocated = allocations.isNotEmpty;
-    final dispatched = allocations.any(
-      (allocation) =>
-          allocation.status == 'DISPATCHED' || allocation.status == 'DELIVERED',
-    );
-    final delivered =
-        allocations.any((allocation) => allocation.status == 'DELIVERED');
+    // The responder-facing lifecycle is intentionally independent from the
+    // legacy Allocation rows that may still appear in historical snapshots.
+    // Allocations are reporting/history data now; they never add workflow
+    // steps or cause the Flutter client to invent a status.
+    final accepted = request.status != RequestStatus.pending;
+    final inProgress = request.status == RequestStatus.inProgress ||
+        request.status == RequestStatus.completed;
     final completed = request.status == RequestStatus.completed;
     final states = <(String, bool)>[
       ('PENDING', true),
       ('ACCEPTED', accepted),
-      ('ALLOCATED', allocated),
-      ('DISPATCHED', dispatched),
-      ('DELIVERED', delivered),
+      ('IN_PROGRESS', inProgress),
       ('COMPLETED', completed),
     ];
 
@@ -355,7 +348,7 @@ class ResponderAvailabilityBanner extends StatelessWidget {
             : AppColors.textFaint;
     final detail = unfinishedAllocations == 0
         ? 'No unfinished work'
-        : '$unfinishedAllocations unfinished allocation${unfinishedAllocations == 1 ? '' : 's'}';
+        : '$unfinishedAllocations unfinished legacy record${unfinishedAllocations == 1 ? '' : 's'}';
 
     return Container(
       key: const ValueKey<String>('responder-availability-banner'),

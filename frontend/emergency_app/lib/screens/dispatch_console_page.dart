@@ -9,7 +9,6 @@ import '../services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/allocation_dialog.dart';
 import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/log_panel.dart';
@@ -534,7 +533,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           }
         }
 
-        pending.addAll(compatible);
+        // The normal responder catalog is the PENDING queue. The backend
+        // keeps active-request compatibility for legacy/multi-responder
+        // integrations, but it must not reintroduce a second acceptance path
+        // into this Flutter workflow.
+        pending.addAll(
+          compatible.where((request) => request.status == RequestStatus.pending),
+        );
       } else {
         final all = isAdmin
             ? _parseRequests(await ApiService.getAdminRequests())
@@ -823,30 +828,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadMyHelpTypes();
   }
 
-  Future<void> endAssignment(EmergencyRequest request) async {
-    try {
-      final response = await ApiService.endMyAssignment(request.id);
-      final rawRequest = response['request'];
-      if (rawRequest is Map) {
-        final updated = EmergencyRequest.fromJson(
-          Map<String, dynamic>.from(rawRequest),
-        );
-        if (!updated.participatesAsResponder(ApiService.currentUserId) &&
-            locationStore.localSharingRequestId == request.id) {
-          await _stopLocalLocationSharing(request.id, emitStop: false);
-        }
-      }
-      showToast('${request.displayId} assignment ended');
-    } catch (error) {
-      showToast('End assignment failed: ${_clean(error)}');
-    }
-
-    await loadRequests();
-    await loadResponders();
-    await loadMyInventory();
-    await loadMyHelpTypes();
-  }
-
   Future<void> cancelRequest(EmergencyRequest request) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -882,133 +863,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     await loadRequests();
     await loadResources();
-  }
-
-  Future<bool> allocateResource({
-    required int requestId,
-    required int resourceId,
-    required int responderResourceId,
-    required int quantity,
-  }) async {
-    var success = false;
-
-    try {
-      await ApiService.createAllocation(
-        requestId: requestId,
-        responderResourceId: responderResourceId,
-        resourceId: resourceId,
-        quantity: quantity,
-      );
-
-      success = true;
-      showToast('Allocated $quantity unit(s)');
-    } catch (error) {
-      showToast('Allocation failed: ${_clean(error)}');
-    }
-
-    await loadRequests();
-    await loadMyInventory();
-    await loadResources();
-
-    return success;
-  }
-
-  Future<bool> cancelAllocation(int allocationId) async {
-    var success = false;
-
-    try {
-      await ApiService.updateAllocationStatus(
-        allocationId: allocationId,
-        status: 'CANCELLED',
-      );
-
-      success = true;
-      showToast('Allocation cancelled');
-    } catch (error) {
-      showToast('Cancel failed: ${_clean(error)}');
-    }
-
-    await loadRequests();
-    await loadMyInventory();
-    await loadResources();
-    await loadResponders();
-
-    return success;
-  }
-
-  Future<void> dispatchAllocation(AllocationLine allocation) async {
-    try {
-      await ApiService.updateAllocationStatus(
-        allocationId: allocation.id,
-        status: 'DISPATCHED',
-      );
-      showToast('${allocation.resourceName} dispatched');
-    } catch (error) {
-      showToast('Dispatch failed: ${_clean(error)}');
-    }
-
-    await loadRequests();
-    await loadMyInventory();
-    await loadResponders();
-  }
-
-  /// Responder-side delivery fallback. The requester's "Confirm received"
-  /// remains the primary flow, but if they never confirm, the responder can
-  /// complete DISPATCHED → DELIVERED themselves. The backend recomputes
-  /// availability through the lifecycle service - nothing is forced here.
-  Future<void> markAllocationDelivered(AllocationLine allocation) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Mark delivered'),
-        content: Text(
-          'Mark this resource as delivered?\n\n'
-          '${allocation.resourceName} × ${allocation.quantity} will be '
-          'marked as delivered and this allocation will be completed.',
-          style: const TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Not yet'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
-            child: const Text('Mark Delivered'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      await ApiService.updateAllocationStatus(
-        allocationId: allocation.id,
-        status: 'DELIVERED',
-      );
-      showToast('${allocation.resourceName} marked as delivered');
-    } catch (error) {
-      showToast('Delivery failed: ${_clean(error)}');
-    }
-
-    await loadRequests();
-    await loadMyInventory();
-    await loadResponders();
-  }
-
-  Future<void> confirmReceipt(AllocationLine allocation) async {
-    try {
-      await ApiService.confirmAllocationReceived(allocation.id);
-      showToast('Resource receipt confirmed');
-    } catch (error) {
-      showToast('Receipt confirmation failed: ${_clean(error)}');
-    }
-
-    await loadRequests();
-    await loadResponders();
   }
 
   Future<void> startLocationSharing(EmergencyRequest request) async {
@@ -1154,32 +1008,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
 
     await loadResources();
-  }
-
-  void openAllocationDialog(EmergencyRequest request) {
-    if (request.requiredResources.isEmpty) {
-      showToast(
-        'This emergency requires no physical resources. Use START RESPONSE.',
-      );
-      return;
-    }
-    showDialog<void>(
-      context: context,
-      builder: (context) => AllocationDialog(
-        requestId: request.id,
-        requestProvider: findRequest,
-        inventoryProvider: () => myInventory,
-        onAllocate: allocateResource,
-        onCancelAllocation: cancelAllocation,
-        onDispatchAllocation: dispatchAllocation,
-        onMarkDelivered: markAllocationDelivered,
-      ),
-    );
-  }
-
-  EmergencyRequest? findRequest(int id) {
-    return firstWhereOrNull(openRequests, (r) => r.id == id) ??
-        firstWhereOrNull(pendingCompatible, (r) => r.id == id);
   }
 
   Future<void> logout() async {
@@ -1454,10 +1282,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               'Accept a compatible request below to start working on it.',
           onStartResponse: startResponse,
           onCompleteResponse: completeResponse,
-          onAllocate: openAllocationDialog,
-          onEndAssignment: endAssignment,
-          onDispatchAllocation: dispatchAllocation,
-          onMarkDelivered: markAllocationDelivered,
           onStartLocationSharing: startLocationSharing,
           onStopLocationSharing: stopLocationSharing,
           liveLocations: locationStore.locationsByRequest,
@@ -1498,7 +1322,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               ? 'No active requests. Submit one from "New".'
               : 'No active requests in the database.',
           onCancelRequest: isRequester ? cancelRequest : null,
-          onConfirmReceipt: isRequester ? confirmReceipt : null,
           liveLocations: locationStore.locationsByRequest,
           activelySharingRequestIds: locationStore.activelySharingRequestIds,
           connectionStatus: connectionStatus,

@@ -160,6 +160,9 @@ exports.addResource = async (actorInput, data) => {
       tx.user.findUnique({ where: { id: targetResponderId } }),
     ]);
     if (!catalogResource) throw new Error('Resource not found');
+    if (!catalogResource.isActive) {
+      throw new Error('Resource is not active');
+    }
     if (!responder || responder.role !== 'RESPONDER') {
       throw new Error('Responder not found');
     }
