@@ -22,9 +22,6 @@ class BoardPanel extends StatelessWidget {
     this.onAccept,
     this.onStartResponse,
     this.onCompleteResponse,
-    // Kept as a source-compatible legacy extension point. The production
-    // responder console does not pass these callbacks, so allocation controls
-    // cannot appear in the normal workflow.
     this.onAllocate,
     this.onEndAssignment,
     this.onCancelRequest,
@@ -51,7 +48,6 @@ class BoardPanel extends StatelessWidget {
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onStartResponse;
   final void Function(EmergencyRequest request)? onCompleteResponse;
-  /// Legacy-only allocation hooks. Not supplied by DispatchConsolePage.
   final void Function(EmergencyRequest request)? onAllocate;
   final void Function(EmergencyRequest request)? onEndAssignment;
   final void Function(EmergencyRequest request)? onCancelRequest;
@@ -71,27 +67,72 @@ class BoardPanel extends StatelessWidget {
   bool _canAccept(EmergencyRequest request) =>
       role == 'RESPONDER' &&
       request.isOpen &&
-      request.status == RequestStatus.pending &&
+      !request.isFullyAllocated &&
       onAccept != null;
 
   bool _canStartResponse(EmergencyRequest request) =>
       role == 'RESPONDER' &&
+      request.requiredResources.isEmpty &&
       request.status == RequestStatus.accepted &&
       currentUserId != null &&
-      request.isAssignedTo(currentUserId!) &&
+      (request.isAssignedTo(currentUserId!) ||
+          request.isLegacyAcceptedBy(currentUserId!)) &&
       onStartResponse != null;
 
   bool _canCompleteResponse(EmergencyRequest request) =>
       role == 'RESPONDER' &&
+      request.requiredResources.isEmpty &&
       request.status == RequestStatus.inProgress &&
       currentUserId != null &&
-      request.isAssignedTo(currentUserId!) &&
+      (request.isAssignedTo(currentUserId!) ||
+          request.isLegacyAcceptedBy(currentUserId!)) &&
       onCompleteResponse != null;
+
+  // Part 7 gate classification:
+  //  - Allocate: RESPONDER who PARTICIPATES (ACTIVE assignment, an
+  //    unfinished allocation of theirs, or the legacy acceptedBy lead) -
+  //    the same rule the backend authorizes. Only for resource-bearing requests.
+  bool _canAllocate(EmergencyRequest request) =>
+      role == 'RESPONDER' &&
+      request.requiredResources.isNotEmpty &&
+      onAllocate != null &&
+      request.participatesAsResponder(currentUserId) &&
+      request.isOpen &&
+      !request.isFullyAllocated;
+
+  bool _canEndAssignment(EmergencyRequest request) =>
+      role == 'RESPONDER' &&
+      currentUserId != null &&
+      request.isAssignedTo(currentUserId!) &&
+      onEndAssignment != null;
 
   bool _canCancel(EmergencyRequest request) =>
       role == 'REQUESTER' &&
       onCancelRequest != null &&
       request.canBeCancelledByRequester;
+
+  List<AllocationLine> _dispatchable(EmergencyRequest request) =>
+      request.allocations
+          .where((allocation) =>
+              role == 'RESPONDER' &&
+              allocation.responderId == currentUserId &&
+              allocation.isReserved)
+          .toList(growable: false);
+
+  // Responder-side delivery fallback: the responder may complete their own
+  // DISPATCHED allocation when the requester never confirms receipt.
+  List<AllocationLine> _deliverable(EmergencyRequest request) => request
+      .allocations
+      .where((allocation) =>
+          role == 'RESPONDER' &&
+          allocation.responderId == currentUserId &&
+          allocation.isDispatched)
+      .toList(growable: false);
+
+  List<AllocationLine> _receivable(EmergencyRequest request) =>
+      request.allocations
+          .where((allocation) => role == 'REQUESTER' && allocation.isDispatched)
+          .toList(growable: false);
 
   String? _allocationStateText(EmergencyRequest request, int resourceId) {
     final statuses = request.allocations
@@ -204,6 +245,95 @@ class BoardPanel extends StatelessWidget {
           ),
         ),
       );
+    }
+
+    if (_canAllocate(request)) {
+      actions.add(
+        OutlinedButton(
+          onPressed: () => onAllocate!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.blue,
+            side: const BorderSide(color: AppColors.blue),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          child: const Text('Allocate', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    }
+
+    if (_canEndAssignment(request)) {
+      actions.add(
+        OutlinedButton(
+          onPressed: () => onEndAssignment!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.amber,
+            side: const BorderSide(color: AppColors.amber),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          child: const Text('End Assignment', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    }
+
+    if (onDispatchAllocation != null) {
+      for (final allocation in _dispatchable(request)) {
+        actions.add(
+          OutlinedButton(
+            onPressed: () => onDispatchAllocation!(allocation),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.blue,
+              side: const BorderSide(color: AppColors.blue),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            child: Text('Confirm & Dispatch · ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
+          ),
+        );
+      }
+    }
+
+    if (onMarkDelivered != null) {
+      for (final allocation in _deliverable(request)) {
+        actions.add(
+          FilledButton(
+            onPressed: () => onMarkDelivered!(allocation),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.teal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            child: Text('Mark Delivered · ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
+          ),
+        );
+      }
+    }
+
+    if (onConfirmReceipt != null) {
+      for (final allocation in _receivable(request)) {
+        actions.add(
+          FilledButton(
+            onPressed: () => onConfirmReceipt!(allocation),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.teal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            child: Text('Confirm received ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
+          ),
+        );
+      }
     }
 
     if (_canCancel(request)) {

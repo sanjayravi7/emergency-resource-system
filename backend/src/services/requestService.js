@@ -108,10 +108,9 @@ function normalizeCapability(row) {
 }
 
 /**
- * Legacy partial capability matching (retained for responders created before
- * help types existed and for allocation-history compatibility).
+ * PARTIAL capability matching (multi-responder dispatch).
  *
- * A legacy responder qualifies for an emergency when at least one required resource
+ * A responder qualifies for an emergency when at least one required resource
  * line still has outstanding quantity AND is servable by that responder under
  * the existing RESOURCE MODE rules:
  *   - SERVICE: enabled capability + active catalog resource (quantity never
@@ -165,23 +164,6 @@ function normalizeOptionalDescription(value) {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
-/**
- * Lifecycle eligibility is category-based, not inventory-based. This check is
- * repeated inside START/COMPLETE transactions so a responder cannot keep
- * operating after disabling the help type that made the request eligible.
- */
-async function assertResponderEligibleForCategory(tx, responderId, emergencyType) {
-  const category = categoryForEmergencyType(emergencyType);
-  const configured = await tx.responderHelpType.findMany({
-    where: { responderId: Number(responderId) },
-    select: { category: true, enabled: true },
-  });
-
-  if (!configured.some((row) => row.enabled && row.category === category)) {
-    throw new Error('Responder does not have a compatible help type');
-  }
-}
-
 exports.createEmergencyRequest = async (userId, data) => {
   const validationError = validateEmergencyRequestInput(data);
   if (validationError) throw new Error(validationError);
@@ -199,14 +181,21 @@ exports.createEmergencyRequest = async (userId, data) => {
     if (!resource.isActive) {
       throw new Error(`Resource "${resource.name}" is not active`);
     }
-  }
 
-  // Resource selection is a request description, not an inventory reservation.
-  // Do not compare a requested quantity with the catalog's current stock here:
-  // stock can change between filing and response, and zero stock/responders
-  // must never prevent an EmergencyRequest from being persisted. Allocation
-  // rows remain available for legacy/history reporting, but the normal
-  // responder lifecycle is ACCEPT -> START -> COMPLETE.
+    // SERVICE resources are reusable responder capabilities, not inventory.
+    // Their availability is a function of responder capacity at
+    // matching/acceptance time, never a static catalog quantity.
+    if (resource.mode === 'CONSUMABLE') {
+      if (resource.availableQuantity <= 0) {
+        throw new Error(`Resource "${resource.name}" is out of stock`);
+      }
+      if (required.quantity > resource.availableQuantity) {
+        throw new Error(
+          `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
+        );
+      }
+    }
+  }
 
   const created = await prisma.emergencyRequest.create({
     data: {
@@ -682,18 +671,15 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       throw new Error('Responder does not have a compatible help type');
     }
 
-    // Help types are the modern eligibility contract. Inventory is deliberately
-    // not consulted for configured responders: a request may ask for Blood,
-    // Food, Oxygen or a service and still follow the same direct response
-    // lifecycle even when stock is currently zero. The resource-based branch
-    // below is retained only for responders created before help types existed.
-    const requiredResources = configuredHelpTypes.length === 0
-      ? await tx.requestResource.findMany({
-          where: { requestId: numericRequestId },
-          select: { resourceId: true, quantity: true },
-        })
-      : [];
-    if (configuredHelpTypes.length === 0 && !requiredResources.length) {
+    const requiredResources = await tx.requestResource.findMany({
+      where: { requestId: numericRequestId },
+      select: { resourceId: true, quantity: true },
+    });
+    if (
+      configuredHelpTypes.length === 0 &&
+      !requiredResources.length &&
+      !hasMatchingHelpType
+    ) {
       throw new Error('Responder does not have a compatible help type');
     }
 
@@ -753,12 +739,9 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       existingPairRow && existingPairRow.status === 'ENDED';
 
     if (requiredResources.length) {
-      // Legacy pre-help-type responders retain the old resource capability
-      // check. Configured responders never enter this branch: acceptance is
-      // category eligibility only and resource quantities remain request
-      // information rather than an allocation prerequisite.
       // Outstanding quantity reuses the allocation service's definition of
-      // "active allocation" so the legacy path stays consistent.
+      // "active allocation" so acceptance and allocation can never disagree
+      // about how much work remains.
       const activeAllocations = await tx.allocation.findMany({
         where: {
           requestId: numericRequestId,
@@ -783,9 +766,8 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
         FOR UPDATE OF rr, resource
       `;
 
-      // Legacy resource-bearing responders retain the existing mode,
-      // quantity, active catalog and outstanding-allocation checks at
-      // acceptance time.
+      // Resource-bearing requests retain the existing mode, quantity, active
+      // catalog and outstanding-allocation checks at acceptance time.
       const servable = findServableRequiredResources(
         requiredResources,
         outstandingByResource,
@@ -1018,6 +1000,16 @@ exports.startEmergencyResponse = async (responderId, requestId) => {
       throw new Error('Request must be accepted before starting response');
     }
 
+    const requiredResources = await tx.requestResource.findMany({
+      where: { requestId: numericRequestId },
+      select: { id: true },
+    });
+    if (requiredResources.length > 0) {
+      throw new Error(
+        'Cannot start response on request with required resources'
+      );
+    }
+
     const lockedResponders = await tx.$queryRaw`
       SELECT id, role, "isActive"
       FROM "User"
@@ -1032,14 +1024,6 @@ exports.startEmergencyResponse = async (responderId, requestId) => {
       throw new Error('Responder is inactive');
     }
 
-    // START is authoritative and re-checks the responder's category
-    // eligibility in the same transaction as the lifecycle transition.
-    await assertResponderEligibleForCategory(
-      tx,
-      numericResponderId,
-      requestRow.emergencyType
-    );
-
     const assignment = await tx.responderAssignment.findUnique({
       where: {
         requestId_responderId: {
@@ -1050,10 +1034,12 @@ exports.startEmergencyResponse = async (responderId, requestId) => {
       select: { id: true, status: true },
     });
 
-    // New lifecycle operations require a real ACTIVE assignment. The
-    // acceptedById fallback remains relevant to legacy reads/history, but it
-    // cannot authorize a new START operation.
-    if (!assignment || assignment.status !== 'ACTIVE') {
+    const isLead = requestRow.acceptedById === numericResponderId;
+    const isAssigned =
+      (assignment && assignment.status === 'ACTIVE') ||
+      (isLead && !assignment);
+
+    if (!isAssigned) {
       throw new Error('Unauthorized: Responder is not assigned to this request');
     }
 
@@ -1109,6 +1095,16 @@ exports.completeEmergencyResponse = async (responderId, requestId) => {
         throw new Error('Request must be in progress to complete response');
       }
 
+      const requiredResources = await tx.requestResource.findMany({
+        where: { requestId: numericRequestId },
+        select: { id: true },
+      });
+      if (requiredResources.length > 0) {
+        throw new Error(
+          'Cannot complete response on request with required resources'
+        );
+      }
+
       const lockedResponders = await tx.$queryRaw`
         SELECT id, role, "isActive"
         FROM "User"
@@ -1123,15 +1119,6 @@ exports.completeEmergencyResponse = async (responderId, requestId) => {
         throw new Error('Responder is inactive');
       }
 
-      // COMPLETE has the same category authorization as START. Resource
-      // requests intentionally use this path too; no allocation or receipt
-      // record is required for the normal response workflow.
-      await assertResponderEligibleForCategory(
-        tx,
-        numericResponderId,
-        requestRow.emergencyType
-      );
-
       const assignment = await tx.responderAssignment.findUnique({
         where: {
           requestId_responderId: {
@@ -1142,7 +1129,12 @@ exports.completeEmergencyResponse = async (responderId, requestId) => {
         select: { id: true, status: true },
       });
 
-      if (!assignment || assignment.status !== 'ACTIVE') {
+      const isLead = requestRow.acceptedById === numericResponderId;
+      const isAssigned =
+        (assignment && assignment.status === 'ACTIVE') ||
+        (isLead && !assignment);
+
+      if (!isAssigned) {
         throw new Error(
           'Unauthorized: Responder is not assigned to this request'
         );

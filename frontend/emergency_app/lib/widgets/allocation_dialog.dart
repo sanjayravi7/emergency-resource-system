@@ -3,10 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
 
-/// LEGACY-ONLY allocation editor for historical/compatibility clients.
-/// DispatchConsolePage intentionally does not import or open this dialog;
-/// current responder work uses START RESPONSE and COMPLETE RESPONSE.
-///
 /// Per-resource allocation for one accepted emergency.
 ///
 /// Every required resource is allocated independently: the responder picks

@@ -27,13 +27,9 @@ router.get(
   allocationController.getMyAllocations
 );
 
-// LEGACY-ONLY allocation history/compatibility API. These routes are retained
-// so existing records and integrations remain usable, but they are not the
-// normal Flutter responder workflow. New responder work uses
-// ACCEPT -> POST /requests/:id/start -> POST /requests/:id/complete.
 // A responder may dispatch, deliver, or cancel only an allocation they own.
-// DELIVERED is the responder-side fallback for older clients that still use
-// allocation delivery; it is valid only from DISPATCHED.
+// DELIVERED is the responder-side fallback for a requester who never
+// confirms receipt: it is valid only from DISPATCHED.
 router.patch(
   '/:id/status',
   authenticate,

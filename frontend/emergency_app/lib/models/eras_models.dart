@@ -157,10 +157,11 @@ class BackendResource {
 
   /// Whether the requester can pick this resource for a new emergency.
   ///
-  /// Catalog availability is deliberately not a gate. Both SERVICE and
-  /// CONSUMABLE rows remain selectable while active so a request can describe
-  /// unmet need even when stock/responders are currently zero.
-  bool get isSelectable => isActive;
+  /// A SERVICE resource stays selectable while active no matter how many
+  /// responders are online right now - responder availability must never
+  /// block filing an emergency. A CONSUMABLE resource requires real spendable
+  /// inventory, which the backend also enforces on creation.
+  bool get isSelectable => isActive && (isService || !isOutOfStock);
 
   /// "10 / 10 vehicle", "4 responders available", "No responders online yet"
   /// or "Out of stock"
@@ -464,7 +465,6 @@ class BackendResponderResource {
     required this.resourceType,
     this.unit,
     this.location,
-    this.mode = 'CONSUMABLE',
   });
 
   final int id;
@@ -487,12 +487,9 @@ class BackendResponderResource {
   final String resourceType;
   final String? unit;
   final String? location;
-  final String mode;
-
-  bool get isService => mode == 'SERVICE';
 
   bool get isAvailable =>
-      isEnabled && status == 'AVAILABLE' && (isService || availableQuantity > 0);
+      isEnabled && status == 'AVAILABLE' && availableQuantity > 0;
 
   factory BackendResponderResource.fromJson(Map<String, dynamic> json) {
     final responder = _asMap(json['responder']);
@@ -514,7 +511,6 @@ class BackendResponderResource {
       resourceType: _asTrimmedString(resource['type']) ?? '',
       unit: _asTrimmedString(resource['unit']),
       location: _asTrimmedString(resource['location']),
-      mode: _asTrimmedString(resource['mode']) ?? 'CONSUMABLE',
     );
   }
 }
@@ -890,10 +886,9 @@ class EmergencyRequest {
       (acceptedBy?.id ?? acceptedById) == userId &&
       !assignments.any((a) => a.responderId == userId);
 
-  /// Legacy/history participation: the responder owns an unfinished
-  /// (RESERVED/DISPATCHED) allocation on this request. New responder work does
-  /// not create allocation rows; this remains for old records and room
-  /// authorization compatibility.
+  /// The responder owns an unfinished (RESERVED/DISPATCHED) allocation on
+  /// this request. Allocation intentionally requires no assignment
+  /// (Part 7, category B - the allocation-only flow).
   bool ownsUnfinishedAllocation(int? userId) => userId != null
       ? allocations.any(
           (a) => a.responderId == userId && (a.isReserved || a.isDispatched))
