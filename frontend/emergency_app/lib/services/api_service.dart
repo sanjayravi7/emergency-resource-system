@@ -291,8 +291,7 @@ class ApiService {
     return body;
   }
 
-  /// Responder starts the authoritative response lifecycle for any emergency.
-  /// Resource-free and resource-bearing requests use the same endpoint.
+  /// Responder starts active response for a resource-free emergency.
   static Future<Map<String, dynamic>> startEmergencyResponse(
     int requestId,
   ) async {
@@ -310,9 +309,7 @@ class ApiService {
     return body;
   }
 
-  /// Responder completes the authoritative response lifecycle for any
-  /// emergency. The backend ends the active assignment and recomputes
-  /// availability.
+  /// Responder completes response for a resource-free emergency.
   static Future<Map<String, dynamic>> completeEmergencyResponse(
     int requestId,
   ) async {

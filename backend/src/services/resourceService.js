@@ -78,10 +78,6 @@ exports.getResourceAvailability = async () => {
           where: {
             resourceId: resource.id,
             isEnabled: true,
-            // A SERVICE row is a current capability only when its resource
-            // status is available; responderStatus alone is the overall
-            // emergency workload state.
-            status: 'AVAILABLE',
             responder: {
               role: 'RESPONDER',
               isActive: true,

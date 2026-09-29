@@ -41,10 +41,11 @@ class _DraftLine {
   int quantity = 1;
 }
 
-/// Request quantities describe need, not currently available stock. Keep a
-/// bounded stepper for input hygiene while allowing requests to be filed when
-/// a catalog resource is out of stock or has no responder online.
-const int _maxRequestQuantity = 1000;
+/// Upper bound for one SERVICE resource line. Responder availability never
+/// limits the requested quantity (an emergency is always accepted, even with
+/// zero responders online); this only keeps the +/- stepper from producing
+/// absurd numbers. The backend independently caps quantities.
+const int _maxServiceRequestQuantity = 20;
 
 /// Requester form. Every selectable resource comes from
 /// GET /api/resources, so a resource added by an admin (for example
@@ -83,7 +84,6 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
   final descriptionController = TextEditingController();
   final customTypeController = TextEditingController();
   final locationController = TextEditingController();
-  final resourceSearchController = TextEditingController();
 
   String emergencyType = kEmergencyTypes.first;
   String priority = 'HIGH';
@@ -102,7 +102,6 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     descriptionController.dispose();
     customTypeController.dispose();
     locationController.dispose();
-    resourceSearchController.dispose();
     super.dispose();
   }
 
@@ -151,10 +150,18 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       final line = lines[index];
       final resource = resourceById(line.resourceId);
 
-      // A request quantity is what the requester needs. It is intentionally
-      // not clamped to catalog stock or online responder count: availability
-      // can change after submission and must never block filing an emergency.
-      final maxQuantity = resource == null ? 1 : _maxRequestQuantity;
+      // A SERVICE resource is a reusable responder capability: the quantity
+      // says how many units of that capability the emergency needs and is
+      // never limited by the number of responders online right now. A
+      // CONSUMABLE resource is bounded by real spendable inventory.
+      final int maxQuantity;
+      if (resource == null) {
+        maxQuantity = 1;
+      } else if (resource.isService) {
+        maxQuantity = _maxServiceRequestQuantity;
+      } else {
+        maxQuantity = resource.effectiveAvailableCount;
+      }
 
       var next = line.quantity + delta;
       if (next < 1) next = 1;
@@ -222,11 +229,22 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         return '${resource.name} is not active anymore';
       }
 
-      // Catalog availability is informational only. A requester may ask for
-      // more than the currently visible stock; responders will handle the
-      // need directly through ACCEPT -> START -> COMPLETE.
+      // Zero responders online NEVER blocks a SERVICE resource: the request
+      // is filed and stays PENDING until a compatible responder is
+      // available. Only a CONSUMABLE resource can be rejected for missing
+      // inventory, which the backend also enforces.
+      if (resource.isOutOfStock) {
+        return '${resource.name} is out of stock';
+      }
+
       if (line.quantity <= 0) {
         return 'Quantity must be greater than 0';
+      }
+
+      if (!resource.isService &&
+          line.quantity > resource.effectiveAvailableCount) {
+        return 'Only ${resource.effectiveAvailableCount} '
+            '${resource.name} available';
       }
 
       if (!ids.add(resource.id)) {
@@ -279,7 +297,6 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     setState(() {
       descriptionController.clear();
       locationController.clear();
-      resourceSearchController.clear();
       latitude = null;
       longitude = null;
       allowGpsFallback = true;
@@ -313,29 +330,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                 const SizedBox(height: 18),
                 const Divider(height: 1, color: AppColors.border),
                 const SizedBox(height: 14),
-                const FieldLabel('AVAILABLE RESOURCES'),
-                const SizedBox(height: 3),
-                const Text(
-                  'REQUIRED RESOURCES (OPTIONAL)',
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textFaint,
-                      letterSpacing: .5),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: resourceSearchController,
-                  style: const TextStyle(fontSize: 13),
-                  decoration: fieldDecoration(
-                    hintText: 'Search Blood, Food, Water, Oxygen…',
-                  ).copyWith(prefixIcon: const Icon(Icons.search, size: 17)),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Select zero or more resources. Availability is informational and never blocks submission.',
-                  style: TextStyle(fontSize: 11.5, color: AppColors.textDim),
-                ),
+                const FieldLabel('Required resources'),
                 const SizedBox(height: 10),
                 if (selectableResources.isEmpty)
                   // Purely informational, never a blocker: resource
@@ -577,13 +572,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         .whereType<int>()
         .toSet();
 
-    final search = resourceSearchController.text.trim().toLowerCase();
     final items = selectableResources
-        .where((r) =>
-            (search.isEmpty ||
-                r.name.toLowerCase().contains(search) ||
-                r.type.toLowerCase().contains(search)) &&
-            !takenElsewhere.contains(r.id))
+        .where((r) => !takenElsewhere.contains(r.id))
         .map(
           (r) => DropdownMenuItem<int>(
             value: r.id,
@@ -659,10 +649,15 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
             setState(() {
               line.resourceId = value;
               final picked = resourceById(value);
-              // The current availability label is informative. It must not
-              // clamp the requested quantity or make a zero-stock resource
-              // impossible to select.
-              if (picked != null && line.quantity < 1) line.quantity = 1;
+              // Only CONSUMABLE inventory bounds the quantity. A SERVICE
+              // capability is never clamped to the current responder count -
+              // the emergency must be filable even with zero responders.
+              if (picked != null &&
+                  !picked.isService &&
+                  line.quantity > picked.effectiveAvailableCount) {
+                line.quantity = picked.effectiveAvailableCount;
+              }
+              if (line.quantity < 1) line.quantity = 1;
               errorMessage = null;
             });
           },
