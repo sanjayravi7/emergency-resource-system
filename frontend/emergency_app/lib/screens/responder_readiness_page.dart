@@ -50,7 +50,11 @@ class _ApiResponderReadinessGateway implements ResponderReadinessGateway {
 /// emergencies the responder may discover. Resource/ResponderResource rows
 /// remain a separate allocation concern and may be completely empty.
 class ResponderReadinessPage extends StatefulWidget {
-  const ResponderReadinessPage({super.key, this.onSaved, this.gateway});
+  const ResponderReadinessPage({
+    super.key,
+    this.onSaved,
+    this.gateway,
+  });
 
   final VoidCallback? onSaved;
   final ResponderReadinessGateway? gateway;
@@ -101,31 +105,23 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
       final categories =
           (helpResponse['categories'] as List<dynamic>? ?? <dynamic>[])
               .map((item) => Map<String, dynamic>.from(item as Map))
-              .map(
-                (item) => <String, String>{
-                  'value': item['value'].toString(),
-                  'label': item['label'].toString(),
-                },
-              )
+              .map((item) => <String, String>{
+                    'value': item['value'].toString(),
+                    'label': item['label'].toString(),
+                  })
               .toList();
       final selected =
           (helpResponse['selected'] as List<dynamic>? ?? <dynamic>[])
               .map((item) => item.toString())
               .toSet();
       final resources = (results[1] as List<dynamic>)
-          .map(
-            (item) => BackendResource.fromJson(
-              Map<String, dynamic>.from(item as Map),
-            ),
-          )
+          .map((item) =>
+              BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
           .where((resource) => resource.isActive)
           .toList();
       final inventory = (results[2] as List<dynamic>)
-          .map(
-            (item) => BackendResponderResource.fromJson(
-              Map<String, dynamic>.from(item as Map),
-            ),
-          )
+          .map((item) => BackendResponderResource.fromJson(
+              Map<String, dynamic>.from(item as Map)))
           .toList();
 
       if (!mounted) return;
@@ -146,28 +142,15 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         _inventoryByResourceId
           ..clear()
           ..addEntries(
-            inventory.map((item) => MapEntry(item.resourceId, item)),
-          );
+              inventory.map((item) => MapEntry(item.resourceId, item)));
         _inventoryEnabled
           ..clear()
-          ..addEntries(
-            resources.map(
-              (resource) => MapEntry(
-                resource.id,
-                _inventoryByResourceId[resource.id]?.isEnabled ?? false,
-              ),
-            ),
-          );
+          ..addEntries(resources.map((resource) => MapEntry(resource.id,
+              _inventoryByResourceId[resource.id]?.isEnabled ?? false)));
         _available
           ..clear()
-          ..addEntries(
-            resources.map(
-              (resource) => MapEntry(
-                resource.id,
-                _inventoryByResourceId[resource.id]?.availableQuantity ?? 0,
-              ),
-            ),
-          );
+          ..addEntries(resources.map((resource) => MapEntry(resource.id,
+              _inventoryByResourceId[resource.id]?.availableQuantity ?? 0)));
         _loading = false;
       });
     } catch (error) {
@@ -223,8 +206,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           'status': available == 0
               ? 'UNAVAILABLE'
               : isEnabled
-              ? 'AVAILABLE'
-              : existing.status,
+                  ? 'AVAILABLE'
+                  : existing.status,
         });
       }
 
@@ -271,10 +254,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
-        title: const Text(
-          'Responder readiness',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
+        title: const Text('Responder readiness',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
       ),
       body: SafeArea(
         child: Center(
@@ -302,9 +283,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
+                                    strokeWidth: 2, color: Colors.white),
                               )
                             : const Text('SAVE & GO AVAILABLE'),
                       ),
@@ -317,147 +296,142 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   }
 
   Widget _helpTypeSection() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: <Widget>[
-      const Text(
-        'WHAT CAN YOU HELP WITH?',
-        style: TextStyle(
-          fontSize: 19,
-          fontWeight: FontWeight.w700,
-          color: AppColors.text,
-        ),
-      ),
-      const SizedBox(height: 6),
-      const Text(
-        'These emergency categories determine which requests you receive. '
-        'They do not depend on your resource inventory.',
-        style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
-      ),
-      const SizedBox(height: 12),
-      if (_helpTypes.isEmpty)
-        _message('No emergency help types are configured.', AppColors.red)
-      else if (_editingHelpTypes)
-        Container(
-          key: const Key('help-type-selector'),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(8),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('WHAT CAN YOU HELP WITH?',
+              style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text)),
+          const SizedBox(height: 6),
+          const Text(
+            'These emergency categories determine which requests you receive. '
+            'They do not depend on your resource inventory.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
           ),
-          child: Column(
-            children: _helpTypes.map((item) {
-              final value = item['value']!;
-              // CheckboxListTile uses InkWell for its tap feedback. Give
-              // every tile its own Material ancestor so the splash and
-              // selected state remain visible even though the selector is
-              // inside a bordered surface container.
-              return Material(
+          const SizedBox(height: 12),
+          if (_helpTypes.isEmpty)
+            _message('No emergency help types are configured.', AppColors.red)
+          else if (_editingHelpTypes)
+            Container(
+              key: const Key('help-type-selector'),
+              decoration: BoxDecoration(
                 color: AppColors.surface,
-                child: CheckboxListTile(
-                  key: Key('help-type-$value'),
-                  dense: true,
-                  value: _selectedHelpTypes.contains(value),
-                  activeColor: AppColors.teal,
-                  title: Text(item['label']!),
-                  onChanged: _saving
-                      ? null
-                      : (checked) => setState(() {
-                          if (checked ?? false) {
-                            _selectedHelpTypes.add(value);
-                          } else {
-                            _selectedHelpTypes.remove(value);
-                          }
-                          _notice = null;
-                        }),
-                ),
-              );
-            }).toList(),
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: _helpTypes.map((item) {
+                  final value = item['value']!;
+                  // CheckboxListTile uses InkWell for its tap feedback. Give
+                  // every tile its own Material ancestor so the splash and
+                  // selected state remain visible even though the selector is
+                  // inside a bordered surface container.
+                  return Material(
+                    color: AppColors.surface,
+                    child: CheckboxListTile(
+                      key: Key('help-type-$value'),
+                      dense: true,
+                      value: _selectedHelpTypes.contains(value),
+                      activeColor: AppColors.teal,
+                      title: Text(item['label']!),
+                      onChanged: _saving
+                          ? null
+                          : (checked) => setState(() {
+                                if (checked ?? false) {
+                                  _selectedHelpTypes.add(value);
+                                } else {
+                                  _selectedHelpTypes.remove(value);
+                                }
+                                _notice = null;
+                              }),
+                    ),
+                  );
+                }).toList(),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: _helpTypes
+                  .where((item) => _selectedHelpTypes.contains(item['value']!))
+                  .map((item) => Chip(label: Text(item['label']!)))
+                  .toList(),
+            ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('edit-help-types'),
+            onPressed: _saving
+                ? null
+                : () => setState(() {
+                      _editingHelpTypes = !_editingHelpTypes;
+                    }),
+            icon: const Icon(Icons.edit_outlined, size: 17),
+            label: Text(_editingHelpTypes
+                ? 'DONE EDITING HELP TYPES'
+                : 'EDIT MY HELP TYPES'),
           ),
-        )
-      else
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: _helpTypes
-              .where((item) => _selectedHelpTypes.contains(item['value']!))
-              .map((item) => Chip(label: Text(item['label']!)))
-              .toList(),
-        ),
-      const SizedBox(height: 10),
-      OutlinedButton.icon(
-        key: const Key('edit-help-types'),
-        onPressed: _saving
-            ? null
-            : () => setState(() {
-                _editingHelpTypes = !_editingHelpTypes;
-              }),
-        icon: const Icon(Icons.edit_outlined, size: 17),
-        label: Text(
-          _editingHelpTypes ? 'DONE EDITING HELP TYPES' : 'EDIT MY HELP TYPES',
-        ),
-      ),
-    ],
-  );
+        ],
+      );
 
   Widget _inventorySection() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: <Widget>[
-      const Text(
-        'RESOURCE INVENTORY (OPTIONAL)',
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: AppColors.text,
-        ),
-      ),
-      const SizedBox(height: 6),
-      const Text(
-        'Physical and reusable resources are managed separately and are '
-        'checked when resources are allocated.',
-        style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
-      ),
-      const SizedBox(height: 12),
-      if (_resources.isEmpty)
-        _message(
-          'No resource inventory is configured yet. You can still choose '
-          'your emergency help types and go available.',
-          AppColors.textFaint,
-        )
-      else ...<Widget>[
-        Container(
-          key: const Key('resource-inventory'),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(8),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('RESOURCE INVENTORY (OPTIONAL)',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text)),
+          const SizedBox(height: 6),
+          const Text(
+            'Physical and reusable resources are managed separately and are '
+            'checked when resources are allocated.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
           ),
-          child: Column(children: _resources.map(_resourceRow).toList()),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: _saving
-              ? null
-              : () => setState(
-                  () => _showQuantityControls = !_showQuantityControls,
-                ),
-          icon: const Icon(Icons.inventory_2_outlined, size: 17),
-          label: const Text('EDIT RESOURCE INVENTORY'),
-        ),
-      ],
-    ],
-  );
+          const SizedBox(height: 12),
+          if (_resources.isEmpty)
+            _message(
+              'No resource inventory is configured yet. You can still choose '
+              'your emergency help types and go available.',
+              AppColors.textFaint,
+            )
+          else ...<Widget>[
+            Container(
+              key: const Key('resource-inventory'),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: _resources.map(_resourceRow).toList(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _saving
+                  ? null
+                  : () => setState(
+                      () => _showQuantityControls = !_showQuantityControls),
+              icon: const Icon(Icons.inventory_2_outlined, size: 17),
+              label: const Text('EDIT RESOURCE INVENTORY'),
+            ),
+          ],
+        ],
+      );
 
   Widget _message(String text, Color color) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Text(text, style: TextStyle(fontSize: 12.5, color: color)),
-    ),
-  );
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .12),
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: Text(text, style: TextStyle(fontSize: 12.5, color: color)),
+        ),
+      );
 
   Widget _resourceRow(BackendResource resource) {
     final row = _inventoryByResourceId[resource.id];
@@ -482,43 +456,32 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 onChanged: _saving
                     ? null
                     : (value) => setState(
-                        () => _inventoryEnabled[resource.id] = value ?? false,
-                      ),
+                        () => _inventoryEnabled[resource.id] = value ?? false),
                 activeColor: AppColors.teal,
               ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
-                      resource.name,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    Text(resource.name,
+                        style: const TextStyle(
+                            fontSize: 13.5, fontWeight: FontWeight.w600)),
                     Text(
                       isService
                           ? 'Reusable resource · no quantity to track'
                           : row == null
-                          ? 'No responder inventory assigned'
-                          : '$available / ${row.totalQuantity} $unit · ${row.status}',
+                              ? 'No responder inventory assigned'
+                              : '$available / ${row.totalQuantity} $unit · ${row.status}',
                       style: const TextStyle(
-                        fontSize: 11.5,
-                        color: AppColors.textFaint,
-                      ),
+                          fontSize: 11.5, color: AppColors.textFaint),
                     ),
                   ],
                 ),
               ),
               if (!isService)
-                Text(
-                  '$available $unit',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.textDim,
-                  ),
-                ),
+                Text('$available $unit',
+                    style: const TextStyle(
+                        fontSize: 12.5, color: AppColors.textDim)),
             ],
           ),
           if (!isService && _showQuantityControls && row != null)
@@ -526,10 +489,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
               padding: const EdgeInsets.only(left: 48, right: 6, bottom: 4),
               child: Row(
                 children: <Widget>[
-                  const Text(
-                    'Available quantity',
-                    style: TextStyle(fontSize: 11.5, color: AppColors.textDim),
-                  ),
+                  const Text('Available quantity',
+                      style:
+                          TextStyle(fontSize: 11.5, color: AppColors.textDim)),
                   const Spacer(),
                   IconButton(
                     onPressed: _saving || available <= 0
@@ -537,13 +499,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                         : () => _adjustAvailable(resource, -1),
                     icon: const Icon(Icons.remove, size: 17),
                   ),
-                  Text(
-                    '$available',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  Text('$available',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
                   IconButton(
                     onPressed: _saving || available >= row.totalQuantity
                         ? null

@@ -36,8 +36,7 @@ EmergencyRequest _request(
     'requiredResources': <dynamic>[],
     'allocations': allocations,
     'assignments': assignments,
-    'acceptedBy':
-        acceptedBy ??
+    'acceptedBy': acceptedBy ??
         <String, dynamic>{
           'id': 9,
           'name': 'Responder',
@@ -130,11 +129,8 @@ void main() {
 
       expect(store.locationFor(21, 1)!.isLive, isFalse);
       expect(store.locationFor(21, 1)!.latitude, 10.1);
-      expect(
-        store.locationFor(21, 2)!.isLive,
-        isTrue,
-        reason: 'another responder stopping must not end this stream',
-      );
+      expect(store.locationFor(21, 2)!.isLive, isTrue,
+          reason: 'another responder stopping must not end this stream');
       expect(store.isResponderActivelySharing(21, 1), isFalse);
       expect(store.isResponderActivelySharing(21, 2), isTrue);
     });
@@ -163,9 +159,7 @@ void main() {
       expect(store.locationFor(31, 9), isNotNull);
       expect(store.locationFor(31, 9)!.isLive, isFalse);
       expect(
-        store.locationFor(31, 9)!.updatedAt,
-        DateTime.utc(2026, 9, 26, 10),
-      );
+          store.locationFor(31, 9)!.updatedAt, DateTime.utc(2026, 9, 26, 10));
     });
 
     test('local sharing is tracked per responder identity', () {
@@ -236,40 +230,41 @@ void main() {
     });
 
     // Phase F case 12: reconcile handles multiple responders. -------------
-    test(
-      'reconcile merges persisted points for multiple assigned responders',
-      () {
-        final store = LiveLocationStore();
-        addTearDown(store.dispose);
+    test('reconcile merges persisted points for multiple assigned responders',
+        () {
+      final store = LiveLocationStore();
+      addTearDown(store.dispose);
 
-        store.applyUpdate(
-          _location(81, responderId: 2, latitude: 10.9, longitude: 76.9),
-        );
+      store.applyUpdate(_location(
+        81,
+        responderId: 2,
+        latitude: 10.9,
+        longitude: 76.9,
+      ));
 
-        store.reconcile(<EmergencyRequest>[
-          _request(
-            81,
-            'IN_PROGRESS',
-            assignments: <Map<String, dynamic>>[
-              _assignment(1, latitude: 10.1, longitude: 76.1),
-              _assignment(2, latitude: 10.2, longitude: 76.2),
-              _assignment(3, status: 'ENDED', latitude: 10.3, longitude: 76.3),
-            ],
-          ),
-        ]);
+      store.reconcile(<EmergencyRequest>[
+        _request(
+          81,
+          'IN_PROGRESS',
+          assignments: <Map<String, dynamic>>[
+            _assignment(1, latitude: 10.1, longitude: 76.1),
+            _assignment(2, latitude: 10.2, longitude: 76.2),
+            _assignment(3, status: 'ENDED', latitude: 10.3, longitude: 76.3),
+          ],
+        ),
+      ]);
 
-        final points = store.locationsForRequest(81);
-        // Assignment 1 has no live point: persisted last-known point merged.
-        expect(points[1]!.latitude, 10.1);
-        expect(points[1]!.isLive, isFalse);
-        // Assignment 2 is live from the socket: the persisted point loses.
-        expect(points[2]!.latitude, 10.9);
-        expect(points[2]!.isLive, isTrue);
-        // ENDED assignment: the responder no longer participates, so even a
-        // persisted coordinate must not be tracked.
-        expect(points.containsKey(3), isFalse);
-      },
-    );
+      final points = store.locationsForRequest(81);
+      // Assignment 1 has no live point: persisted last-known point merged.
+      expect(points[1]!.latitude, 10.1);
+      expect(points[1]!.isLive, isFalse);
+      // Assignment 2 is live from the socket: the persisted point loses.
+      expect(points[2]!.latitude, 10.9);
+      expect(points[2]!.isLive, isTrue);
+      // ENDED assignment: the responder no longer participates, so even a
+      // persisted coordinate must not be tracked.
+      expect(points.containsKey(3), isFalse);
+    });
 
     test('reconcile drops points of responders who left the request', () {
       final store = LiveLocationStore();
@@ -287,11 +282,8 @@ void main() {
       ]);
 
       final points = store.locationsForRequest(91);
-      expect(
-        points.containsKey(4),
-        isFalse,
-        reason: 'no ACTIVE assignment, no allocation, not the lead',
-      );
+      expect(points.containsKey(4), isFalse,
+          reason: 'no ACTIVE assignment, no allocation, not the lead');
       expect(points.containsKey(5), isTrue);
     });
 
@@ -308,11 +300,8 @@ void main() {
       expect(store.locationFor(93, 7)!.latitude, 10.7);
 
       store.applyUpdate(_location(93, responderId: 8, latitude: 10.8));
-      expect(
-        store.singleLocationFor(93),
-        isNull,
-        reason: 'two responders: returning an arbitrary one is forbidden',
-      );
+      expect(store.singleLocationFor(93), isNull,
+          reason: 'two responders: returning an arbitrary one is forbidden');
       // The pair-keyed API stays authoritative and complete.
       expect(store.locationFor(93, 7)!.latitude, 10.7);
       expect(store.locationFor(93, 8)!.latitude, 10.8);
@@ -331,11 +320,8 @@ void main() {
       store.clearRequest(95);
 
       expect(store.locationsForRequest(95), isEmpty);
-      expect(
-        store.locationFor(96, 1),
-        isNotNull,
-        reason: 'other requests keep their points',
-      );
+      expect(store.locationFor(96, 1), isNotNull,
+          reason: 'other requests keep their points');
     });
   });
 }

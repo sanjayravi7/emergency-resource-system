@@ -67,9 +67,7 @@ void main() {
 
     expect(snapshots.map((marker) => marker.id), contains('request-101'));
     expect(
-      snapshots.map((marker) => marker.id),
-      isNot(contains('request-102')),
-    );
+        snapshots.map((marker) => marker.id), isNot(contains('request-102')));
 
     final marker = snapshots.singleWhere((item) => item.id == 'request-101');
     expect(marker.kind, OperationalMapMarkerKind.activeRequest);
@@ -82,7 +80,9 @@ void main() {
 
   test('distinguishes pending request markers from active emergencies', () {
     final snapshots = builder.buildSnapshots(
-      requests: <EmergencyRequest>[_request(111, status: 'PENDING')],
+      requests: <EmergencyRequest>[
+        _request(111, status: 'PENDING'),
+      ],
       liveLocations: const <int, Map<int, LiveResponderLocation>>{},
     );
 
@@ -94,13 +94,12 @@ void main() {
     final snapshots = builder.buildSnapshots(
       requests: <EmergencyRequest>[_request(201)],
       liveLocations: <int, Map<int, LiveResponderLocation>>{
-        201: <int, LiveResponderLocation>{9: _live(201)},
+        201: <int, LiveResponderLocation>{9: _live(201)}
       },
     );
 
-    final marker = snapshots.singleWhere(
-      (item) => item.id == 'responder-201-9',
-    );
+    final marker =
+        snapshots.singleWhere((item) => item.id == 'responder-201-9');
     expect(marker.kind, OperationalMapMarkerKind.liveResponder);
     expect(marker.position.latitude, 10.530000);
     expect(marker.position.longitude, 76.220000);
@@ -111,7 +110,7 @@ void main() {
     final first = builder.buildSnapshots(
       requests: <EmergencyRequest>[_request(301)],
       liveLocations: <int, Map<int, LiveResponderLocation>>{
-        301: <int, LiveResponderLocation>{9: _live(301)},
+        301: <int, LiveResponderLocation>{9: _live(301)}
       },
     );
     final second = builder.buildSnapshots(
@@ -123,35 +122,32 @@ void main() {
       },
     );
 
-    final firstMarker = first.singleWhere(
-      (item) => item.id == 'responder-301-9',
-    );
-    final secondMarker = second.singleWhere(
-      (item) => item.id == 'responder-301-9',
-    );
+    final firstMarker =
+        first.singleWhere((item) => item.id == 'responder-301-9');
+    final secondMarker =
+        second.singleWhere((item) => item.id == 'responder-301-9');
 
     expect(secondMarker.id, firstMarker.id);
     expect(secondMarker.position.latitude, 10.540000);
     expect(secondMarker.position.longitude, 76.230000);
   });
 
-  test(
-    'live to last-known transition keeps the marker but changes its state',
-    () {
-      final snapshots = builder.buildSnapshots(
-        requests: <EmergencyRequest>[_request(401)],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{
-          401: <int, LiveResponderLocation>{9: _live(401).asNotLive()},
+  test('live to last-known transition keeps the marker but changes its state',
+      () {
+    final snapshots = builder.buildSnapshots(
+      requests: <EmergencyRequest>[_request(401)],
+      liveLocations: <int, Map<int, LiveResponderLocation>>{
+        401: <int, LiveResponderLocation>{
+          9: _live(401).asNotLive(),
         },
-      );
+      },
+    );
 
-      final marker = snapshots.singleWhere(
-        (item) => item.id == 'responder-401-9',
-      );
-      expect(marker.kind, OperationalMapMarkerKind.lastKnownResponder);
-      expect(marker.title, contains('LAST KNOWN'));
-    },
-  );
+    final marker =
+        snapshots.singleWhere((item) => item.id == 'responder-401-9');
+    expect(marker.kind, OperationalMapMarkerKind.lastKnownResponder);
+    expect(marker.title, contains('LAST KNOWN'));
+  });
 
   test('completed and cancelled requests remove active map tracking', () {
     final snapshots = builder.buildSnapshots(
@@ -172,27 +168,30 @@ void main() {
   test('two responders on one request render isolated marker pairs', () {
     final snapshots = builder.buildSnapshots(
       requests: <EmergencyRequest>[
-        _request(
-          701,
-          assignments: [
-            <String, dynamic>{
-              'id': 1,
-              'requestId': 701,
-              'responderId': 9,
-              'status': 'ACTIVE',
-              'acceptedAt': '2026-09-26T09:05:00.000Z',
-              'responder': <String, dynamic>{'id': 9, 'name': 'Asha Menon'},
+        _request(701, assignments: [
+          <String, dynamic>{
+            'id': 1,
+            'requestId': 701,
+            'responderId': 9,
+            'status': 'ACTIVE',
+            'acceptedAt': '2026-09-26T09:05:00.000Z',
+            'responder': <String, dynamic>{
+              'id': 9,
+              'name': 'Asha Menon',
             },
-            <String, dynamic>{
-              'id': 2,
-              'requestId': 701,
-              'responderId': 11,
-              'status': 'ACTIVE',
-              'acceptedAt': '2026-09-26T09:20:00.000Z',
-              'responder': <String, dynamic>{'id': 11, 'name': 'Rahul Pillai'},
+          },
+          <String, dynamic>{
+            'id': 2,
+            'requestId': 701,
+            'responderId': 11,
+            'status': 'ACTIVE',
+            'acceptedAt': '2026-09-26T09:20:00.000Z',
+            'responder': <String, dynamic>{
+              'id': 11,
+              'name': 'Rahul Pillai',
             },
-          ],
-        ),
+          },
+        ]),
       ],
       liveLocations: <int, Map<int, LiveResponderLocation>>{
         701: <int, LiveResponderLocation>{
@@ -206,12 +205,10 @@ void main() {
     expect(snapshots.map((item) => item.id).toSet(), hasLength(3));
     expect(snapshots.map((item) => item.id), contains('request-701'));
 
-    final responderA = snapshots.singleWhere(
-      (item) => item.id == 'responder-701-9',
-    );
-    final responderB = snapshots.singleWhere(
-      (item) => item.id == 'responder-701-11',
-    );
+    final responderA =
+        snapshots.singleWhere((item) => item.id == 'responder-701-9');
+    final responderB =
+        snapshots.singleWhere((item) => item.id == 'responder-701-11');
 
     expect(responderA.title, 'LIVE responder · Asha Menon');
     expect(responderB.title, 'LIVE responder · Rahul Pillai');
@@ -221,23 +218,20 @@ void main() {
     // Moving responder A must not disturb responder B's marker identity.
     final moved = builder.buildSnapshots(
       requests: <EmergencyRequest>[
-        _request(
-          701,
-          assignments: [
-            <String, dynamic>{
-              'id': 1,
-              'requestId': 701,
-              'responderId': 9,
-              'status': 'ACTIVE',
-            },
-            <String, dynamic>{
-              'id': 2,
-              'requestId': 701,
-              'responderId': 11,
-              'status': 'ACTIVE',
-            },
-          ],
-        ),
+        _request(701, assignments: [
+          <String, dynamic>{
+            'id': 1,
+            'requestId': 701,
+            'responderId': 9,
+            'status': 'ACTIVE',
+          },
+          <String, dynamic>{
+            'id': 2,
+            'requestId': 701,
+            'responderId': 11,
+            'status': 'ACTIVE',
+          },
+        ])
       ],
       liveLocations: <int, Map<int, LiveResponderLocation>>{
         701: <int, LiveResponderLocation>{
@@ -255,7 +249,9 @@ void main() {
   test('lead is named and unrelated stale responder points are rejected', () {
     // 9 is the legacy lead (no assignment row), 42 is nobody known.
     final snapshots = builder.buildSnapshots(
-      requests: <EmergencyRequest>[_request(801, assignments: const [])],
+      requests: <EmergencyRequest>[
+        _request(801, assignments: const []),
+      ],
       liveLocations: <int, Map<int, LiveResponderLocation>>{
         801: <int, LiveResponderLocation>{
           9: _live(801, responderId: 9),
@@ -265,76 +261,70 @@ void main() {
     );
 
     final lead = snapshots.singleWhere((item) => item.id == 'responder-801-9');
+    expect(lead.title, contains('Responder 9'),
+        reason: 'legacy acceptedBy name is used for the lead');
     expect(
-      lead.title,
-      contains('Responder 9'),
-      reason: 'legacy acceptedBy name is used for the lead',
-    );
-    expect(
-      snapshots.map((item) => item.id),
-      isNot(contains('responder-801-42')),
-      reason: 'missed stop events cannot render an unrelated stale point',
-    );
+        snapshots.map((item) => item.id), isNot(contains('responder-801-42')),
+        reason: 'missed stop events cannot render an unrelated stale point');
   });
 
-  test(
-    'responder snippets list only that responder\'s allocated resources',
-    () {
-      final request = EmergencyRequest.fromJson(<String, dynamic>{
-        'id': 901,
-        'emergencyType': 'Medical',
-        'location': 'Thrissur, Kerala',
-        'priority': 'HIGH',
-        'status': 'IN_PROGRESS',
-        'createdAt': '2026-09-26T09:00:00.000Z',
-        'requiredResources': <dynamic>[],
-        'allocations': <dynamic>[
-          <String, dynamic>{
-            'id': 9001,
-            'requestId': 901,
-            'resourceId': 4,
-            'responderId': 9,
-            'responderResourceId': 7,
-            'quantity': 2,
-            'status': 'RESERVED',
-            'resource': <String, dynamic>{'id': 4, 'name': 'Blood'},
-          },
-          <String, dynamic>{
-            'id': 9002,
-            'requestId': 901,
-            'resourceId': 5,
-            'responderId': 11,
-            'responderResourceId': 8,
-            'quantity': 1,
-            'status': 'RESERVED',
-            'resource': <String, dynamic>{'id': 5, 'name': 'Stretcher'},
-          },
-        ],
-        'acceptedBy': <String, dynamic>{'id': 9, 'name': 'Responder 9'},
-      });
-
-      final snapshots = builder.buildSnapshots(
-        requests: <EmergencyRequest>[request],
-        liveLocations: <int, Map<int, LiveResponderLocation>>{
-          901: <int, LiveResponderLocation>{
-            9: _live(901, responderId: 9),
-            11: _live(901, responderId: 11),
-          },
+  test('responder snippets list only that responder\'s allocated resources',
+      () {
+    final request = EmergencyRequest.fromJson(<String, dynamic>{
+      'id': 901,
+      'emergencyType': 'Medical',
+      'location': 'Thrissur, Kerala',
+      'priority': 'HIGH',
+      'status': 'IN_PROGRESS',
+      'createdAt': '2026-09-26T09:00:00.000Z',
+      'requiredResources': <dynamic>[],
+      'allocations': <dynamic>[
+        <String, dynamic>{
+          'id': 9001,
+          'requestId': 901,
+          'resourceId': 4,
+          'responderId': 9,
+          'responderResourceId': 7,
+          'quantity': 2,
+          'status': 'RESERVED',
+          'resource': <String, dynamic>{'id': 4, 'name': 'Blood'},
         },
-      );
+        <String, dynamic>{
+          'id': 9002,
+          'requestId': 901,
+          'resourceId': 5,
+          'responderId': 11,
+          'responderResourceId': 8,
+          'quantity': 1,
+          'status': 'RESERVED',
+          'resource': <String, dynamic>{'id': 5, 'name': 'Stretcher'},
+        },
+      ],
+      'acceptedBy': <String, dynamic>{
+        'id': 9,
+        'name': 'Responder 9',
+      },
+    });
 
-      final responderA = snapshots.singleWhere(
-        (item) => item.id == 'responder-901-9',
-      );
-      final responderB = snapshots.singleWhere(
-        (item) => item.id == 'responder-901-11',
-      );
-      expect(responderA.snippet, contains('Blood'));
-      expect(responderA.snippet, isNot(contains('Stretcher')));
-      expect(responderB.snippet, contains('Stretcher'));
-      expect(responderB.snippet, isNot(contains('Blood')));
-    },
-  );
+    final snapshots = builder.buildSnapshots(
+      requests: <EmergencyRequest>[request],
+      liveLocations: <int, Map<int, LiveResponderLocation>>{
+        901: <int, LiveResponderLocation>{
+          9: _live(901, responderId: 9),
+          11: _live(901, responderId: 11),
+        },
+      },
+    );
+
+    final responderA =
+        snapshots.singleWhere((item) => item.id == 'responder-901-9');
+    final responderB =
+        snapshots.singleWhere((item) => item.id == 'responder-901-11');
+    expect(responderA.snippet, contains('Blood'));
+    expect(responderA.snippet, isNot(contains('Stretcher')));
+    expect(responderB.snippet, contains('Stretcher'));
+    expect(responderB.snippet, isNot(contains('Blood')));
+  });
 
   test('multiple request locations stay isolated by request id', () {
     final store = LiveLocationStore();
@@ -352,20 +342,16 @@ void main() {
       liveLocations: store.locationsByRequest,
     );
 
-    final responderA = snapshots.singleWhere(
-      (item) => item.id == 'responder-601-9',
-    );
-    final responderB = snapshots.singleWhere(
-      (item) => item.id == 'responder-602-9',
-    );
+    final responderA =
+        snapshots.singleWhere((item) => item.id == 'responder-601-9');
+    final responderB =
+        snapshots.singleWhere((item) => item.id == 'responder-602-9');
 
     expect(responderA.position.latitude, 10.528000);
     expect(responderA.position.longitude, 76.215000);
     expect(responderB.position.latitude, 9.931233);
     expect(responderB.position.longitude, 76.267303);
     expect(
-      snapshots.map((item) => item.id).toSet(),
-      hasLength(snapshots.length),
-    );
+        snapshots.map((item) => item.id).toSet(), hasLength(snapshots.length));
   });
 }

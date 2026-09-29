@@ -51,23 +51,22 @@ class OperationalMapMarkerSnapshot {
       <OperationalMapMarkerKind, BitmapDescriptor>{};
 
   BitmapDescriptor get _icon => _icons.putIfAbsent(
-    kind,
-    () => BitmapDescriptor.defaultMarkerWithHue(_hue),
-  );
+      kind, () => BitmapDescriptor.defaultMarkerWithHue(_hue));
 
   double get _hue => switch (kind) {
-    OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
-    OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
-    OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
-    OperationalMapMarkerKind.lastKnownResponder => BitmapDescriptor.hueAzure,
-  };
+        OperationalMapMarkerKind.activeRequest => BitmapDescriptor.hueRed,
+        OperationalMapMarkerKind.pendingRequest => BitmapDescriptor.hueYellow,
+        OperationalMapMarkerKind.liveResponder => BitmapDescriptor.hueGreen,
+        OperationalMapMarkerKind.lastKnownResponder =>
+          BitmapDescriptor.hueAzure,
+      };
 
   Marker toMarker() => Marker(
-    markerId: markerId,
-    position: position,
-    icon: _icon,
-    infoWindow: InfoWindow(title: title, snippet: snippet),
-  );
+        markerId: markerId,
+        position: position,
+        icon: _icon,
+        infoWindow: InfoWindow(title: title, snippet: snippet),
+      );
 }
 
 class OperationalMapMarkerBuilder {
@@ -161,8 +160,7 @@ class OperationalMapMarkerBuilder {
       request.activeAssignments,
       (row) => row.responderId == responderId,
     );
-    final name =
-        assignment?.responder?.name ??
+    final name = assignment?.responder?.name ??
         (request.acceptedBy?.id == responderId
             ? request.acceptedBy!.name
             : null);
@@ -207,7 +205,10 @@ class OperationalMapMarkerBuilder {
 const PolylineId kDirectConnectionPolylineId = PolylineId('direct-connection');
 
 /// Unique per-pair polyline id (`direct-connection-<request>-<responder>`).
-PolylineId directConnectionPolylineIdFor(int requestId, int responderId) =>
+PolylineId directConnectionPolylineIdFor(
+  int requestId,
+  int responderId,
+) =>
     PolylineId('direct-connection-$requestId-$responderId');
 
 /// Builds the straight connection line between one responder and the
@@ -273,9 +274,9 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   /// follow live GPS updates and disappear as soon as a request is
   /// completed/cancelled, a responder stops, or coordinates vanish.
   List<DirectConnection> get _connections => selectDirectConnections(
-    requests: widget.requests,
-    liveLocations: widget.liveLocations,
-  );
+        requests: widget.requests,
+        liveLocations: widget.liveLocations,
+      );
 
   List<OperationalMapMarkerSnapshot> get _snapshots =>
       _markerBuilder.buildSnapshots(
@@ -302,12 +303,10 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
         .toSet();
 
     final newResponderMarkers = _snapshots
-        .where(
-          (snapshot) =>
-              snapshot.isResponder &&
-              !oldResponderMarkerIds.contains(snapshot.id) &&
-              !_autoFittedResponderMarkers.contains(snapshot.id),
-        )
+        .where((snapshot) =>
+            snapshot.isResponder &&
+            !oldResponderMarkerIds.contains(snapshot.id) &&
+            !_autoFittedResponderMarkers.contains(snapshot.id))
         .toList(growable: false);
 
     if (newResponderMarkers.isEmpty) return;
@@ -337,8 +336,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobileLayout =
-            widget.isMobile ||
+        final isMobileLayout = widget.isMobile ||
             (constraints.hasBoundedWidth && constraints.maxWidth < 600);
 
         final mapHeight = isMobileLayout
@@ -400,9 +398,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                   width: double.infinity,
                                   child: _MapControls(
                                     onCenterEmergency: _centerOnEmergency,
-                                    onFitPins: markers.isEmpty
-                                        ? null
-                                        : _fitAllPins,
+                                    onFitPins:
+                                        markers.isEmpty ? null : _fitAllPins,
                                     isMobile: true,
                                   ),
                                 ),
@@ -410,9 +407,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                             : _MapOverlayControls(
                                 controls: _MapControls(
                                   onCenterEmergency: _centerOnEmergency,
-                                  onFitPins: markers.isEmpty
-                                      ? null
-                                      : _fitAllPins,
+                                  onFitPins:
+                                      markers.isEmpty ? null : _fitAllPins,
                                   isMobile: false,
                                 ),
                                 navigationDeck: connections.isEmpty
@@ -421,8 +417,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                                         connections: connections,
                                         onGetDirections: (connection) =>
                                             unawaited(
-                                              _openDirections(connection),
-                                            ),
+                                                _openDirections(connection)),
                                       ),
                               ),
                       ),
@@ -549,9 +544,8 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     return pendingEmergency?.position;
   }
 
-  Future<void> _centerOnEmergency({
-    bool showMessageWhenUnavailable = true,
-  }) async {
+  Future<void> _centerOnEmergency(
+      {bool showMessageWhenUnavailable = true}) async {
     final controller = _controller;
     final focus = _emergencyFocus(_snapshots);
     if (controller == null || focus == null) {
@@ -811,10 +805,12 @@ class _MapControls extends StatelessWidget {
               ),
             ),
             TextButton.icon(
-              onPressed: onFitPins == null
-                  ? null
-                  : () => unawaited(onFitPins!()),
-              icon: Icon(Icons.fit_screen_rounded, size: isMobile ? 15 : 16),
+              onPressed:
+                  onFitPins == null ? null : () => unawaited(onFitPins!()),
+              icon: Icon(
+                Icons.fit_screen_rounded,
+                size: isMobile ? 15 : 16,
+              ),
               label: const Text('Fit pins'),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.blue,
@@ -946,7 +942,10 @@ class NavigationInfoCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Direct distance: ${connection.directDistanceLabel}',
-            style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColors.textDim,
+            ),
           ),
           const Text(
             'Straight-line only, not a road distance.',
@@ -1112,7 +1111,10 @@ class NavigationInfoCard extends StatelessWidget {
       style: TextButton.styleFrom(
         backgroundColor: AppColors.tealDim,
         foregroundColor: AppColors.teal,
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         minimumSize: const Size.fromHeight(46),
         tapTargetSize: MaterialTapTargetSize.padded,
@@ -1139,11 +1141,8 @@ class _LocationPermissionNotice extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         child: Row(
           children: [
-            const Icon(
-              Icons.location_disabled_outlined,
-              size: 16,
-              color: AppColors.amber,
-            ),
+            const Icon(Icons.location_disabled_outlined,
+                size: 16, color: AppColors.amber),
             const SizedBox(width: 7),
             const Expanded(
               child: Text(

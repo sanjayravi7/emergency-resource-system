@@ -270,9 +270,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         : emergencyType.trim();
 
     final rawDescription = descriptionController.text;
-    final normalizedDescription = rawDescription.trim().isEmpty
-        ? null
-        : rawDescription;
+    final normalizedDescription =
+        rawDescription.trim().isEmpty ? null : rawDescription;
 
     final payload = NewRequestPayload(
       emergencyType: resolvedType,
@@ -284,12 +283,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       allowGpsFallback: allowGpsFallback,
       requiredResources: lines
           .where((l) => l.resourceId != null)
-          .map(
-            (l) => <String, int>{
-              'resourceId': l.resourceId!,
-              'quantity': l.quantity,
-            },
-          )
+          .map((l) => <String, int>{
+                'resourceId': l.resourceId!,
+                'quantity': l.quantity,
+              })
           .toList(),
     );
 
@@ -347,10 +344,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                       'No resources in the catalog yet. Resources are optional '
                       '- you can submit this emergency now and responders will '
                       'be matched as they come online.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.textDim,
-                      ),
+                      style:
+                          TextStyle(fontSize: 12.5, color: AppColors.textDim),
                     ),
                   )
                 else
@@ -365,10 +360,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     'now. Your request is still submitted immediately and '
                     'stays PENDING until a compatible responder is available.',
                     style: TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.amber,
-                      height: 1.5,
-                    ),
+                        fontSize: 11.5, color: AppColors.amber, height: 1.5),
                   ),
                 ],
                 const SizedBox(height: 6),
@@ -380,10 +372,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.teal,
                     ),
-                    label: const Text(
-                      'Add another resource',
-                      style: TextStyle(fontSize: 12.5),
-                    ),
+                    label: const Text('Add another resource',
+                        style: TextStyle(fontSize: 12.5)),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -393,19 +383,15 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: AppColors.redDim,
                       borderRadius: BorderRadius.circular(5),
                     ),
                     child: Text(
                       errorMessage!,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.red,
-                      ),
+                      style:
+                          const TextStyle(fontSize: 12.5, color: AppColors.red),
                     ),
                   ),
                 ],
@@ -447,10 +433,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
           isExpanded: true,
           decoration: fieldDecoration(),
           items: kEmergencyTypes
-              .map(
-                (type) =>
-                    DropdownMenuItem<String>(value: type, child: Text(type)),
-              )
+              .map((type) =>
+                  DropdownMenuItem<String>(value: type, child: Text(type)))
               .toList(),
           onChanged: (value) {
             if (value == null) return;
@@ -484,12 +468,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
           isExpanded: true,
           decoration: fieldDecoration(),
           items: kPriorities
-              .map(
-                (value) => DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(titleCase(value)),
-                ),
-              )
+              .map((value) => DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(titleCase(value)),
+                  ))
               .toList(),
           onChanged: (value) {
             if (value == null) return;
@@ -604,9 +586,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
-                      color: r.isSelectable
-                          ? AppColors.text
-                          : AppColors.textFaint,
+                      color:
+                          r.isSelectable ? AppColors.text : AppColors.textFaint,
                     ),
                   ),
                 ),
@@ -618,8 +599,8 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     color: r.isOutOfStock
                         ? AppColors.red
                         : r.hasNoRespondersOnline
-                        ? AppColors.amber
-                        : AppColors.textFaint,
+                            ? AppColors.amber
+                            : AppColors.textFaint,
                   ),
                 ),
               ],
@@ -655,16 +636,13 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         const FieldLabel('Resource'),
         const SizedBox(height: 6),
         DropdownButtonFormField<int>(
-          key: ValueKey(
-            'resource-${identityHashCode(line)}-${line.resourceId}',
-          ),
+          key:
+              ValueKey('resource-${identityHashCode(line)}-${line.resourceId}'),
           initialValue: line.resourceId,
           isExpanded: true,
           decoration: fieldDecoration(),
-          hint: const Text(
-            'Select a resource',
-            style: TextStyle(fontSize: 13, color: AppColors.textFaint),
-          ),
+          hint: const Text('Select a resource',
+              style: TextStyle(fontSize: 13, color: AppColors.textFaint)),
           items: items,
           onChanged: (value) {
             if (value == null) return;
@@ -708,10 +686,10 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
               color: resource == null
                   ? AppColors.textFaint
                   : resource.isOutOfStock
-                  ? AppColors.red
-                  : resource.isLowStock
-                  ? AppColors.amber
-                  : AppColors.textDim,
+                      ? AppColors.red
+                      : resource.isLowStock
+                          ? AppColors.amber
+                          : AppColors.textDim,
             ),
           ),
         ),
@@ -734,24 +712,19 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                onPressed: resource == null
-                    ? null
-                    : () => changeQuantity(index, -1),
+                onPressed:
+                    resource == null ? null : () => changeQuantity(index, -1),
                 icon: const Icon(Icons.remove, size: 16),
                 splashRadius: 18,
               ),
               Text(
                 '${line.quantity}',
                 style: monoStyle(
-                  size: 14,
-                  color: AppColors.text,
-                  weight: FontWeight.w600,
-                ),
+                    size: 14, color: AppColors.text, weight: FontWeight.w600),
               ),
               IconButton(
-                onPressed: resource == null
-                    ? null
-                    : () => changeQuantity(index, 1),
+                onPressed:
+                    resource == null ? null : () => changeQuantity(index, 1),
                 icon: const Icon(Icons.add, size: 16),
                 splashRadius: 18,
               ),
@@ -834,10 +807,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
           const Text(
             'REQUIRED',
             style: TextStyle(
-              fontSize: 10,
-              color: AppColors.textFaint,
-              letterSpacing: .6,
-            ),
+                fontSize: 10, color: AppColors.textFaint, letterSpacing: .6),
           ),
           const SizedBox(height: 6),
           ...chosen.map((line) {

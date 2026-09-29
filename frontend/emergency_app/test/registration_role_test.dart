@@ -42,31 +42,34 @@ class _RecordingApi {
   String? registerErrorMessage;
 
   MockClient get client => MockClient((request) async {
-    if (request.url.path == '/api/auth/register') {
-      registerBody = jsonDecode(request.body) as Map<String, dynamic>;
-      if (registerStatus != 201) {
-        return _jsonResponse({
-          'success': false,
-          'message': registerErrorMessage ?? 'Registration failed',
-        }, registerStatus);
-      }
-      return _jsonResponse({
-        'success': true,
-        'message': 'Registration successful',
-        'data': {
-          'user': {
-            'id': 41,
-            'name': registerBody!['name'],
-            'email': registerBody!['email'],
-            'role': registerBody!['role'],
-            'responderStatus': 'OFFLINE',
-          },
-          'token': 'test-registration-token',
-        },
-      }, 201);
-    }
-    return _jsonResponse({'success': false, 'message': 'Not found'}, 404);
-  });
+        if (request.url.path == '/api/auth/register') {
+          registerBody = jsonDecode(request.body) as Map<String, dynamic>;
+          if (registerStatus != 201) {
+            return _jsonResponse(
+              {
+                'success': false,
+                'message': registerErrorMessage ?? 'Registration failed',
+              },
+              registerStatus,
+            );
+          }
+          return _jsonResponse({
+            'success': true,
+            'message': 'Registration successful',
+            'data': {
+              'user': {
+                'id': 41,
+                'name': registerBody!['name'],
+                'email': registerBody!['email'],
+                'role': registerBody!['role'],
+                'responderStatus': 'OFFLINE',
+              },
+              'token': 'test-registration-token',
+            },
+          }, 201);
+        }
+        return _jsonResponse({'success': false, 'message': 'Not found'}, 404);
+      });
 }
 
 Future<void> _fillForm(WidgetTester tester) async {
@@ -117,9 +120,15 @@ void main() {
     await tester.pump();
 
     expect(find.text('ERAS'), findsOneWidget);
-    expect(find.text('Emergency Resource Allocation System'), findsOneWidget);
+    expect(
+      find.text('Emergency Resource Allocation System'),
+      findsOneWidget,
+    );
     expect(find.text('CREATE ACCOUNT'), findsOneWidget);
-    expect(find.text('How would you like to use ERAS?'), findsOneWidget);
+    expect(
+      find.text('How would you like to use ERAS?'),
+      findsOneWidget,
+    );
     expect(find.text('Create account'), findsOneWidget);
 
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
@@ -139,15 +148,17 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('ADMIN is not offered as a public registration option', (
-    tester,
-  ) async {
+  testWidgets('ADMIN is not offered as a public registration option',
+      (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
 
     expect(find.text('ADMIN'), findsNothing);
     expect(find.text('Admin'), findsNothing);
-    expect(find.byKey(const ValueKey<String>('role-card-ADMIN')), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('role-card-ADMIN')),
+      findsNothing,
+    );
     // Exactly the two public role cards exist.
     expect(
       find.byWidgetPredicate(
@@ -209,9 +220,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('selecting one role deselects the other (single choice)', (
-    tester,
-  ) async {
+  testWidgets('selecting one role deselects the other (single choice)',
+      (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
 
@@ -242,9 +252,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('role cards expose selected semantics for assistive tech', (
-    tester,
-  ) async {
+  testWidgets('role cards expose selected semantics for assistive tech',
+      (tester) async {
     final handle = tester.ensureSemantics();
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
@@ -262,38 +271,47 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('registration cannot submit without a role selection', (
-    tester,
-  ) async {
+  testWidgets('registration cannot submit without a role selection',
+      (tester) async {
     final api = _RecordingApi();
 
-    await http.runWithClient<Future<void>>(() async {
-      await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
-      await tester.pump();
+    await http.runWithClient<Future<void>>(
+      () async {
+        await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
+        await tester.pump();
 
-      await _fillForm(tester);
-      await _submit(tester);
-      await tester.pump(const Duration(milliseconds: 200));
+        await _fillForm(tester);
+        await _submit(tester);
+        await tester.pump(const Duration(milliseconds: 200));
 
-      expect(find.text('Choose how you want to use ERAS.'), findsOneWidget);
-      // Nothing was sent to the backend.
-      expect(api.registerBody, isNull);
-      expect(find.byType(LoginScreen), findsNothing);
+        expect(
+          find.text('Choose how you want to use ERAS.'),
+          findsOneWidget,
+        );
+        // Nothing was sent to the backend.
+        expect(api.registerBody, isNull);
+        expect(find.byType(LoginScreen), findsNothing);
 
-      // Selecting a role clears the error.
-      await _tapAfterScroll(tester, find.byKey(requesterCardKey));
-      expect(find.text('Choose how you want to use ERAS.'), findsNothing);
+        // Selecting a role clears the error.
+        await _tapAfterScroll(tester, find.byKey(requesterCardKey));
+        expect(
+          find.text('Choose how you want to use ERAS.'),
+          findsNothing,
+        );
 
-      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-    }, () => api.client);
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      },
+      () => api.client,
+    );
   });
 
   testWidgets(
-    'REQUESTER registration sends role=REQUESTER and navigates to login',
-    (tester) async {
-      final api = _RecordingApi();
+      'REQUESTER registration sends role=REQUESTER and navigates to login',
+      (tester) async {
+    final api = _RecordingApi();
 
-      await http.runWithClient<Future<void>>(() async {
+    await http.runWithClient<Future<void>>(
+      () async {
         await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
         await tester.pump();
 
@@ -321,39 +339,43 @@ void main() {
         expect(find.byType(RegisterScreen), findsNothing);
 
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-      }, () => api.client);
-    },
-  );
+      },
+      () => api.client,
+    );
+  });
 
   testWidgets('RESPONDER registration sends role=RESPONDER', (tester) async {
     final api = _RecordingApi();
 
-    await http.runWithClient<Future<void>>(() async {
-      await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
-      await tester.pump();
+    await http.runWithClient<Future<void>>(
+      () async {
+        await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
+        await tester.pump();
 
-      await tester.tap(find.byKey(responderCardKey));
-      await tester.pump();
-      await _fillForm(tester);
-      await _submit(tester);
-      await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byKey(responderCardKey));
+        await tester.pump();
+        await _fillForm(tester);
+        await _submit(tester);
+        await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Account created successfully.'), findsOneWidget);
-      expect(api.registerBody, isNotNull);
-      expect(api.registerBody!['role'], 'RESPONDER');
+        expect(find.text('Account created successfully.'), findsOneWidget);
+        expect(api.registerBody, isNotNull);
+        expect(api.registerBody!['role'], 'RESPONDER');
 
-      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-    }, () => api.client);
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      },
+      () => api.client,
+    );
   });
 
-  testWidgets(
-    'duplicate email shows a friendly message and no second account',
-    (tester) async {
-      final api = _RecordingApi()
-        ..registerStatus = 409
-        ..registerErrorMessage = 'Email already registered';
+  testWidgets('duplicate email shows a friendly message and no second account',
+      (tester) async {
+    final api = _RecordingApi()
+      ..registerStatus = 409
+      ..registerErrorMessage = 'Email already registered';
 
-      await http.runWithClient<Future<void>>(() async {
+    await http.runWithClient<Future<void>>(
+      () async {
         await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
         await tester.pump();
 
@@ -370,13 +392,13 @@ void main() {
         expect(find.byType(LoginScreen), findsNothing);
 
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-      }, () => api.client);
-    },
-  );
+      },
+      () => api.client,
+    );
+  });
 
-  testWidgets('role cards lay out cleanly across phone and desktop widths', (
-    tester,
-  ) async {
+  testWidgets('role cards lay out cleanly across phone and desktop widths',
+      (tester) async {
     // The default test surface is 800x600 logical pixels.
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -400,9 +422,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
   });
 
-  testWidgets('role selection is keyboard operable (focus + Enter)', (
-    tester,
-  ) async {
+  testWidgets('role selection is keyboard operable (focus + Enter)',
+      (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
 
@@ -427,11 +448,8 @@ void main() {
       await tester.pump();
       guard++;
     }
-    expect(
-      focusInsideCard(),
-      isTrue,
-      reason: 'REQUESTER card should be reachable by keyboard traversal',
-    );
+    expect(focusInsideCard(), isTrue,
+        reason: 'REQUESTER card should be reachable by keyboard traversal');
 
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();

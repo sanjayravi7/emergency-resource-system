@@ -16,13 +16,13 @@ class _FakeGateway implements ResponderReadinessGateway {
 
   @override
   Future<Map<String, dynamic>> getHelpTypes() async => <String, dynamic>{
-    'categories': <Map<String, String>>[
-      <String, String>{'value': 'FIRE', 'label': 'Fire'},
-      <String, String>{'value': 'MEDICAL', 'label': 'Medical'},
-      <String, String>{'value': 'RESCUE', 'label': 'Rescue'},
-    ],
-    'selected': <String>[],
-  };
+        'categories': <Map<String, String>>[
+          <String, String>{'value': 'FIRE', 'label': 'Fire'},
+          <String, String>{'value': 'MEDICAL', 'label': 'Medical'},
+          <String, String>{'value': 'RESCUE', 'label': 'Rescue'},
+        ],
+        'selected': <String>[],
+      };
 
   @override
   Future<List<dynamic>> getResources() async => resources;
@@ -47,30 +47,27 @@ class _FakeGateway implements ResponderReadinessGateway {
 }
 
 Widget _host(_FakeGateway gateway, {VoidCallback? onSaved}) => MaterialApp(
-  home: ResponderReadinessPage(gateway: gateway, onSaved: onSaved),
-);
+      home: ResponderReadinessPage(gateway: gateway, onSaved: onSaved),
+    );
 
 void main() {
-  testWidgets(
-    'renders backend help type selector and empty-inventory guidance',
-    (tester) async {
-      final gateway = _FakeGateway();
-      await tester.pumpWidget(_host(gateway));
-      await tester.pumpAndSettle();
+  testWidgets('renders backend help type selector and empty-inventory guidance',
+      (tester) async {
+    final gateway = _FakeGateway();
+    await tester.pumpWidget(_host(gateway));
+    await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('help-type-selector')), findsOneWidget);
-      expect(find.text('Fire'), findsOneWidget);
-      expect(find.text('Medical'), findsOneWidget);
-      expect(find.text('Rescue'), findsOneWidget);
-      expect(find.textContaining('You can still choose'), findsOneWidget);
-      expect(find.textContaining('No active resources'), findsNothing);
-      expect(find.textContaining('Select at least one resource'), findsNothing);
-    },
-  );
+    expect(find.byKey(const Key('help-type-selector')), findsOneWidget);
+    expect(find.text('Fire'), findsOneWidget);
+    expect(find.text('Medical'), findsOneWidget);
+    expect(find.text('Rescue'), findsOneWidget);
+    expect(find.textContaining('You can still choose'), findsOneWidget);
+    expect(find.textContaining('No active resources'), findsNothing);
+    expect(find.textContaining('Select at least one resource'), findsNothing);
+  });
 
-  testWidgets('goes available with FIRE selected and zero resources', (
-    tester,
-  ) async {
+  testWidgets('goes available with FIRE selected and zero resources',
+      (tester) async {
     final gateway = _FakeGateway();
     var saved = false;
     await tester.pumpWidget(_host(gateway, onSaved: () => saved = true));
@@ -99,52 +96,50 @@ void main() {
     expect(saved, isTrue);
   });
 
-  testWidgets(
-    'resource inventory controls still render when catalog has rows',
-    (tester) async {
-      final gateway = _FakeGateway(
-        resources: <dynamic>[
-          <String, dynamic>{
-            'id': 7,
+  testWidgets('resource inventory controls still render when catalog has rows',
+      (tester) async {
+    final gateway = _FakeGateway(
+      resources: <dynamic>[
+        <String, dynamic>{
+          'id': 7,
+          'name': 'Oxygen',
+          'type': 'OXYGEN',
+          'mode': 'CONSUMABLE',
+          'totalQuantity': 10,
+          'availableQuantity': 10,
+          'isActive': true,
+          'lowStockThreshold': 1,
+          'unit': 'cylinders',
+        },
+      ],
+      inventory: <dynamic>[
+        <String, dynamic>{
+          'id': 9,
+          'responderId': 2,
+          'resourceId': 7,
+          'totalQuantity': 4,
+          'availableQuantity': 3,
+          'status': 'AVAILABLE',
+          'isEnabled': true,
+          'responder': <String, dynamic>{
+            'name': 'Responder',
+            'email': 'r@test.com',
+            'responderStatus': 'AVAILABLE',
+          },
+          'resource': <String, dynamic>{
             'name': 'Oxygen',
             'type': 'OXYGEN',
-            'mode': 'CONSUMABLE',
-            'totalQuantity': 10,
-            'availableQuantity': 10,
-            'isActive': true,
-            'lowStockThreshold': 1,
             'unit': 'cylinders',
           },
-        ],
-        inventory: <dynamic>[
-          <String, dynamic>{
-            'id': 9,
-            'responderId': 2,
-            'resourceId': 7,
-            'totalQuantity': 4,
-            'availableQuantity': 3,
-            'status': 'AVAILABLE',
-            'isEnabled': true,
-            'responder': <String, dynamic>{
-              'name': 'Responder',
-              'email': 'r@test.com',
-              'responderStatus': 'AVAILABLE',
-            },
-            'resource': <String, dynamic>{
-              'name': 'Oxygen',
-              'type': 'OXYGEN',
-              'unit': 'cylinders',
-            },
-          },
-        ],
-      );
+        },
+      ],
+    );
 
-      await tester.pumpWidget(_host(gateway));
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(_host(gateway));
+    await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('resource-inventory')), findsOneWidget);
-      expect(find.text('Oxygen'), findsOneWidget);
-      expect(find.text('EDIT RESOURCE INVENTORY'), findsOneWidget);
-    },
-  );
+    expect(find.byKey(const Key('resource-inventory')), findsOneWidget);
+    expect(find.text('Oxygen'), findsOneWidget);
+    expect(find.text('EDIT RESOURCE INVENTORY'), findsOneWidget);
+  });
 }

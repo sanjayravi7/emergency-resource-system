@@ -20,7 +20,8 @@ class _StaticLocationService implements LocationService {
     String query, {
     GeoPoint? bias,
     double biasRadiusMeters = 30000,
-  }) async => const <PlacePrediction>[];
+  }) async =>
+      const <PlacePrediction>[];
 
   @override
   Future<ResolvedPlace> resolvePrediction(PlacePrediction prediction) {
@@ -34,7 +35,8 @@ class _StaticLocationService implements LocationService {
     required NearbyPlaceCategory category,
     double radiusMeters = kNearbySearchRadiusMeters,
     int maxResults = kNearbySearchMaxResultCount,
-  }) async => const <NearbyPlace>[];
+  }) async =>
+      const <NearbyPlace>[];
 }
 
 /// A requester must ALWAYS be able to submit an emergency request, no matter
@@ -76,8 +78,8 @@ void main() {
   );
 
   Widget host(Widget child) => MaterialApp(
-    home: Scaffold(body: SingleChildScrollView(child: child)),
-  );
+        home: Scaffold(body: SingleChildScrollView(child: child)),
+      );
 
   void useDesktopSizedSurface(WidgetTester tester) {
     tester.view.physicalSize = const Size(1200, 1800);
@@ -105,21 +107,17 @@ void main() {
 
     useDesktopSizedSurface(tester);
 
-    await tester.pumpWidget(
-      host(
-        NewRequestPanel(
-          resources: resources,
-          locationService: _StaticLocationService(),
-          showMapPreview: false,
-          onReload: () {},
-          onUseCurrentLocation: () async => null,
-          onSubmit: (payload) async {
-            submitted = payload;
-            return true;
-          },
-        ),
-      ),
-    );
+    await tester.pumpWidget(host(NewRequestPanel(
+      resources: resources,
+      locationService: _StaticLocationService(),
+      showMapPreview: false,
+      onReload: () {},
+      onUseCurrentLocation: () async => null,
+      onSubmit: (payload) async {
+        submitted = payload;
+        return true;
+      },
+    )));
 
     // Text-only place: the form accepts it without a fabricated pin.
     await tester.enterText(
@@ -148,9 +146,8 @@ void main() {
     return submitted;
   }
 
-  testWidgets('zero available responders never block a SERVICE resource', (
-    tester,
-  ) async {
+  testWidgets('zero available responders never block a SERVICE resource',
+      (tester) async {
     expect(unstaffedAmbulance.hasNoRespondersOnline, isTrue);
     expect(unstaffedAmbulance.isOutOfStock, isFalse);
     expect(unstaffedAmbulance.isSelectable, isTrue);
@@ -171,37 +168,35 @@ void main() {
   });
 
   testWidgets(
-    'the requester is told the request queues instead of being blocked',
-    (tester) async {
-      final payload = await pumpAndSubmit(
-        tester,
-        resources: const <BackendResource>[unstaffedAmbulance],
-        // The queue notice is asserted while the form is still filled; a
-        // successful submit intentionally clears the form.
-        beforeSubmit: () {
-          expect(
-            find.textContaining('no responders online right now'),
-            findsOneWidget,
-          );
-          expect(
-            find.textContaining('stays PENDING until a compatible responder'),
-            findsOneWidget,
-          );
-          // The old blocking message is gone.
-          expect(
-            find.textContaining('No responders are currently available'),
-            findsNothing,
-          );
-        },
-      );
+      'the requester is told the request queues instead of being blocked',
+      (tester) async {
+    final payload = await pumpAndSubmit(
+      tester,
+      resources: const <BackendResource>[unstaffedAmbulance],
+      // The queue notice is asserted while the form is still filled; a
+      // successful submit intentionally clears the form.
+      beforeSubmit: () {
+        expect(
+          find.textContaining('no responders online right now'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('stays PENDING until a compatible responder'),
+          findsOneWidget,
+        );
+        // The old blocking message is gone.
+        expect(
+          find.textContaining('No responders are currently available'),
+          findsNothing,
+        );
+      },
+    );
 
-      expect(payload, isNotNull);
-    },
-  );
+    expect(payload, isNotNull);
+  });
 
-  testWidgets('the explanatory PostgreSQL paragraph is removed', (
-    tester,
-  ) async {
+  testWidgets('the explanatory PostgreSQL paragraph is removed',
+      (tester) async {
     await pumpAndSubmit(
       tester,
       resources: const <BackendResource>[unstaffedAmbulance],
@@ -215,85 +210,74 @@ void main() {
   });
 
   testWidgets(
-    'an empty catalog never blocks submission and shows an optional-resources hint',
-    (tester) async {
-      // Submitting against a completely empty catalog must succeed: resources are
-      // optional, so the emergency is filed with ZERO required resources.
-      final payload = await pumpAndSubmit(
-        tester,
-        resources: const <BackendResource>[],
-        pickResource: false,
-      );
+      'an empty catalog never blocks submission and shows an optional-resources hint',
+      (tester) async {
+    // Submitting against a completely empty catalog must succeed: resources are
+    // optional, so the emergency is filed with ZERO required resources.
+    final payload = await pumpAndSubmit(
+      tester,
+      resources: const <BackendResource>[],
+      pickResource: false,
+    );
 
-      expect(payload, isNotNull);
-      expect(payload!.requiredResources, isEmpty);
-      expect(payload.emergencyType, isNotEmpty);
-      expect(payload.location, 'Somewhere in Thrissur');
-    },
-  );
+    expect(payload, isNotNull);
+    expect(payload!.requiredResources, isEmpty);
+    expect(payload.emergencyType, isNotEmpty);
+    expect(payload.location, 'Somewhere in Thrissur');
+  });
 
   testWidgets(
-    'an empty catalog shows an informational hint, not a resource-required blocker',
-    (tester) async {
-      useDesktopSizedSurface(tester);
-      await tester.pumpWidget(
-        host(
-          NewRequestPanel(
-            resources: const <BackendResource>[],
-            locationService: _StaticLocationService(),
-            showMapPreview: false,
-            onReload: () {},
-            onUseCurrentLocation: () async => null,
-            onSubmit: (payload) async => true,
-          ),
-        ),
-      );
-      await tester.pump();
+      'an empty catalog shows an informational hint, not a resource-required blocker',
+      (tester) async {
+    useDesktopSizedSurface(tester);
+    await tester.pumpWidget(host(NewRequestPanel(
+      resources: const <BackendResource>[],
+      locationService: _StaticLocationService(),
+      showMapPreview: false,
+      onReload: () {},
+      onUseCurrentLocation: () async => null,
+      onSubmit: (payload) async => true,
+    )));
+    await tester.pump();
 
-      // The old red "No active resources found in the database." text is gone.
-      expect(
-        find.textContaining('No active resources found in the database'),
-        findsNothing,
-      );
+    // The old red "No active resources found in the database." text is gone.
+    expect(
+      find.textContaining('No active resources found in the database'),
+      findsNothing,
+    );
 
-      // No resource-required blocker of any wording is shown.
-      expect(find.textContaining('Add at least one resource'), findsNothing);
-      expect(
-        find.textContaining('An administrator must add or restore'),
-        findsNothing,
-      );
-      expect(
-        find.textContaining('every emergency must name at least one'),
-        findsNothing,
-      );
+    // No resource-required blocker of any wording is shown.
+    expect(find.textContaining('Add at least one resource'), findsNothing);
+    expect(
+      find.textContaining('An administrator must add or restore'),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('every emergency must name at least one'),
+      findsNothing,
+    );
 
-      // Instead, a purely informational hint tells the requester resources are
-      // optional and the emergency can be submitted now.
-      expect(find.textContaining('Resources are optional'), findsOneWidget);
-    },
-  );
+    // Instead, a purely informational hint tells the requester resources are
+    // optional and the emergency can be submitted now.
+    expect(find.textContaining('Resources are optional'), findsOneWidget);
+  });
 
-  testWidgets('a CONSUMABLE resource without inventory stays blocked', (
-    tester,
-  ) async {
+  testWidgets('a CONSUMABLE resource without inventory stays blocked',
+      (tester) async {
     // Inventory is a real spendable-quantity constraint (enforced by the
     // backend too), unlike responder availability.
     expect(outOfStockBlood.isOutOfStock, isTrue);
     expect(outOfStockBlood.isSelectable, isFalse);
 
     useDesktopSizedSurface(tester);
-    await tester.pumpWidget(
-      host(
-        NewRequestPanel(
-          resources: const <BackendResource>[outOfStockBlood],
-          locationService: _StaticLocationService(),
-          showMapPreview: false,
-          onReload: () {},
-          onUseCurrentLocation: () async => null,
-          onSubmit: (payload) async => true,
-        ),
-      ),
-    );
+    await tester.pumpWidget(host(NewRequestPanel(
+      resources: const <BackendResource>[outOfStockBlood],
+      locationService: _StaticLocationService(),
+      showMapPreview: false,
+      onReload: () {},
+      onUseCurrentLocation: () async => null,
+      onSubmit: (payload) async => true,
+    )));
 
     await tester.enterText(
       find.byKey(const Key('location-place-field')),
@@ -315,10 +299,12 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('the availability label separates inventory from staffing', (
-    tester,
-  ) async {
-    expect(unstaffedAmbulance.availabilityLabel, 'No responders online yet');
+  testWidgets('the availability label separates inventory from staffing',
+      (tester) async {
+    expect(
+      unstaffedAmbulance.availabilityLabel,
+      'No responders online yet',
+    );
     expect(outOfStockBlood.availabilityLabel, 'Out of stock');
 
     const staffedAmbulance = BackendResource(

@@ -114,10 +114,7 @@ class EmptyState extends StatelessWidget {
               Text(
                 text,
                 style: const TextStyle(
-                  fontSize: 12.5,
-                  color: AppColors.textFaint,
-                  height: 1.4,
-                ),
+                    fontSize: 12.5, color: AppColors.textFaint, height: 1.4),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -187,20 +184,20 @@ class ConnectionStatusIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color, icon) = switch (status) {
       RealtimeConnectionStatus.connected => (
-        'CONNECTED',
-        AppColors.teal,
-        Icons.wifi_rounded,
-      ),
+          'CONNECTED',
+          AppColors.teal,
+          Icons.wifi_rounded
+        ),
       RealtimeConnectionStatus.reconnecting => (
-        'RECONNECTING',
-        AppColors.amber,
-        Icons.sync_rounded,
-      ),
+          'RECONNECTING',
+          AppColors.amber,
+          Icons.sync_rounded
+        ),
       RealtimeConnectionStatus.offline => (
-        'OFFLINE',
-        AppColors.red,
-        Icons.wifi_off_rounded,
-      ),
+          'OFFLINE',
+          AppColors.red,
+          Icons.wifi_off_rounded
+        ),
     };
 
     return Semantics(
@@ -258,19 +255,14 @@ class StatusPill extends StatelessWidget {
           Container(
             width: 5,
             height: 5,
-            decoration: BoxDecoration(
-              color: colors.text,
-              shape: BoxShape.circle,
-            ),
+            decoration:
+                BoxDecoration(color: colors.text, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
           Text(
             statusLabel(status),
             style: monoStyle(
-              size: 11,
-              color: colors.text,
-              weight: FontWeight.w500,
-            ),
+                size: 11, color: colors.text, weight: FontWeight.w500),
           ),
         ],
       ),
@@ -294,11 +286,8 @@ class PriorityPill extends StatelessWidget {
       ),
       child: Text(
         priority.toUpperCase(),
-        style: monoStyle(
-          size: 10.5,
-          color: colors.text,
-          weight: FontWeight.w600,
-        ),
+        style:
+            monoStyle(size: 10.5, color: colors.text, weight: FontWeight.w600),
       ),
     );
   }
@@ -378,10 +367,7 @@ class InfoChip extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: const TextStyle(
-              fontSize: 9.5,
-              color: AppColors.textFaint,
-              letterSpacing: .5,
-            ),
+                fontSize: 9.5, color: AppColors.textFaint, letterSpacing: .5),
           ),
           const SizedBox(height: 1),
           Text(
@@ -402,13 +388,10 @@ class FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    text.toUpperCase(),
-    style: const TextStyle(
-      fontSize: 11,
-      color: AppColors.textFaint,
-      letterSpacing: .5,
-    ),
-  );
+        text.toUpperCase(),
+        style: const TextStyle(
+            fontSize: 11, color: AppColors.textFaint, letterSpacing: .5),
+      );
 }
 
 // ── Header stats ───────────────────────────────────────────────────────────
@@ -435,10 +418,7 @@ class Stat extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: const TextStyle(
-            fontSize: 9.5,
-            color: AppColors.textFaint,
-            letterSpacing: .6,
-          ),
+              fontSize: 9.5, color: AppColors.textFaint, letterSpacing: .6),
         ),
       ],
     );
@@ -446,12 +426,8 @@ class Stat extends StatelessWidget {
 }
 
 class MiniStat extends StatelessWidget {
-  const MiniStat({
-    super.key,
-    required this.label,
-    required this.value,
-    this.color,
-  });
+  const MiniStat(
+      {super.key, required this.label, required this.value, this.color});
   final String label;
   final int value;
   final Color? color;
@@ -649,11 +625,8 @@ class Rail extends StatelessWidget {
                 IconButton(
                   tooltip: 'Reload from database',
                   onPressed: onRefresh,
-                  icon: const Icon(
-                    Icons.refresh,
-                    size: 18,
-                    color: AppColors.textDim,
-                  ),
+                  icon: const Icon(Icons.refresh,
+                      size: 18, color: AppColors.textDim),
                 ),
               ],
             ),
@@ -847,25 +820,17 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
                   compact: true,
                 ),
                 const SizedBox(width: 7),
-                Text(
-                  clock,
-                  style: monoStyle(size: 12, color: AppColors.textFaint),
-                ),
+                Text(clock,
+                    style: monoStyle(size: 12, color: AppColors.textFaint)),
                 IconButton(
                   onPressed: onRefresh,
-                  icon: const Icon(
-                    Icons.refresh,
-                    size: 18,
-                    color: AppColors.textDim,
-                  ),
+                  icon: const Icon(Icons.refresh,
+                      size: 18, color: AppColors.textDim),
                 ),
                 IconButton(
                   onPressed: onLogout,
-                  icon: const Icon(
-                    Icons.logout,
-                    size: 17,
-                    color: AppColors.textDim,
-                  ),
+                  icon: const Icon(Icons.logout,
+                      size: 17, color: AppColors.textDim),
                 ),
               ],
             ),
@@ -885,18 +850,12 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
                 MiniStat(
-                  label: 'pending',
-                  value: pending,
-                  color: AppColors.amber,
-                ),
+                    label: 'pending', value: pending, color: AppColors.amber),
                 const SizedBox(width: 10),
                 MiniStat(label: 'active', value: active, color: AppColors.blue),
                 const SizedBox(width: 10),
                 MiniStat(
-                  label: 'closed',
-                  value: completed,
-                  color: AppColors.teal,
-                ),
+                    label: 'closed', value: completed, color: AppColors.teal),
               ],
             ),
           ),

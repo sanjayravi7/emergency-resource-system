@@ -25,10 +25,10 @@ class SocketConnectionState {
   bool get connected => status == RealtimeConnectionStatus.connected;
 
   String get label => switch (status) {
-    RealtimeConnectionStatus.connected => 'CONNECTED',
-    RealtimeConnectionStatus.reconnecting => 'RECONNECTING',
-    RealtimeConnectionStatus.offline => 'OFFLINE',
-  };
+        RealtimeConnectionStatus.connected => 'CONNECTED',
+        RealtimeConnectionStatus.reconnecting => 'RECONNECTING',
+        RealtimeConnectionStatus.offline => 'OFFLINE',
+      };
 }
 
 class SocketService {
@@ -74,21 +74,17 @@ class SocketService {
 
     if (_socket != null) {
       if (!_socket!.connected) {
-        _setConnection(
-          const SocketConnectionState(
-            status: RealtimeConnectionStatus.reconnecting,
-          ),
-        );
+        _setConnection(const SocketConnectionState(
+          status: RealtimeConnectionStatus.reconnecting,
+        ));
         _socket!.connect();
       }
       return;
     }
 
-    _setConnection(
-      const SocketConnectionState(
-        status: RealtimeConnectionStatus.reconnecting,
-      ),
-    );
+    _setConnection(const SocketConnectionState(
+      status: RealtimeConnectionStatus.reconnecting,
+    ));
 
     final socket = io.io(
       _serverUrl(),
@@ -106,48 +102,40 @@ class SocketService {
     _socket = socket;
 
     socket.onConnect((_) {
-      _setConnection(
-        const SocketConnectionState(status: RealtimeConnectionStatus.connected),
-      );
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.connected,
+      ));
     });
     socket.onDisconnect((reason) {
-      _setConnection(
-        SocketConnectionState(
-          status: _manualDisconnect
-              ? RealtimeConnectionStatus.offline
-              : RealtimeConnectionStatus.reconnecting,
-          message: reason?.toString(),
-        ),
-      );
+      _setConnection(SocketConnectionState(
+        status: _manualDisconnect
+            ? RealtimeConnectionStatus.offline
+            : RealtimeConnectionStatus.reconnecting,
+        message: reason?.toString(),
+      ));
     });
     socket.onConnectError((error) {
-      _setConnection(
-        SocketConnectionState(
-          status: RealtimeConnectionStatus.reconnecting,
-          message: error?.toString(),
-        ),
-      );
+      _setConnection(SocketConnectionState(
+        status: RealtimeConnectionStatus.reconnecting,
+        message: error?.toString(),
+      ));
     });
     socket.onReconnectAttempt((_) {
-      _setConnection(
-        const SocketConnectionState(
-          status: RealtimeConnectionStatus.reconnecting,
-        ),
-      );
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.reconnecting,
+      ));
     });
     socket.onReconnect((_) {
-      _setConnection(
-        const SocketConnectionState(status: RealtimeConnectionStatus.connected),
-      );
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.connected,
+      ));
     });
     socket.onReconnectFailed((_) {
-      _setConnection(
-        const SocketConnectionState(
-          status: RealtimeConnectionStatus.offline,
-          message:
-              'Realtime connection unavailable. REST refresh remains active.',
-        ),
-      );
+      _setConnection(const SocketConnectionState(
+        status: RealtimeConnectionStatus.offline,
+        message:
+            'Realtime connection unavailable. REST refresh remains active.',
+      ));
     });
 
     for (final name in _serverEventNames) {
@@ -177,9 +165,9 @@ class SocketService {
       // this prevents listener duplication across logout/login cycles.
       socket.dispose();
     }
-    _setConnection(
-      const SocketConnectionState(status: RealtimeConnectionStatus.offline),
-    );
+    _setConnection(const SocketConnectionState(
+      status: RealtimeConnectionStatus.offline,
+    ));
   }
 
   void dispose() {
@@ -191,16 +179,14 @@ class SocketService {
 
   void subscribeToRequest(int requestId) {
     if (requestId <= 0) return;
-    _socket?.emit('request.subscribe', <String, dynamic>{
-      'requestId': requestId,
-    });
+    _socket
+        ?.emit('request.subscribe', <String, dynamic>{'requestId': requestId});
   }
 
   void unsubscribeFromRequest(int requestId) {
     if (requestId <= 0) return;
-    _socket?.emit('request.unsubscribe', <String, dynamic>{
-      'requestId': requestId,
-    });
+    _socket?.emit(
+        'request.unsubscribe', <String, dynamic>{'requestId': requestId});
   }
 
   Future<bool> startLocationSharing(int requestId) async {
@@ -237,9 +223,10 @@ class SocketService {
 
   void stopLocationSharing(int requestId) {
     if (!isConnected || requestId <= 0) return;
-    _socket?.emit('responder.location.stop', <String, dynamic>{
-      'requestId': requestId,
-    });
+    _socket?.emit(
+      'responder.location.stop',
+      <String, dynamic>{'requestId': requestId},
+    );
   }
 
   void _setConnection(SocketConnectionState state) {
