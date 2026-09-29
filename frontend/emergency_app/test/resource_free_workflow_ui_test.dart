@@ -138,8 +138,7 @@ void main() {
     expect(endAssignmentClicked, isTrue);
   });
 
-  testWidgets(
-      '16. Resource-free IN_PROGRESS request shows COMPLETE RESPONSE',
+  testWidgets('16. Resource-free IN_PROGRESS request shows COMPLETE RESPONSE',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;

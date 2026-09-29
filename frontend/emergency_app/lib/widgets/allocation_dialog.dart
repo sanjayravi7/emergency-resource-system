@@ -153,8 +153,8 @@ class _AllocationDialogState extends State<AllocationDialog> {
                         child: Text(
                           'This emergency does not require physical resources. '
                           'Use START RESPONSE / COMPLETE RESPONSE from the dispatch board.',
-                          style: TextStyle(
-                              fontSize: 13, color: AppColors.textDim),
+                          style:
+                              TextStyle(fontSize: 13, color: AppColors.textDim),
                         ),
                       )
                     else

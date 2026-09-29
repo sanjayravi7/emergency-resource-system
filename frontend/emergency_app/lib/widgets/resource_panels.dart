@@ -499,8 +499,8 @@ class ResponderResourcesPanel extends StatelessWidget {
           : TextButton.icon(
               onPressed: onEditInventory,
               icon: const Icon(Icons.tune, size: 15),
-              label: const Text('EDIT INVENTORY',
-                  style: TextStyle(fontSize: 11)),
+              label:
+                  const Text('EDIT INVENTORY', style: TextStyle(fontSize: 11)),
             ),
       child: resources.isEmpty
           ? const EmptyState(
