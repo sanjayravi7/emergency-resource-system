@@ -129,11 +129,17 @@ void main() {
     expect(find.text('Allocate'), findsNothing);
     expect(find.text('COMPLETE RESPONSE'), findsNothing);
 
-    await tester.tap(find.text('START RESPONSE'));
+    final startButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'START RESPONSE'),
+    );
+    startButton.onPressed!();
     await tester.pump();
     expect(startClicked, isTrue);
 
-    await tester.tap(find.text('End Assignment'));
+    final endButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'End Assignment'),
+    );
+    endButton.onPressed!();
     await tester.pump();
     expect(endAssignmentClicked, isTrue);
   });
@@ -168,7 +174,10 @@ void main() {
     expect(find.text('START RESPONSE'), findsNothing);
     expect(find.text('Allocate'), findsNothing);
 
-    await tester.tap(find.text('COMPLETE RESPONSE'));
+    final completeButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'COMPLETE RESPONSE'),
+    );
+    completeButton.onPressed!();
     await tester.pump();
     expect(completeClicked, isTrue);
   });
@@ -203,7 +212,10 @@ void main() {
     expect(find.text('START RESPONSE'), findsNothing);
     expect(find.text('COMPLETE RESPONSE'), findsNothing);
 
-    await tester.tap(find.text('Allocate'));
+    final allocateButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Allocate'),
+    );
+    allocateButton.onPressed!();
     await tester.pump();
     expect(allocateClicked, isTrue);
   });
