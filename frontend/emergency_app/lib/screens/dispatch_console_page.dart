@@ -39,6 +39,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   final List<BackendResponder> responders = <BackendResponder>[];
   final List<BackendResponderResource> myInventory =
       <BackendResponderResource>[];
+  final List<ResponderHelpType> myHelpTypes = <ResponderHelpType>[];
 
   /// Open requests relevant to the signed in user.
   final List<EmergencyRequest> openRequests = <EmergencyRequest>[];
@@ -123,7 +124,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     if (widget.readinessSuccess) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        showToast('You are now available for selected resources.');
+        showToast('You are now available for your selected help types.');
       });
     }
   }
@@ -331,6 +332,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               responders[index].withStatus(status, updatedAt: timestamp);
         }
       });
+      if (isResponder && responderId == ApiService.currentUserId) {
+        await loadMyHelpTypes(silent: true);
+      }
+      return;
     }
   }
 
@@ -459,6 +464,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadResponders(silent: silent);
 
     if (isResponder) {
+      await loadMyHelpTypes(silent: silent);
       await loadMyInventory(silent: silent);
     }
 
@@ -615,6 +621,42 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
   }
 
+  Future<void> loadMyHelpTypes({bool silent = false}) async {
+    try {
+      final data = await ApiService.getResponderHelpTypes();
+      final categories = (data['categories'] as List<dynamic>? ?? <dynamic>[])
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+      final categoryLabelByValue = <String, String>{
+        for (final item in categories)
+          item['value'].toString(): item['label'].toString(),
+      };
+      final selected = (data['selected'] as List<dynamic>? ?? <dynamic>[])
+          .map((item) => item.toString())
+          .toSet();
+
+      final loaded = selected.map((categoryValue) {
+        return ResponderHelpType(
+          category: categoryValue,
+          label: categoryLabelByValue[categoryValue] ?? categoryValue,
+          enabled: true,
+        );
+      }).toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        myHelpTypes
+          ..clear()
+          ..addAll(loaded);
+      });
+    } catch (error) {
+      if (!silent) {
+        showToast('Failed to load your help types: ${_clean(error)}');
+      }
+    }
+  }
+
   List<EmergencyRequest> _parseRequests(List<dynamic> data) {
     final byId = <int, EmergencyRequest>{};
     for (final item in data) {
@@ -747,6 +789,38 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadRequests();
     await loadResponders();
     await loadMyInventory();
+    await loadMyHelpTypes();
+  }
+
+  Future<void> startResponse(EmergencyRequest request) async {
+    try {
+      await ApiService.startEmergencyResponse(request.id);
+      showToast('${request.displayId} response started');
+    } catch (error) {
+      showToast('Start response failed: ${_clean(error)}');
+    }
+
+    await loadRequests();
+    await loadResponders();
+    await loadMyInventory();
+    await loadMyHelpTypes();
+  }
+
+  Future<void> completeResponse(EmergencyRequest request) async {
+    try {
+      await ApiService.completeEmergencyResponse(request.id);
+      if (locationStore.localSharingRequestId == request.id) {
+        await _stopLocalLocationSharing(request.id, emitStop: false);
+      }
+      showToast('${request.displayId} response completed');
+    } catch (error) {
+      showToast('Complete response failed: ${_clean(error)}');
+    }
+
+    await loadRequests();
+    await loadResponders();
+    await loadMyInventory();
+    await loadMyHelpTypes();
   }
 
   Future<void> endAssignment(EmergencyRequest request) async {
@@ -770,6 +844,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadRequests();
     await loadResponders();
     await loadMyInventory();
+    await loadMyHelpTypes();
   }
 
   Future<void> cancelRequest(EmergencyRequest request) async {
@@ -1082,6 +1157,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   void openAllocationDialog(EmergencyRequest request) {
+    if (request.requiredResources.isEmpty) {
+      showToast(
+        'This emergency requires no physical resources. Use START RESPONSE.',
+      );
+      return;
+    }
     showDialog<void>(
       context: context,
       builder: (context) => AllocationDialog(
@@ -1181,7 +1262,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   String get viewSubtitle => switch (activeView) {
         ConsoleView.board => 'Live request state from PostgreSQL',
         ConsoleView.newRequest => 'Request any active resource in the catalog',
-        ConsoleView.resources => 'Resource catalog and inventory',
+        ConsoleView.resources => isResponder
+            ? 'Help types and optional resource inventory'
+            : 'Resource catalog and inventory',
         ConsoleView.responders => 'Responders registered in the database',
         ConsoleView.log => 'Completed and cancelled requests',
       };
@@ -1308,10 +1391,18 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       if (isResponder) {
         children.add(const SizedBox(height: 18));
         children.add(
-          ResponderResourcesPanel(
-            resources: myInventory,
+          ResponderHelpTypesPanel(
+            helpTypes: myHelpTypes,
             title: 'MY HELP TYPES',
             onEditHelpTypes: editMyHelpTypes,
+          ),
+        );
+        children.add(const SizedBox(height: 18));
+        children.add(
+          ResponderResourcesPanel(
+            resources: myInventory,
+            title: 'RESOURCE INVENTORY',
+            onEditInventory: editMyHelpTypes,
           ),
         );
       }
@@ -1361,6 +1452,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           emptyIcon: Icons.check_circle_outline,
           emptyMessage:
               'Accept a compatible request below to start working on it.',
+          onStartResponse: startResponse,
+          onCompleteResponse: completeResponse,
           onAllocate: openAllocationDialog,
           onEndAssignment: endAssignment,
           onDispatchAllocation: dispatchAllocation,
@@ -1379,15 +1472,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       children.add(
         BoardPanel(
           title: 'COMPATIBLE REQUESTS',
-          hint: 'Outstanding work matched against your capabilities',
+          hint: 'Open work matched against your help types and resources',
           requests: pendingCompatible,
           role: role,
           currentUserId: ApiService.currentUserId,
           emptyTitle: 'NO COMPATIBLE REQUESTS',
           emptyIcon: Icons.inbox_outlined,
           emptyMessage:
-              'Open requests appear here when at least one outstanding '
-              'resource matches your available capabilities.',
+              'Open requests appear here when their category matches one of '
+              'your help types and any requested resources are compatible.',
           onAccept: acceptRequest,
           connectionStatus: connectionStatus,
           isMobile: isMobile,

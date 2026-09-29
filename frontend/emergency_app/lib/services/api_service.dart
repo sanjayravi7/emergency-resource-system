@@ -291,6 +291,42 @@ class ApiService {
     return body;
   }
 
+  /// Responder starts active response for a resource-free emergency.
+  static Future<Map<String, dynamic>> startEmergencyResponse(
+    int requestId,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/requests/$requestId/start'),
+      headers: _headers,
+    );
+
+    final body = _decode(response);
+
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to start emergency response');
+    }
+
+    return body;
+  }
+
+  /// Responder completes response for a resource-free emergency.
+  static Future<Map<String, dynamic>> completeEmergencyResponse(
+    int requestId,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/requests/$requestId/complete'),
+      headers: _headers,
+    );
+
+    final body = _decode(response);
+
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to complete emergency response');
+    }
+
+    return body;
+  }
+
   /// End only the signed-in responder's ACTIVE assignment. An unfinished own
   /// allocation remains on the board through the backend participation rule.
   static Future<Map<String, dynamic>> endMyAssignment(int requestId) async {

@@ -516,6 +516,38 @@ class BackendResponderResource {
 }
 
 // ---------------------------------------------------------------------------
+// RESPONDER HELP TYPE (category readiness, independent from physical inventory)
+// ---------------------------------------------------------------------------
+
+class ResponderHelpType {
+  const ResponderHelpType({
+    required this.category,
+    this.label,
+    this.enabled = true,
+  });
+
+  final String category;
+  final String? label;
+  final bool enabled;
+
+  String get displayLabel => label ?? category;
+
+  factory ResponderHelpType.fromJson(Map<String, dynamic> json) {
+    return ResponderHelpType(
+      category: (json['category'] ?? json['value'] ?? '').toString(),
+      label: json['label']?.toString(),
+      enabled: json['enabled'] == null ? true : json['enabled'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'category': category,
+        if (label != null) 'label': label,
+        'enabled': enabled,
+      };
+}
+
+// ---------------------------------------------------------------------------
 // REQUEST RESOURCES AND ALLOCATIONS
 // ---------------------------------------------------------------------------
 

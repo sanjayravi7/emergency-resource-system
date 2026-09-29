@@ -91,6 +91,14 @@ const ACCEPTANCE_CLIENT_ERROR_MESSAGES = [
   'Request has already been completed',
   'Request has no required resource',
   'Responder has no compatible resource with outstanding quantity',
+  'Responder does not have a compatible help type',
+  'Only responders can start emergency response',
+  'Only responders can complete emergency response',
+  'Request must be accepted before starting response',
+  'Request must be in progress to complete response',
+  'Request is already in progress',
+  'Cannot start response on request with required resources',
+  'Cannot complete response on request with required resources',
 ];
 
 exports.acceptRequest = async (req, res, next) => {
@@ -102,6 +110,13 @@ exports.acceptRequest = async (req, res, next) => {
 
     res.json({ success: true, request });
   } catch (error) {
+    if (error.message === 'Request not found') {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     if (error.message === 'Responder is not available to accept') {
       return res.status(400).json({
         success: false,
@@ -110,6 +125,82 @@ exports.acceptRequest = async (req, res, next) => {
     }
 
     if (ACCEPTANCE_CLIENT_ERROR_MESSAGES.includes(error.message)) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    next(error);
+  }
+};
+
+exports.startResponse = async (req, res, next) => {
+  try {
+    const request = await requestService.startEmergencyResponse(
+      req.user.id,
+      req.params.id
+    );
+
+    res.json({ success: true, request });
+  } catch (error) {
+    if (error.message === 'Request not found') {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (/unauthorized|not assigned/i.test(error.message || '')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (
+      !isInfrastructureError(error) &&
+      (ACCEPTANCE_CLIENT_ERROR_MESSAGES.includes(error.message) ||
+        isValidationError(error.message))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    next(error);
+  }
+};
+
+exports.completeResponse = async (req, res, next) => {
+  try {
+    const request = await requestService.completeEmergencyResponse(
+      req.user.id,
+      req.params.id
+    );
+
+    res.json({ success: true, request });
+  } catch (error) {
+    if (error.message === 'Request not found') {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (/unauthorized|not assigned/i.test(error.message || '')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (
+      !isInfrastructureError(error) &&
+      (ACCEPTANCE_CLIENT_ERROR_MESSAGES.includes(error.message) ||
+        isValidationError(error.message))
+    ) {
       return res.status(400).json({
         success: false,
         message: error.message,
