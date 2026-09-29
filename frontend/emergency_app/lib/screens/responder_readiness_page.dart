@@ -215,6 +215,10 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
       await _gateway.heartbeat();
 
       if (!mounted) return;
+      // The save completed: leave the transient saving state so the page is
+      // interactable again when the caller keeps it mounted instead of
+      // navigating away below (the button would otherwise spin forever).
+      setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('You are available for your selected help types.'),
