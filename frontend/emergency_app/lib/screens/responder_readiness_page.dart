@@ -320,22 +320,29 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
               child: Column(
                 children: _helpTypes.map((item) {
                   final value = item['value']!;
-                  return CheckboxListTile(
-                    key: Key('help-type-$value'),
-                    dense: true,
-                    value: _selectedHelpTypes.contains(value),
-                    activeColor: AppColors.teal,
-                    title: Text(item['label']!),
-                    onChanged: _saving
-                        ? null
-                        : (checked) => setState(() {
-                              if (checked ?? false) {
-                                _selectedHelpTypes.add(value);
-                              } else {
-                                _selectedHelpTypes.remove(value);
-                              }
-                              _notice = null;
-                            }),
+                  // CheckboxListTile uses InkWell for its tap feedback. Give
+                  // every tile its own Material ancestor so the splash and
+                  // selected state remain visible even though the selector is
+                  // inside a bordered surface container.
+                  return Material(
+                    color: AppColors.surface,
+                    child: CheckboxListTile(
+                      key: Key('help-type-$value'),
+                      dense: true,
+                      value: _selectedHelpTypes.contains(value),
+                      activeColor: AppColors.teal,
+                      title: Text(item['label']!),
+                      onChanged: _saving
+                          ? null
+                          : (checked) => setState(() {
+                                if (checked ?? false) {
+                                  _selectedHelpTypes.add(value);
+                                } else {
+                                  _selectedHelpTypes.remove(value);
+                                }
+                                _notice = null;
+                              }),
+                    ),
                   );
                 }).toList(),
               ),
