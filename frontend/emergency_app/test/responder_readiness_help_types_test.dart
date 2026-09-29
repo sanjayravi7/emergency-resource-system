@@ -75,7 +75,18 @@ void main() {
 
     await tester.tap(find.byKey(const Key('help-type-FIRE')));
     await tester.pump();
-    await tester.ensureVisible(find.text('SAVE & GO AVAILABLE'));
+
+    // The save button sits below the fold on the default 800x600 test
+    // surface. Drive the page's actual ListView until the button is
+    // revealed, then settle the scroll so the tap below lands on fresh
+    // coordinates instead of the stale off-screen ones.
+    await tester.scrollUntilVisible(
+      find.text('SAVE & GO AVAILABLE'),
+      100.0,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('SAVE & GO AVAILABLE'));
     await tester.pumpAndSettle();
 

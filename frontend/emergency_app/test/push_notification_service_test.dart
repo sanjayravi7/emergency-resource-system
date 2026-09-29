@@ -7,6 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 /// without google-services), registering is a silent no-op and every other
 /// feature - Socket.IO plus the compatible-request API - keeps working.
 void main() {
+  // Firebase access goes through platform channels, which require the
+  // Flutter test bindings to be initialized. With the bindings in place
+  // the unavailable plugin surfaces as a caught failure inside
+  // startForResponder, so registration remains the no-op asserted below
+  // and no fake Firebase configuration is needed.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('PushNotificationService', () {
     setUp(() async {
       // The service is a singleton: reset it so no test depends on the
