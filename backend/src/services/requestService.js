@@ -23,6 +23,7 @@ const {
 } = require('../realtime/eventEmitters');
 const { getIO, rooms } = require('../realtime/socketEvents');
 const pushNotificationService = require('./pushNotificationService');
+const { categoryForEmergencyType } = require('../domain/emergencyCategories');
 
 async function emitAfterCommit(callback) {
   try {
@@ -533,22 +534,37 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   ]);
   if (activeAssignment || legacyActiveEmergency) return [];
 
-  // A capability must explicitly be enabled. Joining the resource catalog
-  // ensures a disabled/inactive catalog resource can never match.
-  const responderResources = await prisma.responderResource.findMany({
-    where: {
-      responderId: numericResponderId,
-      isEnabled: true,
-      resource: { isActive: true },
-    },
-    select: {
-      resourceId: true,
-      availableQuantity: true,
-      status: true,
-      isEnabled: true,
-      resource: { select: { mode: true, isActive: true } },
-    },
+  // Help types are the category/eligibility layer. They deliberately do not
+  // join Resource or ResponderResource: an empty catalog or zero inventory
+  // must not hide a category-compatible emergency.
+  const helpTypes = await prisma.responderHelpType.findMany({
+    where: { responderId: numericResponderId },
+    select: { category: true, enabled: true },
   });
+  const enabledCategories = new Set(
+    helpTypes.filter((row) => row.enabled).map((row) => row.category)
+  );
+  if (helpTypes.length > 0 && !enabledCategories.size) return [];
+
+  // Pre-help-type responders keep their prior resource-based discovery until
+  // they first save readiness. This is a migration bridge only: once any help
+  // rows exist, categories above are authoritative even if inventory changes.
+  const legacyResponderResources = helpTypes.length === 0
+    ? await prisma.responderResource.findMany({
+        where: {
+          responderId: numericResponderId,
+          isEnabled: true,
+          resource: { isActive: true },
+        },
+        select: {
+          resourceId: true,
+          availableQuantity: true,
+          status: true,
+          isEnabled: true,
+          resource: { select: { mode: true, isActive: true } },
+        },
+      })
+    : [];
 
   // Multi-responder dispatch: an emergency stays visible to OTHER compatible
   // responders while it is active and still has outstanding work, even after
@@ -575,20 +591,24 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   });
 
   return requests.filter((request) => {
-    if (!request.requiredResources.length) return false;
+    if (helpTypes.length > 0) {
+      return enabledCategories.has(
+        categoryForEmergencyType(request.emergencyType)
+      );
+    }
 
+    // Legacy resource matching is intentionally isolated to responders with
+    // no help-type rows. It disappears permanently after their first save.
+    if (!request.requiredResources.length) return false;
     const outstandingByResource = computeOutstandingByResource(
       request.requiredResources,
       request.allocations
     );
-
-    return (
-      findServableRequiredResources(
-        request.requiredResources,
-        outstandingByResource,
-        responderResources
-      ).length > 0
-    );
+    return findServableRequiredResources(
+      request.requiredResources,
+      outstandingByResource,
+      legacyResponderResources
+    ).length > 0;
   });
 };
 
@@ -604,7 +624,7 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     // every responder racing to join this emergency; the user lock serializes
     // two different requests racing to be accepted by one responder.
     const lockedRequests = await tx.$queryRaw`
-      SELECT id, status, "acceptedById"
+      SELECT id, status, "acceptedById", "emergencyType"
       FROM "EmergencyRequest"
       WHERE id = ${numericRequestId}
       FOR UPDATE
@@ -634,6 +654,23 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     if (!responder.isActive) throw new Error('Responder is inactive');
     if (responder.responderStatus !== 'AVAILABLE') {
       throw new Error('Responder is not available to accept');
+    }
+
+    // Re-check category eligibility while the responder row is locked. The
+    // readiness update and acceptance therefore cannot grant access based on
+    // Resource inventory or a stale client-side list.
+    const requestCategory = categoryForEmergencyType(requestRow.emergencyType);
+    const configuredHelpTypes = await tx.responderHelpType.findMany({
+      where: { responderId: numericResponderId },
+      select: { category: true, enabled: true },
+    });
+    if (
+      configuredHelpTypes.length > 0 &&
+      !configuredHelpTypes.some(
+        (row) => row.enabled && row.category === requestCategory
+      )
+    ) {
+      throw new Error('Responder does not have a compatible help type');
     }
 
     // One active emergency per responder (existing business rule). The
@@ -695,50 +732,46 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       where: { requestId: numericRequestId },
       select: { resourceId: true, quantity: true },
     });
-    if (!requiredResources.length) {
-      throw new Error('Request has no required resource');
-    }
-
-    // Outstanding quantity reuses the allocation service's definition of
-    // "active allocation" so acceptance and allocation can never disagree
-    // about how much work remains.
-    const activeAllocations = await tx.allocation.findMany({
-      where: {
-        requestId: numericRequestId,
-        status: { not: 'CANCELLED' },
-      },
-      select: { resourceId: true, quantity: true, status: true },
-    });
-    const outstandingByResource = computeOutstandingByResource(
-      requiredResources,
-      activeAllocations
-    );
-
-    // Lock all capability rows before the compatibility re-check so changes
-    // made after GET /compatible cannot race this acceptance.
-    const responderResources = await tx.$queryRaw`
-      SELECT rr.id, rr."resourceId", rr."availableQuantity", rr.status,
-             rr."isEnabled", resource."isActive" AS "resourceIsActive",
-             resource."mode" AS "resourceMode"
-      FROM "ResponderResource" AS rr
-      INNER JOIN "Resource" AS resource ON resource.id = rr."resourceId"
-      WHERE rr."responderId" = ${numericResponderId}
-      FOR UPDATE OF rr, resource
-    `;
-
-    // PARTIAL capability matching: the responder needs at least one required
-    // resource line that still has outstanding quantity and that they can
-    // serve under the existing mode rules. Full coverage is NOT required -
-    // other responders may cover the remaining lines.
-    const servable = findServableRequiredResources(
-      requiredResources,
-      outstandingByResource,
-      responderResources
-    );
-    if (!servable.length) {
-      throw new Error(
-        'Responder has no compatible resource with outstanding quantity'
+    if (requiredResources.length) {
+      // Outstanding quantity reuses the allocation service's definition of
+      // "active allocation" so acceptance and allocation can never disagree
+      // about how much work remains.
+      const activeAllocations = await tx.allocation.findMany({
+        where: {
+          requestId: numericRequestId,
+          status: { not: 'CANCELLED' },
+        },
+        select: { resourceId: true, quantity: true, status: true },
+      });
+      const outstandingByResource = computeOutstandingByResource(
+        requiredResources,
+        activeAllocations
       );
+
+      // Lock all inventory rows before the resource compatibility re-check so
+      // changes made after discovery cannot race acceptance.
+      const responderResources = await tx.$queryRaw`
+        SELECT rr.id, rr."resourceId", rr."availableQuantity", rr.status,
+               rr."isEnabled", resource."isActive" AS "resourceIsActive",
+               resource."mode" AS "resourceMode"
+        FROM "ResponderResource" AS rr
+        INNER JOIN "Resource" AS resource ON resource.id = rr."resourceId"
+        WHERE rr."responderId" = ${numericResponderId}
+        FOR UPDATE OF rr, resource
+      `;
+
+      // Resource-bearing requests retain the existing mode, quantity, active
+      // catalog and outstanding-allocation checks at acceptance time.
+      const servable = findServableRequiredResources(
+        requiredResources,
+        outstandingByResource,
+        responderResources
+      );
+      if (!servable.length) {
+        throw new Error(
+          'Responder has no compatible resource with outstanding quantity'
+        );
+      }
     }
 
     // First assignment becomes the lead responder. acceptedById is never

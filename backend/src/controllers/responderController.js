@@ -1,4 +1,5 @@
 const responderService = require('../services/responderService');
+const helpTypeService = require('../services/helpTypeService');
 
 exports.updateStatus = async (req, res, next) => {
   try {
@@ -6,6 +7,9 @@ exports.updateStatus = async (req, res, next) => {
     const user = await responderService.updateResponderStatus(req.user.id, status);
     res.json({ success: true, user });
   } catch (error) {
+    if (/help type|invalid responder status/i.test(error.message || '')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
@@ -48,6 +52,30 @@ exports.getResponders = async (req, res, next) => {
     const responders = await responderService.getResponders();
     res.json({ success: true, responders });
   } catch (error) {
+    next(error);
+  }
+};
+
+exports.getHelpTypes = async (req, res, next) => {
+  try {
+    const result = await helpTypeService.getHelpTypes(req.user.id);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateHelpTypes = async (req, res, next) => {
+  try {
+    const result = await helpTypeService.updateHelpTypes(
+      req.user.id,
+      req.body && req.body.helpTypes
+    );
+    res.json({ success: true, ...result });
+  } catch (error) {
+    if (/help types|helpTypes/i.test(error.message || '')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };

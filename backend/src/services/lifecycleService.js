@@ -93,28 +93,38 @@ async function syncResponderAvailability(tx, responderId) {
   if (activeAssignment || legacyAcceptedEmergency || unfinishedAllocation) {
     responderStatus = 'BUSY';
   } else if (responder.isActive) {
-    // A capability is "usable" when it is enabled and its catalog resource is
-    // active. SERVICE resources are reusable responder capabilities: they are
-    // never depleted, so quantity is irrelevant. CONSUMABLE resources still
-    // require real spendable inventory.
-    const usableEnabledResource = await tx.responderResource.findFirst({
-      where: {
-        AND: [
-          { responderId: numericResponderId },
-          { isEnabled: true },
-          { resource: { isActive: true } },
-          {
-            OR: [
-              { resource: { mode: 'SERVICE' } },
-              { availableQuantity: { gt: 0 } },
-            ],
-          },
-        ],
-      },
-      select: { id: true },
+    // Emergency-category readiness is independent from physical inventory.
+    // A responder with an enabled help type can stay AVAILABLE even when the
+    // Resource catalog is empty or all carried inventory is unavailable.
+    const helpTypes = await tx.responderHelpType.findMany({
+      where: { responderId: numericResponderId },
+      select: { enabled: true },
     });
 
-    if (usableEnabledResource) responderStatus = 'AVAILABLE';
+    if (helpTypes.some((row) => row.enabled)) {
+      responderStatus = 'AVAILABLE';
+    } else if (helpTypes.length === 0) {
+      // Transitional compatibility for responders created before help types
+      // existed. As soon as the responder saves the readiness form (including
+      // an empty selection), help-type rows become authoritative forever.
+      const legacyUsableResource = await tx.responderResource.findFirst({
+        where: {
+          AND: [
+            { responderId: numericResponderId },
+            { isEnabled: true },
+            { resource: { isActive: true } },
+            {
+              OR: [
+                { resource: { mode: 'SERVICE' } },
+                { availableQuantity: { gt: 0 } },
+              ],
+            },
+          ],
+        },
+        select: { id: true },
+      });
+      if (legacyUsableResource) responderStatus = 'AVAILABLE';
+    }
   }
 
   return tx.user.update({
