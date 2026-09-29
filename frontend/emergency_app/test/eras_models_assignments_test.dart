@@ -55,10 +55,14 @@ void main() {
       expect(request.assignments.map((a) => a.responderId), <int>[9, 11, 12]);
       expect(request.assignments.first.status, 'ACTIVE');
       expect(request.assignments.last.status, 'ENDED');
-      expect(request.assignments.first.acceptedAt,
-          DateTime.parse('2026-09-26T09:05:00Z'));
-      expect(request.assignments.last.endedAt,
-          DateTime.parse('2026-09-26T10:40:00Z'));
+      expect(
+        request.assignments.first.acceptedAt,
+        DateTime.parse('2026-09-26T09:05:00Z'),
+      );
+      expect(
+        request.assignments.last.endedAt,
+        DateTime.parse('2026-09-26T10:40:00Z'),
+      );
       expect(request.assignments.first.responder?.name, 'Responder A');
     });
 
@@ -76,16 +80,21 @@ void main() {
 
       expect(request.isAssignedTo(11), isTrue);
       expect(request.isAssignedTo(999), isFalse);
-      expect(request.isAssignedTo(12), isFalse,
-          reason: 'responder 12 only has an ENDED assignment');
+      expect(
+        request.isAssignedTo(12),
+        isFalse,
+        reason: 'responder 12 only has an ENDED assignment',
+      );
     });
 
     // Phase F case 6 -------------------------------------------------------
     test('an ENDED assignment is never active work', () {
       final request = _multiResponderRequest();
 
-      expect(request.assignments.firstWhere((a) => a.responderId == 12).isEnded,
-          isTrue);
+      expect(
+        request.assignments.firstWhere((a) => a.responderId == 12).isEnded,
+        isTrue,
+      );
       expect(request.isAssignedTo(12), isFalse);
       expect(request.participatesAsResponder(12), isFalse);
       expect(
@@ -104,8 +113,10 @@ void main() {
       // The lead also holds an ACTIVE assignment row (normal Phase C flow).
       expect(request.isAssignedTo(9), isTrue);
       // Additional responders are exposed without touching the lead fields.
-      expect(request.additionalActiveAssignments.map((a) => a.responderId),
-          <int>[11]);
+      expect(
+        request.additionalActiveAssignments.map((a) => a.responderId),
+        <int>[11],
+      );
     });
 
     test('the lead without an assignment row stays a legacy participant', () {
@@ -135,13 +146,15 @@ void main() {
       expect(request.isLegacyAcceptedBy(9), isTrue);
       expect(request.participatesAsResponder(9), isTrue);
       // Once the lead pair has its own row, the table alone decides.
-      final withLeadRow = request.withAssignment(ResponderAssignmentLine(
-        id: 3,
-        requestId: 45,
-        responderId: 9,
-        status: 'ENDED',
-        endedAt: DateTime.parse('2026-09-26T10:00:00Z'),
-      ));
+      final withLeadRow = request.withAssignment(
+        ResponderAssignmentLine(
+          id: 3,
+          requestId: 45,
+          responderId: 9,
+          status: 'ENDED',
+          endedAt: DateTime.parse('2026-09-26T10:00:00Z'),
+        ),
+      );
       expect(withLeadRow.isLegacyAcceptedBy(9), isFalse);
       expect(withLeadRow.participatesAsResponder(9), isFalse);
     });
@@ -185,8 +198,11 @@ void main() {
       // RESERVED allocation owner participates (allocation-only flow).
       expect(request.ownsUnfinishedAllocation(11), isTrue);
       expect(request.participatesAsResponder(11), isTrue);
-      expect(request.isAssignedTo(11), isFalse,
-          reason: 'participation without assignment stays distinguishable');
+      expect(
+        request.isAssignedTo(11),
+        isFalse,
+        reason: 'participation without assignment stays distinguishable',
+      );
       // CANCELLED allocation is not unfinished work.
       expect(request.ownsUnfinishedAllocation(12), isFalse);
       expect(request.participatesAsResponder(12), isFalse);
@@ -195,14 +211,16 @@ void main() {
     test('withAssignment replaces the same responder without duplicating', () {
       final request = _multiResponderRequest();
 
-      final updated = request.withAssignment(ResponderAssignmentLine(
-        id: 99,
-        requestId: request.id,
-        responderId: 11,
-        status: 'ACTIVE',
-        acceptedAt: DateTime.parse('2026-09-26T09:30:00Z'),
-        responder: UserSummary(id: 11, name: 'Responder B Updated'),
-      ));
+      final updated = request.withAssignment(
+        ResponderAssignmentLine(
+          id: 99,
+          requestId: request.id,
+          responderId: 11,
+          status: 'ACTIVE',
+          acceptedAt: DateTime.parse('2026-09-26T09:30:00Z'),
+          responder: UserSummary(id: 11, name: 'Responder B Updated'),
+        ),
+      );
 
       expect(updated.assignments, hasLength(3));
       expect(
@@ -292,10 +310,7 @@ EmergencyRequest _multiResponderRequest() {
         'status': 'ENDED',
         'acceptedAt': '2026-09-26T09:25:00.000Z',
         'endedAt': '2026-09-26T10:40:00.000Z',
-        'responder': <String, dynamic>{
-          'id': 12,
-          'name': 'Responder C',
-        },
+        'responder': <String, dynamic>{'id': 12, 'name': 'Responder C'},
       },
     ],
   });

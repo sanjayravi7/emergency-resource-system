@@ -19,7 +19,9 @@ class UnavailableLocationService implements LocationService {
 
   @override
   Future<ResolvedPlace> reverseGeocode(
-      double latitude, double longitude) async {
+    double latitude,
+    double longitude,
+  ) async {
     throw const LocationServiceException(_message);
   }
 
@@ -129,12 +131,13 @@ Future<GeoPoint?> readDeviceLocation() async {
   }
 }
 
-Stream<GeoPoint> watchDeviceLocation() => Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
-      ),
-    )
+Stream<GeoPoint> watchDeviceLocation() =>
+    Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        )
         .where(
           (position) =>
               isValidCoordinatePair(position.latitude, position.longitude),

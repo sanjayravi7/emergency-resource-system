@@ -20,7 +20,8 @@ library;
 import 'dart:math' as math;
 
 import 'location_service_stub.dart'
-    if (dart.library.js_interop) 'location_service_web.dart' as impl;
+    if (dart.library.js_interop) 'location_service_web.dart'
+    as impl;
 
 /// A plain latitude/longitude pair (kept independent of geolocator/Google types
 /// so widgets and tests do not need a platform plugin).
@@ -213,7 +214,8 @@ class NearbyPlace {
     final dLng = (longitude2 - longitude1) * toRadians;
     final sinLat = math.sin(dLat / 2);
     final sinLng = math.sin(dLng / 2);
-    final a = sinLat * sinLat +
+    final a =
+        sinLat * sinLat +
         math.cos(latitude1 * toRadians) *
             math.cos(latitude2 * toRadians) *
             sinLng *
@@ -326,10 +328,7 @@ enum LocationPermissionStatus {
 }
 
 class LocationPermissionResult {
-  const LocationPermissionResult({
-    required this.status,
-    required this.message,
-  });
+  const LocationPermissionResult({required this.status, required this.message});
 
   final LocationPermissionStatus status;
   final String message;

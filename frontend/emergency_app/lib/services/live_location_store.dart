@@ -44,9 +44,11 @@ class LiveLocationStore extends ChangeNotifier {
       );
 
   /// Requests with at least one actively streaming responder.
-  Set<int> get activelySharingRequestIds =>
-      Set<int>.unmodifiable(_activelySharingByRequest.keys.where(
-          (requestId) => _activelySharingByRequest[requestId]!.isNotEmpty));
+  Set<int> get activelySharingRequestIds => Set<int>.unmodifiable(
+    _activelySharingByRequest.keys.where(
+      (requestId) => _activelySharingByRequest[requestId]!.isNotEmpty,
+    ),
+  );
 
   int? get localSharingRequestId => _localSharingRequestId;
   int? get localSharingResponderId => _localSharingResponderId;
@@ -82,8 +84,10 @@ class LiveLocationStore extends ChangeNotifier {
 
   void beginRemoteSharing({required int requestId, required int responderId}) {
     if (requestId <= 0 || responderId <= 0) return;
-    final responders =
-        _activelySharingByRequest.putIfAbsent(requestId, () => <int>{});
+    final responders = _activelySharingByRequest.putIfAbsent(
+      requestId,
+      () => <int>{},
+    );
     if (responders.add(responderId)) notifyListeners();
   }
 
@@ -98,9 +102,11 @@ class LiveLocationStore extends ChangeNotifier {
     _activelySharingByRequest
         .putIfAbsent(location.requestId, () => <int>{})
         .add(location.responderId);
-    _locationsByRequest.putIfAbsent(location.requestId,
-            () => <int, LiveResponderLocation>{})[location.responderId] =
-        location.asLive();
+    _locationsByRequest.putIfAbsent(
+      location.requestId,
+      () => <int, LiveResponderLocation>{},
+    )[location.responderId] = location
+        .asLive();
     notifyListeners();
   }
 
@@ -172,7 +178,8 @@ class LiveLocationStore extends ChangeNotifier {
 
   void beginLocalSharing(int requestId, {int? responderId}) {
     if (requestId <= 0) return;
-    final changed = _localSharingRequestId != requestId ||
+    final changed =
+        _localSharingRequestId != requestId ||
         _localSharingResponderId != responderId ||
         !isResponderActivelySharing(requestId, responderId ?? 0);
     _localSharingRequestId = requestId;
@@ -231,8 +238,9 @@ class LiveLocationStore extends ChangeNotifier {
       changed = true;
     }
 
-    for (final requestId
-        in _activelySharingByRequest.keys.toList(growable: false)) {
+    for (final requestId in _activelySharingByRequest.keys.toList(
+      growable: false,
+    )) {
       if (openRequests.containsKey(requestId)) continue;
       _activelySharingByRequest.remove(requestId);
       _forgetLocalSharingFor(requestId);
@@ -282,8 +290,10 @@ class LiveLocationStore extends ChangeNotifier {
         );
 
         if (!_sameLocation(existing, persisted)) {
-          _locationsByRequest.putIfAbsent(request.id,
-              () => <int, LiveResponderLocation>{})[summary.id] = persisted;
+          _locationsByRequest.putIfAbsent(
+            request.id,
+            () => <int, LiveResponderLocation>{},
+          )[summary.id] = persisted;
           changed = true;
         }
       }
@@ -342,10 +352,7 @@ class LiveLocationStore extends ChangeNotifier {
     }
   }
 
-  bool _sameLocation(
-    LiveResponderLocation? left,
-    LiveResponderLocation right,
-  ) {
+  bool _sameLocation(LiveResponderLocation? left, LiveResponderLocation right) {
     return left != null &&
         left.requestId == right.requestId &&
         left.responderId == right.responderId &&

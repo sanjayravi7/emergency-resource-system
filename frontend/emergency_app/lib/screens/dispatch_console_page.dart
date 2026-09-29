@@ -78,8 +78,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   void initState() {
     super.initState();
 
-    realtimeEventsSubscription =
-        SocketService.instance.events.listen(_handleRealtimeEvent);
+    realtimeEventsSubscription = SocketService.instance.events.listen(
+      _handleRealtimeEvent,
+    );
     connectionStatus = SocketService.instance.currentConnection.status;
     socketStateSubscription = SocketService.instance.connectionStates.listen(
       (state) => unawaited(_handleSocketConnectionState(state)),
@@ -92,13 +93,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     unawaited(_refreshLocationPermissionState());
     refreshAll();
 
-    clockTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (!mounted) return;
-        setState(() => now = DateTime.now());
-      },
-    );
+    clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => now = DateTime.now());
+    });
 
     // Reliable polling refresh. Replaceable by Socket.IO later without
     // touching the widgets.
@@ -149,9 +147,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   // REALTIME
   // -------------------------------------------------------------------
 
-  Future<void> _handleSocketConnectionState(
-    SocketConnectionState state,
-  ) async {
+  Future<void> _handleSocketConnectionState(SocketConnectionState state) async {
     if (!mounted) return;
 
     if (!state.connected) {
@@ -184,8 +180,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (!mounted) return;
 
     if (event.name == 'socket.invalidated') {
-      showToast(event.payload['message']?.toString() ??
-          'Your realtime session was invalidated. Please sign in again.');
+      showToast(
+        event.payload['message']?.toString() ??
+            'Your realtime session was invalidated. Please sign in again.',
+      );
       await logout();
       return;
     }
@@ -300,10 +298,16 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           Map<String, dynamic>.from(rawAssignment),
         );
         setState(() {
-          _replaceRequestIn(openRequests, requestId,
-              (request) => request.withAssignment(assignment));
-          _replaceRequestIn(logEntries, requestId,
-              (request) => request.withAssignment(assignment));
+          _replaceRequestIn(
+            openRequests,
+            requestId,
+            (request) => request.withAssignment(assignment),
+          );
+          _replaceRequestIn(
+            logEntries,
+            requestId,
+            (request) => request.withAssignment(assignment),
+          );
         });
       }
       await refreshAll(silent: true);
@@ -321,15 +325,18 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (event.name == 'responder.availability') {
       final responderId = _asEventInt(event.payload['responderId']);
       final status = event.payload['responderStatus']?.toString();
-      final timestamp =
-          DateTime.tryParse(event.payload['timestamp']?.toString() ?? '');
+      final timestamp = DateTime.tryParse(
+        event.payload['timestamp']?.toString() ?? '',
+      );
       if (responderId == null || status == null || !mounted) return;
 
       setState(() {
         final index = responders.indexWhere((row) => row.id == responderId);
         if (index >= 0) {
-          responders[index] =
-              responders[index].withStatus(status, updatedAt: timestamp);
+          responders[index] = responders[index].withStatus(
+            status,
+            updatedAt: timestamp,
+          );
         }
       });
       if (isResponder && responderId == ApiService.currentUserId) {
@@ -392,9 +399,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     final backendRequestStatus = payload['requestStatus']?.toString();
 
     EmergencyRequest patch(EmergencyRequest request) => request.withAllocation(
-          allocation,
-          backendRequestStatus: backendRequestStatus,
-        );
+      allocation,
+      backendRequestStatus: backendRequestStatus,
+    );
 
     setState(() {
       _replaceRequestIn(openRequests, allocation.requestId, patch);
@@ -417,11 +424,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     // participation rule (ACTIVE assignment / unfinished allocation / legacy
     // lead), so the client subscribes to the same set.
     final authorizedOpenIds = openRequests
-        .where((request) =>
-            isAdmin ||
-            isRequester ||
-            (isResponder &&
-                request.participatesAsResponder(ApiService.currentUserId)))
+        .where(
+          (request) =>
+              isAdmin ||
+              isRequester ||
+              (isResponder &&
+                  request.participatesAsResponder(ApiService.currentUserId)),
+        )
         .map((request) => request.id)
         .toSet();
 
@@ -477,8 +486,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       final data = await ApiService.getResources(includeInactive: isAdmin);
 
       var loaded = data
-          .map((item) =>
-              BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) => BackendResource.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
 
       // Merge in live availability ("N responders available" for SERVICE,
@@ -489,15 +501,20 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       try {
         final availabilityData = await ApiService.getResourceAvailability();
         final availabilityRows = availabilityData
-            .map((item) => ResourceAvailability.fromJson(
-                Map<String, dynamic>.from(item as Map)))
+            .map(
+              (item) => ResourceAvailability.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
             .toList();
         final availabilityById = <int, ResourceAvailability>{
           for (final row in availabilityRows) row.id: row,
         };
         loaded = loaded
-            .map((resource) =>
-                resource.withAvailability(availabilityById[resource.id]))
+            .map(
+              (resource) =>
+                  resource.withAvailability(availabilityById[resource.id]),
+            )
             .toList();
       } catch (_) {
         // Non-fatal: fall back to the plain catalog numbers.
@@ -523,8 +540,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
       if (isResponder) {
         final assigned = _parseRequests(await ApiService.getAssignedRequests());
-        final compatible =
-            _parseRequests(await ApiService.getCompatibleRequests());
+        final compatible = _parseRequests(
+          await ApiService.getCompatibleRequests(),
+        );
 
         for (final request in assigned) {
           if (request.isOpen) {
@@ -582,8 +600,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       final data = await ApiService.getResponders();
 
       final loaded = data
-          .map((item) =>
-              BackendResponder.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) => BackendResponder.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
 
       if (!mounted) return;
@@ -603,8 +624,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       final data = await ApiService.getResponderResources();
 
       final loaded = data
-          .map((item) => BackendResponderResource.fromJson(
-              Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) => BackendResponderResource.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
 
       if (!mounted) return;
@@ -661,8 +685,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     final byId = <int, EmergencyRequest>{};
     for (final item in data) {
       if (item is! Map) continue;
-      final request =
-          EmergencyRequest.fromJson(Map<String, dynamic>.from(item));
+      final request = EmergencyRequest.fromJson(
+        Map<String, dynamic>.from(item),
+      );
       if (request.id > 0) byId[request.id] = request;
     }
     return byId.values.toList(growable: false);
@@ -706,9 +731,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text(result.isDeniedForever
-              ? 'Location permission blocked'
-              : 'Location services disabled'),
+          title: Text(
+            result.isDeniedForever
+                ? 'Location permission blocked'
+                : 'Location services disabled',
+          ),
           content: Text(result.message),
           actions: [
             TextButton(
@@ -756,9 +783,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         requiredResources: payload.requiredResources,
       );
 
-      showToast(latitude == null || longitude == null
-          ? 'Emergency request created with a text-only location. Precise map pin unavailable.'
-          : 'Emergency request created with precise GPS coordinates.');
+      showToast(
+        latitude == null || longitude == null
+            ? 'Emergency request created with a text-only location. Precise map pin unavailable.'
+            : 'Emergency request created with precise GPS coordinates.',
+      );
 
       await loadRequests();
       await loadResources();
@@ -1015,7 +1044,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (!isResponder ||
         !request.participatesAsResponder(ApiService.currentUserId)) {
       showToast(
-          'Only a responder assigned to this emergency can share its location.');
+        'Only a responder assigned to this emergency can share its location.',
+      );
       return;
     }
     if (connectionStatus != RealtimeConnectionStatus.connected ||
@@ -1042,11 +1072,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       // Cancel the old stream before authorizing a new request. This keeps the
       // device on one GPS subscription and one authenticated request room.
       await stopLocationSharing(locationStore.localSharingRequestId);
-      final authorized =
-          await SocketService.instance.startLocationSharing(request.id);
+      final authorized = await SocketService.instance.startLocationSharing(
+        request.id,
+      );
       if (!authorized) {
         throw Exception(
-            'Location sharing was not authorized for this request.');
+          'Location sharing was not authorized for this request.',
+        );
       }
       locationStore.beginLocalSharing(
         request.id,
@@ -1146,9 +1178,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   ) async {
     try {
       await ApiService.setResourceActive(resource.id, isActive);
-      showToast(isActive
-          ? '${resource.name} restored'
-          : '${resource.name} deactivated');
+      showToast(
+        isActive ? '${resource.name} restored' : '${resource.name} deactivated',
+      );
     } catch (error) {
       showToast('Update failed: ${_clean(error)}');
     }
@@ -1210,8 +1242,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message,
-            style: const TextStyle(color: AppColors.text, fontSize: 13)),
+        content: Text(
+          message,
+          style: const TextStyle(color: AppColors.text, fontSize: 13),
+        ),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(milliseconds: 3600),
         backgroundColor: AppColors.surface2,
@@ -1236,38 +1270,41 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   int get closedCount => logEntries.length;
 
   BackendResponder? get currentResponder => firstWhereOrNull(
-        responders,
-        (responder) => responder.id == ApiService.currentUserId,
-      );
+    responders,
+    (responder) => responder.id == ApiService.currentUserId,
+  );
 
   int get unfinishedAllocationCount {
     final requests = <EmergencyRequest>[...openRequests, ...logEntries];
     return requests
         .expand((request) => request.allocations)
-        .where((allocation) =>
-            allocation.responderId == ApiService.currentUserId &&
-            (allocation.status == 'RESERVED' ||
-                allocation.status == 'DISPATCHED'))
+        .where(
+          (allocation) =>
+              allocation.responderId == ApiService.currentUserId &&
+              (allocation.status == 'RESERVED' ||
+                  allocation.status == 'DISPATCHED'),
+        )
         .length;
   }
 
   String get viewTitle => switch (activeView) {
-        ConsoleView.board => 'Dispatch Board',
-        ConsoleView.newRequest => 'New Request',
-        ConsoleView.resources => 'Resources',
-        ConsoleView.responders => 'Responders',
-        ConsoleView.log => 'Closed Log',
-      };
+    ConsoleView.board => 'Dispatch Board',
+    ConsoleView.newRequest => 'New Request',
+    ConsoleView.resources => 'Resources',
+    ConsoleView.responders => 'Responders',
+    ConsoleView.log => 'Closed Log',
+  };
 
   String get viewSubtitle => switch (activeView) {
-        ConsoleView.board => 'Live request state from PostgreSQL',
-        ConsoleView.newRequest => 'Request any active resource in the catalog',
-        ConsoleView.resources => isResponder
-            ? 'Help types and optional resource inventory'
-            : 'Resource catalog and inventory',
-        ConsoleView.responders => 'Responders registered in the database',
-        ConsoleView.log => 'Completed and cancelled requests',
-      };
+    ConsoleView.board => 'Live request state from PostgreSQL',
+    ConsoleView.newRequest => 'Request any active resource in the catalog',
+    ConsoleView.resources =>
+      isResponder
+          ? 'Help types and optional resource inventory'
+          : 'Resource catalog and inventory',
+    ConsoleView.responders => 'Responders registered in the database',
+    ConsoleView.log => 'Completed and cancelled requests',
+  };
 
   String get roleLabel {
     final name = ApiService.currentUserName;

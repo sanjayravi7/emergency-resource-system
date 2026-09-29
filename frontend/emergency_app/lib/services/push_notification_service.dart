@@ -107,19 +107,19 @@ class PushNotificationService {
       // refresh leaves the previous registration in place until the next
       // successful one.
       _tokenRefreshSubscription?.cancel();
-      _tokenRefreshSubscription = messaging.onTokenRefresh.listen(
-        (newToken) async {
-          try {
-            await ApiService.registerDeviceToken(
-              newToken,
-              platform: platformLabel(),
-            );
-            _registeredToken = newToken;
-          } catch (error) {
-            debugPrint('device token refresh registration failed: $error');
-          }
-        },
-      );
+      _tokenRefreshSubscription = messaging.onTokenRefresh.listen((
+        newToken,
+      ) async {
+        try {
+          await ApiService.registerDeviceToken(
+            newToken,
+            platform: platformLabel(),
+          );
+          _registeredToken = newToken;
+        } catch (error) {
+          debugPrint('device token refresh registration failed: $error');
+        }
+      });
     } catch (error) {
       // A missing Firebase configuration or an unavailable plugin channel
       // (unit tests) lands here. Push stays disabled; nothing else changes.

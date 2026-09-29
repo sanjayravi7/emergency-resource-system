@@ -67,41 +67,38 @@ void main() {
           'status': 'ENDED',
           'acceptedAt': '2026-09-26T09:25:00.000Z',
           'endedAt': '2026-09-26T10:40:00.000Z',
-          'responder': <String, dynamic>{
-            'id': 12,
-            'name': 'Former Responder',
-          },
+          'responder': <String, dynamic>{'id': 12, 'name': 'Former Responder'},
         },
       ],
     });
   }
 
   Widget host(Widget child) => MaterialApp(
-        home: Scaffold(
-          backgroundColor: Colors.black,
-          body: child,
-        ),
-      );
+    home: Scaffold(backgroundColor: Colors.black, body: child),
+  );
 
   // Phase F case 25 --------------------------------------------------------
-  testWidgets('requester board shows lead and additional responders',
-      (tester) async {
+  testWidgets('requester board shows lead and additional responders', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(host(
-      SingleChildScrollView(
-        child: BoardPanel(
-          title: 'Active emergencies',
-          hint: 'Requests being handled',
-          requests: <EmergencyRequest>[multiRequest()],
-          role: 'REQUESTER',
-          currentUserId: 5,
-          emptyMessage: 'No active emergencies',
+    await tester.pumpWidget(
+      host(
+        SingleChildScrollView(
+          child: BoardPanel(
+            title: 'Active emergencies',
+            hint: 'Requests being handled',
+            requests: <EmergencyRequest>[multiRequest()],
+            role: 'REQUESTER',
+            currentUserId: 5,
+            emptyMessage: 'No active emergencies',
+          ),
         ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -118,28 +115,31 @@ void main() {
   });
 
   // Phase F case 26 --------------------------------------------------------
-  testWidgets('an additional assigned responder gets the allocation actions',
-      (tester) async {
+  testWidgets('an additional assigned responder gets the allocation actions', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(host(
-      SingleChildScrollView(
-        child: BoardPanel(
-          title: 'My assignments',
-          hint: 'Emergencies you are assigned to',
-          requests: <EmergencyRequest>[multiRequest()],
-          role: 'RESPONDER',
-          // Rahul Pillai (id 11) is the ADDITIONAL responder, not the lead.
-          currentUserId: 11,
-          emptyMessage: 'No assignments',
-          onAllocate: (_) {},
-          onStartLocationSharing: (_) async {},
-          onStopLocationSharing: (_) async {},
+    await tester.pumpWidget(
+      host(
+        SingleChildScrollView(
+          child: BoardPanel(
+            title: 'My assignments',
+            hint: 'Emergencies you are assigned to',
+            requests: <EmergencyRequest>[multiRequest()],
+            role: 'RESPONDER',
+            // Rahul Pillai (id 11) is the ADDITIONAL responder, not the lead.
+            currentUserId: 11,
+            emptyMessage: 'No assignments',
+            onAllocate: (_) {},
+            onStartLocationSharing: (_) async {},
+            onStopLocationSharing: (_) async {},
+          ),
         ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -149,27 +149,30 @@ void main() {
     expect(find.text('Start Live Location'), findsOneWidget);
   });
 
-  testWidgets('an ENDED-only responder gets no responder actions',
-      (tester) async {
+  testWidgets('an ENDED-only responder gets no responder actions', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(host(
-      SingleChildScrollView(
-        child: BoardPanel(
-          title: 'My assignments',
-          hint: 'Emergencies you are assigned to',
-          requests: <EmergencyRequest>[multiRequest()],
-          role: 'RESPONDER',
-          currentUserId: 12, // only an ENDED assignment
-          emptyMessage: 'No assignments',
-          onAllocate: (_) {},
-          onStartLocationSharing: (_) async {},
-          onStopLocationSharing: (_) async {},
+    await tester.pumpWidget(
+      host(
+        SingleChildScrollView(
+          child: BoardPanel(
+            title: 'My assignments',
+            hint: 'Emergencies you are assigned to',
+            requests: <EmergencyRequest>[multiRequest()],
+            role: 'RESPONDER',
+            currentUserId: 12, // only an ENDED assignment
+            emptyMessage: 'No assignments',
+            onAllocate: (_) {},
+            onStartLocationSharing: (_) async {},
+            onStopLocationSharing: (_) async {},
+          ),
         ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -178,8 +181,9 @@ void main() {
   });
 
   // Phase F case 27 --------------------------------------------------------
-  testWidgets('an allocation-only responder drives their own allocation',
-      (tester) async {
+  testWidgets('an allocation-only responder drives their own allocation', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -211,23 +215,25 @@ void main() {
       ],
     });
 
-    await tester.pumpWidget(host(
-      SingleChildScrollView(
-        child: BoardPanel(
-          title: 'My work',
-          hint: 'Allocation ownership drives actions',
-          requests: <EmergencyRequest>[request],
-          role: 'RESPONDER',
-          currentUserId: 11,
-          emptyMessage: 'No work',
-          onAllocate: (_) {},
-          onDispatchAllocation: (_) {},
-          onMarkDelivered: (_) {},
-          onStartLocationSharing: (_) async {},
-          onStopLocationSharing: (_) async {},
+    await tester.pumpWidget(
+      host(
+        SingleChildScrollView(
+          child: BoardPanel(
+            title: 'My work',
+            hint: 'Allocation ownership drives actions',
+            requests: <EmergencyRequest>[request],
+            role: 'RESPONDER',
+            currentUserId: 11,
+            emptyMessage: 'No work',
+            onAllocate: (_) {},
+            onDispatchAllocation: (_) {},
+            onMarkDelivered: (_) {},
+            onStartLocationSharing: (_) async {},
+            onStopLocationSharing: (_) async {},
+          ),
         ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -236,71 +242,81 @@ void main() {
   });
 
   // Phase F case 28 --------------------------------------------------------
-  testWidgets('mobile board renders a multi-responder card without overflow',
-      (tester) async {
+  testWidgets('mobile board renders a multi-responder card without overflow', (
+    tester,
+  ) async {
     addTearDown(tester.view.reset);
 
     for (final width in <double>[320, 360, 390]) {
       tester.view.physicalSize = Size(width, 900);
       tester.view.devicePixelRatio = 1;
 
-      await tester.pumpWidget(host(
-        SingleChildScrollView(
-          child: SizedBox(
-            width: width,
-            child: BoardPanel(
-              title: 'My assignments',
-              hint: 'Multi responder card',
-              requests: <EmergencyRequest>[multiRequest()],
-              role: 'RESPONDER',
-              currentUserId: 9,
-              emptyMessage: 'No assignments',
-              isMobile: true,
-              onAllocate: (_) {},
-              onStartLocationSharing: (_) async {},
-              onStopLocationSharing: (_) async {},
-              liveLocations: <int, Map<int, LiveResponderLocation>>{
-                42: <int, LiveResponderLocation>{
-                  9: LiveResponderLocation(
-                    requestId: 42,
-                    responderId: 9,
-                    latitude: 10.53111,
-                    longitude: 76.22111,
-                    updatedAt: DateTime.utc(2026, 9, 26, 10),
-                  ),
-                  11: LiveResponderLocation(
-                    requestId: 42,
-                    responderId: 11,
-                    latitude: 10.53222,
-                    longitude: 76.22222,
-                    updatedAt: DateTime.utc(2026, 9, 26, 10),
-                    isLive: false,
-                  ),
+      await tester.pumpWidget(
+        host(
+          SingleChildScrollView(
+            child: SizedBox(
+              width: width,
+              child: BoardPanel(
+                title: 'My assignments',
+                hint: 'Multi responder card',
+                requests: <EmergencyRequest>[multiRequest()],
+                role: 'RESPONDER',
+                currentUserId: 9,
+                emptyMessage: 'No assignments',
+                isMobile: true,
+                onAllocate: (_) {},
+                onStartLocationSharing: (_) async {},
+                onStopLocationSharing: (_) async {},
+                liveLocations: <int, Map<int, LiveResponderLocation>>{
+                  42: <int, LiveResponderLocation>{
+                    9: LiveResponderLocation(
+                      requestId: 42,
+                      responderId: 9,
+                      latitude: 10.53111,
+                      longitude: 76.22111,
+                      updatedAt: DateTime.utc(2026, 9, 26, 10),
+                    ),
+                    11: LiveResponderLocation(
+                      requestId: 42,
+                      responderId: 11,
+                      latitude: 10.53222,
+                      longitude: 76.22222,
+                      updatedAt: DateTime.utc(2026, 9, 26, 10),
+                      isLive: false,
+                    ),
+                  },
                 },
-              },
+              ),
             ),
           ),
         ),
-      ));
+      );
       await tester.pump();
 
-      expect(tester.takeException(), isNull,
-          reason: 'no overflow at width $width');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'no overflow at width $width',
+      );
       // The lead name appears in both the lead summary and responder row.
       expect(find.text('Asha Menon'), findsWidgets);
       expect(find.text('Rahul Pillai'), findsOneWidget);
       // Per-responder location rows are labelled with the responder name.
-      expect(find.textContaining('LOCATION SHARING ACTIVE · Asha Menon'),
-          findsOneWidget);
       expect(
-          find.textContaining('LAST-KNOWN RESPONDER LOCATION · Rahul Pillai'),
-          findsOneWidget);
+        find.textContaining('LOCATION SHARING ACTIVE · Asha Menon'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('LAST-KNOWN RESPONDER LOCATION · Rahul Pillai'),
+        findsOneWidget,
+      );
     }
   });
 
   // Phase F case 29 --------------------------------------------------------
-  testWidgets('mobile NavigationDeck stacks multiple cards without overflow',
-      (tester) async {
+  testWidgets('mobile NavigationDeck stacks multiple cards without overflow', (
+    tester,
+  ) async {
     addTearDown(tester.view.reset);
 
     tester.view.physicalSize = const Size(320, 900);
@@ -324,16 +340,18 @@ void main() {
         ),
     ];
 
-    await tester.pumpWidget(host(
-      SizedBox(
-        width: 320,
-        child: NavigationDeck(
-          connections: connections,
-          onGetDirections: (_) {},
-          isMobile: true,
+    await tester.pumpWidget(
+      host(
+        SizedBox(
+          width: 320,
+          child: NavigationDeck(
+            connections: connections,
+            onGetDirections: (_) {},
+            isMobile: true,
+          ),
         ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(tester.takeException(), isNull);

@@ -14,17 +14,17 @@ extension RegistrationRoleWire on RegistrationRole {
   /// Exact value sent to POST /api/auth/register. The backend allowlists
   /// these two values and rejects everything else.
   String get wireName => switch (this) {
-        RegistrationRole.requester => 'REQUESTER',
-        RegistrationRole.responder => 'RESPONDER',
-      };
+    RegistrationRole.requester => 'REQUESTER',
+    RegistrationRole.responder => 'RESPONDER',
+  };
 
   /// Short, professional explanation shown once a role is selected.
   String get explanation => switch (this) {
-        RegistrationRole.requester =>
-          "You'll use ERAS to request emergency resources and assistance.",
-        RegistrationRole.responder =>
-          "You'll use ERAS to receive eligible emergencies and provide assistance.",
-      };
+    RegistrationRole.requester =>
+      "You'll use ERAS to request emergency resources and assistance.",
+    RegistrationRole.responder =>
+      "You'll use ERAS to receive eligible emergencies and provide assistance.",
+  };
 }
 
 /// Registration asks ONCE how the user intends to use ERAS. The selected role
@@ -139,258 +139,248 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: AppColors.bg,
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: AppColors.border),
-                  ),
-                  elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Form(
-                      key: form,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Text(
-                            'ERAS',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          const Text(
-                            'Emergency Resource Allocation System',
-                            style: TextStyle(color: AppColors.textDim),
-                          ),
-                          const SizedBox(height: 28),
-                          const Text(
-                            'CREATE ACCOUNT',
-                            style: TextStyle(
-                              fontSize: 12,
-                              letterSpacing: 1,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textDim,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          const Text(
-                            'How would you like to use ERAS?',
-                            style: TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Select one option. You can request help or offer it.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textFaint,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          _roleCards(),
-                          const SizedBox(height: 14),
-                          if (selectedRole != null)
-                            Container(
-                              key: ValueKey<RegistrationRole>(selectedRole!),
-                              padding: const EdgeInsets.all(12),
-                              color: AppColors.tealDim,
-                              child: Text(
-                                selectedRole!.explanation,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.text,
-                                ),
-                              ),
-                            )
-                          else if (roleError != null)
-                            Text(
-                              roleError!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.red,
-                              ),
-                            ),
-                          const SizedBox(height: 22),
-                          TextFormField(
-                            controller: name,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Full name',
-                            ),
-                            validator: (v) => requiredField(v, 'Name'),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: email,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                            ),
-                            validator: validEmail,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: phone,
-                            keyboardType: TextInputType.phone,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Phone number (optional)',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: password,
-                            obscureText: hidePassword,
-                            textInputAction: TextInputAction.next,
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              helperText: 'At least 6 characters',
-                              suffixIcon: IconButton(
-                                tooltip: 'Show or hide password',
-                                onPressed: () => setState(
-                                  () => hidePassword = !hidePassword,
-                                ),
-                                icon: Icon(
-                                  hidePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (v) =>
-                                requiredField(v, 'Password') ??
-                                (v!.length < 6
-                                    ? 'Use at least 6 characters'
-                                    : null),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: confirm,
-                            obscureText: hideConfirm,
-                            decoration: InputDecoration(
-                              labelText: 'Confirm password',
-                              suffixIcon: IconButton(
-                                tooltip: 'Show or hide password',
-                                onPressed: () => setState(
-                                  () => hideConfirm = !hideConfirm,
-                                ),
-                                icon: Icon(
-                                  hideConfirm
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (v) => v != password.text
-                                ? 'Passwords do not match'
-                                : null,
-                          ),
-                          if (error != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 14),
-                              child: Text(
-                                error!,
-                                style: const TextStyle(color: AppColors.red),
-                              ),
-                            ),
-                          const SizedBox(height: 20),
-                          FilledButton(
-                            onPressed: loading ? null : submit,
-                            child: loading
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text('Create account'),
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: loading
-                                ? null
-                                : () => Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const LoginScreen(),
-                                      ),
-                                    ),
-                            child: const Text(
-                              'Already have an account? Sign in',
-                            ),
-                          ),
-                        ],
+    backgroundColor: AppColors.bg,
+    body: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              elevation: 0,
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Form(
+                  key: form,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'ERAS',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Emergency Resource Allocation System',
+                        style: TextStyle(color: AppColors.textDim),
+                      ),
+                      const SizedBox(height: 28),
+                      const Text(
+                        'CREATE ACCOUNT',
+                        style: TextStyle(
+                          fontSize: 12,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDim,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'How would you like to use ERAS?',
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Select one option. You can request help or offer it.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textFaint,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _roleCards(),
+                      const SizedBox(height: 14),
+                      if (selectedRole != null)
+                        Container(
+                          key: ValueKey<RegistrationRole>(selectedRole!),
+                          padding: const EdgeInsets.all(12),
+                          color: AppColors.tealDim,
+                          child: Text(
+                            selectedRole!.explanation,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.text,
+                            ),
+                          ),
+                        )
+                      else if (roleError != null)
+                        Text(
+                          roleError!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.red,
+                          ),
+                        ),
+                      const SizedBox(height: 22),
+                      TextFormField(
+                        controller: name,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: 'Full name',
+                        ),
+                        validator: (v) => requiredField(v, 'Name'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: email,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        validator: validEmail,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: phone,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: 'Phone number (optional)',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: password,
+                        obscureText: hidePassword,
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          helperText: 'At least 6 characters',
+                          suffixIcon: IconButton(
+                            tooltip: 'Show or hide password',
+                            onPressed: () =>
+                                setState(() => hidePassword = !hidePassword),
+                            icon: Icon(
+                              hidePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                            ),
+                          ),
+                        ),
+                        validator: (v) =>
+                            requiredField(v, 'Password') ??
+                            (v!.length < 6
+                                ? 'Use at least 6 characters'
+                                : null),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: confirm,
+                        obscureText: hideConfirm,
+                        decoration: InputDecoration(
+                          labelText: 'Confirm password',
+                          suffixIcon: IconButton(
+                            tooltip: 'Show or hide password',
+                            onPressed: () =>
+                                setState(() => hideConfirm = !hideConfirm),
+                            icon: Icon(
+                              hideConfirm
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                            ),
+                          ),
+                        ),
+                        validator: (v) => v != password.text
+                            ? 'Passwords do not match'
+                            : null,
+                      ),
+                      if (error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 14),
+                          child: Text(
+                            error!,
+                            style: const TextStyle(color: AppColors.red),
+                          ),
+                        ),
+                      const SizedBox(height: 20),
+                      FilledButton(
+                        onPressed: loading ? null : submit,
+                        child: loading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Create account'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: loading
+                            ? null
+                            : () => Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
+                              ),
+                        child: const Text('Already have an account? Sign in'),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   /// Two selectable role cards. They sit side by side when there is room and
   /// stack vertically on narrow phones so nothing is ever clipped or
   /// horizontally overflowing.
   Widget _roleCards() => LayoutBuilder(
-        builder: (context, constraints) {
-          final cards = <Widget>[
-            _RoleSelectionCard(
-              role: RegistrationRole.requester,
-              icon: Icons.emergency,
-              title: 'I NEED HELP',
-              description: 'Request emergency assistance',
-              selected: selectedRole == RegistrationRole.requester,
-              onSelected: selectRole,
-            ),
-            _RoleSelectionCard(
-              role: RegistrationRole.responder,
-              icon: Icons.volunteer_activism,
-              title: "I'M WILLING TO HELP",
-              description: 'Provide emergency assistance',
-              selected: selectedRole == RegistrationRole.responder,
-              onSelected: selectRole,
-            ),
-          ];
+    builder: (context, constraints) {
+      final cards = <Widget>[
+        _RoleSelectionCard(
+          role: RegistrationRole.requester,
+          icon: Icons.emergency,
+          title: 'I NEED HELP',
+          description: 'Request emergency assistance',
+          selected: selectedRole == RegistrationRole.requester,
+          onSelected: selectRole,
+        ),
+        _RoleSelectionCard(
+          role: RegistrationRole.responder,
+          icon: Icons.volunteer_activism,
+          title: "I'M WILLING TO HELP",
+          description: 'Provide emergency assistance',
+          selected: selectedRole == RegistrationRole.responder,
+          onSelected: selectRole,
+        ),
+      ];
 
-          if (constraints.maxWidth >= 380) {
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: cards[0]),
-                  const SizedBox(width: 12),
-                  Expanded(child: cards[1]),
-                ],
-              ),
-            );
-          }
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
+      if (constraints.maxWidth >= 380) {
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              cards[0],
-              const SizedBox(height: 12),
-              cards[1],
+              Expanded(child: cards[0]),
+              const SizedBox(width: 12),
+              Expanded(child: cards[1]),
             ],
-          );
-        },
+          ),
+        );
+      }
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [cards[0], const SizedBox(height: 12), cards[1]],
       );
+    },
+  );
 }
 
 /// A single selectable role card.
@@ -452,8 +442,8 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
     final borderColor = _keyboardFocus
         ? AppColors.blue
         : selected
-            ? AppColors.teal
-            : AppColors.border;
+        ? AppColors.teal
+        : AppColors.border;
     final borderWidth = _keyboardFocus || selected ? 2.0 : 1.0;
 
     return Semantics(
@@ -488,10 +478,7 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: borderColor,
-                    width: borderWidth,
-                  ),
+                  border: Border.all(color: borderColor, width: borderWidth),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

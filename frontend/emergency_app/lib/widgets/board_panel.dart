@@ -111,28 +111,32 @@ class BoardPanel extends StatelessWidget {
       onCancelRequest != null &&
       request.canBeCancelledByRequester;
 
-  List<AllocationLine> _dispatchable(EmergencyRequest request) =>
-      request.allocations
-          .where((allocation) =>
-              role == 'RESPONDER' &&
-              allocation.responderId == currentUserId &&
-              allocation.isReserved)
-          .toList(growable: false);
+  List<AllocationLine> _dispatchable(EmergencyRequest request) => request
+      .allocations
+      .where(
+        (allocation) =>
+            role == 'RESPONDER' &&
+            allocation.responderId == currentUserId &&
+            allocation.isReserved,
+      )
+      .toList(growable: false);
 
   // Responder-side delivery fallback: the responder may complete their own
   // DISPATCHED allocation when the requester never confirms receipt.
   List<AllocationLine> _deliverable(EmergencyRequest request) => request
       .allocations
-      .where((allocation) =>
-          role == 'RESPONDER' &&
-          allocation.responderId == currentUserId &&
-          allocation.isDispatched)
+      .where(
+        (allocation) =>
+            role == 'RESPONDER' &&
+            allocation.responderId == currentUserId &&
+            allocation.isDispatched,
+      )
       .toList(growable: false);
 
-  List<AllocationLine> _receivable(EmergencyRequest request) =>
-      request.allocations
-          .where((allocation) => role == 'REQUESTER' && allocation.isDispatched)
-          .toList(growable: false);
+  List<AllocationLine> _receivable(EmergencyRequest request) => request
+      .allocations
+      .where((allocation) => role == 'REQUESTER' && allocation.isDispatched)
+      .toList(growable: false);
 
   String? _allocationStateText(EmergencyRequest request, int resourceId) {
     final statuses = request.allocations
@@ -178,18 +182,21 @@ class BoardPanel extends StatelessWidget {
       child: requests.isEmpty
           ? EmptyState(emptyMessage, title: emptyTitle, icon: emptyIcon)
           : isMobile
-              ? Column(
-                  children: requests
-                      .map((request) => _RequestCard(
-                            request: request,
-                            actions: _actions(request),
-                            liveLocations: liveLocations[request.id] ??
-                                const <int, LiveResponderLocation>{},
-                            connectionStatus: connectionStatus,
-                          ))
-                      .toList(),
-                )
-              : _table(),
+          ? Column(
+              children: requests
+                  .map(
+                    (request) => _RequestCard(
+                      request: request,
+                      actions: _actions(request),
+                      liveLocations:
+                          liveLocations[request.id] ??
+                          const <int, LiveResponderLocation>{},
+                      connectionStatus: connectionStatus,
+                    ),
+                  )
+                  .toList(),
+            )
+          : _table(),
     );
   }
 
@@ -291,8 +298,10 @@ class BoardPanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            child: Text('Confirm & Dispatch · ${allocation.resourceName}',
-                style: const TextStyle(fontSize: 12)),
+            child: Text(
+              'Confirm & Dispatch · ${allocation.resourceName}',
+              style: const TextStyle(fontSize: 12),
+            ),
           ),
         );
       }
@@ -310,8 +319,10 @@ class BoardPanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            child: Text('Mark Delivered · ${allocation.resourceName}',
-                style: const TextStyle(fontSize: 12)),
+            child: Text(
+              'Mark Delivered · ${allocation.resourceName}',
+              style: const TextStyle(fontSize: 12),
+            ),
           ),
         );
       }
@@ -329,8 +340,10 @@ class BoardPanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            child: Text('Confirm received ${allocation.resourceName}',
-                style: const TextStyle(fontSize: 12)),
+            child: Text(
+              'Confirm received ${allocation.resourceName}',
+              style: const TextStyle(fontSize: 12),
+            ),
           ),
         );
       }
@@ -355,7 +368,8 @@ class BoardPanel extends StatelessWidget {
 
     // Live-location gate: any responder the backend would authorize
     // (participation rule) may stream, not only the acceptedBy lead.
-    final currentResponderParticipates = role == 'RESPONDER' &&
+    final currentResponderParticipates =
+        role == 'RESPONDER' &&
         request.participatesAsResponder(currentUserId) &&
         request.isOpen;
     if (currentResponderParticipates && onStartLocationSharing != null) {
@@ -370,24 +384,32 @@ class BoardPanel extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.amber,
                   side: const BorderSide(color: AppColors.amber),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
-                child: const Text('Stop Live Location',
-                    style: TextStyle(fontSize: 12)),
+                child: const Text(
+                  'Stop Live Location',
+                  style: TextStyle(fontSize: 12),
+                ),
               )
             : FilledButton(
                 onPressed:
                     connectionStatus == RealtimeConnectionStatus.connected
-                        ? () => onStartLocationSharing!(request)
-                        : null,
+                    ? () => onStartLocationSharing!(request)
+                    : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.blue,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
-                child: const Text('Start Live Location',
-                    style: TextStyle(fontSize: 12)),
+                child: const Text(
+                  'Start Live Location',
+                  style: TextStyle(fontSize: 12),
+                ),
               ),
       );
     }
@@ -426,10 +448,12 @@ class BoardPanel extends StatelessWidget {
 
           return DataRow(
             cells: [
-              DataCell(Text(
-                request.displayId,
-                style: monoStyle(size: 12.5, color: AppColors.textDim),
-              )),
+              DataCell(
+                Text(
+                  request.displayId,
+                  style: monoStyle(size: 12.5, color: AppColors.textDim),
+                ),
+              ),
               DataCell(
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -447,13 +471,17 @@ class BoardPanel extends StatelessWidget {
                       Text(
                         requester!.email!,
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.textFaint),
+                          fontSize: 11,
+                          color: AppColors.textFaint,
+                        ),
                       ),
                     if ((requester?.phone ?? '').isNotEmpty)
                       Text(
                         requester!.phone!,
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.textFaint),
+                          fontSize: 11,
+                          color: AppColors.textFaint,
+                        ),
                       ),
                   ],
                 ),
@@ -466,7 +494,9 @@ class BoardPanel extends StatelessWidget {
                     Text(
                       request.emergencyType,
                       style: const TextStyle(
-                          fontSize: 12.5, fontWeight: FontWeight.w600),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     if (request.description != null &&
                         request.description!.isNotEmpty)
@@ -477,7 +507,9 @@ class BoardPanel extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 11, color: AppColors.textFaint),
+                            fontSize: 11,
+                            color: AppColors.textFaint,
+                          ),
                         ),
                       ),
                   ],
@@ -493,12 +525,15 @@ class BoardPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       if (request.requiredResources.isEmpty)
-                        const Text('-',
-                            style: TextStyle(color: AppColors.textFaint))
+                        const Text(
+                          '-',
+                          style: TextStyle(color: AppColors.textFaint),
+                        )
                       else
                         ...request.requiredResources.map((line) {
-                          final allocated =
-                              request.allocatedFor(line.resourceId);
+                          final allocated = request.allocatedFor(
+                            line.resourceId,
+                          );
                           return ResourceChip(
                             name: line.resourceName,
                             type: line.resourceType,
@@ -506,7 +541,9 @@ class BoardPanel extends StatelessWidget {
                             trailingText: allocated > 0
                                 ? '$allocated allocated'
                                 : _allocationStateText(
-                                    request, line.resourceId),
+                                    request,
+                                    line.resourceId,
+                                  ),
                           );
                         }),
                       if (request.allocations.isNotEmpty) ...[
@@ -536,7 +573,9 @@ class BoardPanel extends StatelessWidget {
                     Text(
                       formatRelative(request.createdAt),
                       style: const TextStyle(
-                          fontSize: 10.5, color: AppColors.textFaint),
+                        fontSize: 10.5,
+                        color: AppColors.textFaint,
+                      ),
                     ),
                   ],
                 ),
@@ -560,7 +599,8 @@ class BoardPanel extends StatelessWidget {
                   width: 210,
                   child: _RespondersCell(
                     request: request,
-                    liveLocations: liveLocations[request.id] ??
+                    liveLocations:
+                        liveLocations[request.id] ??
                         const <int, LiveResponderLocation>{},
                     connectionStatus: connectionStatus,
                     compact: true,
@@ -573,8 +613,10 @@ class BoardPanel extends StatelessWidget {
                   runSpacing: 6,
                   children: _actions(request).isEmpty
                       ? [
-                          const Text('-',
-                              style: TextStyle(color: AppColors.textFaint)),
+                          const Text(
+                            '-',
+                            style: TextStyle(color: AppColors.textFaint),
+                          ),
                         ]
                       : _actions(request),
                 ),
@@ -680,12 +722,16 @@ class _RequestCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child:
-                      InfoChip(label: 'Email', value: requester?.email ?? '-'),
+                  child: InfoChip(
+                    label: 'Email',
+                    value: requester?.email ?? '-',
+                  ),
                 ),
                 Expanded(
-                  child:
-                      InfoChip(label: 'Phone', value: requester?.phone ?? '-'),
+                  child: InfoChip(
+                    label: 'Phone',
+                    value: requester?.phone ?? '-',
+                  ),
                 ),
               ],
             ),
@@ -694,8 +740,10 @@ class _RequestCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child:
-                    InfoChip(label: 'Emergency', value: request.emergencyType),
+                child: InfoChip(
+                  label: 'Emergency',
+                  value: request.emergencyType,
+                ),
               ),
               Expanded(
                 child: InfoChip(
@@ -714,12 +762,17 @@ class _RequestCard extends StatelessWidget {
           const Text(
             'REQUIRED RESOURCES',
             style: TextStyle(
-                fontSize: 9.5, color: AppColors.textFaint, letterSpacing: .5),
+              fontSize: 9.5,
+              color: AppColors.textFaint,
+              letterSpacing: .5,
+            ),
           ),
           const SizedBox(height: 4),
           if (request.requiredResources.isEmpty)
-            const Text('-',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textFaint))
+            const Text(
+              '-',
+              style: TextStyle(fontSize: 12.5, color: AppColors.textFaint),
+            )
           else
             ...request.requiredResources.map(
               (line) => ResourceChip(
@@ -743,9 +796,7 @@ class _RequestCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             ...request.allocations.map(
-              (allocation) => AllocationOperationalRow(
-                allocation: allocation,
-              ),
+              (allocation) => AllocationOperationalRow(allocation: allocation),
             ),
           ],
           const SizedBox(height: 8),
@@ -811,7 +862,8 @@ class _RespondersCell extends StatelessWidget {
         leadId != null && request.isAssignedTo(leadId);
     final leadIsLegacyActive =
         leadId != null && request.isLegacyAcceptedBy(leadId);
-    final leadHasAllocationOnlyParticipation = leadId != null &&
+    final leadHasAllocationOnlyParticipation =
+        leadId != null &&
         !leadHasActiveAssignment &&
         !leadIsLegacyActive &&
         request.ownsUnfinishedAllocation(leadId);
@@ -854,21 +906,25 @@ class _RespondersCell extends StatelessWidget {
             leadHasActiveAssignment || leadIsLegacyActive
                 ? 'LEAD · ACTIVE${request.acceptedAt == null ? '' : ' · at ${formatDateTime(request.acceptedAt)}'}'
                 : leadHasAllocationOnlyParticipation
-                    ? 'LEAD · ASSIGNMENT ENDED · ALLOCATION ACTIVE'
-                    : 'HISTORICAL LEAD · ENDED',
+                ? 'LEAD · ASSIGNMENT ENDED · ALLOCATION ACTIVE'
+                : 'HISTORICAL LEAD · ENDED',
             style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           if ((lead.phone ?? '').isNotEmpty)
             Text(
               lead.phone!,
-              style:
-                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textFaint,
+              ),
             ),
           if ((lead.responderStatus ?? '').isNotEmpty)
             Text(
               'STATUS · ${lead.responderStatus}',
-              style:
-                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textFaint,
+              ),
             ),
         ] else
           const Text(
@@ -880,10 +936,7 @@ class _RespondersCell extends StatelessWidget {
           Text(
             assignment.responder?.name ??
                 'Responder #${assignment.responderId}',
-            style: const TextStyle(
-              fontSize: 12.5,
-              color: AppColors.text,
-            ),
+            style: const TextStyle(fontSize: 12.5, color: AppColors.text),
           ),
           Text(
             'ASSIGNED · ${assignment.status}',
@@ -892,14 +945,18 @@ class _RespondersCell extends StatelessWidget {
           if ((assignment.responder?.responderStatus ?? '').isNotEmpty)
             Text(
               'STATUS · ${assignment.responder!.responderStatus}',
-              style:
-                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textFaint,
+              ),
             ),
           if ((assignment.responder?.phone ?? '').isNotEmpty)
             Text(
               assignment.responder!.phone!,
-              style:
-                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              style: const TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textFaint,
+              ),
             ),
         ],
         for (final entry in allocationOnly.entries) ...[

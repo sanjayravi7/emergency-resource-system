@@ -189,8 +189,9 @@ class BackendResource {
       return '$count responder${count == 1 ? '' : 's'} available';
     }
 
-    final suffix =
-        (unit == null || unit!.isEmpty) ? 'available' : '$unit available';
+    final suffix = (unit == null || unit!.isEmpty)
+        ? 'available'
+        : '$unit available';
     return '$availableQuantity $suffix';
   }
 
@@ -307,7 +308,8 @@ class UserSummary {
 
     return UserSummary(
       id: id,
-      name: _asTrimmedString(json['name']) ??
+      name:
+          _asTrimmedString(json['name']) ??
           _asTrimmedString(json['email']) ??
           'User #$id',
       email: _asTrimmedString(json['email']),
@@ -375,22 +377,22 @@ class LiveResponderLocation {
   }
 
   LiveResponderLocation asNotLive() => LiveResponderLocation(
-        requestId: requestId,
-        responderId: responderId,
-        latitude: latitude,
-        longitude: longitude,
-        updatedAt: updatedAt,
-        isLive: false,
-      );
+    requestId: requestId,
+    responderId: responderId,
+    latitude: latitude,
+    longitude: longitude,
+    updatedAt: updatedAt,
+    isLive: false,
+  );
 
   LiveResponderLocation asLive() => LiveResponderLocation(
-        requestId: requestId,
-        responderId: responderId,
-        latitude: latitude,
-        longitude: longitude,
-        updatedAt: updatedAt,
-        isLive: true,
-      );
+    requestId: requestId,
+    responderId: responderId,
+    latitude: latitude,
+    longitude: longitude,
+    updatedAt: updatedAt,
+    isLive: true,
+  );
 }
 
 class BackendResponder {
@@ -541,10 +543,10 @@ class ResponderHelpType {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'category': category,
-        if (label != null) 'label': label,
-        'enabled': enabled,
-      };
+    'category': category,
+    if (label != null) 'label': label,
+    'enabled': enabled,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -759,7 +761,8 @@ RequestStatus requestStatusFromApi(String? value) {
 /// advances the lifecycle itself. Terminal requests must drop every piece of
 /// per-request tracking state (all responders, not just one).
 bool isTerminalRequestPayload(Map<String, dynamic> payload) {
-  final raw = payload['status'] ??
+  final raw =
+      payload['status'] ??
       (payload['request'] is Map
           ? (payload['request'] as Map)['status']
           : null);
@@ -769,35 +772,44 @@ bool isTerminalRequestPayload(Map<String, dynamic> payload) {
 }
 
 String statusLabel(RequestStatus status) => switch (status) {
-      RequestStatus.pending => 'PENDING',
-      RequestStatus.accepted => 'ACCEPTED',
-      RequestStatus.inProgress => 'IN PROGRESS',
-      RequestStatus.partiallyAllocated => 'PARTIAL',
-      RequestStatus.completed => 'COMPLETED',
-      RequestStatus.cancelled => 'CANCELLED',
-    };
+  RequestStatus.pending => 'PENDING',
+  RequestStatus.accepted => 'ACCEPTED',
+  RequestStatus.inProgress => 'IN PROGRESS',
+  RequestStatus.partiallyAllocated => 'PARTIAL',
+  RequestStatus.completed => 'COMPLETED',
+  RequestStatus.cancelled => 'CANCELLED',
+};
 
 PillColors statusColors(RequestStatus status) => switch (status) {
-      RequestStatus.pending =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.accepted =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.inProgress =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.partiallyAllocated =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.completed =>
-        const PillColors(AppColors.tealDim, AppColors.teal),
-      RequestStatus.cancelled =>
-        const PillColors(AppColors.surface2, AppColors.textFaint),
-    };
+  RequestStatus.pending => const PillColors(
+    AppColors.amberDim,
+    AppColors.amber,
+  ),
+  RequestStatus.accepted => const PillColors(AppColors.blueDim, AppColors.blue),
+  RequestStatus.inProgress => const PillColors(
+    AppColors.blueDim,
+    AppColors.blue,
+  ),
+  RequestStatus.partiallyAllocated => const PillColors(
+    AppColors.amberDim,
+    AppColors.amber,
+  ),
+  RequestStatus.completed => const PillColors(
+    AppColors.tealDim,
+    AppColors.teal,
+  ),
+  RequestStatus.cancelled => const PillColors(
+    AppColors.surface2,
+    AppColors.textFaint,
+  ),
+};
 
 PillColors priorityColors(String priority) => switch (priority.toUpperCase()) {
-      'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
-      'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
-      'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
-      _ => const PillColors(AppColors.surface2, AppColors.textDim),
-    };
+  'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
+  'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
+  'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
+  _ => const PillColors(AppColors.surface2, AppColors.textDim),
+};
 
 class EmergencyRequest {
   const EmergencyRequest({
@@ -891,7 +903,8 @@ class EmergencyRequest {
   /// (Part 7, category B - the allocation-only flow).
   bool ownsUnfinishedAllocation(int? userId) => userId != null
       ? allocations.any(
-          (a) => a.responderId == userId && (a.isReserved || a.isDispatched))
+          (a) => a.responderId == userId && (a.isReserved || a.isDispatched),
+        )
       : false;
 
   /// Full realtime-participation test mirroring the backend Socket.IO rule
@@ -911,7 +924,8 @@ class EmergencyRequest {
       ...activeAssignments.map((assignment) => assignment.responderId),
       ...allocations
           .where(
-              (allocation) => allocation.isReserved || allocation.isDispatched)
+            (allocation) => allocation.isReserved || allocation.isDispatched,
+          )
           .map((allocation) => allocation.responderId),
     }..removeWhere((id) => id <= 0);
     final leadId = acceptedBy?.id ?? acceptedById;
@@ -1053,7 +1067,8 @@ class EmergencyRequest {
       assignments: _parseAssignments(json['assignments']),
       requester: UserSummary.fromJson(json['requester']),
       acceptedBy: UserSummary.fromJson(json['acceptedBy']),
-      acceptedById: _asIntOrNull(json['acceptedById']) ??
+      acceptedById:
+          _asIntOrNull(json['acceptedById']) ??
           UserSummary.fromJson(json['acceptedBy'])?.id,
       latitude: _asDoubleOrNull(json['latitude']),
       longitude: _asDoubleOrNull(json['longitude']),
@@ -1082,33 +1097,51 @@ ResourceMeta resourceMetaFor(String typeOrName) {
 
   if (value.contains('AMBULANCE') || value.contains('MEDICAL')) {
     return const ResourceMeta(
-        Icons.local_hospital, AppColors.redDim, AppColors.red);
+      Icons.local_hospital,
+      AppColors.redDim,
+      AppColors.red,
+    );
   }
   if (value.contains('BLOOD')) {
     return const ResourceMeta(
-        Icons.water_drop, Color(0xFFFCE4F3), Color(0xFFC23E96));
+      Icons.water_drop,
+      Color(0xFFFCE4F3),
+      Color(0xFFC23E96),
+    );
   }
   if (value.contains('OXYGEN')) {
     return const ResourceMeta(Icons.air, AppColors.blueDim, AppColors.blue);
   }
   if (value.contains('FIRE')) {
     return const ResourceMeta(
-        Icons.local_fire_department, AppColors.amberDim, AppColors.amber);
+      Icons.local_fire_department,
+      AppColors.amberDim,
+      AppColors.amber,
+    );
   }
   if (value.contains('VOLUNTEER') || value.contains('PEOPLE')) {
     return const ResourceMeta(Icons.groups, AppColors.tealDim, AppColors.teal);
   }
   if (value.contains('BOAT') || value.contains('RESCUE')) {
     return const ResourceMeta(
-        Icons.directions_boat, AppColors.blueDim, AppColors.blue);
+      Icons.directions_boat,
+      AppColors.blueDim,
+      AppColors.blue,
+    );
   }
   if (value.contains('FOOD') || value.contains('WATER')) {
     return const ResourceMeta(
-        Icons.local_drink, AppColors.tealDim, AppColors.teal);
+      Icons.local_drink,
+      AppColors.tealDim,
+      AppColors.teal,
+    );
   }
 
   return const ResourceMeta(
-      Icons.inventory_2, AppColors.surface2, AppColors.textDim);
+    Icons.inventory_2,
+    AppColors.surface2,
+    AppColors.textDim,
+  );
 }
 
 Color responderStatusColor(String status) {
@@ -1142,9 +1175,15 @@ List<NavItem> navItemsForRole(String? role) {
     if (role == 'REQUESTER')
       const NavItem(ConsoleView.newRequest, Icons.add_circle_outline, 'New'),
     const NavItem(
-        ConsoleView.resources, Icons.inventory_2_outlined, 'Resources'),
+      ConsoleView.resources,
+      Icons.inventory_2_outlined,
+      'Resources',
+    ),
     const NavItem(
-        ConsoleView.responders, Icons.groups_2_outlined, 'Responders'),
+      ConsoleView.responders,
+      Icons.groups_2_outlined,
+      'Responders',
+    ),
     const NavItem(ConsoleView.log, Icons.receipt_long_outlined, 'Log'),
   ];
 }
@@ -1158,9 +1197,4 @@ const List<String> kEmergencyTypes = <String>[
   'Other',
 ];
 
-const List<String> kPriorities = <String>[
-  'LOW',
-  'MEDIUM',
-  'HIGH',
-  'CRITICAL',
-];
+const List<String> kPriorities = <String>['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];

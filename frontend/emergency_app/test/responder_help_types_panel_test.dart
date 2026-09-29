@@ -5,27 +5,30 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   Widget host(Widget child) => MaterialApp(
-        home: Scaffold(
-          backgroundColor: Colors.black,
-          body: SingleChildScrollView(child: child),
-        ),
-      );
+    home: Scaffold(
+      backgroundColor: Colors.black,
+      body: SingleChildScrollView(child: child),
+    ),
+  );
 
-  testWidgets('13. MY HELP TYPES panel renders saved backend categories',
-      (tester) async {
+  testWidgets('13. MY HELP TYPES panel renders saved backend categories', (
+    tester,
+  ) async {
     final helpTypes = <ResponderHelpType>[
       const ResponderHelpType(category: 'FIRE', label: 'Fire'),
       const ResponderHelpType(category: 'MEDICAL', label: 'Medical'),
       const ResponderHelpType(category: 'RESCUE', label: 'Rescue'),
     ];
 
-    await tester.pumpWidget(host(
-      ResponderHelpTypesPanel(
-        helpTypes: helpTypes,
-        title: 'MY HELP TYPES',
-        onEditHelpTypes: () {},
+    await tester.pumpWidget(
+      host(
+        ResponderHelpTypesPanel(
+          helpTypes: helpTypes,
+          title: 'MY HELP TYPES',
+          onEditHelpTypes: () {},
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     expect(find.text('MY HELP TYPES'), findsOneWidget);
@@ -41,21 +44,23 @@ void main() {
     ];
     final emptyInventory = <BackendResponderResource>[];
 
-    await tester.pumpWidget(host(
-      Column(
-        children: [
-          ResponderHelpTypesPanel(
-            helpTypes: helpTypes,
-            title: 'MY HELP TYPES',
-          ),
-          const SizedBox(height: 18),
-          ResponderResourcesPanel(
-            resources: emptyInventory,
-            title: 'RESOURCE INVENTORY',
-          ),
-        ],
+    await tester.pumpWidget(
+      host(
+        Column(
+          children: [
+            ResponderHelpTypesPanel(
+              helpTypes: helpTypes,
+              title: 'MY HELP TYPES',
+            ),
+            const SizedBox(height: 18),
+            ResponderResourcesPanel(
+              resources: emptyInventory,
+              title: 'RESOURCE INVENTORY',
+            ),
+          ],
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     // MY HELP TYPES shows FIRE
@@ -70,14 +75,16 @@ void main() {
   testWidgets('19. Help-type editing action still works', (tester) async {
     var editClicked = false;
 
-    await tester.pumpWidget(host(
-      ResponderHelpTypesPanel(
-        helpTypes: const <ResponderHelpType>[
-          ResponderHelpType(category: 'FIRE', label: 'Fire'),
-        ],
-        onEditHelpTypes: () => editClicked = true,
+    await tester.pumpWidget(
+      host(
+        ResponderHelpTypesPanel(
+          helpTypes: const <ResponderHelpType>[
+            ResponderHelpType(category: 'FIRE', label: 'Fire'),
+          ],
+          onEditHelpTypes: () => editClicked = true,
+        ),
       ),
-    ));
+    );
     await tester.pump();
 
     await tester.tap(find.text('EDIT MY HELP TYPES'));
@@ -86,17 +93,20 @@ void main() {
   });
 
   testWidgets(
-      'Clean empty state for ResponderHelpTypesPanel when none configured',
-      (tester) async {
-    await tester.pumpWidget(host(
-      const ResponderHelpTypesPanel(
-        helpTypes: <ResponderHelpType>[],
-        title: 'MY HELP TYPES',
-      ),
-    ));
-    await tester.pump();
+    'Clean empty state for ResponderHelpTypesPanel when none configured',
+    (tester) async {
+      await tester.pumpWidget(
+        host(
+          const ResponderHelpTypesPanel(
+            helpTypes: <ResponderHelpType>[],
+            title: 'MY HELP TYPES',
+          ),
+        ),
+      );
+      await tester.pump();
 
-    expect(find.text('MY HELP TYPES'), findsOneWidget);
-    expect(find.text('NO HELP TYPES CONFIGURED'), findsOneWidget);
-  });
+      expect(find.text('MY HELP TYPES'), findsOneWidget);
+      expect(find.text('NO HELP TYPES CONFIGURED'), findsOneWidget);
+    },
+  );
 }

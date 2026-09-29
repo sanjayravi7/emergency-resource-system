@@ -24,24 +24,26 @@ void main() {
       ApiService.currentUserId = null;
     });
 
-    test('startForResponder is a silent no-op without a Firebase setup',
-        () async {
-      ApiService.token = 'responder-token';
-      ApiService.currentRole = 'RESPONDER';
-      ApiService.currentUserId = 11;
-      addTearDown(() {
-        ApiService.token = null;
-        ApiService.currentRole = null;
-        ApiService.currentUserId = null;
-      });
+    test(
+      'startForResponder is a silent no-op without a Firebase setup',
+      () async {
+        ApiService.token = 'responder-token';
+        ApiService.currentRole = 'RESPONDER';
+        ApiService.currentUserId = 11;
+        addTearDown(() {
+          ApiService.token = null;
+          ApiService.currentRole = null;
+          ApiService.currentUserId = null;
+        });
 
-      // No Firebase app is configured in the test environment. This must
-      // neither throw nor leave a "registered" state behind.
-      await PushNotificationService.instance.startForResponder();
+        // No Firebase app is configured in the test environment. This must
+        // neither throw nor leave a "registered" state behind.
+        await PushNotificationService.instance.startForResponder();
 
-      expect(PushNotificationService.instance.isEnabled, isFalse);
-      expect(PushNotificationService.instance.registeredToken, isNull);
-    });
+        expect(PushNotificationService.instance.isEnabled, isFalse);
+        expect(PushNotificationService.instance.registeredToken, isNull);
+      },
+    );
 
     test('stop() without a previous registration never throws', () async {
       await PushNotificationService.instance.stop();
