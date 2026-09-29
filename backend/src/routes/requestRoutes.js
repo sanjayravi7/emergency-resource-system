@@ -53,6 +53,22 @@ router.patch(
   requestController.acceptRequest
 );
 
+// RESPONDER starts work on a resource-free emergency
+router.post(
+  "/:id/start",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  requestController.startResponse
+);
+
+// RESPONDER completes a resource-free emergency
+router.post(
+  "/:id/complete",
+  authenticate,
+  authorizeRoles("RESPONDER"),
+  requestController.completeResponse
+);
+
 // RESPONDER may end only their own assignment.
 router.patch(
   "/:id/assignment/end",

@@ -147,9 +147,19 @@ class _AllocationDialogState extends State<AllocationDialog> {
                           fontSize: 12.5, color: AppColors.textDim),
                     ),
                     const SizedBox(height: 14),
-                    ...current.requiredResources.map(
-                      (line) => _resourceRow(current, line),
-                    ),
+                    if (current.requiredResources.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          'This emergency does not require physical resources. '
+                          'Use START RESPONSE / COMPLETE RESPONSE from the dispatch board.',
+                          style:
+                              TextStyle(fontSize: 13, color: AppColors.textDim),
+                        ),
+                      )
+                    else
+                      for (final line in current.requiredResources)
+                        _resourceRow(current, line),
                     if (current.activeAllocations.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       const Text(

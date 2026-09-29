@@ -117,6 +117,15 @@ exports.createAllocation = async (responderId, data) => {
       throw new Error('Request is invalid or already closed');
     }
 
+    const requiredResourceCount = await tx.requestResource.count({
+      where: { requestId },
+    });
+    if (requiredResourceCount === 0) {
+      throw new Error(
+        'This emergency does not require physical resource allocation'
+      );
+    }
+
     // Keep SELECT FOR UPDATE protection for the inventory that will be spent.
     const responderResource = await lockResponderResource(tx, responderResourceId);
     if (!responderResource) throw new Error('Responder resource not found');

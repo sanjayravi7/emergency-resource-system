@@ -20,6 +20,8 @@ class BoardPanel extends StatelessWidget {
     this.emptyIcon,
     this.currentUserId,
     this.onAccept,
+    this.onStartResponse,
+    this.onCompleteResponse,
     this.onAllocate,
     this.onEndAssignment,
     this.onCancelRequest,
@@ -44,6 +46,8 @@ class BoardPanel extends StatelessWidget {
   final String? emptyTitle;
   final IconData? emptyIcon;
   final void Function(EmergencyRequest request)? onAccept;
+  final void Function(EmergencyRequest request)? onStartResponse;
+  final void Function(EmergencyRequest request)? onCompleteResponse;
   final void Function(EmergencyRequest request)? onAllocate;
   final void Function(EmergencyRequest request)? onEndAssignment;
   final void Function(EmergencyRequest request)? onCancelRequest;
@@ -66,13 +70,31 @@ class BoardPanel extends StatelessWidget {
       !request.isFullyAllocated &&
       onAccept != null;
 
+  bool _canStartResponse(EmergencyRequest request) =>
+      role == 'RESPONDER' &&
+      request.requiredResources.isEmpty &&
+      request.status == RequestStatus.accepted &&
+      currentUserId != null &&
+      (request.isAssignedTo(currentUserId!) ||
+          request.isLegacyAcceptedBy(currentUserId!)) &&
+      onStartResponse != null;
+
+  bool _canCompleteResponse(EmergencyRequest request) =>
+      role == 'RESPONDER' &&
+      request.requiredResources.isEmpty &&
+      request.status == RequestStatus.inProgress &&
+      currentUserId != null &&
+      (request.isAssignedTo(currentUserId!) ||
+          request.isLegacyAcceptedBy(currentUserId!)) &&
+      onCompleteResponse != null;
+
   // Part 7 gate classification:
   //  - Allocate: RESPONDER who PARTICIPATES (ACTIVE assignment, an
   //    unfinished allocation of theirs, or the legacy acceptedBy lead) -
-  //    the same rule the backend authorizes. acceptedBy alone is no longer
-  //    the modern test.
+  //    the same rule the backend authorizes. Only for resource-bearing requests.
   bool _canAllocate(EmergencyRequest request) =>
       role == 'RESPONDER' &&
+      request.requiredResources.isNotEmpty &&
       onAllocate != null &&
       request.participatesAsResponder(currentUserId) &&
       request.isOpen &&
@@ -186,6 +208,41 @@ class BoardPanel extends StatelessWidget {
             ),
           ),
           child: const Text('Accept', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    }
+
+    if (_canStartResponse(request)) {
+      actions.add(
+        FilledButton(
+          onPressed: () => onStartResponse!(request),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          child: const Text('START RESPONSE', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    }
+
+    if (_canCompleteResponse(request)) {
+      actions.add(
+        FilledButton(
+          onPressed: () => onCompleteResponse!(request),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          child: const Text(
+            'COMPLETE RESPONSE',
+            style: TextStyle(fontSize: 12),
+          ),
         ),
       );
     }

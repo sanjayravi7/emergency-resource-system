@@ -8,7 +8,7 @@ const EXPECTED_BUSINESS_CONFLICT = new RegExp(
     '^Responder .+ (inactive|not available)',
     '^Responder already has',
     '^Assignment has already ended$',
-    '^Request (has already|is invalid or already closed)',
+    '^Request (has already|is invalid or already closed|must be|is already)',
     '^Completed requests cannot',
     '^This resource is already fully allocated$',
     '^Not enough available quantity$',
@@ -16,6 +16,7 @@ const EXPECTED_BUSINESS_CONFLICT = new RegExp(
     '^Receipt has already been confirmed$',
     '^Cancelled allocations cannot',
     '^Only (RESERVED|DISPATCHED)',
+    '^Cannot (start|complete) response',
   ].join('|'),
   'i'
 );

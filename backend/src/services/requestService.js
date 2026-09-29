@@ -664,11 +664,21 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       where: { responderId: numericResponderId },
       select: { category: true, enabled: true },
     });
+    const hasMatchingHelpType = configuredHelpTypes.some(
+      (row) => row.enabled && row.category === requestCategory
+    );
+    if (configuredHelpTypes.length > 0 && !hasMatchingHelpType) {
+      throw new Error('Responder does not have a compatible help type');
+    }
+
+    const requiredResources = await tx.requestResource.findMany({
+      where: { requestId: numericRequestId },
+      select: { resourceId: true, quantity: true },
+    });
     if (
-      configuredHelpTypes.length > 0 &&
-      !configuredHelpTypes.some(
-        (row) => row.enabled && row.category === requestCategory
-      )
+      configuredHelpTypes.length === 0 &&
+      !requiredResources.length &&
+      !hasMatchingHelpType
     ) {
       throw new Error('Responder does not have a compatible help type');
     }
@@ -728,10 +738,6 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     const reactivatingAssignment =
       existingPairRow && existingPairRow.status === 'ENDED';
 
-    const requiredResources = await tx.requestResource.findMany({
-      where: { requestId: numericRequestId },
-      select: { resourceId: true, quantity: true },
-    });
     if (requiredResources.length) {
       // Outstanding quantity reuses the allocation service's definition of
       // "active allocation" so acceptance and allocation can never disagree
@@ -962,4 +968,225 @@ exports.updateRequestStatus = async (requestId, status) => {
     for (const id of result.syncedResponderIds) await emitResponderAvailability(id);
   });
   return result.updated;
+};
+
+exports.startEmergencyResponse = async (responderId, requestId) => {
+  const numericResponderId = Number(responderId);
+  const numericRequestId = Number(requestId);
+  if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
+    throw new Error('Request not found');
+  }
+
+  const updatedRequest = await runSerializableTransaction(async (tx) => {
+    const lockedRequests = await tx.$queryRaw`
+      SELECT id, status, "acceptedById", "emergencyType"
+      FROM "EmergencyRequest"
+      WHERE id = ${numericRequestId}
+      FOR UPDATE
+    `;
+    const requestRow = lockedRequests[0];
+    if (!requestRow) throw new Error('Request not found');
+
+    if (requestRow.status === 'CANCELLED') {
+      throw new Error('Request has already been cancelled');
+    }
+    if (requestRow.status === 'COMPLETED') {
+      throw new Error('Request has already been completed');
+    }
+    if (requestRow.status === 'IN_PROGRESS') {
+      throw new Error('Request is already in progress');
+    }
+    if (requestRow.status !== 'ACCEPTED') {
+      throw new Error('Request must be accepted before starting response');
+    }
+
+    const requiredResources = await tx.requestResource.findMany({
+      where: { requestId: numericRequestId },
+      select: { id: true },
+    });
+    if (requiredResources.length > 0) {
+      throw new Error(
+        'Cannot start response on request with required resources'
+      );
+    }
+
+    const lockedResponders = await tx.$queryRaw`
+      SELECT id, role, "isActive"
+      FROM "User"
+      WHERE id = ${numericResponderId}
+      FOR UPDATE
+    `;
+    const responder = lockedResponders[0];
+    if (!responder || responder.role !== 'RESPONDER') {
+      throw new Error('Only responders can start emergency response');
+    }
+    if (!responder.isActive) {
+      throw new Error('Responder is inactive');
+    }
+
+    const assignment = await tx.responderAssignment.findUnique({
+      where: {
+        requestId_responderId: {
+          requestId: numericRequestId,
+          responderId: numericResponderId,
+        },
+      },
+      select: { id: true, status: true },
+    });
+
+    const isLead = requestRow.acceptedById === numericResponderId;
+    const isAssigned =
+      (assignment && assignment.status === 'ACTIVE') ||
+      (isLead && !assignment);
+
+    if (!isAssigned) {
+      throw new Error('Unauthorized: Responder is not assigned to this request');
+    }
+
+    await tx.user.update({
+      where: { id: numericResponderId },
+      data: { lastActiveAt: new Date() },
+    });
+
+    const updated = await tx.emergencyRequest.update({
+      where: { id: numericRequestId },
+      data: { status: 'IN_PROGRESS' },
+      include: requestInclude,
+    });
+
+    await syncResponderAvailability(tx, numericResponderId);
+
+    return updated;
+  });
+
+  await emitAfterCommit(async () => {
+    await emitRequestUpdated(numericRequestId, [numericResponderId]);
+    await emitResponderAvailability(numericResponderId);
+  });
+
+  return updatedRequest;
+};
+
+exports.completeEmergencyResponse = async (responderId, requestId) => {
+  const numericResponderId = Number(responderId);
+  const numericRequestId = Number(requestId);
+  if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
+    throw new Error('Request not found');
+  }
+
+  const { updated, syncedResponderIds, terminalResponderIds } =
+    await runSerializableTransaction(async (tx) => {
+      const lockedRequests = await tx.$queryRaw`
+        SELECT id, status, "acceptedById", "emergencyType"
+        FROM "EmergencyRequest"
+        WHERE id = ${numericRequestId}
+        FOR UPDATE
+      `;
+      const requestRow = lockedRequests[0];
+      if (!requestRow) throw new Error('Request not found');
+
+      if (requestRow.status === 'CANCELLED') {
+        throw new Error('Request has already been cancelled');
+      }
+      if (requestRow.status === 'COMPLETED') {
+        throw new Error('Request has already been completed');
+      }
+      if (requestRow.status !== 'IN_PROGRESS') {
+        throw new Error('Request must be in progress to complete response');
+      }
+
+      const requiredResources = await tx.requestResource.findMany({
+        where: { requestId: numericRequestId },
+        select: { id: true },
+      });
+      if (requiredResources.length > 0) {
+        throw new Error(
+          'Cannot complete response on request with required resources'
+        );
+      }
+
+      const lockedResponders = await tx.$queryRaw`
+        SELECT id, role, "isActive"
+        FROM "User"
+        WHERE id = ${numericResponderId}
+        FOR UPDATE
+      `;
+      const responder = lockedResponders[0];
+      if (!responder || responder.role !== 'RESPONDER') {
+        throw new Error('Only responders can complete emergency response');
+      }
+      if (!responder.isActive) {
+        throw new Error('Responder is inactive');
+      }
+
+      const assignment = await tx.responderAssignment.findUnique({
+        where: {
+          requestId_responderId: {
+            requestId: numericRequestId,
+            responderId: numericResponderId,
+          },
+        },
+        select: { id: true, status: true },
+      });
+
+      const isLead = requestRow.acceptedById === numericResponderId;
+      const isAssigned =
+        (assignment && assignment.status === 'ACTIVE') ||
+        (isLead && !assignment);
+
+      if (!isAssigned) {
+        throw new Error(
+          'Unauthorized: Responder is not assigned to this request'
+        );
+      }
+
+      const activeAssignments = await tx.responderAssignment.findMany({
+        where: { requestId: numericRequestId, status: 'ACTIVE' },
+        select: { responderId: true },
+      });
+
+      await tx.responderAssignment.updateMany({
+        where: { requestId: numericRequestId, status: 'ACTIVE' },
+        data: { status: 'ENDED', endedAt: new Date() },
+      });
+
+      await tx.user.update({
+        where: { id: numericResponderId },
+        data: { lastActiveAt: new Date() },
+      });
+
+      const updated = await tx.emergencyRequest.update({
+        where: { id: numericRequestId },
+        data: { status: 'COMPLETED' },
+        include: requestInclude,
+      });
+
+      const syncedResponderIds =
+        await syncResponderAvailabilityForRequest(
+          tx,
+          numericRequestId,
+          [numericResponderId]
+        );
+
+      const terminalResponderIds = [
+        ...new Set([
+          numericResponderId,
+          ...activeAssignments.map((row) => row.responderId),
+        ]),
+      ];
+
+      return { updated, syncedResponderIds, terminalResponderIds };
+    });
+
+  await emitAfterCommit(async () => {
+    for (const id of terminalResponderIds) {
+      await emitResponderLocationStop(numericRequestId, id);
+    }
+    await emitRequestUpdated(numericRequestId, terminalResponderIds);
+    for (const id of syncedResponderIds) {
+      await emitResponderAvailability(id);
+    }
+  });
+
+  return updated;
 };

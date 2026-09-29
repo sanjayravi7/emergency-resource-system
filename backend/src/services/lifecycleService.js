@@ -220,10 +220,37 @@ async function syncRequestStatus(tx, requestId) {
           status: true,
         },
       },
+      assignments: {
+        select: {
+          status: true,
+        },
+      },
     },
   });
 
-  if (!request || request.status === 'CANCELLED') return request;
+  if (
+    !request ||
+    request.status === 'CANCELLED' ||
+    request.status === 'COMPLETED'
+  ) {
+    return request;
+  }
+
+  if (request.requiredResources.length === 0) {
+    if (request.status === 'IN_PROGRESS') {
+      return request;
+    }
+    const hasActiveAssignment =
+      request.assignments &&
+      request.assignments.some((assignment) => assignment.status === 'ACTIVE');
+    const isAccepted = Boolean(hasActiveAssignment || request.acceptedById);
+    const targetStatus = isAccepted ? 'ACCEPTED' : 'PENDING';
+    if (targetStatus === request.status) return request;
+    return tx.emergencyRequest.update({
+      where: { id: numericRequestId },
+      data: { status: targetStatus },
+    });
+  }
 
   const quantitiesByResource = new Map();
   for (const required of request.requiredResources) {

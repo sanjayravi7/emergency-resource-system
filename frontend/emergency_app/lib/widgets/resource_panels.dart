@@ -390,32 +390,117 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
   }
 }
 
+// ── Responder help types ───────────────────────────────────────────────────
+
+class ResponderHelpTypesPanel extends StatelessWidget {
+  const ResponderHelpTypesPanel({
+    super.key,
+    required this.helpTypes,
+    this.title = 'MY HELP TYPES',
+    this.onEditHelpTypes,
+  });
+
+  final List<ResponderHelpType> helpTypes;
+  final String title;
+  final VoidCallback? onEditHelpTypes;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeTypes = helpTypes.where((ht) => ht.enabled).toList();
+
+    return Panel(
+      title: title,
+      hint: 'Categories loaded from GET /api/responders/help-types',
+      child: activeTypes.isEmpty
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const EmptyState(
+                  'No emergency help types configured yet. Edit your help types to choose which categories of emergencies you can respond to.',
+                  title: 'NO HELP TYPES CONFIGURED',
+                  icon: Icons.category_outlined,
+                ),
+                if (onEditHelpTypes != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: OutlinedButton.icon(
+                      onPressed: onEditHelpTypes,
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('EDIT MY HELP TYPES'),
+                    ),
+                  ),
+              ],
+            )
+          : Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: activeTypes.map((ht) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.tealDim,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                              color: AppColors.teal.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          ht.displayLabel.toUpperCase(),
+                          style: monoStyle(
+                            size: 12,
+                            color: AppColors.teal,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  if (onEditHelpTypes != null) ...[
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: onEditHelpTypes,
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('EDIT MY HELP TYPES'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+    );
+  }
+}
+
 // ── Responder inventory ────────────────────────────────────────────────────
 
 class ResponderResourcesPanel extends StatelessWidget {
   const ResponderResourcesPanel({
     super.key,
     required this.resources,
-    this.title = 'RESPONDER INVENTORY',
-    this.onEditHelpTypes,
+    this.title = 'RESOURCE INVENTORY',
+    this.onEditInventory,
   });
 
   final List<BackendResponderResource> resources;
   final String title;
-  final VoidCallback? onEditHelpTypes;
+  final VoidCallback? onEditInventory;
 
   @override
   Widget build(BuildContext context) {
     return Panel(
       title: title,
       hint: 'ResponderResource rows from PostgreSQL',
-      trailing: onEditHelpTypes == null
+      trailing: onEditInventory == null
           ? null
           : TextButton.icon(
-              onPressed: onEditHelpTypes,
+              onPressed: onEditInventory,
               icon: const Icon(Icons.tune, size: 15),
-              label: const Text('EDIT MY HELP TYPES',
-                  style: TextStyle(fontSize: 11)),
+              label:
+                  const Text('EDIT INVENTORY', style: TextStyle(fontSize: 11)),
             ),
       child: resources.isEmpty
           ? const EmptyState(
