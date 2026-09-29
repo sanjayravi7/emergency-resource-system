@@ -93,14 +93,19 @@ describe("Required resources normalization", () => {
     ]);
   });
 
-  test("❌ rejects an empty list", () => {
-    expect(() => normalizeRequiredResources([])).toThrow(
-      /At least one required resource/i
-    );
+  test("✅ treats resources as optional (empty, undefined or null -> [])", () => {
+    // Resource information is optional on an emergency: a requester must always
+    // be able to file one with zero resources. Absence is NOT an error.
+    expect(normalizeRequiredResources([])).toEqual([]);
+    expect(normalizeRequiredResources(undefined)).toEqual([]);
+    expect(normalizeRequiredResources(null)).toEqual([]);
+  });
 
-    expect(() => normalizeRequiredResources(undefined)).toThrow(
-      /At least one required resource/i
+  test("❌ still rejects a non-array resources value", () => {
+    expect(() => normalizeRequiredResources("nope")).toThrow(
+      /must be an array/i
     );
+    expect(() => normalizeRequiredResources(42)).toThrow(/must be an array/i);
   });
 
   test("❌ rejects duplicate resources", () => {
