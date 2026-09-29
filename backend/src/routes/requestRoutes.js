@@ -53,7 +53,7 @@ router.patch(
   requestController.acceptRequest
 );
 
-// RESPONDER starts work on a resource-free emergency
+// RESPONDER starts work on any accepted emergency (resource-free or bearing)
 router.post(
   "/:id/start",
   authenticate,
@@ -61,7 +61,7 @@ router.post(
   requestController.startResponse
 );
 
-// RESPONDER completes a resource-free emergency
+// RESPONDER completes any in-progress emergency
 router.post(
   "/:id/complete",
   authenticate,
@@ -69,7 +69,9 @@ router.post(
   requestController.completeResponse
 );
 
-// RESPONDER may end only their own assignment.
+// LEGACY/administrative cleanup route. The current Flutter responder UI
+// releases its assignment through COMPLETE RESPONSE instead of exposing an
+// End Assignment control.
 router.patch(
   "/:id/assignment/end",
   authenticate,

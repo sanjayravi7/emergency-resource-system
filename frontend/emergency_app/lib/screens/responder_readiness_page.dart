@@ -74,6 +74,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   final Map<int, BackendResponderResource> _inventoryByResourceId =
       <int, BackendResponderResource>{};
   final Map<int, bool> _inventoryEnabled = <int, bool>{};
+  final Map<int, int> _total = <int, int>{};
   final Map<int, int> _available = <int, int>{};
 
   bool _loading = true;
@@ -147,6 +148,10 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           ..clear()
           ..addEntries(resources.map((resource) => MapEntry(resource.id,
               _inventoryByResourceId[resource.id]?.isEnabled ?? false)));
+        _total
+          ..clear()
+          ..addEntries(resources.map((resource) => MapEntry(resource.id,
+              _inventoryByResourceId[resource.id]?.totalQuantity ?? 0)));
         _available
           ..clear()
           ..addEntries(resources.map((resource) => MapEntry(resource.id,
@@ -163,12 +168,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   }
 
   Future<void> _saveAndContinue() async {
-    if (_selectedHelpTypes.isEmpty) {
-      setState(() {
-        _notice = 'Select at least one emergency help type to go available.';
-        _editingHelpTypes = true;
-      });
-      return;
+    final canGoAvailable = _selectedHelpTypes.isNotEmpty;
+    if (!canGoAvailable) {
+      setState(() => _editingHelpTypes = true);
     }
 
     setState(() {
@@ -180,39 +182,43 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     try {
       await _gateway.updateHelpTypes(_selectedHelpTypes);
 
-      // Inventory remains optional. Existing allocation semantics are retained
-      // whenever a catalog row and responder inventory row do exist.
+      // Inventory is a responder-owned extension of the shared catalog. Save
+      // the catalog rows the responder has enabled or given quantities to, and
+      // update existing rows (including disabling them). Global Resource rows
+      // are never created from this screen.
       for (final resource in _resources) {
         final existing = _inventoryByResourceId[resource.id];
         final isEnabled = _inventoryEnabled[resource.id] ?? false;
-        final available = _available[resource.id] ?? 0;
+        final total = (_total[resource.id] ?? 0).clamp(0, 1000000).toInt();
+        final available =
+            (_available[resource.id] ?? 0).clamp(0, total).toInt();
+        final status = isEnabled && (resource.isService || available > 0)
+            ? 'AVAILABLE'
+            : 'UNAVAILABLE';
+        final data = <String, dynamic>{
+          'totalQuantity': total,
+          'availableQuantity': available,
+          'isEnabled': isEnabled,
+          'status': status,
+        };
 
         if (existing == null) {
-          if (isEnabled) {
-            await _gateway.createInventory(<String, dynamic>{
-              'resourceId': resource.id,
-              'totalQuantity': 0,
-              'availableQuantity': 0,
-              'isEnabled': true,
-              'status': 'UNAVAILABLE',
-            });
-          }
-          continue;
+          // An untouched catalog choice is not an inventory row. The row is
+          // created as soon as the responder enables it or enters stock.
+          if (!isEnabled && total == 0 && available == 0) continue;
+          await _gateway.createInventory(<String, dynamic>{
+            'resourceId': resource.id,
+            ...data,
+          });
+        } else {
+          await _gateway.updateInventory(existing.id, data);
         }
-
-        await _gateway.updateInventory(existing.id, <String, dynamic>{
-          'isEnabled': isEnabled,
-          'availableQuantity': available,
-          'status': available == 0
-              ? 'UNAVAILABLE'
-              : isEnabled
-                  ? 'AVAILABLE'
-                  : existing.status,
-        });
       }
 
-      await _gateway.setAvailable();
-      await _gateway.heartbeat();
+      if (canGoAvailable) {
+        await _gateway.setAvailable();
+        await _gateway.heartbeat();
+      }
 
       if (!mounted) return;
       // The save completed: leave the transient saving state so the page is
@@ -220,8 +226,10 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
       // navigating away below (the button would otherwise spin forever).
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You are available for your selected help types.'),
+        SnackBar(
+          content: Text(canGoAvailable
+              ? 'You are available for your selected help types.'
+              : 'Inventory saved. Select a help type before going available.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -240,11 +248,19 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     }
   }
 
+  void _adjustTotal(BackendResource resource, int delta) {
+    final current = _total[resource.id] ?? 0;
+    final next = (current + delta).clamp(0, 1000000).toInt();
+    setState(() {
+      _total[resource.id] = next;
+      if ((_available[resource.id] ?? 0) > next) _available[resource.id] = next;
+    });
+  }
+
   void _adjustAvailable(BackendResource resource, int delta) {
-    final row = _inventoryByResourceId[resource.id];
-    if (row == null) return;
-    final current = _available[resource.id] ?? row.availableQuantity;
-    final next = (current + delta).clamp(0, row.totalQuantity).toInt();
+    final total = _total[resource.id] ?? 0;
+    final current = _available[resource.id] ?? 0;
+    final next = (current + delta).clamp(0, total).toInt();
     setState(() => _available[resource.id] = next);
   }
 
@@ -285,7 +301,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                                 child: CircularProgressIndicator(
                                     strokeWidth: 2, color: Colors.white),
                               )
-                            : const Text('SAVE & GO AVAILABLE'),
+                            : Text(_selectedHelpTypes.isEmpty
+                                ? 'SAVE INVENTORY'
+                                : 'SAVE & GO AVAILABLE'),
                       ),
                     ],
                   ),
@@ -385,8 +403,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                   color: AppColors.text)),
           const SizedBox(height: 6),
           const Text(
-            'Physical and reusable resources are managed separately and are '
-            'checked when resources are allocated.',
+            'Choose catalog resources you currently carry and maintain total '
+            'and available quantities. This inventory is separate from your '
+            'emergency help types.',
             style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
           ),
           const SizedBox(height: 12),
@@ -436,11 +455,11 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   Widget _resourceRow(BackendResource resource) {
     final row = _inventoryByResourceId[resource.id];
     final selected = _inventoryEnabled[resource.id] ?? false;
+    final total = _total[resource.id] ?? 0;
     final available = _available[resource.id] ?? 0;
     final unit = resource.unit == null || resource.unit!.isEmpty
         ? 'unit'
         : resource.unit!;
-    final isService = resource.isService;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -467,52 +486,88 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                         style: const TextStyle(
                             fontSize: 13.5, fontWeight: FontWeight.w600)),
                     Text(
-                      isService
-                          ? 'Reusable resource · no quantity to track'
-                          : row == null
-                              ? 'No responder inventory assigned'
-                              : '$available / ${row.totalQuantity} $unit · ${row.status}',
+                      row == null
+                          ? 'Not configured · add this catalog resource to your inventory'
+                          : '$available / $total $unit · ${selected ? 'ENABLED' : 'DISABLED'}',
                       style: const TextStyle(
                           fontSize: 11.5, color: AppColors.textFaint),
                     ),
                   ],
                 ),
               ),
-              if (!isService)
-                Text('$available $unit',
-                    style: const TextStyle(
-                        fontSize: 12.5, color: AppColors.textDim)),
+              Text(
+                '$available $unit available',
+                style: const TextStyle(fontSize: 12.5, color: AppColors.textDim),
+              ),
             ],
           ),
-          if (!isService && _showQuantityControls && row != null)
+          if (_showQuantityControls)
             Padding(
               padding: const EdgeInsets.only(left: 48, right: 6, bottom: 4),
-              child: Row(
+              child: Column(
                 children: <Widget>[
-                  const Text('Available quantity',
-                      style:
-                          TextStyle(fontSize: 11.5, color: AppColors.textDim)),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _saving || available <= 0
+                  _quantityEditor(
+                    label: 'Total quantity',
+                    value: total,
+                    onMinus: _saving || total <= 0
+                        ? null
+                        : () => _adjustTotal(resource, -1),
+                    onPlus: _saving
+                        ? null
+                        : () => _adjustTotal(resource, 1),
+                  ),
+                  _quantityEditor(
+                    label: 'Available quantity',
+                    value: available,
+                    onMinus: _saving || available <= 0
                         ? null
                         : () => _adjustAvailable(resource, -1),
-                    icon: const Icon(Icons.remove, size: 17),
-                  ),
-                  Text('$available',
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
-                  IconButton(
-                    onPressed: _saving || available >= row.totalQuantity
+                    onPlus: _saving || available >= total
                         ? null
                         : () => _adjustAvailable(resource, 1),
-                    icon: const Icon(Icons.add, size: 17),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      row == null
+                          ? 'A new ResponderResource row will be created when you save.'
+                          : 'Status is derived from enabled state and available stock.',
+                      style: const TextStyle(
+                          fontSize: 10.5, color: AppColors.textFaint),
+                    ),
                   ),
                 ],
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _quantityEditor({
+    required String label,
+    required int value,
+    required VoidCallback? onMinus,
+    required VoidCallback? onPlus,
+  }) {
+    return Row(
+      children: <Widget>[
+        Text(label,
+            style: const TextStyle(fontSize: 11.5, color: AppColors.textDim)),
+        const Spacer(),
+        IconButton(
+          onPressed: onMinus,
+          icon: const Icon(Icons.remove, size: 17),
+          tooltip: 'Decrease $label',
+        ),
+        Text('$value',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        IconButton(
+          onPressed: onPlus,
+          icon: const Icon(Icons.add, size: 17),
+          tooltip: 'Increase $label',
+        ),
+      ],
     );
   }
 }
