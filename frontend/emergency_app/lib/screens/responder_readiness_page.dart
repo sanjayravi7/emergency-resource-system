@@ -50,11 +50,7 @@ class _ApiResponderReadinessGateway implements ResponderReadinessGateway {
 /// emergencies the responder may discover. Resource/ResponderResource rows
 /// remain a separate allocation concern and may be completely empty.
 class ResponderReadinessPage extends StatefulWidget {
-  const ResponderReadinessPage({
-    super.key,
-    this.onSaved,
-    this.gateway,
-  });
+  const ResponderReadinessPage({super.key, this.onSaved, this.gateway});
 
   final VoidCallback? onSaved;
   final ResponderReadinessGateway? gateway;
@@ -102,26 +98,34 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         _gateway.getInventory(),
       ]);
       final helpResponse = Map<String, dynamic>.from(results[0] as Map);
-      final categories = (helpResponse['categories'] as List<dynamic>? ??
-              <dynamic>[])
-          .map((item) => Map<String, dynamic>.from(item as Map))
-          .map((item) => <String, String>{
-                'value': item['value'].toString(),
-                'label': item['label'].toString(),
-              })
-          .toList();
-      final selected = (helpResponse['selected'] as List<dynamic>? ??
-              <dynamic>[])
-          .map((item) => item.toString())
-          .toSet();
+      final categories =
+          (helpResponse['categories'] as List<dynamic>? ?? <dynamic>[])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .map(
+                (item) => <String, String>{
+                  'value': item['value'].toString(),
+                  'label': item['label'].toString(),
+                },
+              )
+              .toList();
+      final selected =
+          (helpResponse['selected'] as List<dynamic>? ?? <dynamic>[])
+              .map((item) => item.toString())
+              .toSet();
       final resources = (results[1] as List<dynamic>)
-          .map((item) =>
-              BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) => BackendResource.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .where((resource) => resource.isActive)
           .toList();
       final inventory = (results[2] as List<dynamic>)
-          .map((item) => BackendResponderResource.fromJson(
-              Map<String, dynamic>.from(item as Map)))
+          .map(
+            (item) => BackendResponderResource.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
           .toList();
 
       if (!mounted) return;
@@ -141,17 +145,29 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           ..addAll(resources);
         _inventoryByResourceId
           ..clear()
-          ..addEntries(inventory.map((item) => MapEntry(item.resourceId, item)));
+          ..addEntries(
+            inventory.map((item) => MapEntry(item.resourceId, item)),
+          );
         _inventoryEnabled
           ..clear()
-          ..addEntries(resources.map((resource) => MapEntry(
-              resource.id,
-              _inventoryByResourceId[resource.id]?.isEnabled ?? false)));
+          ..addEntries(
+            resources.map(
+              (resource) => MapEntry(
+                resource.id,
+                _inventoryByResourceId[resource.id]?.isEnabled ?? false,
+              ),
+            ),
+          );
         _available
           ..clear()
-          ..addEntries(resources.map((resource) => MapEntry(
-              resource.id,
-              _inventoryByResourceId[resource.id]?.availableQuantity ?? 0)));
+          ..addEntries(
+            resources.map(
+              (resource) => MapEntry(
+                resource.id,
+                _inventoryByResourceId[resource.id]?.availableQuantity ?? 0,
+              ),
+            ),
+          );
         _loading = false;
       });
     } catch (error) {
@@ -251,8 +267,10 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
       backgroundColor: AppColors.bg,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
-        title: const Text('Responder readiness',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Responder readiness',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
       ),
       body: SafeArea(
         child: Center(
@@ -280,7 +298,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Text('SAVE & GO AVAILABLE'),
                       ),
@@ -295,11 +315,14 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   Widget _helpTypeSection() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text('WHAT CAN YOU HELP WITH?',
-              style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.text)),
+          const Text(
+            'WHAT CAN YOU HELP WITH?',
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w700,
+              color: AppColors.text,
+            ),
+          ),
           const SizedBox(height: 6),
           const Text(
             'These emergency categories determine which requests you receive. '
@@ -345,8 +368,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
               spacing: 8,
               runSpacing: 6,
               children: _helpTypes
-                  .where((item) =>
-                      _selectedHelpTypes.contains(item['value']!))
+                  .where((item) => _selectedHelpTypes.contains(item['value']!))
                   .map((item) => Chip(label: Text(item['label']!)))
                   .toList(),
             ),
@@ -360,7 +382,10 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                     }),
             icon: const Icon(Icons.edit_outlined, size: 17),
             label: Text(
-                _editingHelpTypes ? 'DONE EDITING HELP TYPES' : 'EDIT MY HELP TYPES'),
+              _editingHelpTypes
+                  ? 'DONE EDITING HELP TYPES'
+                  : 'EDIT MY HELP TYPES',
+            ),
           ),
         ],
       );
@@ -368,11 +393,14 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   Widget _inventorySection() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text('RESOURCE INVENTORY (OPTIONAL)',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.text)),
+          const Text(
+            'RESOURCE INVENTORY (OPTIONAL)',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.text,
+            ),
+          ),
           const SizedBox(height: 6),
           const Text(
             'Physical and reusable resources are managed separately and are '
@@ -394,16 +422,15 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 border: Border.all(color: AppColors.border),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Column(
-                children: _resources.map(_resourceRow).toList(),
-              ),
+              child: Column(children: _resources.map(_resourceRow).toList()),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: _saving
                   ? null
-                  : () => setState(() =>
-                      _showQuantityControls = !_showQuantityControls),
+                  : () => setState(
+                        () => _showQuantityControls = !_showQuantityControls,
+                      ),
               icon: const Icon(Icons.inventory_2_outlined, size: 17),
               label: const Text('EDIT RESOURCE INVENTORY'),
             ),
@@ -445,17 +472,22 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 value: selected,
                 onChanged: _saving
                     ? null
-                    : (value) => setState(() =>
-                        _inventoryEnabled[resource.id] = value ?? false),
+                    : (value) => setState(
+                          () => _inventoryEnabled[resource.id] = value ?? false,
+                        ),
                 activeColor: AppColors.teal,
               ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(resource.name,
-                        style: const TextStyle(
-                            fontSize: 13.5, fontWeight: FontWeight.w600)),
+                    Text(
+                      resource.name,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     Text(
                       isService
                           ? 'Reusable resource · no quantity to track'
@@ -463,15 +495,21 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                               ? 'No responder inventory assigned'
                               : '$available / ${row.totalQuantity} $unit · ${row.status}',
                       style: const TextStyle(
-                          fontSize: 11.5, color: AppColors.textFaint),
+                        fontSize: 11.5,
+                        color: AppColors.textFaint,
+                      ),
                     ),
                   ],
                 ),
               ),
               if (!isService)
-                Text('$available $unit',
-                    style: const TextStyle(
-                        fontSize: 12.5, color: AppColors.textDim)),
+                Text(
+                  '$available $unit',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textDim,
+                  ),
+                ),
             ],
           ),
           if (!isService && _showQuantityControls && row != null)
@@ -479,9 +517,10 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
               padding: const EdgeInsets.only(left: 48, right: 6, bottom: 4),
               child: Row(
                 children: <Widget>[
-                  const Text('Available quantity',
-                      style:
-                          TextStyle(fontSize: 11.5, color: AppColors.textDim)),
+                  const Text(
+                    'Available quantity',
+                    style: TextStyle(fontSize: 11.5, color: AppColors.textDim),
+                  ),
                   const Spacer(),
                   IconButton(
                     onPressed: _saving || available <= 0
@@ -489,9 +528,13 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                         : () => _adjustAvailable(resource, -1),
                     icon: const Icon(Icons.remove, size: 17),
                   ),
-                  Text('$available',
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text(
+                    '$available',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   IconButton(
                     onPressed: _saving || available >= row.totalQuantity
                         ? null
