@@ -156,13 +156,14 @@ describe("Emergency request creation description handling", () => {
       body: { message: expect.stringMatching(/Latitude and longitude/i) },
     });
 
+    // Resource information is OPTIONAL: an empty requiredResources array must
+    // NOT block creation. The emergency is filed with zero RequestResource
+    // rows and stays PENDING for later capability-based matching.
     await expect(
       postPayload(validPayload({ requiredResources: [] }))
     ).resolves.toMatchObject({
-      statusCode: 400,
-      body: {
-        message: expect.stringMatching(/At least one required resource/i),
-      },
+      statusCode: 201,
+      body: { success: true, request: { status: "PENDING" } },
     });
   });
 });

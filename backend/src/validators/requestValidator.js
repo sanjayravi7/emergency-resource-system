@@ -68,16 +68,31 @@ function validateEmergencyRequestInput(data) {
 /**
  * Normalizes and validates the requiredResources array of a request payload.
  *
- * Accepts: [{ resourceId, quantity }]
- * Returns: [{ resourceId: Int, quantity: Int }]
+ * Accepts: undefined | null | [] | [{ resourceId, quantity }]
+ * Returns: [{ resourceId: Int, quantity: Int }] (possibly empty)
  *
- * Throws an Error (message is surfaced to the client) when the payload
- * is not usable. The database remains the final authority: this only
- * rejects structurally invalid input before touching PostgreSQL.
+ * Resource information is OPTIONAL on an emergency request. An emergency must
+ * always be fileable even when the requester names zero resources, the
+ * catalog is empty, or nothing is currently allocatable - the EmergencyRequest
+ * row (0..N RequestResource) is the source of truth and matching happens
+ * afterwards. This function therefore never rejects an absent or empty list;
+ * it only validates the structure of any resource lines that ARE supplied.
+ *
+ * Throws an Error (message is surfaced to the client) when a supplied line is
+ * structurally invalid. The database remains the final authority: this only
+ * rejects malformed input before touching PostgreSQL.
  */
 function normalizeRequiredResources(requiredResources) {
-  if (!Array.isArray(requiredResources) || requiredResources.length === 0) {
-    throw new Error("At least one required resource must be provided");
+  if (requiredResources === undefined || requiredResources === null) {
+    return [];
+  }
+
+  if (!Array.isArray(requiredResources)) {
+    throw new Error("Required resources must be an array");
+  }
+
+  if (requiredResources.length === 0) {
+    return [];
   }
 
   const normalized = [];

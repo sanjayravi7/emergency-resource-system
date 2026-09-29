@@ -210,15 +210,11 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
 
     final chosen = lines.where((l) => l.resourceId != null).toList();
 
-    if (chosen.isEmpty) {
-      // Honest about the only real constraint: the backend requires every
-      // emergency to name at least one catalog resource. An empty catalog is
-      // an administrator data gap, not a responder-availability block.
-      return selectableResources.isEmpty
-          ? 'No active resources are in the catalog yet. An administrator '
-              'must add or restore at least one resource.'
-          : 'Add at least one resource';
-    }
+    // Resource information is OPTIONAL. An emergency must always be fileable -
+    // an empty catalog, zero selected resources or nothing allocatable can
+    // never block submission. Any lines the requester DID choose are still
+    // validated below; a completely empty selection is valid and simply files
+    // the emergency with zero RequestResource rows.
 
     final ids = <int>{};
 
@@ -337,16 +333,17 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                 const FieldLabel('Required resources'),
                 const SizedBox(height: 10),
                 if (selectableResources.isEmpty)
-                  // Informational, not an availability rejection: the catalog
-                  // itself has no active resource right now. An administrator
-                  // adds/restores one; responder availability is never the
-                  // blocker for filing an emergency.
+                  // Purely informational, never a blocker: resource
+                  // information is optional. An empty catalog does not stop a
+                  // requester from filing an emergency - the request is
+                  // submitted immediately and stays PENDING until a compatible
+                  // responder is available.
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Text(
-                      'No active resources are in the catalog yet. An '
-                      'administrator can add or restore resources; every '
-                      'emergency must name at least one.',
+                      'No resources in the catalog yet. Resources are optional '
+                      '- you can submit this emergency now and responders will '
+                      'be matched as they come online.',
                       style:
                           TextStyle(fontSize: 12.5, color: AppColors.textDim),
                     ),

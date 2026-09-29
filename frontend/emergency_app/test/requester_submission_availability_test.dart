@@ -210,32 +210,56 @@ void main() {
   });
 
   testWidgets(
-      'an empty catalog shows an informational hint, not an availability rejection',
+      'an empty catalog never blocks submission and shows an optional-resources hint',
       (tester) async {
-    await pumpAndSubmit(
+    // Submitting against a completely empty catalog must succeed: resources are
+    // optional, so the emergency is filed with ZERO required resources.
+    final payload = await pumpAndSubmit(
       tester,
       resources: const <BackendResource>[],
       pickResource: false,
     );
+
+    expect(payload, isNotNull);
+    expect(payload!.requiredResources, isEmpty);
+    expect(payload.emergencyType, isNotEmpty);
+    expect(payload.location, 'Somewhere in Thrissur');
+  });
+
+  testWidgets(
+      'an empty catalog shows an informational hint, not a resource-required blocker',
+      (tester) async {
+    useDesktopSizedSurface(tester);
+    await tester.pumpWidget(host(NewRequestPanel(
+      resources: const <BackendResource>[],
+      locationService: _StaticLocationService(),
+      showMapPreview: false,
+      onReload: () {},
+      onUseCurrentLocation: () async => null,
+      onSubmit: (payload) async => true,
+    )));
+    await tester.pump();
 
     // The old red "No active resources found in the database." text is gone.
     expect(
       find.textContaining('No active resources found in the database'),
       findsNothing,
     );
-    // The informational hint explains the catalog gap without rejecting the
-    // emergency as "unavailable".
-    expect(
-      find.textContaining('An administrator can add or restore resources'),
-      findsOneWidget,
-    );
 
-    // Validation still explains the real constraint honestly: an emergency
-    // must name at least one catalog resource.
+    // No resource-required blocker of any wording is shown.
+    expect(find.textContaining('Add at least one resource'), findsNothing);
     expect(
       find.textContaining('An administrator must add or restore'),
-      findsOneWidget,
+      findsNothing,
     );
+    expect(
+      find.textContaining('every emergency must name at least one'),
+      findsNothing,
+    );
+
+    // Instead, a purely informational hint tells the requester resources are
+    // optional and the emergency can be submitted now.
+    expect(find.textContaining('Resources are optional'), findsOneWidget);
   });
 
   testWidgets('a CONSUMABLE resource without inventory stays blocked',
