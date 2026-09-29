@@ -456,6 +456,35 @@ class ApiService {
     return body['responders'] ?? [];
   }
 
+  /// Canonical emergency categories and this responder's durable selections.
+  /// Categories come from the backend so Flutter never owns a divergent list.
+  static Future<Map<String, dynamic>> getResponderHelpTypes() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/responders/help-types'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to load help types');
+    }
+    return body;
+  }
+
+  static Future<Map<String, dynamic>> updateResponderHelpTypes(
+    Iterable<String> helpTypes,
+  ) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/responders/help-types'),
+      headers: _headers,
+      body: jsonEncode(<String, dynamic>{'helpTypes': helpTypes.toList()}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to update help types');
+    }
+    return body;
+  }
+
   static Future<List<dynamic>> getResponderResources() async {
     final response = await http.get(
       Uri.parse('$baseUrl/responder-resources/my'),

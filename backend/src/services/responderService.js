@@ -15,6 +15,19 @@ async function emitAfterCommit(callback) {
 }
 
 exports.updateResponderStatus = async (userId, status) => {
+  if (!['AVAILABLE', 'BUSY', 'OFFLINE'].includes(status)) {
+    throw new Error('Invalid responder status');
+  }
+  if (status === 'AVAILABLE') {
+    const enabledHelpType = await prisma.responderHelpType.findFirst({
+      where: { responderId: Number(userId), enabled: true },
+      select: { id: true },
+    });
+    if (!enabledHelpType) {
+      throw new Error('Select at least one help type before going available');
+    }
+  }
+
   const user = await prisma.user.update({
     where: { id: Number(userId) },
     data: {

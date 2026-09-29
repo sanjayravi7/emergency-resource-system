@@ -69,6 +69,17 @@ enum AssignmentStatus {
   ENDED
 }
 
+// Canonical emergency categories used for responder eligibility. These are
+// deliberately independent from Resource/ResponderResource inventory.
+enum EmergencyCategory {
+  FIRE
+  MEDICAL
+  ACCIDENT
+  FLOOD
+  RESCUE
+  OTHER
+}
+
 // ======================================================
 // USER
 // ======================================================
@@ -99,6 +110,7 @@ model User {
   allocations Allocation[] @relation("ResponderAllocations")
 
   responderResources ResponderResource[]
+  responderHelpTypes ResponderHelpType[]
 
   acceptedRequests     EmergencyRequest[]    @relation("AcceptedRequests")
   responderAssignments ResponderAssignment[]
@@ -269,6 +281,31 @@ model Resource {
   @@index([type])
   @@index([location])
   @@index([isActive])
+}
+
+// ======================================================
+// RESPONDER HELP TYPE
+//
+// Durable emergency-category eligibility. This is intentionally not linked
+// to Resource: inventory may be empty or unavailable without erasing what a
+// responder is willing or qualified to handle.
+// ======================================================
+
+model ResponderHelpType {
+  id Int @id @default(autoincrement())
+
+  responderId Int
+  category EmergencyCategory
+  enabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  responder User @relation(fields: [responderId], references: [id], onDelete: Cascade)
+
+  @@unique([responderId, category])
+  @@index([responderId, enabled])
+  @@index([category, enabled])
 }
 
 // ======================================================

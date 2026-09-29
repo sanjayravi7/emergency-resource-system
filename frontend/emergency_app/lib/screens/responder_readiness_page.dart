@@ -1,32 +1,84 @@
 import 'package:flutter/material.dart';
 
-import '../services/api_service.dart';
 import '../models/eras_models.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
-/// First responder screen after login. The catalog is loaded dynamically from
-/// PostgreSQL and the checkboxes only control ResponderResource.isEnabled.
-/// Resource IDs, names, units, and quantities all come from API responses.
-class ResponderReadinessPage extends StatefulWidget {
-  const ResponderReadinessPage({super.key, this.onSaved});
+abstract class ResponderReadinessGateway {
+  Future<Map<String, dynamic>> getHelpTypes();
+  Future<List<dynamic>> getResources();
+  Future<List<dynamic>> getInventory();
+  Future<void> updateHelpTypes(Iterable<String> values);
+  Future<void> createInventory(Map<String, dynamic> data);
+  Future<void> updateInventory(int id, Map<String, dynamic> data);
+  Future<void> setAvailable();
+  Future<void> heartbeat();
+}
 
-  /// Login supplies this to replace the page with the dispatch board. The
-  /// Resources section leaves it null and simply pops back after saving.
+class _ApiResponderReadinessGateway implements ResponderReadinessGateway {
+  @override
+  Future<Map<String, dynamic>> getHelpTypes() =>
+      ApiService.getResponderHelpTypes();
+  @override
+  Future<List<dynamic>> getResources() => ApiService.getResources();
+  @override
+  Future<List<dynamic>> getInventory() => ApiService.getResponderResources();
+  @override
+  Future<void> updateHelpTypes(Iterable<String> values) async {
+    await ApiService.updateResponderHelpTypes(values);
+  }
+
+  @override
+  Future<void> createInventory(Map<String, dynamic> data) async {
+    await ApiService.createResponderResource(data);
+  }
+
+  @override
+  Future<void> updateInventory(int id, Map<String, dynamic> data) async {
+    await ApiService.updateResponderResource(id, data);
+  }
+
+  @override
+  Future<void> setAvailable() => ApiService.setResponderStatus('AVAILABLE');
+  @override
+  Future<void> heartbeat() => ApiService.responderHeartbeat();
+}
+
+/// Responder category readiness and optional physical inventory.
+///
+/// Help types come from GET /api/responders/help-types and determine which
+/// emergencies the responder may discover. Resource/ResponderResource rows
+/// remain a separate allocation concern and may be completely empty.
+class ResponderReadinessPage extends StatefulWidget {
+  const ResponderReadinessPage({
+    super.key,
+    this.onSaved,
+    this.gateway,
+  });
+
   final VoidCallback? onSaved;
+  final ResponderReadinessGateway? gateway;
 
   @override
   State<ResponderReadinessPage> createState() => _ResponderReadinessPageState();
 }
 
 class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
+  late final ResponderReadinessGateway _gateway =
+      widget.gateway ?? _ApiResponderReadinessGateway();
+
+  final List<Map<String, String>> _helpTypes = <Map<String, String>>[];
+  final Set<String> _selectedHelpTypes = <String>{};
+
   final List<BackendResource> _resources = <BackendResource>[];
   final Map<int, BackendResponderResource> _inventoryByResourceId =
       <int, BackendResponderResource>{};
-  final Map<int, bool> _selected = <int, bool>{};
+  final Map<int, bool> _inventoryEnabled = <int, bool>{};
   final Map<int, int> _available = <int, int>{};
 
   bool _loading = true;
   bool _saving = false;
+  bool _editingHelpTypes = false;
   bool _showQuantityControls = false;
   String? _error;
   String? _notice;
@@ -44,41 +96,62 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     });
 
     try {
-      final results = await Future.wait<List<dynamic>>(<Future<List<dynamic>>>[
-        ApiService.getResources(),
-        ApiService.getResponderResources(),
+      final results = await Future.wait<dynamic>(<Future<dynamic>>[
+        _gateway.getHelpTypes(),
+        _gateway.getResources(),
+        _gateway.getInventory(),
       ]);
-      final resources = results[0]
+      final helpResponse = Map<String, dynamic>.from(results[0] as Map);
+      final categories = (helpResponse['categories'] as List<dynamic>? ??
+              <dynamic>[])
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .map((item) => <String, String>{
+                'value': item['value'].toString(),
+                'label': item['label'].toString(),
+              })
+          .toList();
+      final selected = (helpResponse['selected'] as List<dynamic>? ??
+              <dynamic>[])
+          .map((item) => item.toString())
+          .toSet();
+      final resources = (results[1] as List<dynamic>)
           .map((item) =>
               BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
           .where((resource) => resource.isActive)
           .toList();
-      final inventory = results[1]
+      final inventory = (results[2] as List<dynamic>)
           .map((item) => BackendResponderResource.fromJson(
               Map<String, dynamic>.from(item as Map)))
           .toList();
 
       if (!mounted) return;
       setState(() {
+        _helpTypes
+          ..clear()
+          ..addAll(categories);
+        _selectedHelpTypes
+          ..clear()
+          ..addAll(selected);
+        // New responders immediately see editable choices; returning
+        // responders get a concise summary until they choose Edit.
+        _editingHelpTypes = selected.isEmpty;
+
         _resources
           ..clear()
           ..addAll(resources);
         _inventoryByResourceId
           ..clear()
-          ..addEntries(
-              inventory.map((item) => MapEntry(item.resourceId, item)));
-        _selected
+          ..addEntries(inventory.map((item) => MapEntry(item.resourceId, item)));
+        _inventoryEnabled
           ..clear()
-          ..addEntries(resources.map((resource) {
-            final row = _inventoryByResourceId[resource.id];
-            return MapEntry(resource.id, row?.isEnabled ?? false);
-          }));
+          ..addEntries(resources.map((resource) => MapEntry(
+              resource.id,
+              _inventoryByResourceId[resource.id]?.isEnabled ?? false)));
         _available
           ..clear()
-          ..addEntries(resources.map((resource) {
-            final row = _inventoryByResourceId[resource.id];
-            return MapEntry(resource.id, row?.availableQuantity ?? 0);
-          }));
+          ..addEntries(resources.map((resource) => MapEntry(
+              resource.id,
+              _inventoryByResourceId[resource.id]?.availableQuantity ?? 0)));
         _loading = false;
       });
     } catch (error) {
@@ -91,7 +164,14 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   }
 
   Future<void> _saveAndContinue() async {
-    final selectedCount = _selected.values.where((value) => value).length;
+    if (_selectedHelpTypes.isEmpty) {
+      setState(() {
+        _notice = 'Select at least one emergency help type to go available.';
+        _editingHelpTypes = true;
+      });
+      return;
+    }
+
     setState(() {
       _saving = true;
       _error = null;
@@ -99,17 +179,18 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     });
 
     try {
+      await _gateway.updateHelpTypes(_selectedHelpTypes);
+
+      // Inventory remains optional. Existing allocation semantics are retained
+      // whenever a catalog row and responder inventory row do exist.
       for (final resource in _resources) {
         final existing = _inventoryByResourceId[resource.id];
-        final isEnabled = _selected[resource.id] ?? false;
+        final isEnabled = _inventoryEnabled[resource.id] ?? false;
         final available = _available[resource.id] ?? 0;
 
         if (existing == null) {
-          // A catalog item with no inventory row starts at zero. It can be
-          // selected now, but cannot make the responder compatible until real
-          // inventory is added through the normal inventory workflow.
           if (isEnabled) {
-            await ApiService.createResponderResource(<String, dynamic>{
+            await _gateway.createInventory(<String, dynamic>{
               'resourceId': resource.id,
               'totalQuantity': 0,
               'availableQuantity': 0,
@@ -120,7 +201,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           continue;
         }
 
-        await ApiService.updateResponderResource(existing.id, <String, dynamic>{
+        await _gateway.updateInventory(existing.id, <String, dynamic>{
           'isEnabled': isEnabled,
           'availableQuantity': available,
           'status': available == 0
@@ -131,28 +212,13 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         });
       }
 
-      // Existing inventory updates invoke backend lifecycle sync. With no
-      // inventory rows at all, explicitly mark the responder offline.
-      if (selectedCount == 0 && _inventoryByResourceId.isEmpty) {
-        await ApiService.setResponderStatus('OFFLINE');
-      }
-
-      // Save is responder activity too. A heartbeat failure is surfaced here,
-      // but does not cause the backend to alter an existing assignment.
-      await ApiService.responderHeartbeat();
+      await _gateway.setAvailable();
+      await _gateway.heartbeat();
 
       if (!mounted) return;
-      if (selectedCount == 0) {
-        setState(() {
-          _saving = false;
-          _notice = 'Select at least one resource you are willing to provide.';
-        });
-        return;
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('You are now available for selected resources.'),
+          content: Text('You are available for your selected help types.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -174,7 +240,6 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
   void _adjustAvailable(BackendResource resource, int delta) {
     final row = _inventoryByResourceId[resource.id];
     if (row == null) return;
-
     final current = _available[resource.id] ?? row.availableQuantity;
     final next = (current + delta).clamp(0, row.totalQuantity).toInt();
     setState(() => _available[resource.id] = next);
@@ -198,50 +263,12 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: <Widget>[
-                      const Text(
-                        'Choose the resources you are willing to help with',
-                        style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.text),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Help types are separate from live inventory. Only enabled '
-                        'resources with available stock can receive requests.',
-                        style:
-                            TextStyle(fontSize: 12.5, color: AppColors.textDim),
-                      ),
-                      const SizedBox(height: 16),
                       if (_error != null) _message(_error!, AppColors.red),
                       if (_notice != null) _message(_notice!, AppColors.amber),
-                      if (_resources.isEmpty)
-                        _message(
-                            'No active resources are available in the catalog.',
-                            AppColors.textFaint)
-                      else
-                        Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            border: Border.all(color: AppColors.border),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            children: _resources
-                                .map((resource) => _resourceRow(resource))
-                                .toList(),
-                          ),
-                        ),
-                      const SizedBox(height: 14),
-                      OutlinedButton.icon(
-                        onPressed: _saving
-                            ? null
-                            : () => setState(() =>
-                                _showQuantityControls = !_showQuantityControls),
-                        icon: const Icon(Icons.tune, size: 17),
-                        label: const Text('EDIT MY HELP TYPES'),
-                      ),
-                      const SizedBox(height: 10),
+                      _helpTypeSection(),
+                      const SizedBox(height: 22),
+                      _inventorySection(),
+                      const SizedBox(height: 18),
                       FilledButton(
                         onPressed: _saving ? null : _saveAndContinue,
                         style: FilledButton.styleFrom(
@@ -265,6 +292,125 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     );
   }
 
+  Widget _helpTypeSection() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('WHAT CAN YOU HELP WITH?',
+              style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text)),
+          const SizedBox(height: 6),
+          const Text(
+            'These emergency categories determine which requests you receive. '
+            'They do not depend on your resource inventory.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
+          ),
+          const SizedBox(height: 12),
+          if (_helpTypes.isEmpty)
+            _message('No emergency help types are configured.', AppColors.red)
+          else if (_editingHelpTypes)
+            Container(
+              key: const Key('help-type-selector'),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: _helpTypes.map((item) {
+                  final value = item['value']!;
+                  return CheckboxListTile(
+                    key: Key('help-type-$value'),
+                    dense: true,
+                    value: _selectedHelpTypes.contains(value),
+                    activeColor: AppColors.teal,
+                    title: Text(item['label']!),
+                    onChanged: _saving
+                        ? null
+                        : (checked) => setState(() {
+                              if (checked ?? false) {
+                                _selectedHelpTypes.add(value);
+                              } else {
+                                _selectedHelpTypes.remove(value);
+                              }
+                              _notice = null;
+                            }),
+                  );
+                }).toList(),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: _helpTypes
+                  .where((item) =>
+                      _selectedHelpTypes.contains(item['value']!))
+                  .map((item) => Chip(label: Text(item['label']!)))
+                  .toList(),
+            ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            key: const Key('edit-help-types'),
+            onPressed: _saving
+                ? null
+                : () => setState(() {
+                      _editingHelpTypes = !_editingHelpTypes;
+                    }),
+            icon: const Icon(Icons.edit_outlined, size: 17),
+            label: Text(
+                _editingHelpTypes ? 'DONE EDITING HELP TYPES' : 'EDIT MY HELP TYPES'),
+          ),
+        ],
+      );
+
+  Widget _inventorySection() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('RESOURCE INVENTORY (OPTIONAL)',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text)),
+          const SizedBox(height: 6),
+          const Text(
+            'Physical and reusable resources are managed separately and are '
+            'checked when resources are allocated.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.textDim),
+          ),
+          const SizedBox(height: 12),
+          if (_resources.isEmpty)
+            _message(
+              'No resource inventory is configured yet. You can still choose '
+              'your emergency help types and go available.',
+              AppColors.textFaint,
+            )
+          else ...<Widget>[
+            Container(
+              key: const Key('resource-inventory'),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: _resources.map(_resourceRow).toList(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _saving
+                  ? null
+                  : () => setState(() =>
+                      _showQuantityControls = !_showQuantityControls),
+              icon: const Icon(Icons.inventory_2_outlined, size: 17),
+              label: const Text('EDIT RESOURCE INVENTORY'),
+            ),
+          ],
+        ],
+      );
+
   Widget _message(String text, Color color) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Container(
@@ -279,16 +425,11 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
 
   Widget _resourceRow(BackendResource resource) {
     final row = _inventoryByResourceId[resource.id];
-    final selected = _selected[resource.id] ?? false;
+    final selected = _inventoryEnabled[resource.id] ?? false;
     final available = _available[resource.id] ?? 0;
     final unit = resource.unit == null || resource.unit!.isEmpty
         ? 'unit'
         : resource.unit!;
-    // SERVICE resources (e.g. Ambulance, Volunteer) are a reusable
-    // responder capability: selection is the checkbox alone, there is no
-    // inventory to size. CONSUMABLE resources (e.g. Blood) still pair the
-    // checkbox with the quantity the responder is carrying. This branches
-    // strictly on resource.mode, coming from the backend.
     final isService = resource.isService;
 
     return Container(
@@ -304,8 +445,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                 value: selected,
                 onChanged: _saving
                     ? null
-                    : (value) =>
-                        setState(() => _selected[resource.id] = value ?? false),
+                    : (value) => setState(() =>
+                        _inventoryEnabled[resource.id] = value ?? false),
                 activeColor: AppColors.teal,
               ),
               Expanded(
@@ -317,7 +458,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                             fontSize: 13.5, fontWeight: FontWeight.w600)),
                     Text(
                       isService
-                          ? 'Reusable capability · no inventory to track'
+                          ? 'Reusable resource · no quantity to track'
                           : row == null
                               ? 'No responder inventory assigned'
                               : '$available / ${row.totalQuantity} $unit · ${row.status}',
