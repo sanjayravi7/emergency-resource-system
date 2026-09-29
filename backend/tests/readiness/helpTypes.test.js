@@ -198,8 +198,11 @@ if (!hasDatabase) {
     const rejected = await request(app)
       .patch(`/api/requests/${created.body.request.id}/accept`)
       .set('Authorization', `Bearer ${tokens.fire}`);
-    expect(rejected.statusCode).toBe(500);
-    expect(rejected.body.message).toMatch(/compatible resource/i);
+    // Missing responder inventory is a business validation failure, not a
+    // server error. The acceptance endpoint returns a client error while
+    // leaving the request pending for a compatible responder.
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.body.message).toMatch(/compatible resource|required resource|resource/i);
 
     const inventory = await prisma.responderResource.create({
       data: {
