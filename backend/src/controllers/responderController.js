@@ -51,3 +51,37 @@ exports.getResponders = async (req, res, next) => {
     next(error);
   }
 };
+
+// FCM device token registration. Client errors (bad token, wrong role) come
+// back as 400; everything else keeps the existing error middleware path.
+const isDeviceTokenClientError = (message) =>
+  /device token|Only responders/i.test(message || '');
+
+exports.registerDeviceToken = async (req, res, next) => {
+  try {
+    const { token, platform } = req.body || {};
+    const deviceToken = await responderService.registerDeviceToken(req.user.id, {
+      token,
+      platform,
+    });
+    res.status(201).json({ success: true, deviceToken });
+  } catch (error) {
+    if (isDeviceTokenClientError(error.message)) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
+  }
+};
+
+exports.removeDeviceToken = async (req, res, next) => {
+  try {
+    const { token } = req.body || {};
+    const result = await responderService.removeDeviceToken(req.user.id, token);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    if (isDeviceTokenClientError(error.message)) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
+  }
+};

@@ -34,4 +34,22 @@ router.post(
   responderController.logout
 );
 
+// FCM device tokens (one row per installed device). Responders register on
+// login/token rotation and remove on logout, so pushes about new compatible
+// emergencies reach backgrounded apps. Tokens are transport metadata only -
+// the emergency request row remains the source of truth.
+router.post(
+  '/device-tokens',
+  authenticate,
+  authorizeRoles('RESPONDER'),
+  responderController.registerDeviceToken
+);
+
+router.delete(
+  '/device-tokens',
+  authenticate,
+  authorizeRoles('RESPONDER'),
+  responderController.removeDeviceToken
+);
+
 module.exports = router;

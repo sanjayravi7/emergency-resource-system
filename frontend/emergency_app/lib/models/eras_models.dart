@@ -140,21 +140,37 @@ class BackendResource {
   int get effectiveAvailableCount =>
       isService ? (availableResponders ?? 0) : availableQuantity;
 
-  bool get isOutOfStock => effectiveAvailableCount <= 0;
+  /// A SERVICE capability with no available responder right now. This is an
+  /// informational state, never a submission blocker: the emergency request
+  /// is still created and stays PENDING until a compatible responder comes
+  /// online (the backend guarantees this).
+  bool get hasNoRespondersOnline => isService && effectiveAvailableCount <= 0;
+
+  /// Out of spendable inventory. Only CONSUMABLE resources can be out of
+  /// stock - a SERVICE resource is a reusable responder capability, so
+  /// "zero responders online" is reported through [hasNoRespondersOnline]
+  /// instead and never blocks an emergency.
+  bool get isOutOfStock => !isService && availableQuantity <= 0;
 
   bool get isLowStock =>
       !isService && !isOutOfStock && availableQuantity <= lowStockThreshold;
 
-  bool get isSelectable => isActive && !isOutOfStock;
+  /// Whether the requester can pick this resource for a new emergency.
+  ///
+  /// A SERVICE resource stays selectable while active no matter how many
+  /// responders are online right now - responder availability must never
+  /// block filing an emergency. A CONSUMABLE resource requires real spendable
+  /// inventory, which the backend also enforces on creation.
+  bool get isSelectable => isActive && (isService || !isOutOfStock);
 
-  /// "10 / 10 vehicle", "4 responders available" or "Out of stock"
+  /// "10 / 10 vehicle", "4 responders available", "No responders online yet"
+  /// or "Out of stock"
   String get availabilityLabel {
     if (!isActive) return 'Inactive';
-    if (isOutOfStock) {
-      return isService ? 'No responders available' : 'Out of stock';
-    }
+    if (isOutOfStock) return 'Out of stock';
 
     if (isService) {
+      if (hasNoRespondersOnline) return 'No responders online yet';
       final count = effectiveAvailableCount;
       return '$count responder${count == 1 ? '' : 's'} available';
     }
@@ -165,11 +181,10 @@ class BackendResource {
 
   String get shortAvailability {
     if (!isActive) return 'inactive';
-    if (isOutOfStock) {
-      return isService ? 'no responders available' : 'out of stock';
-    }
+    if (isOutOfStock) return 'out of stock';
 
     if (isService) {
+      if (hasNoRespondersOnline) return 'no responders online yet';
       final count = effectiveAvailableCount;
       return '$count responder${count == 1 ? '' : 's'} available';
     }

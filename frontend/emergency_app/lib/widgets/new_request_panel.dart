@@ -41,6 +41,12 @@ class _DraftLine {
   int quantity = 1;
 }
 
+/// Upper bound for one SERVICE resource line. Responder availability never
+/// limits the requested quantity (an emergency is always accepted, even with
+/// zero responders online); this only keeps the +/- stepper from producing
+/// absurd numbers. The backend independently caps quantities.
+const int _maxServiceRequestQuantity = 20;
+
 /// Requester form. Every selectable resource comes from
 /// GET /api/resources, so a resource added by an admin (for example
 /// "Rescue Boat") shows up without touching this file.
@@ -102,6 +108,18 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
   List<BackendResource> get selectableResources =>
       widget.resources.where((r) => r.isActive).toList();
 
+  /// True when at least one selected SERVICE capability currently has no
+  /// online responder. Drives the "your request will queue as PENDING" note -
+  /// purely informational, never a blocker.
+  bool get _needsResponderQueueNotice {
+    for (final line in lines) {
+      if (line.resourceId == null) continue;
+      final resource = resourceById(line.resourceId);
+      if (resource != null && resource.hasNoRespondersOnline) return true;
+    }
+    return false;
+  }
+
   BackendResource? resourceById(int? id) {
     if (id == null) return null;
     return firstWhereOrNull(widget.resources, (r) => r.id == id);
@@ -131,11 +149,23 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     setState(() {
       final line = lines[index];
       final resource = resourceById(line.resourceId);
-      final maxQuantity = resource?.effectiveAvailableCount ?? 1;
+
+      // A SERVICE resource is a reusable responder capability: the quantity
+      // says how many units of that capability the emergency needs and is
+      // never limited by the number of responders online right now. A
+      // CONSUMABLE resource is bounded by real spendable inventory.
+      final int maxQuantity;
+      if (resource == null) {
+        maxQuantity = 1;
+      } else if (resource.isService) {
+        maxQuantity = _maxServiceRequestQuantity;
+      } else {
+        maxQuantity = resource.effectiveAvailableCount;
+      }
 
       var next = line.quantity + delta;
       if (next < 1) next = 1;
-      if (resource != null && next > maxQuantity) next = maxQuantity;
+      if (next > maxQuantity) next = maxQuantity;
 
       line.quantity = next;
       errorMessage = null;
@@ -181,7 +211,13 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     final chosen = lines.where((l) => l.resourceId != null).toList();
 
     if (chosen.isEmpty) {
-      return 'Add at least one resource';
+      // Honest about the only real constraint: the backend requires every
+      // emergency to name at least one catalog resource. An empty catalog is
+      // an administrator data gap, not a responder-availability block.
+      return selectableResources.isEmpty
+          ? 'No active resources are in the catalog yet. An administrator '
+              'must add or restore at least one resource.'
+          : 'Add at least one resource';
     }
 
     final ids = <int>{};
@@ -197,20 +233,22 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         return '${resource.name} is not active anymore';
       }
 
+      // Zero responders online NEVER blocks a SERVICE resource: the request
+      // is filed and stays PENDING until a compatible responder is
+      // available. Only a CONSUMABLE resource can be rejected for missing
+      // inventory, which the backend also enforces.
       if (resource.isOutOfStock) {
-        return resource.isService
-            ? 'No responders are currently available for ${resource.name}'
-            : '${resource.name} is out of stock';
+        return '${resource.name} is out of stock';
       }
 
       if (line.quantity <= 0) {
         return 'Quantity must be greater than 0';
       }
 
-      if (line.quantity > resource.effectiveAvailableCount) {
-        return resource.isService
-            ? 'Only ${resource.effectiveAvailableCount} responders available for ${resource.name}'
-            : 'Only ${resource.effectiveAvailableCount} ${resource.name} available';
+      if (!resource.isService &&
+          line.quantity > resource.effectiveAvailableCount) {
+        return 'Only ${resource.effectiveAvailableCount} '
+            '${resource.name} available';
       }
 
       if (!ids.add(resource.id)) {
@@ -299,11 +337,18 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                 const FieldLabel('Required resources'),
                 const SizedBox(height: 10),
                 if (selectableResources.isEmpty)
+                  // Informational, not an availability rejection: the catalog
+                  // itself has no active resource right now. An administrator
+                  // adds/restores one; responder availability is never the
+                  // blocker for filing an emergency.
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Text(
-                      'No active resources found in the database.',
-                      style: TextStyle(fontSize: 12.5, color: AppColors.red),
+                      'No active resources are in the catalog yet. An '
+                      'administrator can add or restore resources; every '
+                      'emergency must name at least one.',
+                      style:
+                          TextStyle(fontSize: 12.5, color: AppColors.textDim),
                     ),
                   )
                 else
@@ -311,6 +356,16 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                     lines.length,
                     (index) => _resourceRow(index, narrow),
                   ),
+                if (_needsResponderQueueNotice) ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Some selected services have no responders online right '
+                    'now. Your request is still submitted immediately and '
+                    'stays PENDING until a compatible responder is available.',
+                    style: TextStyle(
+                        fontSize: 11.5, color: AppColors.amber, height: 1.5),
+                  ),
+                ],
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -360,16 +415,6 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'The request is stored in PostgreSQL as an EmergencyRequest with one '
-                  'RequestResource row per selected resource. Latitude/longitude from GPS, '
-                  'a selected Google place or a tapped map point stay the canonical location; '
-                  'the place text is only its human readable label. ERAS never fabricates '
-                  'coordinates from typed text.',
-                  style: TextStyle(
-                      fontSize: 11.5, color: AppColors.textFaint, height: 1.5),
                 ),
               ],
             );
@@ -551,10 +596,14 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  r.isOutOfStock ? 'Out of stock' : r.shortAvailability,
+                  r.shortAvailability,
                   style: TextStyle(
                     fontSize: 11,
-                    color: r.isOutOfStock ? AppColors.red : AppColors.textFaint,
+                    color: r.isOutOfStock
+                        ? AppColors.red
+                        : r.hasNoRespondersOnline
+                            ? AppColors.amber
+                            : AppColors.textFaint,
                   ),
                 ),
               ],
@@ -603,7 +652,11 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
             setState(() {
               line.resourceId = value;
               final picked = resourceById(value);
+              // Only CONSUMABLE inventory bounds the quantity. A SERVICE
+              // capability is never clamped to the current responder count -
+              // the emergency must be filable even with zero responders.
               if (picked != null &&
+                  !picked.isService &&
                   line.quantity > picked.effectiveAvailableCount) {
                 line.quantity = picked.effectiveAvailableCount;
               }

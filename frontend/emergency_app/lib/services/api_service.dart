@@ -526,6 +526,45 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------
+  // PUSH DEVICE TOKENS (FCM)
+  // ---------------------------------------------------------------------
+
+  /// Register (or refresh) this device's FCM token so pushes about new
+  /// compatible emergencies reach the app while it is backgrounded. The
+  /// backend stores one row per device; the emergency request itself remains
+  /// the source of truth, so a failed registration never affects dispatch.
+  static Future<void> registerDeviceToken(
+    String token, {
+    String? platform,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/responders/device-tokens'),
+      headers: _headers,
+      body: jsonEncode(<String, dynamic>{
+        'token': token,
+        if (platform != null && platform.trim().isNotEmpty)
+          'platform': platform.trim(),
+      }),
+    );
+    if (response.statusCode != 201) {
+      _fail(_decode(response), 'Failed to register device token');
+    }
+  }
+
+  /// Remove this device's FCM token (logout). Best-effort by design: the
+  /// backend keeps every pending compatible request either way.
+  static Future<void> unregisterDeviceToken(String token) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/responders/device-tokens'),
+      headers: _headers,
+      body: jsonEncode(<String, dynamic>{'token': token}),
+    );
+    if (response.statusCode != 200) {
+      _fail(_decode(response), 'Failed to remove device token');
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // ALLOCATIONS
   // ---------------------------------------------------------------------
 
