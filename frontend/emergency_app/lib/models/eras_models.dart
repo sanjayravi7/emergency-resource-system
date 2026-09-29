@@ -492,7 +492,9 @@ class BackendResponderResource {
   bool get isService => mode == 'SERVICE';
 
   bool get isAvailable =>
-      isEnabled && status == 'AVAILABLE' && (isService || availableQuantity > 0);
+      isEnabled &&
+      status == 'AVAILABLE' &&
+      (isService || availableQuantity > 0);
 
   factory BackendResponderResource.fromJson(Map<String, dynamic> json) {
     final responder = _asMap(json['responder']);

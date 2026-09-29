@@ -538,7 +538,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         // integrations, but it must not reintroduce a second acceptance path
         // into this Flutter workflow.
         pending.addAll(
-          compatible.where((request) => request.status == RequestStatus.pending),
+          compatible
+              .where((request) => request.status == RequestStatus.pending),
         );
       } else {
         final all = isAdmin

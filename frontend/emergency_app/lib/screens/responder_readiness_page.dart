@@ -497,7 +497,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
               ),
               Text(
                 '$available $unit available',
-                style: const TextStyle(fontSize: 12.5, color: AppColors.textDim),
+                style:
+                    const TextStyle(fontSize: 12.5, color: AppColors.textDim),
               ),
             ],
           ),
@@ -512,9 +513,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                     onMinus: _saving || total <= 0
                         ? null
                         : () => _adjustTotal(resource, -1),
-                    onPlus: _saving
-                        ? null
-                        : () => _adjustTotal(resource, 1),
+                    onPlus: _saving ? null : () => _adjustTotal(resource, 1),
                   ),
                   _quantityEditor(
                     label: 'Available quantity',

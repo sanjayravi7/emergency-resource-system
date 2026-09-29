@@ -51,6 +51,7 @@ class BoardPanel extends StatelessWidget {
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onStartResponse;
   final void Function(EmergencyRequest request)? onCompleteResponse;
+
   /// Legacy-only allocation hooks. Not supplied by DispatchConsolePage.
   final void Function(EmergencyRequest request)? onAllocate;
   final void Function(EmergencyRequest request)? onEndAssignment;
