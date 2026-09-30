@@ -9,7 +9,7 @@ const authorizeRoles = require("../middleware/roleMiddleware");
 router.post(
   "/",
   authenticate,
-  authorizeRoles("REQUESTER"),
+  authorizeRoles("REQUESTER", "ADMIN"),
   requestController.createRequest
 );
 
@@ -77,7 +77,21 @@ router.patch(
   requestController.endAssignment
 );
 
-// REQUESTER cancels their own request
+// REQUESTER edits only their own pending request.
+router.patch(
+  "/:id",
+  authenticate,
+  authorizeRoles("REQUESTER"),
+  requestController.updateOwnRequest
+);
+
+// REQUESTER cancels their own request (DELETE is the public cancellation contract).
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeRoles("REQUESTER"),
+  requestController.cancelMyRequest
+);
 router.patch(
   "/:id/cancel",
   authenticate,

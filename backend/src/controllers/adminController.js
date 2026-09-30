@@ -1,6 +1,28 @@
 const prisma = require('../config/prisma');
 const requestService = require('../services/requestService');
 
+exports.createRequest = async (req, res, next) => {
+  try {
+    const request = await requestService.createEmergencyRequest(req.user.id, req.body);
+    res.status(201).json({ success: true, request });
+  } catch (error) { next(error); }
+};
+
+exports.assignRequest = async (req, res, next) => {
+  try {
+    const request = await requestService.acceptEmergencyRequest(req.params.responderId, req.params.id);
+    res.json({ success: true, request });
+  } catch (error) { res.status(400).json({ success: false, message: error.message }); }
+};
+
+exports.cancelRequest = async (req, res, next) => {
+  try {
+    const existing = await requestService.getRequestById(req.params.id);
+    const request = await requestService.cancelEmergencyRequest(existing.requesterId, req.params.id);
+    res.json({ success: true, request });
+  } catch (error) { next(error); }
+};
+
 exports.endAssignment = async (req, res, next) => {
   try {
     const request = await requestService.endResponderAssignment(

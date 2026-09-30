@@ -279,6 +279,40 @@ exports.getRequestsByUser = async (userId) =>
     orderBy: { createdAt: 'desc' },
   });
 
+exports.updateOwnRequest = async (userId, id, data) => {
+  const requestId = Number(id);
+  const existing = await prisma.emergencyRequest.findUnique({ where: { id: requestId }, include: { requiredResources: true } });
+  if (!existing) throw new Error('Request not found');
+  if (existing.requesterId !== Number(userId)) throw new Error('Unauthorized: You can only edit your own requests');
+  if (existing.status !== 'PENDING') throw new Error('Only pending requests can be edited');
+  const allowed = ['emergencyType','description','location','latitude','longitude','priority','requiredResources'];
+  const invalid = Object.keys(data).filter(k => !allowed.includes(k));
+  if (invalid.length) throw new Error('Invalid request fields');
+  const merged = { ...existing, ...data };
+  const validationError = validateEmergencyRequestInput(merged);
+  if (validationError) throw new Error(validationError);
+  const required = normalizeRequiredResources(data.requiredResources ?? existing.requiredResources);
+  const resources = await prisma.resource.findMany({ where: { id: { in: required.map(r => r.resourceId) } } });
+  const byId = new Map(resources.map(r => [r.id, r]));
+  for (const row of required) {
+    const resource = byId.get(row.resourceId);
+    if (!resource || !resource.isActive) throw new Error(`Resource ${row.resourceId} does not exist or is not active`);
+    if (resource.mode === 'CONSUMABLE' && (row.quantity > resource.availableQuantity || resource.availableQuantity <= 0)) throw new Error(`Resource ${resource.name} is not available in the requested quantity`);
+  }
+  return prisma.$transaction(async tx => {
+    if (data.requiredResources !== undefined) await tx.requestResource.deleteMany({ where: { requestId } });
+    return tx.emergencyRequest.update({ where: { id: requestId }, data: {
+      ...(data.emergencyType !== undefined && { emergencyType: String(data.emergencyType).trim() }),
+      ...(data.description !== undefined && { description: normalizeOptionalDescription(data.description) }),
+      ...(data.location !== undefined && { location: String(data.location).trim() }),
+      ...(data.latitude !== undefined && { latitude: data.latitude }),
+      ...(data.longitude !== undefined && { longitude: data.longitude }),
+      ...(data.priority !== undefined && { priority: data.priority }),
+      ...(data.requiredResources !== undefined && { requiredResources: { create: required.map(r => ({ resourceId: r.resourceId, quantity: r.quantity })) } }),
+    }, include: requestInclude });
+  });
+};
+
 exports.getRequestById = async (id) => {
   const request = await prisma.emergencyRequest.findUnique({
     where: { id: Number(id) },
