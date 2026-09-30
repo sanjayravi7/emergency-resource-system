@@ -13,9 +13,12 @@ import '../widgets/allocation_dialog.dart';
 import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/log_panel.dart';
+import '../widgets/location_permission_banner.dart';
 import '../widgets/new_request_panel.dart';
 import '../widgets/operational_google_map.dart';
 import '../widgets/operational_status.dart';
+import '../widgets/request_detail_dialog.dart';
+import '../widgets/responder_assignment_dialog.dart';
 import '../widgets/resource_panels.dart';
 import 'login_screen.dart';
 import 'responder_readiness_page.dart';
@@ -26,9 +29,19 @@ import 'responder_readiness_page.dart';
 /// the UI always shows what PostgreSQL contains. A push transport (Socket.IO)
 /// could later call the very same reload methods.
 class DispatchConsolePage extends StatefulWidget {
-  const DispatchConsolePage({super.key, this.readinessSuccess = false});
+  const DispatchConsolePage({
+    super.key,
+    this.readinessSuccess = false,
+    this.checkLocationPermission,
+    this.requestLocationPermission,
+  });
 
   final bool readinessSuccess;
+
+  /// Testable permission hooks. Production defaults remain the shared
+  /// Geolocator-backed service and no coordinates are synthesized here.
+  final Future<LocationPermissionResult> Function()? checkLocationPermission;
+  final Future<LocationPermissionResult> Function()? requestLocationPermission;
 
   @override
   State<DispatchConsolePage> createState() => _DispatchConsolePageState();
@@ -65,6 +78,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   final Set<int> _subscribedRequestIds = <int>{};
   RealtimeConnectionStatus connectionStatus = RealtimeConnectionStatus.offline;
   bool locationPermissionGranted = false;
+  bool _locationPermissionChecked = false;
+  bool _locationPermissionRequestInProgress = false;
   bool _locationStartInProgress = false;
   bool _hasConnectedOnce = false;
   bool _needsReconnectReconciliation = false;
@@ -86,10 +101,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     );
     SocketService.instance.connect();
     connectionStatus = SocketService.instance.currentConnection.status;
-    // Read the existing state without prompting. The first explicit GPS action
-    // owns the runtime permission dialog, and this flag gates Google Maps'
-    // My Location layer safely until that action succeeds.
-    unawaited(_refreshLocationPermissionState());
+    // Immediately after login, inspect permission and request it once when the
+    // platform reports a normal promptable denial. This never waits on or
+    // blocks the dashboard; Google Maps My Location remains disabled until a
+    // real grant is returned.
+    unawaited(_initializeLocationPermission());
     refreshAll();
 
     clockTimer = Timer.periodic(
@@ -579,7 +595,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   Future<void> loadResponders({bool silent = false}) async {
     try {
-      final data = await ApiService.getResponders();
+      final data = isAdmin
+          ? await ApiService.getAdminResponders()
+          : await ApiService.getResponders();
 
       final loaded = data
           .map((item) =>
@@ -668,67 +686,102 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     return byId.values.toList(growable: false);
   }
 
-  Future<void> _refreshLocationPermissionState() async {
-    final result = await checkDeviceLocationPermission();
+  Future<LocationPermissionResult> _checkLocationPermission() =>
+      (widget.checkLocationPermission ?? checkDeviceLocationPermission)();
+
+  Future<LocationPermissionResult> _requestLocationPermission() =>
+      (widget.requestLocationPermission ?? ensureDeviceLocationPermission)();
+
+  Future<void> _initializeLocationPermission() async {
+    LocationPermissionResult result;
+    try {
+      result = await _checkLocationPermission();
+      if (result.canRequest) {
+        // A normal denial is promptable. The permission sheet may remain open,
+        // but the console and all non-GPS actions are already usable.
+        result = await _requestLocationPermission();
+      }
+    } catch (_) {
+      result = const LocationPermissionResult(
+        status: LocationPermissionStatus.unavailable,
+        message: 'The device location service is unavailable.',
+      );
+    }
     if (!mounted) return;
-    setState(() => locationPermissionGranted = result.isGranted);
+    setState(() {
+      locationPermissionGranted = result.isGranted;
+      _locationPermissionChecked = true;
+    });
   }
 
-  /// The only requester GPS entry point. Permission/service checks live in the
-  /// shared location service so requester and responder cannot drift into
-  /// different Android permission behaviour.
-  Future<GeoPoint?> _tryReadEmergencyGeoPoint() async {
-    if (!isRequester) return null;
+  Future<void> _retryLocationPermission() async {
+    if (_locationPermissionRequestInProgress) return;
+    setState(() => _locationPermissionRequestInProgress = true);
+    LocationPermissionResult result;
+    try {
+      result = await _requestLocationPermission();
+    } catch (_) {
+      result = const LocationPermissionResult(
+        status: LocationPermissionStatus.unavailable,
+        message: 'The device location service is unavailable.',
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      locationPermissionGranted = result.isGranted;
+      _locationPermissionChecked = true;
+      _locationPermissionRequestInProgress = false;
+    });
+    if (result.isDeniedForever ||
+        result.status == LocationPermissionStatus.serviceDisabled) {
+      unawaited(openDeviceLocationSettings());
+    } else if (!result.isGranted) {
+      showToast(result.message);
+    }
+  }
 
-    final permission = await ensureDeviceLocationPermission();
+  /// GPS entry point shared by requester and admin emergency creation.
+  /// Permission/service checks live in the shared location service so roles
+  /// cannot drift into different platform behaviour.
+  Future<GeoPoint?> _tryReadEmergencyGeoPoint() async {
+    if (!isRequester && !isAdmin) return null;
+
+    LocationPermissionResult permission;
+    try {
+      permission = await _requestLocationPermission();
+    } catch (_) {
+      permission = const LocationPermissionResult(
+        status: LocationPermissionStatus.unavailable,
+        message: 'The device location service is unavailable.',
+      );
+    }
     if (mounted) {
-      setState(() => locationPermissionGranted = permission.isGranted);
+      setState(() {
+        locationPermissionGranted = permission.isGranted;
+        _locationPermissionChecked = true;
+      });
     }
     if (!permission.isGranted) {
-      await _showLocationRecovery(permission);
+      showToast(
+        '${permission.message} You can still search for or type a location.',
+      );
       return null;
     }
 
-    final point = await readDeviceLocation();
-    if (point == null && mounted) {
+    try {
+      final point = await readDeviceLocation();
+      if (point == null && mounted) {
+        showToast(
+          'Precise GPS location is unavailable. You can still search for or type a location.',
+        );
+      }
+      return point;
+    } catch (_) {
       showToast(
-        'Precise GPS location is unavailable. You can still enter a text-only location.',
+        'Precise GPS location is unavailable. You can still search for or type a location.',
       );
+      return null;
     }
-    return point;
-  }
-
-  Future<void> _showLocationRecovery(LocationPermissionResult result) async {
-    if (!mounted) return;
-
-    if (result.isDeniedForever ||
-        result.status == LocationPermissionStatus.serviceDisabled) {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(result.isDeniedForever
-              ? 'Location permission blocked'
-              : 'Location services disabled'),
-          content: Text(result.message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Not now'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                unawaited(openDeviceLocationSettings());
-              },
-              child: const Text('Open settings'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    showToast(result.message);
   }
 
   // -------------------------------------------------------------------
@@ -746,19 +799,31 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       final latitude = payload.latitude;
       final longitude = payload.longitude;
 
-      await ApiService.createRequest(
-        emergencyType: payload.emergencyType,
-        description: payload.description,
-        location: payload.location,
-        priority: payload.priority,
-        latitude: latitude,
-        longitude: longitude,
-        requiredResources: payload.requiredResources,
-      );
+      if (isAdmin) {
+        await ApiService.createAdminRequest(
+          emergencyType: payload.emergencyType,
+          description: payload.description,
+          location: payload.location,
+          priority: payload.priority,
+          latitude: latitude,
+          longitude: longitude,
+          requiredResources: payload.requiredResources,
+        );
+      } else {
+        await ApiService.createRequest(
+          emergencyType: payload.emergencyType,
+          description: payload.description,
+          location: payload.location,
+          priority: payload.priority,
+          latitude: latitude,
+          longitude: longitude,
+          requiredResources: payload.requiredResources,
+        );
+      }
 
       showToast(latitude == null || longitude == null
           ? 'Emergency request created with a text-only location. Precise map pin unavailable.'
-          : 'Emergency request created with precise GPS coordinates.');
+          : 'Emergency request created with precise coordinates.');
 
       await loadRequests();
       await loadResources();
@@ -776,6 +841,106 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       showToast('Request failed: ${_clean(error)}');
       return false;
     }
+  }
+
+  void viewRequest(EmergencyRequest request) {
+    unawaited(showRequestDetailDialog(context, request));
+  }
+
+  Future<void> editRequest(EmergencyRequest request) async {
+    // The server is authoritative as well; this local gate prevents opening a
+    // knowingly immutable snapshot while still handling races on save.
+    if (!isRequester || request.status != RequestStatus.pending) return;
+
+    var saving = false;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => Dialog(
+          key: const Key('edit-request-dialog'),
+          backgroundColor: AppColors.bg,
+          insetPadding: const EdgeInsets.all(14),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 900,
+              maxHeight: MediaQuery.sizeOf(dialogContext).height * .92,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: NewRequestPanel(
+                initialRequest: request,
+                panelTitle: 'EDIT ${request.displayId}',
+                submitLabel: 'Save changes',
+                resources: resources,
+                submitting: saving,
+                onReload: () => loadResources(silent: true),
+                onUseCurrentLocation: _tryReadEmergencyGeoPoint,
+                onSubmit: (payload) async {
+                  setDialogState(() => saving = true);
+                  try {
+                    await ApiService.updateMyRequest(
+                      requestId: request.id,
+                      emergencyType: payload.emergencyType,
+                      description: payload.description,
+                      location: payload.location,
+                      priority: payload.priority,
+                      latitude: payload.latitude,
+                      longitude: payload.longitude,
+                      requiredResources: payload.requiredResources,
+                    );
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                    return true;
+                  } catch (error) {
+                    showToast('Edit failed: ${_clean(error)}');
+                    if (dialogContext.mounted) {
+                      setDialogState(() => saving = false);
+                    }
+                    return false;
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (saved == true) {
+      showToast('${request.displayId} updated');
+      await loadRequests();
+      await loadResources();
+    }
+  }
+
+  Future<void> assignRequest(EmergencyRequest request) async {
+    if (!isAdmin || request.status != RequestStatus.pending) return;
+
+    // Refresh immediately before selection so the picker does not offer a
+    // responder who became BUSY since the last board poll.
+    await loadResponders();
+    if (!mounted) return;
+    final responder = await showDialog<BackendResponder>(
+      context: context,
+      builder: (_) => ResponderAssignmentDialog(
+        request: request,
+        responders: responders,
+      ),
+    );
+    if (responder == null) return;
+
+    try {
+      await ApiService.assignAdminRequest(
+        requestId: request.id,
+        responderId: responder.id,
+      );
+      showToast('${responder.name} assigned to ${request.displayId}');
+    } catch (error) {
+      showToast('Assignment failed: ${_clean(error)}');
+    }
+    await loadRequests();
+    await loadResponders();
   }
 
   Future<void> acceptRequest(EmergencyRequest request) async {
@@ -852,17 +1017,19 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Cancel request'),
+        title: const Text('Cancel emergency request?'),
         content: Text(
-          'Cancel ${request.displayId}? Reserved or dispatched resources will be released, while delivered resources remain delivered.',
-          style: const TextStyle(fontSize: 13),
+          'Cancel ${request.displayId}? The request is not deleted and will '
+          'remain in the operational after-action history as CANCELLED.',
+          style: const TextStyle(fontSize: 13, height: 1.4),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep it'),
+            child: const Text('Keep request'),
           ),
           FilledButton(
+            key: const Key('confirm-cancel-request-button'),
             onPressed: () => Navigator.of(context).pop(true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.red),
             child: const Text('Cancel request'),
@@ -874,7 +1041,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (confirmed != true) return;
 
     try {
-      await ApiService.cancelMyRequest(request.id);
+      if (isAdmin) {
+        await ApiService.cancelAdminRequest(request.id);
+      } else {
+        await ApiService.cancelMyRequest(request.id);
+      }
       showToast('${request.displayId} cancelled');
     } catch (error) {
       showToast('Cancel failed: ${_clean(error)}');
@@ -882,6 +1053,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     await loadRequests();
     await loadResources();
+    if (isAdmin) await loadResponders();
   }
 
   Future<bool> allocateResource({
@@ -1013,9 +1185,11 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   Future<void> startLocationSharing(EmergencyRequest request) async {
     if (!isResponder ||
-        !request.participatesAsResponder(ApiService.currentUserId)) {
+        !request.participatesAsResponder(ApiService.currentUserId) ||
+        request.status != RequestStatus.inProgress) {
       showToast(
-          'Only a responder assigned to this emergency can share its location.');
+        'Live location is available after an assigned responder starts the response.',
+      );
       return;
     }
     if (connectionStatus != RealtimeConnectionStatus.connected ||
@@ -1030,12 +1204,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     _locationStartInProgress = true;
 
     try {
-      final permission = await ensureDeviceLocationPermission();
+      final permission = await _requestLocationPermission();
       if (mounted) {
-        setState(() => locationPermissionGranted = permission.isGranted);
+        setState(() {
+          locationPermissionGranted = permission.isGranted;
+          _locationPermissionChecked = true;
+        });
       }
       if (!permission.isGranted) {
-        await _showLocationRecovery(permission);
+        showToast(permission.message);
         return;
       }
 
@@ -1253,7 +1430,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   String get viewTitle => switch (activeView) {
         ConsoleView.board => 'Dispatch Board',
-        ConsoleView.newRequest => 'New Request',
+        ConsoleView.newRequest => 'New Emergency',
         ConsoleView.resources => 'Resources',
         ConsoleView.responders => 'Responders',
         ConsoleView.log => 'Closed Log',
@@ -1360,11 +1537,20 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   Widget _buildMainContent({required bool isMobile}) {
     final children = <Widget>[];
 
+    if (_locationPermissionChecked && !locationPermissionGranted) {
+      children.add(
+        LocationPermissionBanner(
+          requestInProgress: _locationPermissionRequestInProgress,
+          onEnableLocation: _retryLocationPermission,
+        ),
+      );
+    }
+
     if (activeView == ConsoleView.board) {
       children.addAll(_boardChildren(isMobile));
     }
 
-    if (activeView == ConsoleView.newRequest && isRequester) {
+    if (activeView == ConsoleView.newRequest && (isRequester || isAdmin)) {
       children.add(
         NewRequestPanel(
           resources: resources,
@@ -1415,7 +1601,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
 
     if (activeView == ConsoleView.log) {
-      children.add(LogPanel(logEntries: logEntries, isMobile: isMobile));
+      children.add(
+        LogPanel(
+          logEntries: logEntries,
+          onViewRequest: viewRequest,
+          isMobile: isMobile,
+        ),
+      );
     }
 
     return ListView(
@@ -1452,6 +1644,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           emptyIcon: Icons.check_circle_outline,
           emptyMessage:
               'Accept a compatible request below to start working on it.',
+          onViewRequest: viewRequest,
           onStartResponse: startResponse,
           onCompleteResponse: completeResponse,
           onAllocate: openAllocationDialog,
@@ -1481,6 +1674,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           emptyMessage:
               'Open requests appear here when their category matches one of '
               'your help types and any requested resources are compatible.',
+          onViewRequest: viewRequest,
           onAccept: acceptRequest,
           connectionStatus: connectionStatus,
           isMobile: isMobile,
@@ -1495,9 +1689,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           role: role,
           currentUserId: ApiService.currentUserId,
           emptyMessage: isRequester
-              ? 'No active requests. Submit one from "New".'
+              ? 'No active requests. Submit one from "New Emergency".'
               : 'No active requests in the database.',
-          onCancelRequest: isRequester ? cancelRequest : null,
+          onViewRequest: viewRequest,
+          onEditRequest: isRequester ? editRequest : null,
+          onAssignRequest: isAdmin ? assignRequest : null,
+          onCancelRequest: (isRequester || isAdmin) ? cancelRequest : null,
           onConfirmReceipt: isRequester ? confirmReceipt : null,
           liveLocations: locationStore.locationsByRequest,
           activelySharingRequestIds: locationStore.activelySharingRequestIds,
@@ -1524,13 +1721,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             requests: [...openRequests, ...pendingCompatible],
             liveLocations: locationStore.locationsByRequest,
             locationPermissionGranted: locationPermissionGranted,
-            onRequestLocationPermission: () async {
-              final result = await ensureDeviceLocationPermission();
-              if (mounted) {
-                setState(() => locationPermissionGranted = result.isGranted);
-              }
-              if (!result.isGranted) await _showLocationRecovery(result);
-            },
+            onRequestLocationPermission: _retryLocationPermission,
             isMobile: isMobile,
           ),
         ),

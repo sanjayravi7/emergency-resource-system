@@ -160,6 +160,31 @@ class ApiService {
   // EMERGENCY REQUESTS
   // ---------------------------------------------------------------------
 
+  static Map<String, dynamic> _requestPayload({
+    required String emergencyType,
+    required String? description,
+    required String location,
+    required String priority,
+    required double? latitude,
+    required double? longitude,
+    required List<Map<String, int>> requiredResources,
+  }) {
+    final normalizedDescription =
+        description == null || description.trim().isEmpty ? null : description;
+    return <String, dynamic>{
+      'emergencyType': emergencyType,
+      // Include null when editing so a requester can deliberately clear an
+      // existing optional description.
+      'description': normalizedDescription,
+      'location': location,
+      'priority': priority,
+      // A missing precise fix remains null. ERAS never substitutes 0,0.
+      'latitude': latitude,
+      'longitude': longitude,
+      'requiredResources': requiredResources,
+    };
+  }
+
   static Future<Map<String, dynamic>> createRequest({
     required String emergencyType,
     required String? description,
@@ -169,22 +194,18 @@ class ApiService {
     required double? longitude,
     required List<Map<String, int>> requiredResources,
   }) async {
-    final normalizedDescription =
-        description == null || description.trim().isEmpty ? null : description;
-    final requestBody = <String, dynamic>{
-      'emergencyType': emergencyType,
-      'location': location,
-      'priority': priority,
-      'latitude': latitude,
-      'longitude': longitude,
-      'requiredResources': requiredResources,
-      if (normalizedDescription != null) 'description': normalizedDescription,
-    };
-
     final response = await http.post(
       Uri.parse('$baseUrl/requests'),
       headers: _headers,
-      body: jsonEncode(requestBody),
+      body: jsonEncode(_requestPayload(
+        emergencyType: emergencyType,
+        description: description,
+        location: location,
+        priority: priority,
+        latitude: latitude,
+        longitude: longitude,
+        requiredResources: requiredResources,
+      )),
     );
 
     final body = _decode(response);
@@ -193,6 +214,69 @@ class ApiService {
       _fail(body, 'Failed to create request');
     }
 
+    return body;
+  }
+
+  /// ADMIN creation uses the dedicated merged endpoint. The backend stores
+  /// the new emergency as PENDING and remains the lifecycle authority.
+  static Future<Map<String, dynamic>> createAdminRequest({
+    required String emergencyType,
+    required String? description,
+    required String location,
+    required String priority,
+    required double? latitude,
+    required double? longitude,
+    required List<Map<String, int>> requiredResources,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/admin/requests'),
+      headers: _headers,
+      body: jsonEncode(_requestPayload(
+        emergencyType: emergencyType,
+        description: description,
+        location: location,
+        priority: priority,
+        latitude: latitude,
+        longitude: longitude,
+        requiredResources: requiredResources,
+      )),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 201) {
+      _fail(body, 'Failed to create admin emergency');
+    }
+    return body;
+  }
+
+  /// REQUESTER PATCH of their own PENDING emergency. Button visibility is
+  /// only a convenience; ownership and lifecycle are enforced by the server.
+  static Future<Map<String, dynamic>> updateMyRequest({
+    required int requestId,
+    required String emergencyType,
+    required String? description,
+    required String location,
+    required String priority,
+    required double? latitude,
+    required double? longitude,
+    required List<Map<String, int>> requiredResources,
+  }) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/requests/$requestId'),
+      headers: _headers,
+      body: jsonEncode(_requestPayload(
+        emergencyType: emergencyType,
+        description: description,
+        location: location,
+        priority: priority,
+        latitude: latitude,
+        longitude: longitude,
+        requiredResources: requiredResources,
+      )),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to update request');
+    }
     return body;
   }
 
@@ -291,6 +375,35 @@ class ApiService {
     return body;
   }
 
+  /// ADMIN assigns the selected responder; the admin is never passed as the
+  /// accepting identity. Compatibility is rechecked atomically by the backend.
+  static Future<Map<String, dynamic>> assignAdminRequest({
+    required int requestId,
+    required int responderId,
+  }) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/admin/requests/$requestId/assign/$responderId'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to assign responder');
+    }
+    return body;
+  }
+
+  static Future<Map<String, dynamic>> cancelAdminRequest(int requestId) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/admin/requests/$requestId/cancel'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to cancel admin request');
+    }
+    return body;
+  }
+
   /// Responder starts active response for a resource-free emergency.
   static Future<Map<String, dynamic>> startEmergencyResponse(
     int requestId,
@@ -341,11 +454,12 @@ class ApiService {
     return body;
   }
 
-  /// Requesters may only cancel their own PENDING requests - the backend
-  /// enforces this and is the final authority.
+  /// Requester cancellation uses the merged DELETE contract. The backend
+  /// changes status to CANCELLED; it never physically deletes operational
+  /// history. Ownership and lifecycle checks remain server-side.
   static Future<Map<String, dynamic>> cancelMyRequest(int requestId) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/requests/$requestId/cancel'),
+    final response = await http.delete(
+      Uri.parse('$baseUrl/requests/$requestId'),
       headers: _headers,
     );
 
@@ -489,6 +603,21 @@ class ApiService {
       _fail(body, 'Failed to load responders');
     }
 
+    return body['responders'] ?? [];
+  }
+
+  /// Rich ADMIN responder list for the assignment picker. It includes the
+  /// backend-computed compatible request ids plus enabled help types and
+  /// inventory/resource availability.
+  static Future<List<dynamic>> getAdminResponders() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/admin/responders'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to load assignment candidates');
+    }
     return body['responders'] ?? [];
   }
 

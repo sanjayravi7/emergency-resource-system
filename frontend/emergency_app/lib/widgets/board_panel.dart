@@ -19,6 +19,9 @@ class BoardPanel extends StatelessWidget {
     this.emptyTitle,
     this.emptyIcon,
     this.currentUserId,
+    this.onViewRequest,
+    this.onEditRequest,
+    this.onAssignRequest,
     this.onAccept,
     this.onStartResponse,
     this.onCompleteResponse,
@@ -45,6 +48,9 @@ class BoardPanel extends StatelessWidget {
   final String emptyMessage;
   final String? emptyTitle;
   final IconData? emptyIcon;
+  final void Function(EmergencyRequest request)? onViewRequest;
+  final void Function(EmergencyRequest request)? onEditRequest;
+  final void Function(EmergencyRequest request)? onAssignRequest;
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onStartResponse;
   final void Function(EmergencyRequest request)? onCompleteResponse;
@@ -106,10 +112,20 @@ class BoardPanel extends StatelessWidget {
       request.isAssignedTo(currentUserId!) &&
       onEndAssignment != null;
 
-  bool _canCancel(EmergencyRequest request) =>
+  bool _canEdit(EmergencyRequest request) =>
       role == 'REQUESTER' &&
+      request.status == RequestStatus.pending &&
+      onEditRequest != null;
+
+  bool _canAdminAssign(EmergencyRequest request) =>
+      role == 'ADMIN' &&
+      request.status == RequestStatus.pending &&
+      onAssignRequest != null;
+
+  bool _canCancel(EmergencyRequest request) =>
+      (role == 'REQUESTER' || role == 'ADMIN') &&
       onCancelRequest != null &&
-      request.canBeCancelledByRequester;
+      request.isOpen;
 
   List<AllocationLine> _dispatchable(EmergencyRequest request) =>
       request.allocations
@@ -195,6 +211,53 @@ class BoardPanel extends StatelessWidget {
 
   List<Widget> _actions(EmergencyRequest request) {
     final actions = <Widget>[];
+
+    if (onViewRequest != null) {
+      actions.add(
+        OutlinedButton(
+          key: Key('view-request-${request.id}'),
+          onPressed: () => onViewRequest!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textDim,
+            side: const BorderSide(color: AppColors.border),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          child: const Text('VIEW', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    }
+
+    if (_canAdminAssign(request)) {
+      actions.add(
+        FilledButton(
+          key: Key('assign-request-${request.id}'),
+          onPressed: () => onAssignRequest!(request),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          child: const Text(
+            'ACCEPT / ASSIGN',
+            style: TextStyle(fontSize: 12),
+          ),
+        ),
+      );
+    }
+
+    if (_canEdit(request)) {
+      actions.add(
+        OutlinedButton(
+          key: Key('edit-request-${request.id}'),
+          onPressed: () => onEditRequest!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.blue,
+            side: const BorderSide(color: AppColors.blue),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          child: const Text('EDIT', style: TextStyle(fontSize: 12)),
+        ),
+      );
+    }
 
     if (_canAccept(request)) {
       actions.add(
@@ -339,6 +402,7 @@ class BoardPanel extends StatelessWidget {
     if (_canCancel(request)) {
       actions.add(
         OutlinedButton(
+          key: Key('cancel-request-${request.id}'),
           onPressed: () => onCancelRequest!(request),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.red,
@@ -348,7 +412,7 @@ class BoardPanel extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+          child: const Text('CANCEL REQUEST', style: TextStyle(fontSize: 12)),
         ),
       );
     }
@@ -357,7 +421,7 @@ class BoardPanel extends StatelessWidget {
     // (participation rule) may stream, not only the acceptedBy lead.
     final currentResponderParticipates = role == 'RESPONDER' &&
         request.participatesAsResponder(currentUserId) &&
-        request.isOpen;
+        request.status == RequestStatus.inProgress;
     if (currentResponderParticipates && onStartLocationSharing != null) {
       // Another responder streaming this request must not turn this device's
       // action into "Stop". Local sharing is isolated by authenticated

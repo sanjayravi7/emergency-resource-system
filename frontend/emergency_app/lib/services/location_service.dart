@@ -336,6 +336,11 @@ class LocationPermissionResult {
 
   bool get isGranted => status == LocationPermissionStatus.granted;
   bool get isDeniedForever => status == LocationPermissionStatus.deniedForever;
+
+  /// A normal denied state may still present the platform permission prompt.
+  /// Disabled services, denied-forever and unavailable states require recovery
+  /// UI instead and must not be treated as promptable.
+  bool get canRequest => status == LocationPermissionStatus.denied;
 }
 
 /// Check the current service + permission state without showing a runtime
