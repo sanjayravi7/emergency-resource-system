@@ -252,14 +252,6 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     }
   }
 
-  void _adjustAvailable(BackendResource resource, int delta) {
-    final row = _inventoryByResourceId[resource.id];
-    if (row == null) return;
-    final current = _available[resource.id] ?? row.availableQuantity;
-    final next = (current + delta).clamp(0, row.totalQuantity).toInt();
-    setState(() => _available[resource.id] = next);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
