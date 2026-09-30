@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/auth_shell.dart';
 import 'login_screen.dart';
 
 /// The two roles PUBLIC registration may choose between. ADMIN is
@@ -138,211 +139,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: AppColors.bg,
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: AppColors.border),
-                  ),
-                  elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Form(
-                      key: form,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Text(
-                            'ERAS',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          const Text(
-                            'Emergency Resource Allocation System',
-                            style: TextStyle(color: AppColors.textDim),
-                          ),
-                          const SizedBox(height: 28),
-                          const Text(
-                            'CREATE ACCOUNT',
-                            style: TextStyle(
-                              fontSize: 12,
-                              letterSpacing: 1,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textDim,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          const Text(
-                            'How would you like to use ERAS?',
-                            style: TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Select one option. You can request help or offer it.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textFaint,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          _roleCards(),
-                          const SizedBox(height: 14),
-                          if (selectedRole != null)
-                            Container(
-                              key: ValueKey<RegistrationRole>(selectedRole!),
-                              padding: const EdgeInsets.all(12),
-                              color: AppColors.tealDim,
-                              child: Text(
-                                selectedRole!.explanation,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.text,
-                                ),
-                              ),
-                            )
-                          else if (roleError != null)
-                            Text(
-                              roleError!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.red,
-                              ),
-                            ),
-                          const SizedBox(height: 22),
-                          TextFormField(
-                            controller: name,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Full name',
-                            ),
-                            validator: (v) => requiredField(v, 'Name'),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: email,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                            ),
-                            validator: validEmail,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: phone,
-                            keyboardType: TextInputType.phone,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Phone number (optional)',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: password,
-                            obscureText: hidePassword,
-                            textInputAction: TextInputAction.next,
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              helperText: 'At least 6 characters',
-                              suffixIcon: IconButton(
-                                tooltip: 'Show or hide password',
-                                onPressed: () => setState(
-                                  () => hidePassword = !hidePassword,
-                                ),
-                                icon: Icon(
-                                  hidePassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (v) =>
-                                requiredField(v, 'Password') ??
-                                (v!.length < 6
-                                    ? 'Use at least 6 characters'
-                                    : null),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: confirm,
-                            obscureText: hideConfirm,
-                            decoration: InputDecoration(
-                              labelText: 'Confirm password',
-                              suffixIcon: IconButton(
-                                tooltip: 'Show or hide password',
-                                onPressed: () => setState(
-                                  () => hideConfirm = !hideConfirm,
-                                ),
-                                icon: Icon(
-                                  hideConfirm
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                ),
-                              ),
-                            ),
-                            validator: (v) => v != password.text
-                                ? 'Passwords do not match'
-                                : null,
-                          ),
-                          if (error != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 14),
-                              child: Text(
-                                error!,
-                                style: const TextStyle(color: AppColors.red),
-                              ),
-                            ),
-                          const SizedBox(height: 20),
-                          FilledButton(
-                            onPressed: loading ? null : submit,
-                            child: loading
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text('Create account'),
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: loading
-                                ? null
-                                : () => Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const LoginScreen(),
-                                      ),
-                                    ),
-                            child: const Text(
-                              'Already have an account? Sign in',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return AuthShell(child: Container(
+      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 430 ? 22 : 32),
+      decoration: BoxDecoration(color: dark ? const Color(0xE6102035) : Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: dark ? const Color(0xFF2A4C68) : AppColors.border), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: dark ? .2 : .08), blurRadius: 35, offset: const Offset(0, 14))]),
+      child: Form(key: form, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [Expanded(child: _authTab('Login', false, () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen())))), Expanded(child: _authTab('Register', true, () {}))]),
+        const SizedBox(height: 24), const Icon(Icons.person_add_alt_1_rounded, color: AppColors.teal, size: 38), const SizedBox(height: 10),
+        Text('CREATE ACCOUNT', textAlign: TextAlign.center, style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: dark ? Colors.white : AppColors.text)),
+        const SizedBox(height: 5), Text('Join the ERAS emergency response network', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: dark ? const Color(0xFF9CAFC4) : AppColors.textDim)),
+        const SizedBox(height: 24), Text('How would you like to use ERAS?', style: TextStyle(fontSize: 10.5, letterSpacing: 1.1, fontWeight: FontWeight.w800, color: dark ? const Color(0xFFA9B8CC) : AppColors.textDim)), const SizedBox(height: 10), _roleCards(),
+        if (selectedRole != null) Padding(padding: const EdgeInsets.only(top: 10), child: Container(padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: AppColors.teal.withValues(alpha: .1), borderRadius: BorderRadius.circular(9)), child: Text(selectedRole!.explanation, style: TextStyle(fontSize: 11.5, color: dark ? const Color(0xFFC6D5E4) : AppColors.text)))) else if (roleError != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(roleError!, style: const TextStyle(fontSize: 12, color: AppColors.red))),
+        const SizedBox(height: 18), TextFormField(controller: name, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Full name', prefixIcon: Icon(Icons.person_outline)), validator: (v) => requiredField(v, 'Name')),
+        const SizedBox(height: 12), TextFormField(controller: email, keyboardType: TextInputType.emailAddress, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline)), validator: validEmail),
+        const SizedBox(height: 12), TextFormField(controller: phone, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next, decoration: const InputDecoration(labelText: 'Phone number (optional)', prefixIcon: Icon(Icons.phone_outlined))),
+        const SizedBox(height: 12), TextFormField(controller: password, obscureText: hidePassword, textInputAction: TextInputAction.next, decoration: InputDecoration(labelText: 'Password', helperText: 'At least 6 characters', prefixIcon: const Icon(Icons.lock_outline), suffixIcon: IconButton(tooltip: 'Show or hide password', onPressed: () => setState(() => hidePassword = !hidePassword), icon: Icon(hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined))), validator: (v) => requiredField(v, 'Password') ?? (v!.length < 6 ? 'Use at least 6 characters' : null)),
+        const SizedBox(height: 12), TextFormField(controller: confirm, obscureText: hideConfirm, decoration: InputDecoration(labelText: 'Confirm password', prefixIcon: const Icon(Icons.lock_reset_outlined), suffixIcon: IconButton(tooltip: 'Show or hide password', onPressed: () => setState(() => hideConfirm = !hideConfirm), icon: Icon(hideConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined))), validator: (v) => v != password.text ? 'Passwords do not match' : null),
+        if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: const TextStyle(color: AppColors.red))), const SizedBox(height: 18),
+        DecoratedBox(decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF2478E5), Color(0xFF08AA91)]), borderRadius: BorderRadius.circular(12)), child: FilledButton(onPressed: loading ? null : submit, style: FilledButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent), child: loading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Create account'))),
+      ])),
+    ));
+  }
+
+  Widget _authTab(String label, bool selected, VoidCallback tap) => InkWell(onTap: tap, borderRadius: BorderRadius.circular(10), child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: selected ? AppColors.teal.withValues(alpha: .1) : Colors.transparent, borderRadius: BorderRadius.circular(10), border: Border(bottom: BorderSide(color: selected ? AppColors.teal : Colors.transparent, width: 2))), child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w700, color: selected ? AppColors.teal : Theme.of(context).colorScheme.onSurfaceVariant))));
 
   /// Two selectable role cards. They sit side by side when there is room and
   /// stack vertically on narrow phones so nothing is ever clipped or
@@ -538,8 +358,7 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                     if (selected) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'SELECTED',
-                        key: ValueKey<String>(
+                        'SELECTE           key: ValueKey<String>(
                           'role-selected-tag-${widget.role.wireName}',
                         ),
                         style: const TextStyle(
@@ -557,6 +376,10 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
           ),
         ),
       ),
+    );
+  }
+}
+ ),
     );
   }
 }
