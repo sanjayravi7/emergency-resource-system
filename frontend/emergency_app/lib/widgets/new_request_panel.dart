@@ -35,10 +35,10 @@ class NewRequestPayload {
 }
 
 class _DraftLine {
-  _DraftLine();
+  _DraftLine({this.resourceId, this.quantity = 1});
 
   int? resourceId;
-  int quantity = 1;
+  int quantity;
 }
 
 /// Upper bound for one SERVICE resource line. Responder availability never
@@ -47,8 +47,8 @@ class _DraftLine {
 /// absurd numbers. The backend independently caps quantities.
 const int _maxServiceRequestQuantity = 20;
 
-/// Requester form. Every selectable resource comes from
-/// GET /api/resources, so a resource added by an admin (for example
+/// Shared REQUESTER / ADMIN emergency form. Every selectable resource comes
+/// from GET /api/resources, so a resource added by an admin (for example
 /// "Rescue Boat") shows up without touching this file.
 class NewRequestPanel extends StatefulWidget {
   const NewRequestPanel({
@@ -60,6 +60,9 @@ class NewRequestPanel extends StatefulWidget {
     this.locationService,
     this.submitting = false,
     this.showMapPreview,
+    this.initialRequest,
+    this.panelTitle,
+    this.submitLabel,
   });
 
   final List<BackendResource> resources;
@@ -75,6 +78,13 @@ class NewRequestPanel extends StatefulWidget {
 
   final bool submitting;
   final bool? showMapPreview;
+
+  /// When present, the same request form becomes the requester PATCH editor.
+  /// Every mutable value is initialized from the authoritative request
+  /// snapshot; completed/cancelled authorization remains a backend concern.
+  final EmergencyRequest? initialRequest;
+  final String? panelTitle;
+  final String? submitLabel;
 
   @override
   State<NewRequestPanel> createState() => _NewRequestPanelState();
@@ -95,7 +105,48 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
   late final LocationService locationService =
       widget.locationService ?? createLocationService();
 
-  final List<_DraftLine> lines = <_DraftLine>[_DraftLine()];
+  final List<_DraftLine> lines = <_DraftLine>[];
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialRequest;
+    if (initial == null) {
+      lines.add(_DraftLine());
+      return;
+    }
+
+    String? knownType;
+    for (final type in kEmergencyTypes) {
+      if (type.toLowerCase() == initial.emergencyType.toLowerCase()) {
+        knownType = type;
+        break;
+      }
+    }
+    if (knownType == null) {
+      emergencyType = 'Other';
+      customTypeController.text = initial.emergencyType;
+    } else {
+      emergencyType = knownType;
+    }
+    descriptionController.text = initial.description ?? '';
+    locationController.text = initial.location;
+    priority = kPriorities.contains(initial.priority.toUpperCase())
+        ? initial.priority.toUpperCase()
+        : 'HIGH';
+    latitude = initial.latitude;
+    longitude = initial.longitude;
+    allowGpsFallback = !initial.hasPreciseLocation;
+    lines.addAll(
+      initial.requiredResources.map(
+        (line) => _DraftLine(
+          resourceId: line.resourceId,
+          quantity: line.quantity,
+        ),
+      ),
+    );
+    if (lines.isEmpty) lines.add(_DraftLine());
+  }
 
   @override
   void dispose() {
@@ -310,8 +361,11 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
   @override
   Widget build(BuildContext context) {
     return Panel(
-      title: 'SUBMIT REQUEST',
-      hint: 'Resources load live from PostgreSQL',
+      title: widget.panelTitle ??
+          (widget.initialRequest == null ? 'NEW EMERGENCY' : 'EDIT REQUEST'),
+      hint: widget.initialRequest == null
+          ? 'Resources load live from PostgreSQL'
+          : 'Only PENDING requests can be changed',
       trailing: IconButton(
         tooltip: 'Reload resources',
         onPressed: widget.onReload,
@@ -408,7 +462,12 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                       padding: const EdgeInsets.symmetric(vertical: 15),
                     ),
                     child: Text(
-                      widget.submitting ? 'Submitting…' : 'Submit request',
+                      widget.submitting
+                          ? 'Saving…'
+                          : (widget.submitLabel ??
+                              (widget.initialRequest == null
+                                  ? 'Submit request'
+                                  : 'Save changes')),
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
@@ -447,6 +506,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         if (emergencyType == 'Other') ...[
           const SizedBox(height: 8),
           TextField(
+            key: const Key('custom-emergency-type-field'),
             controller: customTypeController,
             decoration: fieldDecoration(hintText: 'Describe the type'),
             style: const TextStyle(fontSize: 13),
@@ -490,6 +550,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         const FieldLabel('Description (optional)'),
         const SizedBox(height: 6),
         TextField(
+          key: const Key('request-description-field'),
           controller: descriptionController,
           minLines: 2,
           maxLines: 3,

@@ -11,10 +11,12 @@ class LogPanel extends StatelessWidget {
   const LogPanel({
     super.key,
     required this.logEntries,
+    this.onViewRequest,
     this.isMobile = false,
   });
 
   final List<EmergencyRequest> logEntries;
+  final void Function(EmergencyRequest request)? onViewRequest;
   final bool isMobile;
 
   @override
@@ -28,7 +30,10 @@ class LogPanel extends StatelessWidget {
               ? Column(
                   children: logEntries
                       .take(50)
-                      .map((entry) => _LogCard(request: entry))
+                      .map((entry) => _LogCard(
+                            request: entry,
+                            onView: onViewRequest,
+                          ))
                       .toList(),
                 )
               : SingleChildScrollView(
@@ -47,6 +52,7 @@ class LogPanel extends StatelessWidget {
                       DataColumn(label: Text('RESPONDER')),
                       DataColumn(label: Text('CREATED')),
                       DataColumn(label: Text('STATUS')),
+                      DataColumn(label: Text('ACTION')),
                     ],
                     rows: logEntries.take(50).map((entry) {
                       return DataRow(cells: [
@@ -114,6 +120,15 @@ class LogPanel extends StatelessWidget {
                             ),
                           ),
                         ),
+                        DataCell(
+                          OutlinedButton(
+                            key: Key('view-log-request-${entry.id}'),
+                            onPressed: onViewRequest == null
+                                ? null
+                                : () => onViewRequest!(entry),
+                            child: const Text('VIEW'),
+                          ),
+                        ),
                       ]);
                     }).toList(),
                   ),
@@ -123,8 +138,9 @@ class LogPanel extends StatelessWidget {
 }
 
 class _LogCard extends StatelessWidget {
-  const _LogCard({required this.request});
+  const _LogCard({required this.request, this.onView});
   final EmergencyRequest request;
+  final void Function(EmergencyRequest request)? onView;
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +185,20 @@ class _LogCard extends StatelessWidget {
               ],
             ),
           ),
-          StatusPill(status: request.status),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatusPill(status: request.status),
+              if (onView != null) ...[
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  key: Key('view-log-request-${request.id}'),
+                  onPressed: () => onView!(request),
+                  child: const Text('VIEW'),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );

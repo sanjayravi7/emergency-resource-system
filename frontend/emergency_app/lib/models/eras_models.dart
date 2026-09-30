@@ -399,34 +399,71 @@ class BackendResponder {
     required this.name,
     required this.email,
     required this.status,
+    this.isActive = true,
     this.phone,
     this.location,
     this.latitude,
     this.longitude,
     this.lastActiveAt,
+    this.helpTypes = const <ResponderHelpType>[],
+    this.resources = const <BackendResponderResource>[],
+    this.compatibleRequestIds = const <int>{},
   });
 
   final int id;
   final String name;
   final String email;
   final String status;
+  final bool isActive;
   final String? phone;
   final String? location;
   final double? latitude;
   final double? longitude;
   final DateTime? lastActiveAt;
 
+  /// Enabled emergency categories and resource/inventory facts returned by the
+  /// existing ADMIN responder endpoint. They are display metadata only;
+  /// [compatibleRequestIds] is the backend-computed assignment allow-list.
+  final List<ResponderHelpType> helpTypes;
+  final List<BackendResponderResource> resources;
+  final Set<int> compatibleRequestIds;
+
+  bool isCompatibleWith(int requestId) =>
+      isActive &&
+      status == 'AVAILABLE' &&
+      compatibleRequestIds.contains(requestId);
+
   factory BackendResponder.fromJson(Map<String, dynamic> json) {
+    final helpTypeRows =
+        json['helpTypes'] ?? json['responderHelpTypes'] ?? const <dynamic>[];
+    final resourceRows =
+        json['resources'] ?? json['responderResources'] ?? const <dynamic>[];
+    final compatibleRows =
+        json['compatibleRequestIds'] as List<dynamic>? ?? const <dynamic>[];
+
     return BackendResponder(
       id: _asInt(json['id']),
       name: json['name']?.toString() ?? 'Unknown responder',
       email: json['email']?.toString() ?? '',
       status: json['responderStatus']?.toString() ?? 'OFFLINE',
+      isActive: json['isActive'] == null ? true : json['isActive'] == true,
       phone: _asTrimmedString(json['phone']),
       location: _asTrimmedString(json['location']),
       latitude: _asDoubleOrNull(json['latitude']),
       longitude: _asDoubleOrNull(json['longitude']),
       lastActiveAt: _asDate(json['lastActiveAt']),
+      helpTypes: _asMapList(helpTypeRows)
+          .map(ResponderHelpType.fromJson)
+          .where((row) => row.enabled)
+          .toList(growable: false),
+      resources: _asMapList(resourceRows)
+          .map(BackendResponderResource.fromJson)
+          .toList(growable: false),
+      compatibleRequestIds: compatibleRows
+          .map(_asIntOrNull)
+          .whereType<int>()
+          .where((id) => id > 0)
+          .toSet(),
     );
   }
 
@@ -436,11 +473,15 @@ class BackendResponder {
       name: name,
       email: email,
       status: nextStatus,
+      isActive: isActive,
       phone: phone,
       location: location,
       latitude: latitude,
       longitude: longitude,
       lastActiveAt: updatedAt ?? lastActiveAt,
+      helpTypes: helpTypes,
+      resources: resources,
+      compatibleRequestIds: compatibleRequestIds,
     );
   }
 }
@@ -463,6 +504,7 @@ class BackendResponderResource {
     required this.responderStatus,
     required this.resourceName,
     required this.resourceType,
+    this.resourceMode = 'CONSUMABLE',
     this.unit,
     this.location,
   });
@@ -485,11 +527,16 @@ class BackendResponderResource {
 
   final String resourceName;
   final String resourceType;
+  final String resourceMode;
   final String? unit;
   final String? location;
 
+  bool get isService => resourceMode == 'SERVICE';
+
   bool get isAvailable =>
-      isEnabled && status == 'AVAILABLE' && availableQuantity > 0;
+      isEnabled &&
+      status == 'AVAILABLE' &&
+      (isService || availableQuantity > 0);
 
   factory BackendResponderResource.fromJson(Map<String, dynamic> json) {
     final responder = _asMap(json['responder']);
@@ -509,6 +556,7 @@ class BackendResponderResource {
           _asTrimmedString(responder['responderStatus']) ?? 'OFFLINE',
       resourceName: _asTrimmedString(resource['name']) ?? 'Resource',
       resourceType: _asTrimmedString(resource['type']) ?? '',
+      resourceMode: _asTrimmedString(resource['mode']) ?? 'CONSUMABLE',
       unit: _asTrimmedString(resource['unit']),
       location: _asTrimmedString(resource['location']),
     );
@@ -1139,8 +1187,12 @@ class NavItem {
 List<NavItem> navItemsForRole(String? role) {
   return <NavItem>[
     const NavItem(ConsoleView.board, Icons.dashboard_outlined, 'Board'),
-    if (role == 'REQUESTER')
-      const NavItem(ConsoleView.newRequest, Icons.add_circle_outline, 'New'),
+    if (role == 'REQUESTER' || role == 'ADMIN')
+      const NavItem(
+        ConsoleView.newRequest,
+        Icons.add_circle_outline,
+        'New Emergency',
+      ),
     const NavItem(
         ConsoleView.resources, Icons.inventory_2_outlined, 'Resources'),
     const NavItem(

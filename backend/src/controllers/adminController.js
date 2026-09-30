@@ -123,7 +123,73 @@ exports.getAllAllocations = async (req, res, next) => {
 
 exports.getAllResponders = async (req, res, next) => {
   try {
-    const responders = await prisma.user.findMany({ where: { role: 'RESPONDER' } });
+    // The assignment picker needs the same database-backed facts used by the
+    // acceptance transaction. Never return the full User row here (in
+    // particular, never expose password hashes). `compatibleRequestIds` is
+    // computed by the existing compatibility service, so Flutter only offers
+    // responders the backend would currently allow to accept.
+    const rows = await prisma.user.findMany({
+      where: { role: 'RESPONDER' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        isActive: true,
+        responderStatus: true,
+        location: true,
+        latitude: true,
+        longitude: true,
+        lastActiveAt: true,
+        responderHelpTypes: {
+          where: { enabled: true },
+          select: { category: true, enabled: true },
+          orderBy: { category: 'asc' },
+        },
+        responderResources: {
+          where: { isEnabled: true },
+          select: {
+            id: true,
+            responderId: true,
+            resourceId: true,
+            totalQuantity: true,
+            availableQuantity: true,
+            status: true,
+            isEnabled: true,
+            resource: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                mode: true,
+                unit: true,
+                location: true,
+                isActive: true,
+              },
+            },
+          },
+          orderBy: { resourceId: 'asc' },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const responders = await Promise.all(
+      rows.map(async (row) => {
+        const compatibleRequests = row.isActive
+          ? await requestService.getCompatibleRequestsForResponder(row.id)
+          : [];
+        return {
+          ...row,
+          // Friendly additive aliases keep the Flutter contract concise while
+          // preserving the relation-shaped fields for existing consumers.
+          helpTypes: row.responderHelpTypes,
+          resources: row.responderResources,
+          compatibleRequestIds: compatibleRequests.map((request) => request.id),
+        };
+      })
+    );
+
     res.json({ success: true, responders });
   } catch (error) {
     next(error);
