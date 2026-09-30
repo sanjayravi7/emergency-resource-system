@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
-
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
-void main() => runApp(const DispatchConsoleApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await ThemeController.load();
+  runApp(const DispatchConsoleApp());
+}
 
 class DispatchConsoleApp extends StatelessWidget {
   const DispatchConsoleApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  @override Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
+    valueListenable: ThemeController.mode,
+    builder: (_, mode, __) => MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'ERAS - Dispatch Console',
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'IBM Plex Sans',
-        scaffoldBackgroundColor: AppColors.bg,
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.teal),
-      ),
+      title: 'ERAS - Emergency Resource Allocation System',
+      theme: erasTheme(Brightness.light),
+      darkTheme: erasTheme(Brightness.dark),
+      themeMode: mode,
+      themeAnimationDuration: const Duration(milliseconds: 350),
       home: const LoginScreen(),
-    );
-  }
+    ),
+  );
 }

@@ -15,6 +15,7 @@ dependencies:
   geolocator: ^13.0.2
   google_maps_flutter: ^2.18.1
   url_launcher: ^6.3.1
+  shared_preferences: ^2.3.3
   # FCM push notifications for backgrounded responders. Socket.IO stays the
   # foreground realtime channel; push only covers responders whose app is not
   # currently maintaining a Socket.IO connection. Runs as a silent no-op when
