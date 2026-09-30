@@ -75,6 +75,8 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
       <int, BackendResponderResource>{};
   final Map<int, bool> _inventoryEnabled = <int, bool>{};
   final Map<int, int> _available = <int, int>{};
+  final Map<int, int> _total = <int, int>{};
+  final Map<int, bool> _availableEdited = <int, bool>{};
 
   bool _loading = true;
   bool _saving = false;
@@ -151,6 +153,11 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           ..clear()
           ..addEntries(resources.map((resource) => MapEntry(resource.id,
               _inventoryByResourceId[resource.id]?.availableQuantity ?? 0)));
+        _total
+          ..clear()
+          ..addEntries(resources.map((resource) => MapEntry(resource.id,
+              _inventoryByResourceId[resource.id]?.totalQuantity ?? 0)));
+        _availableEdited.clear();
         _loading = false;
       });
     } catch (error) {
@@ -187,27 +194,30 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         final isEnabled = _inventoryEnabled[resource.id] ?? false;
         final available = _available[resource.id] ?? 0;
 
+        final total = _total[resource.id] ?? 0;
+        if (available < 0 || total < 0 || available > total) {
+          throw Exception('${resource.name}: available quantity must be between 0 and total quantity.');
+        }
         if (existing == null) {
-          if (isEnabled) {
+          // An empty form is not an inventory row. This prevents readiness
+          // from silently creating zero-quantity resources.
+          if (total > 0 || available > 0 || isEnabled) {
             await _gateway.createInventory(<String, dynamic>{
               'resourceId': resource.id,
-              'totalQuantity': 0,
-              'availableQuantity': 0,
-              'isEnabled': true,
-              'status': 'UNAVAILABLE',
+              'totalQuantity': total,
+              'availableQuantity': available,
+              'isEnabled': isEnabled,
+              'status': available > 0 ? 'AVAILABLE' : 'UNAVAILABLE',
             });
           }
           continue;
         }
 
         await _gateway.updateInventory(existing.id, <String, dynamic>{
-          'isEnabled': isEnabled,
+          'totalQuantity': total,
           'availableQuantity': available,
-          'status': available == 0
-              ? 'UNAVAILABLE'
-              : isEnabled
-                  ? 'AVAILABLE'
-                  : existing.status,
+          'isEnabled': isEnabled,
+          'status': available > 0 && isEnabled ? 'AVAILABLE' : 'UNAVAILABLE',
         });
       }
 
@@ -285,7 +295,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                                 child: CircularProgressIndicator(
                                     strokeWidth: 2, color: Colors.white),
                               )
-                            : const Text('SAVE & GO AVAILABLE'),
+                            : const Text('SAVE INVENTORY & GO AVAILABLE'),
                       ),
                     ],
                   ),
@@ -392,7 +402,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           const SizedBox(height: 12),
           if (_resources.isEmpty)
             _message(
-              'No resource inventory is configured yet. You can still choose '
+              'No active resources are available in the catalog yet. You can still choose '
               'your emergency help types and go available.',
               AppColors.textFaint,
             )
@@ -432,6 +442,17 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           child: Text(text, style: TextStyle(fontSize: 12.5, color: color)),
         ),
       );
+
+  Widget _quantityField(BackendResource resource, String label, int value, ValueChanged<String> onChanged) {
+    return TextFormField(
+      key: Key('${label.toLowerCase().replaceAll(' ', '-')}-${resource.id}'),
+      initialValue: value.toString(),
+      enabled: !_saving,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder()),
+      onChanged: onChanged,
+    );
+  }
 
   Widget _resourceRow(BackendResource resource) {
     final row = _inventoryByResourceId[resource.id];
@@ -484,32 +505,22 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                         fontSize: 12.5, color: AppColors.textDim)),
             ],
           ),
-          if (!isService && _showQuantityControls && row != null)
+          if (!isService)
             Padding(
-              padding: const EdgeInsets.only(left: 48, right: 6, bottom: 4),
-              child: Row(
-                children: <Widget>[
-                  const Text('Available quantity',
-                      style:
-                          TextStyle(fontSize: 11.5, color: AppColors.textDim)),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _saving || available <= 0
-                        ? null
-                        : () => _adjustAvailable(resource, -1),
-                    icon: const Icon(Icons.remove, size: 17),
-                  ),
-                  Text('$available',
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
-                  IconButton(
-                    onPressed: _saving || available >= row.totalQuantity
-                        ? null
-                        : () => _adjustAvailable(resource, 1),
-                    icon: const Icon(Icons.add, size: 17),
-                  ),
-                ],
-              ),
+              padding: const EdgeInsets.only(left: 48, right: 6, bottom: 6),
+              child: Row(children: <Widget>[
+                Expanded(child: _quantityField(resource, 'Total quantity', _total[resource.id] ?? 0, (value) {
+                  final next = int.tryParse(value) ?? 0;
+                  setState(() {
+                    _total[resource.id] = next;
+                    if (!(_availableEdited[resource.id] ?? false)) _available[resource.id] = next;
+                  });
+                })),
+                const SizedBox(width: 10),
+                Expanded(child: _quantityField(resource, 'Available quantity', available, (value) {
+                  setState(() { _available[resource.id] = int.tryParse(value) ?? 0; _availableEdited[resource.id] = true; });
+                })),
+              ]),
             ),
         ],
       ),
