@@ -196,7 +196,9 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
 
         final total = _total[resource.id] ?? 0;
         if (available < 0 || total < 0 || available > total) {
-          throw Exception('${resource.name}: available quantity must be between 0 and total quantity.');
+          throw Exception(
+            '${resource.name}: available quantity must be between 0 and total quantity.',
+          );
         }
         if (existing == null) {
           // An empty form is not an inventory row. This prevents readiness
@@ -248,14 +250,6 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         _error = error.toString().replaceFirst('Exception: ', '');
       });
     }
-  }
-
-  void _adjustAvailable(BackendResource resource, int delta) {
-    final row = _inventoryByResourceId[resource.id];
-    if (row == null) return;
-    final current = _available[resource.id] ?? row.availableQuantity;
-    final next = (current + delta).clamp(0, row.totalQuantity).toInt();
-    setState(() => _available[resource.id] = next);
   }
 
   @override
@@ -443,13 +437,22 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         ),
       );
 
-  Widget _quantityField(BackendResource resource, String label, int value, ValueChanged<String> onChanged) {
+  Widget _quantityField(
+    BackendResource resource,
+    String label,
+    int value,
+    ValueChanged<String> onChanged,
+  ) {
     return TextFormField(
       key: Key('${label.toLowerCase().replaceAll(' ', '-')}-${resource.id}'),
       initialValue: value.toString(),
       enabled: !_saving,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(labelText: label, isDense: true, border: const OutlineInputBorder()),
+      decoration: InputDecoration(
+        labelText: label,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      ),
       onChanged: onChanged,
     );
   }
@@ -508,19 +511,40 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           if (!isService)
             Padding(
               padding: const EdgeInsets.only(left: 48, right: 6, bottom: 6),
-              child: Row(children: <Widget>[
-                Expanded(child: _quantityField(resource, 'Total quantity', _total[resource.id] ?? 0, (value) {
-                  final next = int.tryParse(value) ?? 0;
-                  setState(() {
-                    _total[resource.id] = next;
-                    if (!(_availableEdited[resource.id] ?? false)) _available[resource.id] = next;
-                  });
-                })),
-                const SizedBox(width: 10),
-                Expanded(child: _quantityField(resource, 'Available quantity', available, (value) {
-                  setState(() { _available[resource.id] = int.tryParse(value) ?? 0; _availableEdited[resource.id] = true; });
-                })),
-              ]),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: _quantityField(
+                      resource,
+                      'Total quantity',
+                      _total[resource.id] ?? 0,
+                      (value) {
+                        final next = int.tryParse(value) ?? 0;
+                        setState(() {
+                          _total[resource.id] = next;
+                          if (!(_availableEdited[resource.id] ?? false)) {
+                            _available[resource.id] = next;
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _quantityField(
+                      resource,
+                      'Available quantity',
+                      available,
+                      (value) {
+                        setState(() {
+                          _available[resource.id] = int.tryParse(value) ?? 0;
+                          _availableEdited[resource.id] = true;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),

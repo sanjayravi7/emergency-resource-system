@@ -62,7 +62,7 @@ void main() {
     expect(find.text('Medical'), findsOneWidget);
     expect(find.text('Rescue'), findsOneWidget);
     expect(find.textContaining('You can still choose'), findsOneWidget);
-    expect(find.textContaining('No active resources'), findsNothing);
+    expect(find.textContaining('No active resources'), findsOneWidget);
     expect(find.textContaining('Select at least one resource'), findsNothing);
   });
 
@@ -81,13 +81,13 @@ void main() {
     // revealed, then settle the scroll so the tap below lands on fresh
     // coordinates instead of the stale off-screen ones.
     await tester.scrollUntilVisible(
-      find.text('SAVE & GO AVAILABLE'),
+      find.text('SAVE INVENTORY & GO AVAILABLE'),
       100.0,
       scrollable: find.byType(Scrollable),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('SAVE & GO AVAILABLE'));
+    await tester.tap(find.text('SAVE INVENTORY & GO AVAILABLE'));
     await tester.pumpAndSettle();
 
     expect(gateway.savedHelpTypes, contains('FIRE'));
