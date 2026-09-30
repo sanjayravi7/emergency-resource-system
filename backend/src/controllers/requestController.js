@@ -36,6 +36,17 @@ exports.createRequest = async (req, res, next) => {
   }
 };
 
+exports.updateOwnRequest = async (req, res, next) => {
+  try {
+    const request = await requestService.updateOwnRequest(req.user.id, req.params.id, req.body);
+    res.json({ success: true, request });
+  } catch (error) {
+    if (/unauthorized/i.test(error.message)) return res.status(403).json({ success: false, message: error.message });
+    if (/pending|invalid|required|resource|quantity|completed/i.test(error.message)) return res.status(400).json({ success: false, message: error.message });
+    next(error);
+  }
+};
+
 exports.getMyRequests = async (req, res, next) => {
   try {
     const requests = await requestService.getRequestsByUser(req.user.id);
