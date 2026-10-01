@@ -20,31 +20,46 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeLocationService implements LocationService {
   @override
-  Future<String?> reverseGeocode({
-    required double latitude,
-    required double longitude,
-  }) async {
-    return 'Kochi, Kerala';
+  bool get isAvailable => true;
+
+  @override
+  Future<ResolvedPlace> reverseGeocode(
+    double latitude,
+    double longitude,
+  ) async {
+    return ResolvedPlace(
+      label: 'Kochi, Kerala',
+      latitude: latitude,
+      longitude: longitude,
+    );
   }
 
   @override
-  Future<List<PlacePrediction>> searchPlaces(
+  Future<List<PlacePrediction>> autocomplete(
     String query, {
-    double? proximityLatitude,
-    double? proximityLongitude,
+    GeoPoint? bias,
+    double biasRadiusMeters = 30000,
   }) async {
     return const <PlacePrediction>[];
   }
 
   @override
-  Future<ResolvedPlace?> resolvePlace(PlacePrediction prediction) async => null;
+  Future<ResolvedPlace> resolvePrediction(PlacePrediction prediction) async {
+    return ResolvedPlace(
+      label: prediction.primaryText,
+      latitude: 9.9816,
+      longitude: 76.2999,
+      placeId: prediction.placeId,
+    );
+  }
 
   @override
   Future<List<NearbyPlace>> searchNearbyPlaces({
     required double latitude,
     required double longitude,
     required NearbyPlaceCategory category,
-    int radiusMeters = 5000,
+    double radiusMeters = kNearbySearchRadiusMeters,
+    int maxResults = kNearbySearchMaxResultCount,
   }) async {
     return const <NearbyPlace>[];
   }
