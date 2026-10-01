@@ -214,15 +214,17 @@ PolylineId directConnectionPolylineIdFor(
 /// Builds the straight connection line between one responder and the
 /// emergency. Local map geometry only — no API request. Multiple responders
 /// each get their own line with a unique id.
-Polyline buildDirectConnectionPolyline(DirectConnection c, [ErasPalette? p]) {
-  final palette = p ?? ErasPalette.light;
+Polyline buildDirectConnectionPolyline(DirectConnection connection) {
   return Polyline(
-    polylineId: directConnectionPolylineIdFor(c.requestId, c.responderId),
+    polylineId: directConnectionPolylineIdFor(
+      connection.requestId,
+      connection.responderId,
+    ),
     points: <LatLng>[
-      LatLng(c.responder.latitude, c.responder.longitude),
-      LatLng(c.emergency.latitude, c.emergency.longitude),
+      LatLng(connection.responder.latitude, connection.responder.longitude),
+      LatLng(connection.emergency.latitude, connection.emergency.longitude),
     ],
-    color: palette.blue,
+    color: AppColors.blue,
     width: 4,
     patterns: <PatternItem>[PatternItem.dash(18), PatternItem.gap(10)],
   );
@@ -322,7 +324,6 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
     final snapshots = _snapshots;
     final markers = snapshots.map((snapshot) => snapshot.toMarker()).toSet();
     final textOnlyOpenRequests = _textOnlyOpenRequests;
@@ -330,7 +331,7 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
     // One straight blue line per valid responder → emergency pair.
     final polylines = <Polyline>{
       for (final connection in connections)
-        buildDirectConnectionPolyline(connection, p),
+        buildDirectConnectionPolyline(connection),
     };
 
     return LayoutBuilder(
@@ -380,10 +381,10 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                           },
                         )
                       else
-                        Positioned.fill(
+                        const Positioned.fill(
                           child: ColoredBox(
-                            color: p.dark ? p.inputFill : p.bg,
-                            child: const _NoPreciseMarkersOverlay(),
+                            color: AppColors.bg,
+                            child: _NoPreciseMarkersOverlay(),
                           ),
                         ),
                       Positioned(
@@ -458,25 +459,25 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                       spacing: isMobileLayout ? 8 : 12,
                       runSpacing: isMobileLayout ? 6 : 6,
                       children: [
-                        LegendItem(
-                          color: p.red,
+                        const LegendItem(
+                          color: AppColors.red,
                           label: 'Active emergency',
                         ),
-                        LegendItem(
-                          color: p.amber,
+                        const LegendItem(
+                          color: AppColors.amber,
                           label: 'Pending request',
                         ),
-                        LegendItem(
-                          color: p.teal,
+                        const LegendItem(
+                          color: AppColors.teal,
                           label: 'LIVE responder',
                         ),
-                        LegendItem(
-                          color: p.blue,
+                        const LegendItem(
+                          color: AppColors.blue,
                           label: 'LAST KNOWN responder',
                         ),
                         if (connections.isNotEmpty)
-                          LegendItem(
-                            color: p.blue,
+                          const LegendItem(
+                            color: AppColors.blue,
                             label: 'Direct connection (straight line)',
                           ),
                       ],
@@ -486,9 +487,9 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                       Text(
                         '${textOnlyOpenRequests.length} open request${textOnlyOpenRequests.length == 1 ? '' : 's'} '
                         'have text-only locations. Precise map pins are unavailable until GPS coordinates are provided.',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11.5,
-                          color: p.textFaint,
+                          color: AppColors.textFaint,
                           height: 1.35,
                         ),
                       ),
@@ -763,18 +764,16 @@ class _MapControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: p.surface.withValues(alpha: .94),
-        border: Border.all(color: p.border),
+        color: AppColors.surface.withValues(alpha: .94),
+        border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             blurRadius: 16,
             offset: const Offset(0, 6),
-            color: Colors.black.withValues(alpha: p.dark ? .28 : .08),
+            color: Colors.black.withValues(alpha: .08),
           ),
         ],
       ),
@@ -792,7 +791,7 @@ class _MapControls extends StatelessWidget {
               ),
               label: Text(isMobile ? 'Center' : 'Center on emergency'),
               style: TextButton.styleFrom(
-                foregroundColor: p.red,
+                foregroundColor: AppColors.red,
                 textStyle: TextStyle(
                   fontSize: isMobile ? 11.5 : 12,
                   fontWeight: FontWeight.w600,
@@ -814,7 +813,7 @@ class _MapControls extends StatelessWidget {
               ),
               label: const Text('Fit pins'),
               style: TextButton.styleFrom(
-                foregroundColor: p.blue,
+                foregroundColor: AppColors.blue,
                 textStyle: TextStyle(
                   fontSize: isMobile ? 11.5 : 12,
                   fontWeight: FontWeight.w600,
@@ -879,22 +878,20 @@ class NavigationInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final expandedLayout = _shouldUseExpandedLayout(context, constraints);
 
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: p.surface.withValues(alpha: .94),
-            border: Border.all(color: p.border),
+            color: AppColors.surface.withValues(alpha: .94),
+            border: Border.all(color: AppColors.border),
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
                 blurRadius: 16,
                 offset: const Offset(0, 4),
-                color: Colors.black.withValues(alpha: p.dark ? .26 : .06),
+                color: Colors.black.withValues(alpha: .06),
               ),
             ],
           ),
@@ -909,100 +906,100 @@ class NavigationInfoCard extends StatelessWidget {
               expandedLayout ? 12 : 12,
               expandedLayout ? 10 : 8,
             ),
-            child: expandedLayout ? _expandedContent(p) : _compactContent(p),
+            child: expandedLayout ? _expandedContent() : _compactContent(),
           ),
         );
       },
     );
   }
 
-  Widget _compactContent(ErasPalette p) {
+  Widget _compactContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _heading(p),
+        _heading(),
         const SizedBox(height: 6),
         Text(
           'Responder location: '
           '${connection.responderIsLive ? 'LIVE' : 'LAST KNOWN'}',
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w700,
-            color: p.text,
+            color: AppColors.text,
           ),
         ),
         const SizedBox(height: 2),
-        Text(
+        const Text(
           'Emergency location: SET',
           style: TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w700,
-            color: p.text,
+            color: AppColors.text,
           ),
         ),
         if (showDirectDistance) ...[
           const SizedBox(height: 4),
           Text(
             'Direct distance: ${connection.directDistanceLabel}',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 11.5,
-              color: p.textDim,
+              color: AppColors.textDim,
             ),
           ),
-          Text(
+          const Text(
             'Straight-line only, not a road distance.',
             style: TextStyle(
               fontSize: 10,
               height: 1.3,
-              color: p.textFaint,
+              color: AppColors.textFaint,
             ),
           ),
         ],
         const SizedBox(height: 4),
         Align(
           alignment: Alignment.centerLeft,
-          child: _directionsButton(p, expanded: false),
+          child: _directionsButton(expanded: false),
         ),
-        Text(
+        const Text(
           'Driving directions open in Google Maps.',
           style: TextStyle(
             fontSize: 10,
             height: 1.3,
-            color: p.textFaint,
+            color: AppColors.textFaint,
           ),
         ),
       ],
     );
   }
 
-  Widget _expandedContent(ErasPalette p) {
+  Widget _expandedContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _heading(p),
+        _heading(),
         const SizedBox(height: 6),
-        Divider(height: 1, color: p.border),
+        const Divider(height: 1, color: AppColors.border),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: _mobileFact(
-                p: p,
                 label: 'Responder location:',
                 value: connection.responderIsLive ? 'LIVE' : 'LAST KNOWN',
-                valueColor: connection.responderIsLive ? p.teal : p.blue,
+                valueColor: connection.responderIsLive
+                    ? AppColors.teal
+                    : AppColors.blue,
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _mobileFact(
-                p: p,
                 label: 'Emergency location:',
                 value: 'SET',
-                valueColor: p.red,
+                valueColor: AppColors.red,
               ),
             ),
           ],
@@ -1010,7 +1007,6 @@ class NavigationInfoCard extends StatelessWidget {
         if (showDirectDistance) ...[
           const SizedBox(height: 6),
           _mobileFact(
-            p: p,
             label: 'Direct distance:',
             value: connection.directDistanceLabel,
             helpText: 'Straight-line only, not a road distance',
@@ -1019,35 +1015,34 @@ class NavigationInfoCard extends StatelessWidget {
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
-          child: _directionsButton(p, expanded: true),
+          child: _directionsButton(expanded: true),
         ),
         const SizedBox(height: 4),
-        Text(
+        const Text(
           'Driving directions open in Google Maps.',
           style: TextStyle(
             fontSize: 10,
             height: 1.25,
-            color: p.textFaint,
+            color: AppColors.textFaint,
           ),
         ),
       ],
     );
   }
 
-  Widget _heading(ErasPalette p) {
-    return Text(
+  Widget _heading() {
+    return const Text(
       'RESPONDER → EMERGENCY',
       style: TextStyle(
         fontSize: 10.5,
         fontWeight: FontWeight.w800,
         letterSpacing: .8,
-        color: p.textDim,
+        color: AppColors.textDim,
       ),
     );
   }
 
   Widget _mobileFact({
-    required ErasPalette p,
     required String label,
     required String value,
     Color? valueColor,
@@ -1059,10 +1054,10 @@ class NavigationInfoCard extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: p.textDim,
+            color: AppColors.textDim,
           ),
         ),
         const SizedBox(height: 2),
@@ -1071,17 +1066,17 @@ class NavigationInfoCard extends StatelessWidget {
           style: TextStyle(
             fontSize: 12.5,
             fontWeight: FontWeight.w800,
-            color: valueColor ?? p.text,
+            color: valueColor ?? AppColors.text,
           ),
         ),
         if (helpText != null) ...[
           const SizedBox(height: 1),
           Text(
             helpText,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 10,
               height: 1.25,
-              color: p.textFaint,
+              color: AppColors.textFaint,
             ),
           ),
         ],
@@ -1089,14 +1084,14 @@ class NavigationInfoCard extends StatelessWidget {
     );
   }
 
-  Widget _directionsButton(ErasPalette p, {required bool expanded}) {
+  Widget _directionsButton({required bool expanded}) {
     if (!expanded) {
       return TextButton.icon(
         onPressed: onGetDirections,
         icon: const Icon(Icons.directions_rounded, size: 16),
         label: const Text('Get directions'),
         style: TextButton.styleFrom(
-          foregroundColor: p.teal,
+          foregroundColor: AppColors.teal,
           textStyle: const TextStyle(fontSize: 12),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           minimumSize: Size.zero,
@@ -1114,8 +1109,8 @@ class NavigationInfoCard extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       style: TextButton.styleFrom(
-        backgroundColor: p.tealDim,
-        foregroundColor: p.teal,
+        backgroundColor: AppColors.tealDim,
+        foregroundColor: AppColors.teal,
         textStyle: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w700,
@@ -1136,31 +1131,29 @@ class _LocationPermissionNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: p.surface.withValues(alpha: .94),
-        border: Border.all(color: p.border),
+        color: AppColors.surface.withValues(alpha: .94),
+        border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         child: Row(
           children: [
-            Icon(Icons.location_disabled_outlined, size: 16, color: p.amber),
+            const Icon(Icons.location_disabled_outlined,
+                size: 16, color: AppColors.amber),
             const SizedBox(width: 7),
-            Expanded(
+            const Expanded(
               child: Text(
                 'My Location is unavailable until location permission is granted.',
-                style: TextStyle(fontSize: 11.5, color: p.textDim),
+                style: TextStyle(fontSize: 11.5, color: AppColors.textDim),
               ),
             ),
             if (onRequest != null)
               TextButton(
                 onPressed: () => unawaited(onRequest!()),
                 style: TextButton.styleFrom(
-                  foregroundColor: p.teal,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -1178,39 +1171,37 @@ class _NoPreciseMarkersOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 320),
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: p.surface.withValues(alpha: .94),
-          border: Border.all(color: p.border),
+          color: AppColors.surface.withValues(alpha: .94),
+          border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Column(
+        child: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.location_off_outlined, color: p.textFaint),
-            const SizedBox(height: 6),
+            Icon(Icons.location_off_outlined, color: AppColors.textFaint),
+            SizedBox(height: 6),
             Text(
               'No precise map pins yet',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: p.text,
+                color: AppColors.text,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'Requests without latitude/longitude remain text-only and no fake coordinates are generated.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
                 height: 1.3,
-                color: p.textDim,
+                color: AppColors.textDim,
               ),
             ),
           ],

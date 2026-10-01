@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../models/eras_models.dart';
 import '../services/socket_service.dart';
+import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
-import 'auth_motion.dart';
 
 // ── Panel shell ────────────────────────────────────────────────────────────
 
@@ -23,44 +22,31 @@ class Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
-    return AnimatedContainer(
-      duration: AuthMotion.normal,
-      curve: AuthMotion.outCurve,
+    return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
-        color: p.surface,
-        border: Border.all(color: p.cardBorder),
+        color: AppColors.surface,
+        border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(8),
-        boxShadow: p.dark
-            ? [
-                BoxShadow(
-                  color: p.cardShadow,
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ]
-            : const [],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: p.border)),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: .8,
-                      color: p.text,
+                      color: AppColors.text,
                     ),
                   ),
                 ),
@@ -71,9 +57,9 @@ class Panel extends StatelessWidget {
                     child: Text(
                       hint,
                       textAlign: TextAlign.right,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11,
-                        color: p.dark ? p.textDim : p.textFaint,
+                        color: AppColors.textFaint,
                       ),
                     ),
                   ),
@@ -100,47 +86,38 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
-    return EntranceReveal(
-      offset: const Offset(0, 6),
-      duration: AuthMotion.normal,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 22, color: p.textFaint),
-                  const SizedBox(height: 8),
-                ],
-                if (title != null) ...[
-                  Text(
-                    title!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: .6,
-                      color: p.textDim,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                ],
-                Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    color: p.dark ? p.textDim : p.textFaint,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 22, color: AppColors.textFaint),
+                const SizedBox(height: 8),
               ],
-            ),
+              if (title != null) ...[
+                Text(
+                  title!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .6,
+                    color: AppColors.textDim,
+                  ),
+                ),
+                const SizedBox(height: 5),
+              ],
+              Text(
+                text,
+                style: const TextStyle(
+                    fontSize: 12.5, color: AppColors.textFaint, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       ),
@@ -155,16 +132,14 @@ class LegendItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final labelWidget = Text(
           label,
           softWrap: true,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 11.5,
-            color: p.textDim,
+            color: AppColors.textDim,
             height: 1.25,
           ),
         );
@@ -207,39 +182,35 @@ class ConnectionStatusIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
     final (label, color, icon) = switch (status) {
       RealtimeConnectionStatus.connected => (
           'CONNECTED',
-          p.teal,
+          AppColors.teal,
           Icons.wifi_rounded
         ),
       RealtimeConnectionStatus.reconnecting => (
           'RECONNECTING',
-          p.amber,
+          AppColors.amber,
           Icons.sync_rounded
         ),
       RealtimeConnectionStatus.offline => (
           'OFFLINE',
-          p.red,
+          AppColors.red,
           Icons.wifi_off_rounded
         ),
     };
-    final borderColor = color.withValues(alpha: p.dark ? .42 : .35);
 
     return Semantics(
       label: 'Realtime connection $label',
-      child: AnimatedContainer(
-        duration: AuthMotion.fast,
-        curve: AuthMotion.outCurve,
+      child: Container(
         key: const ValueKey<String>('connection-status-indicator'),
         padding: EdgeInsets.symmetric(
           horizontal: compact ? 7 : 9,
           vertical: compact ? 4 : 5,
         ),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: p.dark ? .16 : .11),
-          border: Border.all(color: borderColor),
+          color: color.withValues(alpha: .11),
+          border: Border.all(color: color.withValues(alpha: .35)),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -270,19 +241,13 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    final colors = statusColors(status, p);
-    final pillBorder =
-        p.dark ? Border.all(color: colors.text.withValues(alpha: .28)) : null;
+    final colors = statusColors(status);
 
-    return AnimatedContainer(
-      duration: AuthMotion.fast,
-      curve: AuthMotion.outCurve,
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
       decoration: BoxDecoration(
         color: colors.background,
         borderRadius: BorderRadius.circular(20),
-        border: pillBorder,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -311,19 +276,13 @@ class PriorityPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    final colors = priorityColors(priority, p);
-    final pillBorder =
-        p.dark ? Border.all(color: colors.text.withValues(alpha: .28)) : null;
+    final colors = priorityColors(priority);
 
-    return AnimatedContainer(
-      duration: AuthMotion.fast,
-      curve: AuthMotion.outCurve,
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: colors.background,
         borderRadius: BorderRadius.circular(4),
-        border: pillBorder,
       ),
       child: Text(
         priority.toUpperCase(),
@@ -351,8 +310,7 @@ class ResourceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    final meta = resourceMetaFor(type.isEmpty ? name : type, p);
+    final meta = resourceMetaFor(type.isEmpty ? name : type);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -376,14 +334,14 @@ class ResourceChip extends StatelessWidget {
               children: [
                 Text(
                   quantity == null ? name : '$name × $quantity',
-                  style: TextStyle(fontSize: 12.5, color: p.text),
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.text),
                 ),
                 if (trailingText != null)
                   Text(
                     trailingText!,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 11,
-                      color: p.textFaint,
+                      color: AppColors.textFaint,
                     ),
                   ),
               ],
@@ -401,8 +359,6 @@ class InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Column(
@@ -410,13 +366,13 @@ class InfoChip extends StatelessWidget {
         children: [
           Text(
             label.toUpperCase(),
-            style:
-                TextStyle(fontSize: 9.5, color: p.textFaint, letterSpacing: .5),
+            style: const TextStyle(
+                fontSize: 9.5, color: AppColors.textFaint, letterSpacing: .5),
           ),
           const SizedBox(height: 1),
           Text(
             value,
-            style: TextStyle(fontSize: 12.5, color: p.text),
+            style: const TextStyle(fontSize: 12.5, color: AppColors.text),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -431,18 +387,11 @@ class FieldLabel extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    return Text(
-      text.toUpperCase(),
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w600,
-        color: p.dark ? p.textDim : p.textFaint,
-        letterSpacing: .5,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Text(
+        text.toUpperCase(),
+        style: const TextStyle(
+            fontSize: 11, color: AppColors.textFaint, letterSpacing: .5),
+      );
 }
 
 // ── Header stats ───────────────────────────────────────────────────────────
@@ -455,31 +404,21 @@ class Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        AnimatedSwap(
-          duration: AuthMotion.fast,
-          offset: const Offset(0, 4),
-          child: Text(
-            '$value',
-            key: ValueKey<int>(value),
-            style: monoStyle(
-              size: 18,
-              color: color ?? p.text,
-              weight: FontWeight.w600,
-            ),
+        Text(
+          '$value',
+          style: monoStyle(
+            size: 18,
+            color: color ?? AppColors.text,
+            weight: FontWeight.w600,
           ),
         ),
         Text(
           label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 9.5,
-            color: p.dark ? p.textDim : p.textFaint,
-            letterSpacing: .6,
-          ),
+          style: const TextStyle(
+              fontSize: 9.5, color: AppColors.textFaint, letterSpacing: .6),
         ),
       ],
     );
@@ -495,8 +434,6 @@ class MiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -504,17 +441,14 @@ class MiniStat extends StatelessWidget {
           '$value',
           style: monoStyle(
             size: 13,
-            color: color ?? p.text,
+            color: color ?? AppColors.text,
             weight: FontWeight.w600,
           ),
         ),
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(
-            fontSize: 10.5,
-            color: p.dark ? p.textDim : p.textFaint,
-          ),
+          style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
         ),
       ],
     );
@@ -527,15 +461,13 @@ class Brand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return Row(
       children: [
         Container(
           width: 10,
           height: 10,
           decoration: BoxDecoration(
-            color: p.teal,
+            color: AppColors.teal,
             borderRadius: BorderRadius.circular(3),
           ),
         ),
@@ -549,14 +481,14 @@ class Brand extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
+              const Text(
                 'ERAS',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: p.text,
+                  color: AppColors.text,
                 ),
               ),
               if (subtitle != null)
@@ -564,9 +496,9 @@ class Brand extends StatelessWidget {
                   subtitle!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
-                    color: p.dark ? p.textDim : p.textFaint,
+                    color: AppColors.textFaint,
                   ),
                 ),
             ],
@@ -579,7 +511,7 @@ class Brand extends StatelessWidget {
 
 // ── Navigation ─────────────────────────────────────────────────────────────
 
-class NavButton extends StatefulWidget {
+class NavButton extends StatelessWidget {
   const NavButton({
     super.key,
     required this.item,
@@ -592,117 +524,42 @@ class NavButton extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<NavButton> createState() => _NavButtonState();
-}
-
-class _NavButtonState extends State<NavButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    final active = widget.active;
-    final fg = active ? p.teal : (_hovered ? p.text : p.textDim);
-    final hoverBg = p.surface2.withValues(alpha: p.dark ? .72 : .65);
-    final bg = active ? p.tealDim : (_hovered ? hoverBg : Colors.transparent);
-    final leftColor =
-        active ? p.teal : (_hovered ? p.border : Colors.transparent);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: PressableScale(
-        scale: 0.99,
-        child: InkWell(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: AuthMotion.fast,
-            curve: AuthMotion.outCurve,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              color: bg,
-              border: Border(
-                left: BorderSide(
-                  color: leftColor,
-                  width: 3,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  widget.item.icon,
-                  size: 17,
-                  color: fg,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: AnimatedDefaultTextStyle(
-                    duration: AuthMotion.fast,
-                    curve: AuthMotion.outCurve,
-                    style: TextStyle(
-                      fontFamily: 'Arial',
-                      fontSize: 13,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                      color: fg,
-                    ),
-                    child: Text(
-                      widget.item.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: active ? AppColors.tealDim : Colors.transparent,
+          border: Border(
+            left: BorderSide(
+              color: active ? AppColors.teal : Colors.transparent,
+              width: 3,
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class RefreshSpinButton extends StatefulWidget {
-  const RefreshSpinButton({
-    super.key,
-    required this.onPressed,
-    this.tooltip = 'Reload from database',
-    this.iconSize = 18,
-  });
-
-  final VoidCallback onPressed;
-  final String tooltip;
-  final double iconSize;
-
-  @override
-  State<RefreshSpinButton> createState() => _RefreshSpinButtonState();
-}
-
-class _RefreshSpinButtonState extends State<RefreshSpinButton> {
-  double _turns = 0;
-
-  void _handleTap() {
-    if (!AuthMotion.reducedMotion(context)) {
-      setState(() => _turns += 1);
-    }
-    widget.onPressed();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    final reduced = AuthMotion.reducedMotion(context);
-    final spinDuration =
-        reduced ? Duration.zero : const Duration(milliseconds: 420);
-
-    return IconButton(
-      tooltip: widget.tooltip,
-      onPressed: _handleTap,
-      icon: AnimatedRotation(
-        turns: _turns,
-        duration: spinDuration,
-        curve: AuthMotion.outCurve,
-        child: Icon(Icons.refresh, size: widget.iconSize, color: p.textDim),
+        child: Row(
+          children: [
+            Icon(
+              item.icon,
+              size: 17,
+              color: active ? AppColors.teal : AppColors.textDim,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  color: active ? AppColors.teal : AppColors.textDim,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -730,15 +587,11 @@ class Rail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
-    return AnimatedContainer(
-      duration: AuthMotion.normal,
-      curve: AuthMotion.outCurve,
+    return Container(
       width: 208,
-      decoration: BoxDecoration(
-        color: p.sidebar,
-        border: Border(right: BorderSide(color: p.border)),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(right: BorderSide(color: AppColors.border)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -747,7 +600,7 @@ class Rail extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
             child: Brand(subtitle: roleLabel),
           ),
-          Divider(height: 1, color: p.border),
+          const Divider(height: 1, color: AppColors.border),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(top: 8),
@@ -762,60 +615,39 @@ class Rail extends StatelessWidget {
                   .toList(),
             ),
           ),
-          Divider(height: 1, color: p.border),
+          const Divider(height: 1, color: AppColors.border),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 10, 6),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     clock,
-                    style: monoStyle(size: 12.5, color: p.textDim),
+                    style: monoStyle(size: 12.5, color: AppColors.textDim),
                   ),
                 ),
                 IconButton(
-                  tooltip:
-                      p.dark ? 'Switch to light mode' : 'Switch to dark mode',
-                  onPressed: ThemeController.toggle,
-                  visualDensity: VisualDensity.compact,
-                  icon: AnimatedSwap(
-                    duration: AuthMotion.fast,
-                    child: Icon(
-                      p.dark
-                          ? Icons.light_mode_rounded
-                          : Icons.dark_mode_rounded,
-                      key: ValueKey<bool>(p.dark),
-                      size: 17,
-                      color: p.textDim,
-                    ),
-                  ),
+                  tooltip: 'Reload from database',
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh,
+                      size: 18, color: AppColors.textDim),
                 ),
-                RefreshSpinButton(onPressed: onRefresh),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
-            child: PressableScale(
-              child: OutlinedButton.icon(
-                onPressed: onLogout,
-                icon: Icon(Icons.logout, size: 15, color: p.textDim),
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: p.dark ? p.surface2 : Colors.transparent,
-                  foregroundColor: p.textDim,
-                  side: BorderSide(color: p.border),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                ),
-                label: Text(
-                  'Sign out',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: p.dark ? p.text : p.textDim,
-                  ),
+            child: OutlinedButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout, size: 15),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textDim,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(5),
                 ),
               ),
+              label: const Text('Sign out', style: TextStyle(fontSize: 12)),
             ),
           ),
         ],
@@ -838,22 +670,19 @@ class BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
     var index = items.indexWhere((item) => item.view == activeView);
     if (index < 0) index = 0;
 
     return NavigationBar(
       height: 62,
-      backgroundColor: p.sidebar,
-      surfaceTintColor: Colors.transparent,
-      indicatorColor: p.tealDim,
+      backgroundColor: AppColors.surface,
+      indicatorColor: AppColors.tealDim,
       selectedIndex: index,
       onDestinationSelected: (i) => onViewChanged(items[i].view),
       destinations: items
           .map(
             (item) => NavigationDestination(
-              icon: Icon(item.icon, size: 20, color: p.textDim),
-              selectedIcon: Icon(item.icon, size: 20, color: p.teal),
+              icon: Icon(item.icon, size: 20),
               label: item.label,
             ),
           )
@@ -881,15 +710,11 @@ class DesktopTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
-    return AnimatedContainer(
-      duration: AuthMotion.normal,
-      curve: AuthMotion.outCurve,
+    return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-      decoration: BoxDecoration(
-        color: p.header,
-        border: Border(bottom: BorderSide(color: p.border)),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
         children: [
@@ -907,22 +732,19 @@ class DesktopTopBar extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: p.text,
+                          color: AppColors.text,
                         ),
                       ),
                     ),
                     if (loading) ...[
                       const SizedBox(width: 10),
-                      SizedBox(
+                      const SizedBox(
                         width: 13,
                         height: 13,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: p.teal,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                     ],
                   ],
@@ -932,9 +754,9 @@ class DesktopTopBar extends StatelessWidget {
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
-                    color: p.dark ? p.textDim : p.textFaint,
+                    color: AppColors.textFaint,
                   ),
                 ),
               ],
@@ -942,11 +764,11 @@ class DesktopTopBar extends StatelessWidget {
           ),
           ConnectionStatusIndicator(status: connectionStatus),
           const SizedBox(width: 22),
-          Stat(label: 'pending', value: pending, color: p.amber),
+          Stat(label: 'pending', value: pending, color: AppColors.amber),
           const SizedBox(width: 22),
-          Stat(label: 'active', value: active, color: p.blue),
+          Stat(label: 'active', value: active, color: AppColors.blue),
           const SizedBox(width: 22),
-          Stat(label: 'closed', value: completed, color: p.teal),
+          Stat(label: 'closed', value: completed, color: AppColors.teal),
         ],
       ),
     );
@@ -980,12 +802,8 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
-    return AnimatedContainer(
-      duration: AuthMotion.normal,
-      curve: AuthMotion.outCurve,
-      color: p.header,
+    return Container(
+      color: AppColors.surface,
       // The Scaffold app-bar slot includes [preferredSize]. Keep the status
       // inset in that same budget instead of letting the Column overflow on
       // short Android viewports.
@@ -995,8 +813,8 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: p.border)),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
             child: Row(
               children: [
@@ -1006,11 +824,17 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
                   compact: true,
                 ),
                 const SizedBox(width: 7),
-                Text(clock, style: monoStyle(size: 12, color: p.textFaint)),
-                RefreshSpinButton(onPressed: onRefresh),
+                Text(clock,
+                    style: monoStyle(size: 12, color: AppColors.textFaint)),
+                IconButton(
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh,
+                      size: 18, color: AppColors.textDim),
+                ),
                 IconButton(
                   onPressed: onLogout,
-                  icon: Icon(Icons.logout, size: 17, color: p.textDim),
+                  icon: const Icon(Icons.logout,
+                      size: 17, color: AppColors.textDim),
                 ),
               ],
             ),
@@ -1022,18 +846,20 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: p.text,
+                      color: AppColors.text,
                     ),
                   ),
                 ),
-                MiniStat(label: 'pending', value: pending, color: p.amber),
+                MiniStat(
+                    label: 'pending', value: pending, color: AppColors.amber),
                 const SizedBox(width: 10),
-                MiniStat(label: 'active', value: active, color: p.blue),
+                MiniStat(label: 'active', value: active, color: AppColors.blue),
                 const SizedBox(width: 10),
-                MiniStat(label: 'closed', value: completed, color: p.teal),
+                MiniStat(
+                    label: 'closed', value: completed, color: AppColors.teal),
               ],
             ),
           ),

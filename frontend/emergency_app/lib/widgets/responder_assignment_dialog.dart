@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
-import 'auth_motion.dart';
 
 /// ADMIN responder picker. Compatibility comes from the backend's existing
 /// acceptance rules (`compatibleRequestIds`); this widget never guesses from
@@ -35,7 +34,6 @@ class _ResponderAssignmentDialogState extends State<ResponderAssignmentDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
     final rows = compatibleResponders;
     final selected = firstWhereOrNull(
       rows,
@@ -44,26 +42,18 @@ class _ResponderAssignmentDialogState extends State<ResponderAssignmentDialog> {
 
     return AlertDialog(
       key: const Key('responder-assignment-dialog'),
-      backgroundColor: p.surface,
-      surfaceTintColor: Colors.transparent,
-      title: Text(
-        'Accept / assign ${widget.request.displayId}',
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: p.text,
-        ),
-      ),
+      backgroundColor: AppColors.surface,
+      title: Text('Accept / assign ${widget.request.displayId}'),
       content: SizedBox(
         width: 620,
         child: rows.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 18),
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 18),
                 child: Text(
                   'No compatible AVAILABLE responders right now. Help types, '
                   'active workload and resource availability are checked by '
                   'the backend.',
-                  style: TextStyle(color: p.textDim, height: 1.45),
+                  style: TextStyle(color: AppColors.textDim, height: 1.45),
                 ),
               )
             : ConstrainedBox(
@@ -72,7 +62,7 @@ class _ResponderAssignmentDialogState extends State<ResponderAssignmentDialog> {
                   shrinkWrap: true,
                   itemCount: rows.length,
                   separatorBuilder: (_, __) =>
-                      Divider(height: 1, color: p.border),
+                      const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, index) {
                     final responder = rows[index];
                     return _ResponderChoice(
@@ -88,22 +78,15 @@ class _ResponderAssignmentDialogState extends State<ResponderAssignmentDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          style: TextButton.styleFrom(foregroundColor: p.textDim),
           child: const Text('Cancel'),
         ),
-        PressableScale(
-          enabled: selected != null,
-          child: FilledButton(
-            key: const Key('confirm-admin-assignment-button'),
-            onPressed: selected == null
-                ? null
-                : () => Navigator.of(context).pop(selected),
-            style: FilledButton.styleFrom(
-              backgroundColor: p.teal,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Assign responder'),
-          ),
+        FilledButton(
+          key: const Key('confirm-admin-assignment-button'),
+          onPressed: selected == null
+              ? null
+              : () => Navigator.of(context).pop(selected),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
+          child: const Text('Assign responder'),
         ),
       ],
     );
@@ -123,7 +106,6 @@ class _ResponderChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
     final helpTypes = responder.helpTypes
         .map((row) => row.displayLabel)
         .where((label) => label.trim().isNotEmpty)
@@ -132,15 +114,8 @@ class _ResponderChoice extends StatelessWidget {
     return InkWell(
       key: Key('assignment-responder-${responder.id}'),
       onTap: onSelected,
-      child: AnimatedContainer(
-        duration: AuthMotion.fast,
-        curve: AuthMotion.outCurve,
+      child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color:
-              selected ? p.tealDim.withValues(alpha: .45) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -151,7 +126,7 @@ class _ResponderChoice extends StatelessWidget {
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
                 size: 20,
-                color: selected ? p.teal : p.textFaint,
+                color: selected ? AppColors.teal : AppColors.textFaint,
               ),
             ),
             const SizedBox(width: 4),
@@ -164,10 +139,9 @@ class _ResponderChoice extends StatelessWidget {
                       Expanded(
                         child: Text(
                           responder.name,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: p.text,
                           ),
                         ),
                       ),
@@ -178,19 +152,19 @@ class _ResponderChoice extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       'Help types · $helpTypes',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
-                        color: p.textDim,
+                        color: AppColors.textDim,
                       ),
                     ),
                   ],
                   const SizedBox(height: 5),
                   if (responder.resources.isEmpty)
-                    Text(
+                    const Text(
                       'No enabled inventory/resource rows',
                       style: TextStyle(
                         fontSize: 11.5,
-                        color: p.textFaint,
+                        color: AppColors.textFaint,
                       ),
                     )
                   else
@@ -205,8 +179,8 @@ class _ResponderChoice extends StatelessWidget {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: p.surface2,
-                              border: Border.all(color: p.border),
+                              color: AppColors.surface2,
+                              border: Border.all(color: AppColors.border),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -215,9 +189,9 @@ class _ResponderChoice extends StatelessWidget {
                                   : '${resource.resourceName} · '
                                       '${resource.availableQuantity}/${resource.totalQuantity} '
                                       '${resource.status}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 10.5,
-                                color: p.textDim,
+                                color: AppColors.textDim,
                               ),
                             ),
                           ),
@@ -240,12 +214,11 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    final color = responderStatusColor(status, p);
+    final color = responderStatusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: p.dark ? .18 : .12),
+        color: color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

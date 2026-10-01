@@ -118,15 +118,6 @@ Widget _disableAnimationsBuilder(BuildContext context, Widget? child) {
   );
 }
 
-Future<bool> _noopAllocate({
-  required int requestId,
-  required int resourceId,
-  required int responderResourceId,
-  required int quantity,
-}) async {
-  return true;
-}
-
 Widget _themed(
   Widget child, {
   Brightness brightness = Brightness.dark,
@@ -382,7 +373,14 @@ void main() {
                 requestId: request.id,
                 requestProvider: (_) => request,
                 inventoryProvider: () => const <BackendResponderResource>[],
-                onAllocate: _noopAllocate,
+                onAllocate: ({
+                  required int quantity,
+                  required int requestId,
+                  required int resourceId,
+                  required int responderResourceId,
+                }) async {
+                  return true;
+                },
                 onCancelAllocation: (_) async => true,
                 onDispatchAllocation: (_) async {},
                 onMarkDelivered: (_) async {},

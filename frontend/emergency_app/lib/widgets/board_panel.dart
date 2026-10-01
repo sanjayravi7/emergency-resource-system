@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../models/eras_models.dart';
 import '../services/socket_service.dart';
+import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
-import 'auth_motion.dart';
 import 'common_widgets.dart';
 import 'operational_status.dart';
 
@@ -55,7 +54,6 @@ class BoardPanel extends StatelessWidget {
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onStartResponse;
   final void Function(EmergencyRequest request)? onCompleteResponse;
-
   /// LEGACY allocation workflow hooks. Leave them null (the normal responder
   /// console does) and no Allocate / Dispatch / Delivered control is rendered.
   final void Function(EmergencyRequest request)? onAllocate;
@@ -169,7 +167,7 @@ class BoardPanel extends StatelessWidget {
     return statuses.isEmpty ? null : statuses;
   }
 
-  Widget _locationCell(EmergencyRequest request, ErasPalette p) {
+  Widget _locationCell(EmergencyRequest request) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,18 +178,17 @@ class BoardPanel extends StatelessWidget {
             request.location,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: p.text),
           ),
         ),
         if (request.coordinateLabel != null)
           Text(
             request.coordinateLabel!,
-            style: monoStyle(size: 10.5, color: p.textFaint),
+            style: monoStyle(size: 10.5, color: AppColors.textFaint),
           )
         else
-          Text(
+          const Text(
             'No precise coordinates',
-            style: TextStyle(fontSize: 10.5, color: p.textFaint),
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
       ],
     );
@@ -199,8 +196,6 @@ class BoardPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-
     return Panel(
       title: title,
       hint: isMobile ? '' : hint,
@@ -208,63 +203,50 @@ class BoardPanel extends StatelessWidget {
           ? EmptyState(emptyMessage, title: emptyTitle, icon: emptyIcon)
           : isMobile
               ? Column(
-                  children: [
-                    for (var i = 0; i < requests.length; i++)
-                      EntranceReveal(
-                        delay: i < 5
-                            ? Duration(milliseconds: 28 * i)
-                            : Duration.zero,
-                        offset: const Offset(0, 6),
-                        child: _RequestCard(
-                          request: requests[i],
-                          actions: _actions(requests[i], p),
-                          liveLocations: liveLocations[requests[i].id] ??
-                              const <int, LiveResponderLocation>{},
-                          connectionStatus: connectionStatus,
-                        ),
-                      ),
-                  ],
+                  children: requests
+                      .map((request) => _RequestCard(
+                            request: request,
+                            actions: _actions(request),
+                            liveLocations: liveLocations[request.id] ??
+                                const <int, LiveResponderLocation>{},
+                            connectionStatus: connectionStatus,
+                          ))
+                      .toList(),
                 )
-              : _table(context, p),
+              : _table(),
     );
   }
 
-  List<Widget> _actions(EmergencyRequest request, ErasPalette p) {
+  List<Widget> _actions(EmergencyRequest request) {
     final actions = <Widget>[];
 
     if (onViewRequest != null) {
       actions.add(
-        PressableScale(
-          child: OutlinedButton(
-            key: Key('view-request-${request.id}'),
-            onPressed: () => onViewRequest!(request),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: p.dark ? p.surface2 : Colors.transparent,
-              foregroundColor: p.textDim,
-              side: BorderSide(color: p.border),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text('VIEW', style: TextStyle(fontSize: 12)),
+        OutlinedButton(
+          key: Key('view-request-${request.id}'),
+          onPressed: () => onViewRequest!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textDim,
+            side: const BorderSide(color: AppColors.border),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
+          child: const Text('VIEW', style: TextStyle(fontSize: 12)),
         ),
       );
     }
 
     if (_canAdminAssign(request)) {
       actions.add(
-        PressableScale(
-          child: FilledButton(
-            key: Key('assign-request-${request.id}'),
-            onPressed: () => onAssignRequest!(request),
-            style: FilledButton.styleFrom(
-              backgroundColor: p.teal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text(
-              'ACCEPT / ASSIGN',
-              style: TextStyle(fontSize: 12),
-            ),
+        FilledButton(
+          key: Key('assign-request-${request.id}'),
+          onPressed: () => onAssignRequest!(request),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          child: const Text(
+            'ACCEPT / ASSIGN',
+            style: TextStyle(fontSize: 12),
           ),
         ),
       );
@@ -272,59 +254,47 @@ class BoardPanel extends StatelessWidget {
 
     if (_canEdit(request)) {
       actions.add(
-        PressableScale(
-          child: OutlinedButton(
-            key: Key('edit-request-${request.id}'),
-            onPressed: () => onEditRequest!(request),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: p.dark ? p.surface2 : Colors.transparent,
-              foregroundColor: p.blue,
-              side: BorderSide(color: p.blue),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text('EDIT', style: TextStyle(fontSize: 12)),
+        OutlinedButton(
+          key: Key('edit-request-${request.id}'),
+          onPressed: () => onEditRequest!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.blue,
+            side: const BorderSide(color: AppColors.blue),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
+          child: const Text('EDIT', style: TextStyle(fontSize: 12)),
         ),
       );
     }
 
     if (_canAccept(request)) {
       actions.add(
-        PressableScale(
-          child: FilledButton(
-            onPressed: () => onAccept!(request),
-            style: FilledButton.styleFrom(
-              backgroundColor: p.teal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
+        FilledButton(
+          onPressed: () => onAccept!(request),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
             ),
-            child: const Text('Accept', style: TextStyle(fontSize: 12)),
           ),
+          child: const Text('Accept', style: TextStyle(fontSize: 12)),
         ),
       );
     }
 
     if (_canStartResponse(request)) {
       actions.add(
-        PressableScale(
-          child: FilledButton(
-            onPressed: () => onStartResponse!(request),
-            style: FilledButton.styleFrom(
-              backgroundColor: p.teal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            child: const Text(
-              'START RESPONSE',
-              style: TextStyle(fontSize: 12),
+        FilledButton(
+          onPressed: () => onStartResponse!(request),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
             ),
           ),
+          child: const Text('START RESPONSE', style: TextStyle(fontSize: 12)),
         ),
       );
     }
@@ -339,37 +309,36 @@ class BoardPanel extends StatelessWidget {
           key: Key('location-sharing-state-${request.id}'),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: p.surface2,
+            color: AppColors.surface2,
             borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: p.border),
+            border: Border.all(color: AppColors.border),
           ),
           child: Text(
             'Location sharing: '
             '${sharingRequestId == request.id ? 'ON' : 'OFF'}',
             style: monoStyle(
               size: 11,
-              color: sharingRequestId == request.id ? p.teal : p.textDim,
+              color: sharingRequestId == request.id
+                  ? AppColors.teal
+                  : AppColors.textDim,
               weight: FontWeight.w600,
             ),
           ),
         ),
       );
       actions.add(
-        PressableScale(
-          child: FilledButton(
-            onPressed: () => onCompleteResponse!(request),
-            style: FilledButton.styleFrom(
-              backgroundColor: p.teal,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
+        FilledButton(
+          onPressed: () => onCompleteResponse!(request),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.teal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
             ),
-            child: const Text(
-              'COMPLETE RESPONSE',
-              style: TextStyle(fontSize: 12),
-            ),
+          ),
+          child: const Text(
+            'COMPLETE RESPONSE',
+            style: TextStyle(fontSize: 12),
           ),
         ),
       );
@@ -377,40 +346,31 @@ class BoardPanel extends StatelessWidget {
 
     if (_canAllocate(request)) {
       actions.add(
-        PressableScale(
-          child: OutlinedButton(
-            onPressed: () => onAllocate!(request),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: p.dark ? p.surface2 : Colors.transparent,
-              foregroundColor: p.blue,
-              side: BorderSide(color: p.blue),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
+        OutlinedButton(
+          onPressed: () => onAllocate!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.blue,
+            side: const BorderSide(color: AppColors.blue),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
             ),
-            child: const Text('Allocate', style: TextStyle(fontSize: 12)),
           ),
+          child: const Text('Allocate', style: TextStyle(fontSize: 12)),
         ),
       );
     }
 
     if (_canEndAssignment(request)) {
       actions.add(
-        PressableScale(
-          child: OutlinedButton(
-            onPressed: () => onEndAssignment!(request),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: p.dark ? p.surface2 : Colors.transparent,
-              foregroundColor: p.amber,
-              side: BorderSide(color: p.amber),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: const Text(
-              'End Assignment',
-              style: TextStyle(fontSize: 12),
-            ),
+        OutlinedButton(
+          onPressed: () => onEndAssignment!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.amber,
+            side: const BorderSide(color: AppColors.amber),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
+          child: const Text('End Assignment', style: TextStyle(fontSize: 12)),
         ),
       );
     }
@@ -418,22 +378,18 @@ class BoardPanel extends StatelessWidget {
     if (onDispatchAllocation != null) {
       for (final allocation in _dispatchable(request)) {
         actions.add(
-          PressableScale(
-            child: OutlinedButton(
-              onPressed: () => onDispatchAllocation!(allocation),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: p.dark ? p.surface2 : Colors.transparent,
-                foregroundColor: p.blue,
-                side: BorderSide(color: p.blue),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
+          OutlinedButton(
+            onPressed: () => onDispatchAllocation!(allocation),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.blue,
+              side: const BorderSide(color: AppColors.blue),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Text('Confirm & Dispatch · ${allocation.resourceName}',
-                  style: const TextStyle(fontSize: 12)),
             ),
+            child: Text('Confirm & Dispatch · ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
           ),
         );
       }
@@ -442,21 +398,17 @@ class BoardPanel extends StatelessWidget {
     if (onMarkDelivered != null) {
       for (final allocation in _deliverable(request)) {
         actions.add(
-          PressableScale(
-            child: FilledButton(
-              onPressed: () => onMarkDelivered!(allocation),
-              style: FilledButton.styleFrom(
-                backgroundColor: p.teal,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
+          FilledButton(
+            onPressed: () => onMarkDelivered!(allocation),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.teal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Text('Mark Delivered · ${allocation.resourceName}',
-                  style: const TextStyle(fontSize: 12)),
             ),
+            child: Text('Mark Delivered · ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
           ),
         );
       }
@@ -465,21 +417,17 @@ class BoardPanel extends StatelessWidget {
     if (onConfirmReceipt != null) {
       for (final allocation in _receivable(request)) {
         actions.add(
-          PressableScale(
-            child: FilledButton(
-              onPressed: () => onConfirmReceipt!(allocation),
-              style: FilledButton.styleFrom(
-                backgroundColor: p.teal,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
+          FilledButton(
+            onPressed: () => onConfirmReceipt!(allocation),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.teal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
               ),
-              child: Text('Confirm received ${allocation.resourceName}',
-                  style: const TextStyle(fontSize: 12)),
             ),
+            child: Text('Confirm received ${allocation.resourceName}',
+                style: const TextStyle(fontSize: 12)),
           ),
         );
       }
@@ -487,22 +435,18 @@ class BoardPanel extends StatelessWidget {
 
     if (_canCancel(request)) {
       actions.add(
-        PressableScale(
-          child: OutlinedButton(
-            key: Key('cancel-request-${request.id}'),
-            onPressed: () => onCancelRequest!(request),
-            style: OutlinedButton.styleFrom(
-              backgroundColor:
-                  p.dark ? p.redDim.withValues(alpha: .45) : Colors.transparent,
-              foregroundColor: p.red,
-              side: BorderSide(color: p.red),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
+        OutlinedButton(
+          key: Key('cancel-request-${request.id}'),
+          onPressed: () => onCancelRequest!(request),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.red,
+            side: const BorderSide(color: AppColors.red),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
             ),
-            child: const Text('CANCEL REQUEST', style: TextStyle(fontSize: 12)),
           ),
+          child: const Text('CANCEL REQUEST', style: TextStyle(fontSize: 12)),
         ),
       );
     }
@@ -519,35 +463,29 @@ class BoardPanel extends StatelessWidget {
       final isSharing = sharingRequestId == request.id;
       actions.add(
         isSharing && onStopLocationSharing != null
-            ? PressableScale(
-                child: OutlinedButton(
-                  onPressed: () => onStopLocationSharing!(request.id),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: p.dark ? p.surface2 : Colors.transparent,
-                    foregroundColor: p.amber,
-                    side: BorderSide(color: p.amber),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  child: const Text('Stop Live Location',
-                      style: TextStyle(fontSize: 12)),
+            ? OutlinedButton(
+                onPressed: () => onStopLocationSharing!(request.id),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.amber,
+                  side: const BorderSide(color: AppColors.amber),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
+                child: const Text('Stop Live Location',
+                    style: TextStyle(fontSize: 12)),
               )
-            : PressableScale(
-                child: FilledButton(
-                  onPressed:
-                      connectionStatus == RealtimeConnectionStatus.connected
-                          ? () => onStartLocationSharing!(request)
-                          : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: p.blue,
-                    foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  child: const Text('Start Live Location',
-                      style: TextStyle(fontSize: 12)),
+            : FilledButton(
+                onPressed:
+                    connectionStatus == RealtimeConnectionStatus.connected
+                        ? () => onStartLocationSharing!(request)
+                        : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.blue,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
+                child: const Text('Start Live Location',
+                    style: TextStyle(fontSize: 12)),
               ),
       );
     }
@@ -555,15 +493,12 @@ class BoardPanel extends StatelessWidget {
     return actions;
   }
 
-  Widget _table(BuildContext context, ErasPalette p) {
+  Widget _table() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
-        headingTextStyle: tableHeadStyle(context),
-        dataTextStyle: TextStyle(fontSize: 13, color: p.text),
-        headingRowColor: WidgetStatePropertyAll(
-          p.dark ? p.surface2.withValues(alpha: .42) : Colors.transparent,
-        ),
+        headingTextStyle: tableHeadStyle(),
+        dataTextStyle: const TextStyle(fontSize: 13, color: AppColors.text),
         // Rows are content-driven. Multi-responder emergencies can contain
         // several participant/contact/location rows, so the desktop ceiling
         // must accommodate 3+ responders instead of clipping a fixed card.
@@ -586,13 +521,12 @@ class BoardPanel extends StatelessWidget {
         ],
         rows: requests.map((request) {
           final requester = request.requester;
-          final rowActions = _actions(request, p);
 
           return DataRow(
             cells: [
               DataCell(Text(
                 request.displayId,
-                style: monoStyle(size: 12.5, color: p.textDim),
+                style: monoStyle(size: 12.5, color: AppColors.textDim),
               )),
               DataCell(
                 Column(
@@ -601,21 +535,23 @@ class BoardPanel extends StatelessWidget {
                   children: [
                     Text(
                       requester?.name ?? 'Unknown requester',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: p.text,
+                        color: AppColors.text,
                       ),
                     ),
                     if ((requester?.email ?? '').isNotEmpty)
                       Text(
                         requester!.email!,
-                        style: TextStyle(fontSize: 11, color: p.textFaint),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textFaint),
                       ),
                     if ((requester?.phone ?? '').isNotEmpty)
                       Text(
                         requester!.phone!,
-                        style: TextStyle(fontSize: 11, color: p.textFaint),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textFaint),
                       ),
                   ],
                 ),
@@ -627,11 +563,8 @@ class BoardPanel extends StatelessWidget {
                   children: [
                     Text(
                       request.emergencyType,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: p.text,
-                      ),
+                      style: const TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w600),
                     ),
                     if (request.description != null &&
                         request.description!.isNotEmpty)
@@ -641,13 +574,14 @@ class BoardPanel extends StatelessWidget {
                           request.description!,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: p.textFaint),
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.textFaint),
                         ),
                       ),
                   ],
                 ),
               ),
-              DataCell(_locationCell(request, p)),
+              DataCell(_locationCell(request)),
               DataCell(PriorityPill(priority: request.priority)),
               DataCell(
                 SizedBox(
@@ -657,7 +591,8 @@ class BoardPanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       if (request.requiredResources.isEmpty)
-                        Text('-', style: TextStyle(color: p.textFaint))
+                        const Text('-',
+                            style: TextStyle(color: AppColors.textFaint))
                       else
                         ...request.requiredResources.map((line) {
                           final allocated =
@@ -674,7 +609,7 @@ class BoardPanel extends StatelessWidget {
                         }),
                       if (request.allocations.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Divider(height: 1, color: p.border),
+                        const Divider(height: 1, color: AppColors.border),
                         const SizedBox(height: 3),
                         ...request.allocations.map(
                           (allocation) => AllocationOperationalRow(
@@ -694,11 +629,12 @@ class BoardPanel extends StatelessWidget {
                   children: [
                     Text(
                       formatDateTime(request.createdAt),
-                      style: monoStyle(size: 12, color: p.textDim),
+                      style: monoStyle(size: 12, color: AppColors.textDim),
                     ),
                     Text(
                       formatRelative(request.createdAt),
-                      style: TextStyle(fontSize: 10.5, color: p.textFaint),
+                      style: const TextStyle(
+                          fontSize: 10.5, color: AppColors.textFaint),
                     ),
                   ],
                 ),
@@ -733,11 +669,12 @@ class BoardPanel extends StatelessWidget {
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: rowActions.isEmpty
+                  children: _actions(request).isEmpty
                       ? [
-                          Text('-', style: TextStyle(color: p.textFaint)),
+                          const Text('-',
+                              style: TextStyle(color: AppColors.textFaint)),
                         ]
-                      : rowActions,
+                      : _actions(request),
                 ),
               ),
             ],
@@ -765,7 +702,6 @@ class _RequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
     final requester = request.requester;
     String? allocationStateText(int resourceId) {
       final statuses = request.allocations
@@ -778,8 +714,8 @@ class _RequestCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: p.border)),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -790,7 +726,7 @@ class _RequestCard extends StatelessWidget {
                 request.displayId,
                 style: monoStyle(
                   size: 12.5,
-                  color: p.textDim,
+                  color: AppColors.textDim,
                   weight: FontWeight.w600,
                 ),
               );
@@ -873,14 +809,15 @@ class _RequestCard extends StatelessWidget {
             InfoChip(label: 'Details', value: request.description!),
           ],
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'REQUIRED RESOURCES',
-            style:
-                TextStyle(fontSize: 9.5, color: p.textFaint, letterSpacing: .5),
+            style: TextStyle(
+                fontSize: 9.5, color: AppColors.textFaint, letterSpacing: .5),
           ),
           const SizedBox(height: 4),
           if (request.requiredResources.isEmpty)
-            Text('-', style: TextStyle(fontSize: 12.5, color: p.textFaint))
+            const Text('-',
+                style: TextStyle(fontSize: 12.5, color: AppColors.textFaint))
           else
             ...request.requiredResources.map(
               (line) => ResourceChip(
@@ -894,11 +831,11 @@ class _RequestCard extends StatelessWidget {
             ),
           if (request.allocations.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(
+            const Text(
               'ALLOCATIONS',
               style: TextStyle(
                 fontSize: 9.5,
-                color: p.textFaint,
+                color: AppColors.textFaint,
                 letterSpacing: .5,
               ),
             ),
@@ -963,7 +900,6 @@ class _RespondersCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
     final lead = request.acceptedBy;
     final leadId = lead?.id ?? request.acceptedById;
     final additional = request.additionalActiveAssignments;
@@ -1002,14 +938,14 @@ class _RespondersCell extends StatelessWidget {
       children: [
         Text(
           '${activeIds.length} active responder${activeIds.length == 1 ? '' : 's'}',
-          style: TextStyle(fontSize: 10.5, color: p.textFaint),
+          style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
         ),
         if (lead != null) ...[
           Text(
             lead.name,
             style: TextStyle(
               fontSize: 12.5,
-              color: leadIsActive ? p.text : p.textFaint,
+              color: leadIsActive ? AppColors.text : AppColors.textFaint,
             ),
           ),
           Text(
@@ -1018,57 +954,61 @@ class _RespondersCell extends StatelessWidget {
                 : leadHasAllocationOnlyParticipation
                     ? 'LEAD · ASSIGNMENT ENDED · ALLOCATION ACTIVE'
                     : 'HISTORICAL LEAD · ENDED',
-            style: TextStyle(fontSize: 10.5, color: p.textFaint),
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           if ((lead.phone ?? '').isNotEmpty)
             Text(
               lead.phone!,
-              style: TextStyle(fontSize: 10.5, color: p.textFaint),
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
           if ((lead.responderStatus ?? '').isNotEmpty)
             Text(
               'STATUS · ${lead.responderStatus}',
-              style: TextStyle(fontSize: 10.5, color: p.textFaint),
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
         ] else
-          Text(
+          const Text(
             'unassigned',
-            style: TextStyle(fontSize: 12.5, color: p.textFaint),
+            style: TextStyle(fontSize: 12.5, color: AppColors.textFaint),
           ),
         for (final assignment in additional) ...[
           const SizedBox(height: 4),
           Text(
             assignment.responder?.name ??
                 'Responder #${assignment.responderId}',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12.5,
-              color: p.text,
+              color: AppColors.text,
             ),
           ),
           Text(
             'ASSIGNED · ${assignment.status}',
-            style: TextStyle(fontSize: 10.5, color: p.textFaint),
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           if ((assignment.responder?.responderStatus ?? '').isNotEmpty)
             Text(
               'STATUS · ${assignment.responder!.responderStatus}',
-              style: TextStyle(fontSize: 10.5, color: p.textFaint),
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
           if ((assignment.responder?.phone ?? '').isNotEmpty)
             Text(
               assignment.responder!.phone!,
-              style: TextStyle(fontSize: 10.5, color: p.textFaint),
+              style:
+                  const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
         ],
         for (final entry in allocationOnly.entries) ...[
           const SizedBox(height: 4),
           Text(
             entry.value.responderName ?? 'Responder #${entry.key}',
-            style: TextStyle(fontSize: 12.5, color: p.text),
+            style: const TextStyle(fontSize: 12.5, color: AppColors.text),
           ),
-          Text(
+          const Text(
             'ALLOCATION · ACTIVE',
-            style: TextStyle(fontSize: 10.5, color: p.textFaint),
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
         ],
         for (final entry in liveLocations.entries)
