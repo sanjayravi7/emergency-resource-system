@@ -1,50 +1,63 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'auth_visuals.dart';
 
+/// Brand lock-up: large outlined shield with medical cross + teal glow,
+/// the ERAS word-mark and the full system name beneath it.
 class ErasMark extends StatelessWidget {
-  const ErasMark({super.key, this.compact = false});
-  final bool compact;
+  const ErasMark({super.key, this.scale = 1});
+
+  final double scale;
+
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-          width: compact ? 39 : 46,
-          height: compact ? 39 : 46,
-          decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(13),
-              gradient: const LinearGradient(
-                  colors: [Color(0xFF07A987), Color(0xFF22C9B6)]),
-              boxShadow: [
-                BoxShadow(
-                    color: const Color(0xFF0EB7A0)
-                        .withValues(alpha: dark ? .32 : .18),
-                    blurRadius: 18)
-              ]),
-          child: const Icon(Icons.health_and_safety_rounded,
-              color: Colors.white, size: 27)),
-      const SizedBox(width: 12),
-      Flexible(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('ERAS',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: compact ? 22 : 26,
+    final skin = AuthSkin.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AuthShield(
+          key: const ValueKey('eras-brand-shield'),
+          size: 62 * scale,
+          outlined: true,
+        ),
+        SizedBox(width: 14 * scale),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ERAS',
+                style: TextStyle(
+                  fontSize: 30 * scale,
                   height: 1,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 1.4,
-                  color: dark ? Colors.white : AppColors.text)),
-          const SizedBox(height: 4),
-          Text('Emergency Resource Allocation System',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: compact ? 9 : 10.5,
-                  color: dark ? const Color(0xFF9EB0C6) : AppColors.textDim)),
-        ]),
-      ),
-    ]);
+                  letterSpacing: 2.2,
+                  color: skin.text,
+                ),
+              ),
+              SizedBox(height: 5 * scale),
+              // The constrained width makes the subtitle break exactly like
+              // the reference: "Emergency Resource" / "Allocation System".
+              SizedBox(
+                width: 148 * scale,
+                child: Text(
+                  'Emergency Resource Allocation System',
+                  style: TextStyle(
+                    fontSize: 10.5 * math.max(scale, .8),
+                    height: 1.45,
+                    letterSpacing: .25,
+                    color: skin.textDim,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -104,9 +117,25 @@ class ThemeSwitch extends StatelessWidget {
   }
 }
 
+/// Layout shell for the authentication experience.
+///
+/// The light theme reproduces the reference composition on a 1648x926
+/// canvas: branding top-left, hero + emergency-network illustration + flow
+/// strip + status cards on the left, the login/register card centre-right,
+/// the "Why ERAS?" column to its right and the trust card bottom-right.
+/// The dark theme keeps the existing ERAS dark design language.
 class AuthShell extends StatelessWidget {
   const AuthShell({super.key, required this.child});
+
   final Widget child;
+
+  /// Reference canvas the design was authored against.
+  static const double referenceWidth = 1648;
+  static const double referenceHeight = 926;
+
+  /// Below this width the three columns stack vertically.
+  static const double desktopBreakpoint = 1150;
+
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -132,256 +161,363 @@ class AuthShell extends StatelessWidget {
                             Color(0xFFEDF4F9)
                           ])),
             child: SafeArea(child: LayoutBuilder(builder: (context, c) {
-              final wide = c.maxWidth >= 1050;
+              final size = c.biggest;
+              final desktop = size.width >= desktopBreakpoint;
+              final scale = desktop
+                  ? (size.width / referenceWidth).clamp(.68, 1.0).toDouble()
+                  : (size.width / desktopBreakpoint).clamp(.56, .8).toDouble();
               return Stack(children: [
-                Positioned.fill(
-                    child: CustomPaint(painter: _GridPainter(dark))),
-                if (wide)
-                  Row(children: [
-                    Expanded(flex: 11, child: _StoryPanel(dark: dark)),
-                    Expanded(
-                        flex: 9,
-                        child: Center(
-                            child: SingleChildScrollView(
-                                padding:
-                                    const EdgeInsets.fromLTRB(32, 82, 32, 38),
-                                child: ConstrainedBox(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 520),
-                                    child: child))))
-                  ])
+                if (dark)
+                  Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+                if (desktop)
+                  _DesktopComposition(scale: scale, child: child)
                 else
-                  SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 74, 20, 32),
-                      child: Column(children: [
-                        const Align(
-                            alignment: Alignment.centerLeft,
-                            child: ErasMark(compact: true)),
-                        const SizedBox(height: 25),
-                        ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 560),
-                            child: child),
-                        const SizedBox(height: 32),
-                        if (c.maxWidth >= 650)
-                          const SizedBox(height: 340, child: _NetworkVisual())
-                      ])),
-                const Positioned(top: 18, right: 22, child: ThemeSwitch()),
+                  _NarrowComposition(scale: scale, child: child),
               ]);
             }))));
   }
 }
 
-class _StoryPanel extends StatelessWidget {
-  const _StoryPanel({required this.dark});
-  final bool dark;
-  @override
-  Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.fromLTRB(54, 34, 30, 30),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const ErasMark(),
-        const Spacer(),
-        Text('Right Resource.\nRight Place.',
-            style: TextStyle(
-                fontSize: 48,
-                height: 1.08,
-                letterSpacing: -1.5,
-                fontWeight: FontWeight.w900,
-                color: dark ? Colors.white : AppColors.text)),
-        Text('Right Time.',
-            style: const TextStyle(
-                fontSize: 48,
-                height: 1.12,
-                letterSpacing: -1.5,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF12B99D))),
-        const SizedBox(height: 16),
-        Text(
-            'Smarter coordination. Faster response.\nBetter outcomes for every emergency.',
-            style: TextStyle(
-                fontSize: 15,
-                height: 1.55,
-                color: dark ? const Color(0xFF9EB0C6) : AppColors.textDim)),
-        const SizedBox(height: 15),
-        const Expanded(flex: 5, child: _NetworkVisual()),
-        const SizedBox(height: 10),
-        Wrap(spacing: 9, runSpacing: 9, children: const [
-          _Metric(
-              icon: Icons.inventory_2_outlined,
-              title: 'Resource Availability',
-              value: 'Live'),
-          _Metric(
-              icon: Icons.emergency_outlined,
-              title: 'Active Requests',
-              value: 'Tracked'),
-          _Metric(
-              icon: Icons.groups_outlined,
-              title: 'Responder Network',
-              value: 'Connected'),
-          _Metric(
-              icon: Icons.hub_outlined,
-              title: 'Coordination',
-              value: 'Real-time')
-        ]),
-      ]));
-}
+/// Desktop: the reference three-column composition.
+class _DesktopComposition extends StatelessWidget {
+  const _DesktopComposition({required this.scale, required this.child});
 
-class _Metric extends StatelessWidget {
-  const _Metric({required this.icon, required this.title, required this.value});
-  final IconData icon;
-  final String title, value;
+  final double scale;
+  final Widget child;
+
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-        width: 145,
-        padding: const EdgeInsets.all(11),
-        decoration: BoxDecoration(
-            color: dark
-                ? const Color(0x99122439)
-                : Colors.white.withValues(alpha: .9),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: dark ? const Color(0xFF29445F) : AppColors.border)),
-        child: Row(children: [
-          Icon(icon, size: 19, color: const Color(0xFF10B99D)),
-          const SizedBox(width: 8),
+    final s = scale;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(55 * s, 40 * s, 55 * s, 40 * s),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              ErasMark(scale: s),
+              const Spacer(),
+              const ThemeSwitch(),
+            ],
+          ),
+          SizedBox(height: 32 * s),
           Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(value,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: dark ? Colors.white : AppColors.text)),
-                Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 8.5,
-                        color:
-                            dark ? const Color(0xFF90A4BA) : AppColors.textDim))
-              ]))
-        ]));
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _StoryColumn(scale: s)),
+                SizedBox(width: 30 * s),
+                SizedBox(
+                  width: 400 * s,
+                  child: _AuthCardColumn(scale: s, child: child),
+                ),
+                SizedBox(width: 26 * s),
+                SizedBox(
+                  width: 302 * s,
+                  child: _SideColumn(scale: s),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
-class _NetworkVisual extends StatelessWidget {
-  const _NetworkVisual();
+/// Left region: hero heading, network illustration (flexes), flow strip and
+/// the status cards pinned to the bottom of the band.
+///
+/// When the window is too short for the full composition the region falls
+/// back to vertical scrolling with a fixed-size illustration.
+class _StoryColumn extends StatelessWidget {
+  const _StoryColumn({required this.scale});
+
+  final double scale;
+
+  /// Smallest usable illustration height, in reference units.
+  static const double _minIllustration = 130;
+
+  /// Largest illustration height before the composition looks stretched,
+  /// in reference units.
+  static const double _maxIllustration = 400;
+
+  /// Exact height of everything except the illustration. Mirrors the
+  /// metrics used by the child widgets (including their minimum floors) so
+  /// the flex branch can never overflow.
+  double _fixedHeight(double s) {
+    final heading = 3 * 46 * s * 1.14;
+    final subtext = 2 * 15.5 * s * 1.5;
+    final flowTile = math.max(42.0, 54 * s);
+    final flowLabel = math.max(9.0, 10.5 * s) * 1.3;
+    final flow = flowTile + math.max(5.0, 6 * s) + flowLabel;
+    final statusCard = 2 * math.max(10.0, 12 * s) + math.max(30.0, 34 * s);
+    final status = 2 * statusCard + math.max(10.0, 12 * s);
+    return heading +
+        14 * s +
+        subtext +
+        22 * s +
+        18 * s +
+        flow +
+        22 * s +
+        status;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = AuthSkin.of(context);
+    final s = scale;
+    final headingSize = 46 * s;
+    final bodySize = 15.5 * s;
+    final navy = TextStyle(
+      fontSize: headingSize,
+      height: 1.14,
+      letterSpacing: -1.3,
+      fontWeight: FontWeight.w900,
+      color: skin.text,
+    );
+    final teal = TextStyle(
+      fontSize: headingSize,
+      height: 1.14,
+      letterSpacing: -1.3,
+      fontWeight: FontWeight.w900,
+      color: skin.tealBright,
+    );
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Right Resource.', style: navy),
+        Text('Right Place.', style: navy),
+        Text(
+          'Right Time.',
+          key: const ValueKey('auth-hero-right-time'),
+          style: teal,
+        ),
+        SizedBox(height: 14 * s),
+        Text(
+          'Smarter coordination. Faster response.\n'
+          'Better outcomes for every emergency.',
+          style: TextStyle(
+            fontSize: bodySize,
+            height: 1.5,
+            color: skin.textDim,
+          ),
+        ),
+      ],
+    );
+    final bottom = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(height: 18 * s),
+        AuthFlowStrip(key: const ValueKey('auth-flow'), scale: s),
+        SizedBox(height: 22 * s),
+        AuthStatusCards(key: const ValueKey('auth-status-cards'), scale: s),
+      ],
+    );
+    Widget diagram(double maxHeight) => Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: AuthNetworkDiagram(
+              key: const ValueKey('auth-network'),
+              scale: s,
+            ),
+          ),
+        );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scrollFallback =
+            constraints.maxHeight < _fixedHeight(s) + _minIllustration * s;
+        if (scrollFallback) {
+          return SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                heading,
+                SizedBox(height: 22 * s),
+                SizedBox(
+                  height: 210 * s,
+                  child: AuthNetworkDiagram(
+                    key: const ValueKey('auth-network'),
+                    scale: s,
+                  ),
+                ),
+                bottom,
+              ],
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            heading,
+            SizedBox(height: 22 * s),
+            Expanded(
+              child: diagram(_maxIllustration * s),
+            ),
+            bottom,
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Centre column: the login/register card, vertically centred, scrolling
+/// only when the window is shorter than the card.
+class _AuthCardColumn extends StatelessWidget {
+  const _AuthCardColumn({required this.scale, required this.child});
+
+  final double scale;
+  final Widget child;
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-      builder: (context, c) => CustomPaint(
-          size: Size(c.maxWidth, c.maxHeight),
-          painter: _NetworkPainter(
-              Theme.of(context).brightness == Brightness.dark)));
+        builder: (context, constraints) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [child],
+            ),
+          ),
+        ),
+      );
 }
 
-class _NetworkPainter extends CustomPainter {
-  _NetworkPainter(this.dark);
-  final bool dark;
-  @override
-  void paint(Canvas canvas, Size s) {
-    final center = Offset(s.width * .52, s.height * .48);
-    final line = Paint()
-      ..color = (dark ? const Color(0xFF28CBB7) : const Color(0xFF3A87D8))
-          .withValues(alpha: .3)
-      ..strokeWidth = 1.4;
-    final nodes = <({Offset p, IconData i, String l})>[
-      (
-        p: Offset(s.width * .18, s.height * .22),
-        i: Icons.local_hospital_outlined,
-        l: 'Hospitals'
-      ),
-      (
-        p: Offset(s.width * .82, s.height * .18),
-        i: Icons.airplanemode_active,
-        l: 'Air Support'
-      ),
-      (
-        p: Offset(s.width * .13, s.height * .66),
-        i: Icons.emergency_outlined,
-        l: 'Ambulances'
-      ),
-      (
-        p: Offset(s.width * .86, s.height * .65),
-        i: Icons.groups_outlined,
-        l: 'Responders'
-      ),
-      (
-        p: Offset(s.width * .35, s.height * .86),
-        i: Icons.home_work_outlined,
-        l: 'Shelters'
-      ),
-      (
-        p: Offset(s.width * .7, s.height * .86),
-        i: Icons.inventory_2_outlined,
-        l: 'Supplies'
-      )
-    ];
-    for (final n in nodes) {
-      canvas.drawLine(center, n.p, line);
-      canvas.drawCircle(n.p, 27,
-          Paint()..color = dark ? const Color(0xFF112B42) : Colors.white);
-      canvas.drawCircle(
-          n.p,
-          27,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..color = const Color(0xFF18BFA8).withValues(alpha: .7));
-      final tp = TextPainter(
-          text: TextSpan(
-              text: String.fromCharCode(n.i.codePoint),
-              style: TextStyle(
-                  fontSize: 22,
-                  fontFamily: n.i.fontFamily,
-                  package: n.i.fontPackage,
-                  color: const Color(0xFF10B99D))),
-          textDirection: TextDirection.ltr)
-        ..layout();
-      tp.paint(canvas, n.p - Offset(tp.width / 2, tp.height / 2));
-      final label = TextPainter(
-          text: TextSpan(
-              text: n.l,
-              style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  color: dark ? const Color(0xFFB8C6D7) : AppColors.textDim)),
-          textDirection: TextDirection.ltr)
-        ..layout();
-      label.paint(canvas, Offset(n.p.dx - label.width / 2, n.p.dy + 32));
-    }
-    canvas.drawCircle(
-        center,
-        52,
-        Paint()
-          ..color = const Color(0xFF0BAE94).withValues(alpha: dark ? .18 : .1));
-    canvas.drawCircle(center, 38, Paint()..color = const Color(0xFF0BAE94));
-    final icon = TextPainter(
-        text: TextSpan(
-            text:
-                String.fromCharCode(Icons.health_and_safety_rounded.codePoint),
-            style: TextStyle(
-                fontSize: 38,
-                fontFamily: Icons.health_and_safety_rounded.fontFamily,
-                color: Colors.white)),
-        textDirection: TextDirection.ltr)
-      ..layout();
-    icon.paint(canvas, center - Offset(icon.width / 2, icon.height / 2));
-  }
+/// Right region: the "Why ERAS?" feature column with the trust card pinned
+/// below it.
+class _SideColumn extends StatelessWidget {
+  const _SideColumn({required this.scale});
+
+  final double scale;
 
   @override
-  bool shouldRepaint(covariant _NetworkPainter old) => old.dark != dark;
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: WhyErasCard(scale: scale, fillHeight: true),
+          ),
+          SizedBox(height: 16 * scale),
+          TrustCard(scale: scale),
+        ],
+      );
+}
+
+/// Tablet/mobile: the three columns stack vertically, preserving the visual
+/// hierarchy (brand, hero, login/register, feature cards, status cards)
+/// without ever overflowing horizontally.
+class _NarrowComposition extends StatelessWidget {
+  const _NarrowComposition({required this.scale, required this.child});
+
+  final double scale;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = AuthSkin.of(context);
+    final s = scale;
+    final markScale = math.max(s, .62);
+    final headingSize = 46 * markScale;
+    final cardScale = math.max(s, .78);
+    final navy = TextStyle(
+      fontSize: headingSize,
+      height: 1.14,
+      letterSpacing: -1.3,
+      fontWeight: FontWeight.w900,
+      color: skin.text,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The reference's mobile order is brand, hero, login/register,
+        // feature cards, status cards. The illustration and flow strip are
+        // only kept when the viewport is large enough for them to coexist
+        // with the card hierarchy (tablet and up); they are dropped on
+        // phones so the auth card stays near the top of the page.
+        final showHeroVisuals =
+            constraints.maxWidth >= 760 && constraints.maxHeight >= 720;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: math.min(700, constraints.maxWidth - 48),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      ErasMark(scale: markScale),
+                      const Spacer(),
+                      const ThemeSwitch(),
+                    ],
+                  ),
+                  SizedBox(height: 26),
+                  Text('Right Resource.', style: navy),
+                  Text('Right Place.', style: navy),
+                  Text(
+                    'Right Time.',
+                    style: TextStyle(
+                      fontSize: headingSize,
+                      height: 1.14,
+                      letterSpacing: -1.3,
+                      fontWeight: FontWeight.w900,
+                      color: skin.tealBright,
+                    ),
+                  ),
+                  SizedBox(height: 14),
+                  Text(
+                    'Smarter coordination. Faster response.\n'
+                    'Better outcomes for every emergency.',
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.5,
+                      color: skin.textDim,
+                    ),
+                  ),
+                  if (showHeroVisuals) ...[
+                    SizedBox(height: 18),
+                    SizedBox(
+                      height: 210,
+                      child: AuthNetworkDiagram(
+                        key: const ValueKey('auth-network'),
+                        scale: s,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    AuthFlowStrip(
+                      key: const ValueKey('auth-flow'),
+                      scale: math.max(s, .66),
+                    ),
+                  ],
+                  SizedBox(height: 26),
+                  child,
+                  SizedBox(height: 20),
+                  WhyErasCard(scale: cardScale),
+                  SizedBox(height: 16),
+                  TrustCard(scale: cardScale),
+                  SizedBox(height: 16),
+                  AuthStatusCards(
+                    key: const ValueKey('auth-status-cards'),
+                    scale: cardScale,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _GridPainter extends CustomPainter {
-  _GridPainter(this.dark);
-  final bool dark;
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()
-      ..color = (dark ? const Color(0xFF5C8BA7) : const Color(0xFF6593B2))
-          .withValues(alpha: dark ? .045 : .035)
+      ..color = const Color(0xFF5C8BA7).withValues(alpha: .045)
       ..strokeWidth = 1;
     for (double x = 0; x < size.width; x += 42) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
@@ -392,5 +528,5 @@ class _GridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _GridPainter old) => old.dark != dark;
+  bool shouldRepaint(covariant _GridPainter oldDelegate) => false;
 }
