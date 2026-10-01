@@ -1,0 +1,746 @@
+
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.assigned adds the assignment and updates the board
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a duplicate responder.assigned never duplicates the assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.assigned without a snapshot merges the single row
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) request.updated refreshes the assignments of a known request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a redacted request.updated keeps a still-joinable pending card and removes a no-longer-joinable one
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) location updates from two responders are stored by responderId
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.location.stop removes only that responder stream
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) terminal cleanup removes every responder location of the request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) per-responder stops never cross-clear, the terminal request does
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a redacted terminal request.updated also clears every location
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a full snapshot REPLACES assignments, an incremental row MERGES
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) allocation.updated patches a request without losing assignments
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the complete operational sequence
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: allocation row shows resource quantity responder and status
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: connection indicator exposes all operational states
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: responder availability uses backend status and unfinished count
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line appears for two valid points
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line updates when the responder coordinate changes
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when emergency coordinates are missing
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when responder coordinates are missing
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when nobody accepted the emergency
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when the live responder is not the assignee
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line line is removed when the request becomes completed or cancelled
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line a last-known responder point still draws the connection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL Get directions constructs the correct universal Maps URL
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL URL carries the responder coordinates as origin
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError recognises the Maps JS geocoder denial verbatim
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError recognises a disabled Geocoding API and a referrer rejection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL URL carries the emergency coordinates as destination
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError does not treat an empty Google answer as an authorization failure
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL URL requests driving mode and the api=1 scheme
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError the hint names the Google Cloud settings that must be fixed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isPlacesApiDisabledError recognises the blocked Places API (New) v1 method
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL dir_action=navigate is omitted when navigation is not appropriate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isPlacesApiDisabledError recognises a project that never enabled Places API (New)
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL the URL opens through the injected URL launcher abstraction
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isPlacesApiDisabledError keeps the graceful user message stable
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL a last-known responder position does not force navigate mode
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL a launcher failure is reported instead of thrown
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts backend snapshot parses Blood x2 + Fire SERVICE x1 and participants
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts REST and repeated socket snapshots merge idempotently
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts malformed location payloads never become a zero-zero marker
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts assignment end removes only A; B and allocation participation remain
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts terminal REST reconciliation clears all responder locations
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts 0, 1, 2, and 3 responder geometry stays pair-scoped
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts directions assertions decode URI query parameters
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard shows LIVE/SET state and a clearly labelled direct distance
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard Get directions button triggers the callback
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard mobile widths use a full-width tappable directions button
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard desktop width keeps the compact card
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard last-known responder state renders LAST KNOWN
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: OperationalGoogleMap responsive layout mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: OperationalGoogleMap responsive layout completed/cancelled requests remove navigation card on mobile
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: OperationalGoogleMap responsive layout desktop width keeps overlay layout with full control labels
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality empty description is normalized to null
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality whitespace-only description is normalized to null
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality accepts null/missing description
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality preserves non-empty description
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) one live connection per participating responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) each (request, responder) pair draws its own polyline id
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) a live point of a non-participating responder creates no line
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) an allocation-only responder is relevant without an assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) a CANCELLED allocation alone does not make a responder relevant
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) two requests with two responders produce four isolated lines
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) Get directions opens the Google Maps URL for each responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX join action is offered for every open joinable lifecycle
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX ended lead, active assignment, and allocation-only owner render once
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) every navigation card can be scrolled to and tapped
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) a navigation card is never clipped by the deck
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) every connection distance is haversine straight-line only
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct distance is straight-line only
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX location and end controls are isolated to the signed-in responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX requester/responder cards fit 320/360/390 and desktop widths
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login screen renders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: registration page renders with ERAS identity
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login requires email and password (failed)
+
+Warning: A call to tap() with finder "Found 1 widget with text "Sign in": [
+  Text("Sign in", dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(387.0, 614.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+Indeed, Offset(387.0, 614.0) is outside the bounds of the root of the render tree, Size(800.0, 600.0).
+The finder corresponds to this RenderBox: RenderParagraph#67de3 relayoutBoundary=up35
+The hit test result at that offset is: HitTestResult(HitTestEntry<HitTestTarget>#01342(_ReusableRenderView#f5f78), HitTestEntry<HitTestTarget>#dfae4(<AutomatedTestWidgetsFlutterBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart:26:18)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "Please enter email and password": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart:29:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart line 29
+The test description was:
+  login requires email and password
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: login requires email and password
+
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: two role cards are visible
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: ADMIN is not offered as a public registration option
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: REQUESTER card can be selected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: RESPONDER card can be selected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: selecting one role deselects the other (single choice)
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role cards expose selected semantics for assistive tech
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: requester board shows lead and additional responders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: registration cannot submit without a role selection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: an additional assigned responder gets the allocation actions
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: an ENDED-only responder gets no responder actions
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: an allocation-only responder drives their own allocation
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: mobile board renders a multi-responder card without overflow
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: mobile NavigationDeck stacks multiple cards without overflow
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: REQUESTER registration sends role=REQUESTER and navigates to login
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: RESPONDER registration sends role=RESPONDER
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: duplicate email shows a friendly message and no second account
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role cards lay out cleanly across phone and desktop widths (failed)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<A RenderFlex overflowed by 64 pixels on the right.>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart:412:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart line 412
+The test description was:
+  role cards lay out cleanly across phone and desktop widths
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: role cards lay out cleanly across phone and desktop widths
+
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role selection is keyboard operable (focus + Enter)
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner (failed)
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 23 pixels on the right.
+
+The overflowing RenderFlex has an orientation of Axis.horizontal.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#94844 DISPOSED OVERFLOWING:
+  creator: MultiChildRenderObjectElement#f1252(DEFUNCT) ←
+    SingleChildRenderObjectElement#f35fb(DEFUNCT) ← SingleChildRenderObjectElement#986dc(DEFUNCT) ←
+    StatelessElement#59b5f(DEFUNCT) ← SingleChildRenderObjectElement#ee2b2(DEFUNCT) ←
+    StatefulElement#30fd8(DEFUNCT) ← StatelessElement#db27e(DEFUNCT) ←
+    SingleChildRenderObjectElement#db703(DEFUNCT) ← InheritedElement#59968(DEFUNCT) ←
+    StatelessElement#f645f(DEFUNCT) ← SingleChildRenderObjectElement#af22d(DEFUNCT) ←
+    SingleChildRenderObjectElement#0ab9d(DEFUNCT) ← ⋯
+  parentData: offset=Offset(17.0, 11.0) (can use size)
+  constraints: BoxConstraints(w=176.0, 0.0<=h<=Infinity)
+  size: Size(176.0, 19.0)
+  direction: horizontal
+  mainAxisAlignment: start
+  mainAxisSize: max
+  crossAxisAlignment: center
+  textDirection: ltr
+  verticalDirection: down
+  spacing: 0.0
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+will actually be made. Any test expecting a real network connection and status code will fail.
+To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+test, so that your test can consistently provide a testable response to the code under test.
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5062:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5076:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5187:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4342:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4261:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4240:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.getProperties (package:flutter/src/foundation/diagnostics.dart:2943:68)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1270:63)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1714:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5062:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5076:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5187:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4342:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4261:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4240:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.emptyBodyDescription (package:flutter/src/foundation/diagnostics.dart:2939:45)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1307:14)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1714:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: granted permission enables state without showing the banner
+
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: denied permission does not block the dashboard and shows banner (failed)
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 23 pixels on the right.
+
+The overflowing RenderFlex has an orientation of Axis.horizontal.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#5d184 DISPOSED OVERFLOWING:
+  creator: MultiChildRenderObjectElement#31e40(DEFUNCT) ←
+    SingleChildRenderObjectElement#42208(DEFUNCT) ← SingleChildRenderObjectElement#9b2d7(DEFUNCT) ←
+    StatelessElement#9002c(DEFUNCT) ← SingleChildRenderObjectElement#68d69(DEFUNCT) ←
+    StatefulElement#6f311(DEFUNCT) ← StatelessElement#14ebb(DEFUNCT) ←
+    SingleChildRenderObjectElement#400e0(DEFUNCT) ← InheritedElement#4d52f(DEFUNCT) ←
+    StatelessElement#a7989(DEFUNCT) ← SingleChildRenderObjectElement#9f85f(DEFUNCT) ←
+    SingleChildRenderObjectElement#cf5ed(DEFUNCT) ← ⋯
+  parentData: offset=Offset(17.0, 11.0) (can use size)
+  constraints: BoxConstraints(w=176.0, 0.0<=h<=Infinity)
+  size: Size(176.0, 19.0)
+  direction: horizontal
+  mainAxisAlignment: start
+  mainAxisSize: max
+  crossAxisAlignment: center
+  textDirection: ltr
+  verticalDirection: down
+  spacing: 0.0
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5062:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5076:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5187:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4342:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4261:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4240:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.getProperties (package:flutter/src/foundation/diagnostics.dart:2943:68)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1270:63)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1714:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5062:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5076:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5187:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4342:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4261:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4240:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.emptyBodyDescription (package:flutter/src/foundation/diagnostics.dart:2939:45)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1307:14)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1714:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: denied permission does not block the dashboard and shows banner
+
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: ENABLE LOCATION retries and removes banner after a grant (failed)
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 23 pixels on the right.
+
+The overflowing RenderFlex has an orientation of Axis.horizontal.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#0f53c DISPOSED OVERFLOWING:
+  creator: MultiChildRenderObjectElement#08ddb(DEFUNCT) ←
+    SingleChildRenderObjectElement#36c4b(DEFUNCT) ← SingleChildRenderObjectElement#f3fed(DEFUNCT) ←
+    StatelessElement#810ac(DEFUNCT) ← SingleChildRenderObjectElement#817f4(DEFUNCT) ←
+    StatefulElement#ae123(DEFUNCT) ← StatelessElement#84c82(DEFUNCT) ←
+    SingleChildRenderObjectElement#c2452(DEFUNCT) ← InheritedElement#3b790(DEFUNCT) ←
+    StatelessElement#619d9(DEFUNCT) ← SingleChildRenderObjectElement#06c18(DEFUNCT) ←
+    SingleChildRenderObjectElement#96bd7(DEFUNCT) ← ⋯
+  parentData: offset=Offset(17.0, 11.0) (can use size)
+  constraints: BoxConstraints(w=176.0, 0.0<=h<=Infinity)
+  size: Size(176.0, 19.0)
+  direction: horizontal
+  mainAxisAlignment: start
+  mainAxisSize: max
+  crossAxisAlignment: center
+  textDirection: ltr
+  verticalDirection: down
+  spacing: 0.0
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5062:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5076:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5187:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4342:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4261:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4240:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.getProperties (package:flutter/src/foundation/diagnostics.dart:2943:68)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1270:63)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1714:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5062:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5076:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5187:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4342:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4261:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4240:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.emptyBodyDescription (package:flutter/src/foundation/diagnostics.dart:2939:45)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1307:14)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1714:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: ENABLE LOCATION retries and removes banner after a grant
+
+::endgroup::
+::group::✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService startForResponder is a silent no-op without a Firebase setup
+push notifications unavailable: PlatformException(channel-error, Unable to establish connection on channel: "dev.flutter.pigeon.firebase_core_platform_interface.FirebaseCoreHostApi.initializeCore"., null, null)
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService stop() without a previous registration never throws
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService non-responders never attempt a registration
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService platformLabel describes the client for the backend
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: ADMIN navigation includes New Emergency
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) updates only the matching request and preserves other markers
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) responders A and B coexist on the same request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) updating responder A leaves responder B untouched
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) one responder stopping keeps the other responder live
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) remove() fully drops only one responder point
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) location stop retains the coordinate as last-known
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) local sharing is tracked per responder identity
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) disconnect stops local sharing and marks every point stale
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) completed and cancelled reconciliation removes tracking state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) REST reconciliation never overwrites an active live coordinate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) reconcile merges persisted points for multiple assigned responders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) reconcile drops points of responders who left the request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) singleLocationFor never guesses a responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) clearRequest removes every responder location of the request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: ADMIN sees ACCEPT / ASSIGN for a PENDING request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: assignment picker only displays backend-compatible responders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: REQUESTER sees EDIT and CANCEL REQUEST for PENDING
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: REQUESTER does not see EDIT for COMPLETED
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value (failed)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "9.991100, 76.662200": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart:258:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart line 258
+The test description was:
+  edit form loads every existing mutable value
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: edit form loads every existing mutable value
+
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: goes available with FIRE selected and zero resources
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: manual location submits null coordinates rather than 0,0
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: resource inventory controls still render when catalog has rows
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: request detail view includes the operational request fields
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: denied location state shows a non-blocking retry action
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: permission states distinguish granted, promptable and blocked
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an old payload without assignments parses to an empty list
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an explicitly empty assignments array parses
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) multiple assignments parse with full state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) isAssignedTo(A) is true only through the ACTIVE assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) isAssignedTo(B) works and unrelated ids are not assigned
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an ENDED assignment is never active work
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) acceptedBy remains the lead responder alongside assignments
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) the lead without an assignment row stays a legacy participant
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an allocation-only responder participates without an assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) withAssignment replaces the same responder without duplicating
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: login page has email, password and sign-in - no role selection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: login stores the role returned by the server for every role
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker A. current location success: GPS -> reverse geocode -> place filled
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: REQUESTER login opens the requester experience (failed)
+
+Warning: A call to tap() with finder "Found 1 widget with text "Sign in": [
+  Text("Sign in", dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(387.0, 608.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+Indeed, Offset(387.0, 608.0) is outside the bounds of the root of the render tree, Size(800.0, 600.0).
+The finder corresponds to this RenderBox: RenderParagraph#731d6 relayoutBoundary=up35
+The hit test result at that offset is: HitTestResult(HitTestEntry<HitTestTarget>#cad4e(_ReusableRenderView#f3e3b), HitTestEntry<HitTestTarget>#b4005(<AutomatedTestWidgetsFlutterBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      _signInThroughUi (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:73:16)
+<asynchronous suspension>
+#4      main.<anonymous closure>.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:142:9)
+<asynchronous suspension>
+#5      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:137:5)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+#8      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: 'REQUESTER'
+  Actual: <null>
+   Which: not an <Instance of 'String'>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:144:9)
+<asynchronous suspension>
+#5      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:137:5)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart line 144
+The test description was:
+  REQUESTER login opens the requester experience
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: REQUESTER login opens the requester experience
+
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker B. reverse geocode failure keeps coordinates and asks for manual place
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: RESPONDER login opens the responder experience (failed)
+
+Warning: A call to tap() with finder "Found 1 widget with text "Sign in": [
+  Text("Sign in", dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(387.0, 608.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+Indeed, Offset(387.0, 608.0) is outside the bounds of the root of the render tree, Size(800.0, 600.0).
+The finder corresponds to this RenderBox: RenderParagraph#e7489 relayoutBoundary=up35
+The hit test result at that offset is: HitTestResult(HitTestEntry<HitTestTarget>#b047c(_ReusableRenderView#f3e3b), HitTestEntry<HitTestTarget>#4c75b(<AutomatedTestWidgetsFlutterBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      _signInThroughUi (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:73:16)
+<asynchronous suspension>
+#4      main.<anonymous closure>.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:164:9)
+<asynchronous suspension>
+#5      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:159:5)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+#8      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: 'RESPONDER'
+  Actual: <null>
+   Which: not an <Instance of 'String'>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:166:9)
+<asynchronous suspension>
+#5      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:159:5)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart line 166
+The test description was:
+  RESPONDER login opens the responder experience
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: RESPONDER login opens the responder experience
+
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker C. place selection sets both the place text and exact coordinates
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker map tap updates coordinates and reverse geocodes them
+::endgroup::
+::group::❌ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: ADMIN login opens the admin experience (failed)
+
+Warning: A call to tap() with finder "Found 1 widget with text "Sign in": [
+  Text("Sign in", dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(387.0, 608.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+Indeed, Offset(387.0, 608.0) is outside the bounds of the root of the render tree, Size(800.0, 600.0).
+The finder corresponds to this RenderBox: RenderParagraph#e5d54 relayoutBoundary=up35
+The hit test result at that offset is: HitTestResult(HitTestEntry<HitTestTarget>#87fce(_ReusableRenderView#f3e3b), HitTestEntry<HitTestTarget>#6e44a(<AutomatedTestWidgetsFlutterBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      _signInThroughUi (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:73:16)
+<asynchronous suspension>
+#4      main.<anonymous closure>.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:185:9)
+<asynchronous suspension>
+#5      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:180:5)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+#8      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: 'ADMIN'
+  Actual: <null>
+   Which: not an <Instance of 'String'>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure>.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:187:9)
+<asynchronous suspension>
+#5      main.<anonymous closure> (file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart:180:5)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart line 187
+The test description was:
+  ADMIN login opens the admin experience
+════════════════════════════════════════════════════════════════════════════════════════════════════
+Test failed. See exception logs above.
+The test description was: ADMIN login opens the admin experience
+
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: creates a request marker only from real request coordinates
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: distinguishes pending request markers from active emergencies
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: creates a LIVE responder marker from Socket.IO location state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: responder location update moves the same stable marker id
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: live to last-known transition keeps the marker but changes its state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: completed and cancelled requests remove active map tracking
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: two responders on one request render isolated marker pairs
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: lead is named and unrelated stale responder points are rejected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: responder snippets list only that responder's allocated resources
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: multiple request locations stay isolated by request id
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation D. coordinates + place -> submit allowed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation E. empty description -> submit allowed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation F. whitespace-only description -> submitted as empty/null
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation H. missing place -> submit rejected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: J. Socket.IO live responder location live location updates never trigger reverse geocoding or nearby search
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: zero available responders never block a SERVICE resource
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: the requester is told the request queues instead of being blocked
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: the explanatory PostgreSQL paragraph is removed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: an empty catalog never blocks submission and shows an optional-resources hint
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: an empty catalog shows an informational hint, not a resource-required blocker
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: a CONSUMABLE resource without inventory stays blocked
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: the availability label separates inventory from staffing
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 15. Resource-free request shows START RESPONSE after acceptance and hides Allocate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 16. Resource-free IN_PROGRESS request shows COMPLETE RESPONSE
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 17. Resource-bearing request still shows Allocate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 18. Empty AllocationDialog gracefully explains no physical resources for zero-resource request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping 2. every category maps to valid Google Table A place types
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping 2b. specific categories map to the expected Google types
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping 3. NearbyPlace exposes name/address/coordinates + labels
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping distance labels format metres and kilometres
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping haversine distance matches real-world scale
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping the default nearby radius is 5 km, not 30 km
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping Places API disabled errors are recognised from Google messages
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping PlacesApiDisabledException carries the exact user guidance
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 13. MY HELP TYPES panel renders saved backend categories
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 14. Empty inventory does not hide help types
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 19. Help-type editing action still works
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 1. nearby request uses the current GPS latitude/longitude (5 km)
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: Clean empty state for ResponderHelpTypesPanel when none configured
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 3. nearby results render name, distance and address
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 4. selecting a nearby place updates the form label + exact coordinates and allows submission
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 5. Places API (New) disabled -> graceful message, no crash, form keeps working
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 5b. generic nearby failure -> status text, no crash
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 6. existing autocomplete still works while nearby is unavailable
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 7. reverse geocoding keeps working after nearby failures
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow explicit refresh and location changes re-query; typing never does
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow no coordinates -> nearby section hidden
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: 8. Socket.IO live responder updates live responder location updates never trigger Nearby Search
+::endgroup::
+
+::error::188 tests passed, 9 failed.
+test_exit=1

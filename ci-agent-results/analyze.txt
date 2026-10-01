@@ -1,0 +1,3 @@
+Analyzing emergency_app...                                      
+No issues found! (ran in 9.0s)
+analyze_exit=0
