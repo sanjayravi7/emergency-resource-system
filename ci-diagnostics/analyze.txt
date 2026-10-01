@@ -1,8 +1,0 @@
-Analyzing emergency_app...                                      
-
-   info • Use a function declaration rather than a variable assignment to bind a function to a name. Try rewriting the closure assignment as a function declaration • lib/widgets/auth_visuals.dart:759:11 • prefer_function_declarations_over_variables
-  error • The method 'linear' isn't defined for the type 'Gradient'. Try correcting the name to the name of an existing method, or defining a method named 'linear' • lib/widgets/auth_visuals.dart:783:31 • undefined_method
-  error • Undefined name '_entries'. Try correcting the name to one that is defined, or defining the name • lib/widgets/auth_visuals.dart:960:33 • undefined_identifier
-warning • The declaration '_statusEntries' isn't referenced. Try removing the declaration of '_statusEntries' • lib/widgets/auth_visuals.dart:991:7 • unused_element
-
-4 issues found. (ran in 7.6s)
