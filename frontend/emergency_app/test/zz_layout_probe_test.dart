@@ -30,8 +30,7 @@ void main() {
     rect('req-card@pump1', find.byKey(const ValueKey('role-card-REQUESTER')));
 
     await tester.pump(const Duration(seconds: 3));
-    rect('req-card@settled',
-        find.byKey(const ValueKey('role-card-REQUESTER')));
+    rect('req-card@settled', find.byKey(const ValueKey('role-card-REQUESTER')));
 
     fail(buffer.toString());
   });
