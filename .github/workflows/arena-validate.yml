@@ -76,25 +76,3 @@ jobs:
 
       - name: Fail when validation failed
         run: exit ${{ steps.validate.outputs.status }}
-
-  # TEMPORARY: does the same test pass on unmodified main with today's
-  # stable Flutter? Distinguishes a branch regression from version drift.
-  baseline:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend/emergency_app
-    steps:
-      - name: Check out main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Install dependencies
-        run: flutter pub get
-      - name: Run registration role test on main
-        run: flutter test test/registration_role_test.dart -r github
