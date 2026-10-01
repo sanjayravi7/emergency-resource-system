@@ -1209,9 +1209,18 @@ class WhyErasCard extends StatelessWidget {
           header,
           if (fillHeight)
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: rows,
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: rows,
+                    ),
+                  ),
+                ),
               ),
             )
           else ...[
