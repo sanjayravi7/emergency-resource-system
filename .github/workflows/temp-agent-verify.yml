@@ -1,0 +1,69 @@
+name: Temp Agent Verify
+
+# TEMPORARY helper workflow used to run the Flutter toolchain (format/analyze/test)
+# and report results back into the branch. Deleted once verification is done.
+
+on:
+  push:
+    branches: ["arena/01a0f861-emergency-resource-system"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Format sources
+        run: |
+          set +e
+          mkdir -p ../../ci-agent-results
+          dart format . > ../../ci-agent-results/format.txt 2>&1
+          echo "format_write_exit=$?" >> ../../ci-agent-results/format.txt
+          dart format --output=none --set-exit-if-changed . > ../../ci-agent-results/format-check.txt 2>&1
+          echo "format_check_exit=$?" >> ../../ci-agent-results/format-check.txt
+          exit 0
+
+      - name: Analyze project source
+        run: |
+          set +e
+          flutter analyze > ../../ci-agent-results/analyze.txt 2>&1
+          echo "analyze_exit=$?" >> ../../ci-agent-results/analyze.txt
+          exit 0
+
+      - name: Run tests
+        run: |
+          set +e
+          flutter test > ../../ci-agent-results/test.txt 2>&1
+          echo "test_exit=$?" >> ../../ci-agent-results/test.txt
+          exit 0
+
+      - name: Commit formatted sources and results back to branch
+        if: always()
+        working-directory: .
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "chore(ci): dart format + toolchain results [skip ci]"
+            git push origin HEAD:arena/01a0f861-emergency-resource-system
+          fi
