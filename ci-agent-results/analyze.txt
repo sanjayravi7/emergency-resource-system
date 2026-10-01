@@ -1,0 +1,8 @@
+Analyzing emergency_app...                                      
+
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/screens/login_screen.dart:57:9 • curly_braces_in_flow_control_structures
+   info • Statements in a for should be enclosed in a block. Try wrapping the statement in a block • lib/widgets/auth_shell.dart:381:7 • curly_braces_in_flow_control_structures
+   info • Statements in a for should be enclosed in a block. Try wrapping the statement in a block • lib/widgets/auth_shell.dart:383:7 • curly_braces_in_flow_control_structures
+
+3 issues found. (ran in 9.0s)
+analyze_exit=1

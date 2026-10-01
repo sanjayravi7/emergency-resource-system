@@ -26,9 +26,8 @@ class ThemeController {
 
   static Future<void> load() async {
     final preferences = await SharedPreferences.getInstance();
-    mode.value = (preferences.getBool(_key) ?? false)
-        ? ThemeMode.dark
-        : ThemeMode.light;
+    mode.value =
+        (preferences.getBool(_key) ?? false) ? ThemeMode.dark : ThemeMode.light;
   }
 
   static Future<void> toggle() async {
@@ -57,13 +56,25 @@ ThemeData erasTheme(Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: dark ? const Color(0xB30B1A2E) : const Color(0xFFF9FBFD),
-      labelStyle: TextStyle(color: dark ? const Color(0xFFA9B8CC) : AppColors.textDim),
-      hintStyle: TextStyle(color: dark ? const Color(0xFF71839B) : AppColors.textFaint),
+      labelStyle:
+          TextStyle(color: dark ? const Color(0xFFA9B8CC) : AppColors.textDim),
+      hintStyle: TextStyle(
+          color: dark ? const Color(0xFF71839B) : AppColors.textFaint),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: dark ? const Color(0xFF20D4C3) : AppColors.blue, width: 1.7)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.red)),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: border)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: border)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+              color: dark ? const Color(0xFF20D4C3) : AppColors.blue,
+              width: 1.7)),
+      errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.red)),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -77,7 +88,9 @@ ThemeData erasTheme(Brightness brightness) {
     cardTheme: CardThemeData(
       color: dark ? const Color(0xE6101F35) : Colors.white,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: border)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: border)),
     ),
   );
 }
@@ -87,10 +100,42 @@ class PillColors {
   final Color background, text;
 }
 
-InputDecoration fieldDecoration({String? hintText}) => InputDecoration(isDense: true, filled: true, hintText: hintText);
-TextStyle monoStyle({required double size, required Color color, FontWeight? weight}) => TextStyle(fontFamily: 'IBM Plex Mono', fontSize: size, color: color, fontWeight: weight);
-TextStyle tableHeadStyle() => const TextStyle(fontSize: 10.5, color: AppColors.textFaint, letterSpacing: .6, fontWeight: FontWeight.w500);
-String titleCase(String value) => value.isEmpty ? value : value.substring(0, 1).toUpperCase() + value.substring(1).toLowerCase();
-T? firstWhereOrNull<T>(Iterable<T> items, bool Function(T) test) { for (final item in items) { if (test(item)) return item; } return null; }
-String formatDateTime(DateTime? value) { if (value == null) return '-'; final local = value.toLocal(); String two(int v) => v.toString().padLeft(2, '0'); return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}'; }
-String formatRelative(DateTime? value) { if (value == null) return '-'; final diff = DateTime.now().difference(value.toLocal()); if (diff.inMinutes < 1) return 'just now'; if (diff.inMinutes < 60) return '${diff.inMinutes} min ago'; if (diff.inHours < 24) return '${diff.inHours} h ago'; return '${diff.inDays} d ago'; }
+InputDecoration fieldDecoration({String? hintText}) =>
+    InputDecoration(isDense: true, filled: true, hintText: hintText);
+TextStyle monoStyle(
+        {required double size, required Color color, FontWeight? weight}) =>
+    TextStyle(
+        fontFamily: 'IBM Plex Mono',
+        fontSize: size,
+        color: color,
+        fontWeight: weight);
+TextStyle tableHeadStyle() => const TextStyle(
+    fontSize: 10.5,
+    color: AppColors.textFaint,
+    letterSpacing: .6,
+    fontWeight: FontWeight.w500);
+String titleCase(String value) => value.isEmpty
+    ? value
+    : value.substring(0, 1).toUpperCase() + value.substring(1).toLowerCase();
+T? firstWhereOrNull<T>(Iterable<T> items, bool Function(T) test) {
+  for (final item in items) {
+    if (test(item)) return item;
+  }
+  return null;
+}
+
+String formatDateTime(DateTime? value) {
+  if (value == null) return '-';
+  final local = value.toLocal();
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
+}
+
+String formatRelative(DateTime? value) {
+  if (value == null) return '-';
+  final diff = DateTime.now().difference(value.toLocal());
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+  if (diff.inHours < 24) return '${diff.inHours} h ago';
+  return '${diff.inDays} d ago';
+}
