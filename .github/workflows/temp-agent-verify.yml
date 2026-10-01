@@ -32,22 +32,30 @@ jobs:
 
       - name: Format sources
         run: |
+          set +e
           mkdir -p ../../ci-agent-results
-          dart format . > ../../ci-agent-results/format.txt 2>&1 || true
+          dart format . > ../../ci-agent-results/format.txt 2>&1
+          echo "format_write_exit=$?" >> ../../ci-agent-results/format.txt
           dart format --output=none --set-exit-if-changed . > ../../ci-agent-results/format-check.txt 2>&1
           echo "format_check_exit=$?" >> ../../ci-agent-results/format-check.txt
+          exit 0
 
       - name: Analyze project source
         run: |
+          set +e
           flutter analyze > ../../ci-agent-results/analyze.txt 2>&1
           echo "analyze_exit=$?" >> ../../ci-agent-results/analyze.txt
+          exit 0
 
       - name: Run tests
         run: |
+          set +e
           flutter test > ../../ci-agent-results/test.txt 2>&1
           echo "test_exit=$?" >> ../../ci-agent-results/test.txt
+          exit 0
 
       - name: Commit formatted sources and results back to branch
+        if: always()
         working-directory: .
         run: |
           git config user.name "github-actions[bot]"
