@@ -1,10 +1,11 @@
 # TEMPORARY validation helper for the arena/01a0f8f0 branch.
 #
 # The development sandbox for this branch cannot reach the Flutter/Dart
-# download hosts, so formatting, analysis and tests are validated here.
-# `dart format` fixes are committed back to the branch automatically.
-# This file is removed before the branch is merged; it never touches
-# dart.yml and never runs for main.
+# download hosts (or the Actions log storage), so formatting, analysis
+# and tests are validated here and the results are committed back to the
+# branch as .arena-ci-report.txt. `dart format` fixes are committed back
+# automatically as well. This file and the report are removed before the
+# branch is merged; dart.yml is untouched and this never runs for main.
 name: Arena validate (temporary)
 
 on:
@@ -41,22 +42,37 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Apply formatting
-        run: dart format .
+      - name: Validate (format + analyze + test)
+        id: validate
+        run: |
+          status=0
+          {
+            echo "== flutter --version =="
+            flutter --version
+            echo
+            echo "== dart format =="
+          } > /tmp/report.txt 2>&1
+          dart format . >> /tmp/report.txt 2>&1 || status=1
+          echo >> /tmp/report.txt
+          echo "== flutter analyze ==" >> /tmp/report.txt
+          flutter analyze >> /tmp/report.txt 2>&1 || status=1
+          echo >> /tmp/report.txt
+          echo "== flutter test (github reporter) ==" >> /tmp/report.txt
+          flutter test -r github >> /tmp/report.txt 2>&1 || status=1
+          echo >> /tmp/report.txt
+          echo "== overall status: $status ==" >> /tmp/report.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
 
-      - name: Commit formatting fixes (if any)
+      - name: Publish report and formatting fixes to the branch
+        if: always()
         working-directory: ${{ github.workspace }}
         run: |
-          if ! git diff --quiet; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add -A
-            git commit -m "Apply dart format"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
+          cp /tmp/report.txt .arena-ci-report.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "CI: validation report (temporary)" || true
+          git push origin HEAD:${{ github.ref_name }}
 
-      - name: Analyze project source
-        run: flutter analyze
-
-      - name: Run tests
-        run: flutter test
+      - name: Fail when validation failed
+        run: exit ${{ steps.validate.outputs.status }}
