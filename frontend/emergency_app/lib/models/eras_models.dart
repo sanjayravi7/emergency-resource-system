@@ -825,27 +825,41 @@ String statusLabel(RequestStatus status) => switch (status) {
       RequestStatus.cancelled => 'CANCELLED',
     };
 
-PillColors statusColors(RequestStatus status) => switch (status) {
-      RequestStatus.pending =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.accepted =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.inProgress =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.partiallyAllocated =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.completed =>
-        const PillColors(AppColors.tealDim, AppColors.teal),
-      RequestStatus.cancelled =>
-        const PillColors(AppColors.surface2, AppColors.textFaint),
-    };
+PillColors statusColors(
+  RequestStatus status, [
+  ErasPalette palette = ErasPalette.light,
+]) {
+  switch (status) {
+    case RequestStatus.pending:
+      return PillColors(palette.amberDim, palette.amber);
+    case RequestStatus.accepted:
+      return PillColors(palette.blueDim, palette.blue);
+    case RequestStatus.inProgress:
+      return PillColors(palette.blueDim, palette.blue);
+    case RequestStatus.partiallyAllocated:
+      return PillColors(palette.amberDim, palette.amber);
+    case RequestStatus.completed:
+      return PillColors(palette.tealDim, palette.teal);
+    case RequestStatus.cancelled:
+      return PillColors(palette.surface2, palette.textFaint);
+  }
+}
 
-PillColors priorityColors(String priority) => switch (priority.toUpperCase()) {
-      'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
-      'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
-      'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
-      _ => const PillColors(AppColors.surface2, AppColors.textDim),
-    };
+PillColors priorityColors(
+  String priority, [
+  ErasPalette palette = ErasPalette.light,
+]) {
+  switch (priority.toUpperCase()) {
+    case 'CRITICAL':
+      return PillColors(palette.redDim, palette.red);
+    case 'HIGH':
+      return PillColors(palette.amberDim, palette.amber);
+    case 'MEDIUM':
+      return PillColors(palette.blueDim, palette.blue);
+    default:
+      return PillColors(palette.surface2, palette.textDim);
+  }
+}
 
 class EmergencyRequest {
   const EmergencyRequest({
@@ -1125,48 +1139,52 @@ class ResourceMeta {
   final Color color;
 }
 
-ResourceMeta resourceMetaFor(String typeOrName) {
+ResourceMeta resourceMetaFor(
+  String typeOrName, [
+  ErasPalette palette = ErasPalette.light,
+]) {
   final value = typeOrName.toUpperCase();
 
   if (value.contains('AMBULANCE') || value.contains('MEDICAL')) {
-    return const ResourceMeta(
-        Icons.local_hospital, AppColors.redDim, AppColors.red);
+    return ResourceMeta(Icons.local_hospital, palette.redDim, palette.red);
   }
   if (value.contains('BLOOD')) {
-    return const ResourceMeta(
-        Icons.water_drop, Color(0xFFFCE4F3), Color(0xFFC23E96));
+    return ResourceMeta(Icons.water_drop, palette.bloodBg, palette.bloodText);
   }
   if (value.contains('OXYGEN')) {
-    return const ResourceMeta(Icons.air, AppColors.blueDim, AppColors.blue);
+    return ResourceMeta(Icons.air, palette.blueDim, palette.blue);
   }
   if (value.contains('FIRE')) {
-    return const ResourceMeta(
-        Icons.local_fire_department, AppColors.amberDim, AppColors.amber);
+    return ResourceMeta(
+      Icons.local_fire_department,
+      palette.amberDim,
+      palette.amber,
+    );
   }
   if (value.contains('VOLUNTEER') || value.contains('PEOPLE')) {
-    return const ResourceMeta(Icons.groups, AppColors.tealDim, AppColors.teal);
+    return ResourceMeta(Icons.groups, palette.tealDim, palette.teal);
   }
   if (value.contains('BOAT') || value.contains('RESCUE')) {
-    return const ResourceMeta(
-        Icons.directions_boat, AppColors.blueDim, AppColors.blue);
+    return ResourceMeta(Icons.directions_boat, palette.blueDim, palette.blue);
   }
   if (value.contains('FOOD') || value.contains('WATER')) {
-    return const ResourceMeta(
-        Icons.local_drink, AppColors.tealDim, AppColors.teal);
+    return ResourceMeta(Icons.local_drink, palette.tealDim, palette.teal);
   }
 
-  return const ResourceMeta(
-      Icons.inventory_2, AppColors.surface2, AppColors.textDim);
+  return ResourceMeta(Icons.inventory_2, palette.surface2, palette.textDim);
 }
 
-Color responderStatusColor(String status) {
+Color responderStatusColor(
+  String status, [
+  ErasPalette palette = ErasPalette.light,
+]) {
   switch (status.toUpperCase()) {
     case 'AVAILABLE':
-      return AppColors.teal;
+      return palette.teal;
     case 'BUSY':
-      return AppColors.blue;
+      return palette.blue;
     default:
-      return AppColors.textFaint;
+      return palette.textFaint;
   }
 }
 

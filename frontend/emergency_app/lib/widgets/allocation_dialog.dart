@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 
 /// Per-resource allocation for one accepted emergency.
 ///
@@ -119,22 +120,28 @@ class _AllocationDialogState extends State<AllocationDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final current = request;
 
     return AlertDialog(
-      backgroundColor: AppColors.surface,
+      backgroundColor: p.surface,
+      surfaceTintColor: Colors.transparent,
       title: Text(
         current == null
             ? 'Allocation'
             : 'Allocate resources · ${current.displayId}',
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: p.text,
+        ),
       ),
       content: SizedBox(
         width: 520,
         child: current == null
-            ? const Text(
+            ? Text(
                 'This request is no longer available.',
-                style: TextStyle(fontSize: 13, color: AppColors.textFaint),
+                style: TextStyle(fontSize: 13, color: p.textFaint),
               )
             : SingleChildScrollView(
                 child: Column(
@@ -143,31 +150,30 @@ class _AllocationDialogState extends State<AllocationDialog> {
                   children: [
                     Text(
                       '${current.emergencyType} · ${current.location}',
-                      style: const TextStyle(
-                          fontSize: 12.5, color: AppColors.textDim),
+                      style: TextStyle(fontSize: 12.5, color: p.textDim),
                     ),
                     const SizedBox(height: 14),
                     if (current.requiredResources.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Text(
                           'This emergency does not require physical resources. '
                           'Use START RESPONSE / COMPLETE RESPONSE from the dispatch board.',
-                          style:
-                              TextStyle(fontSize: 13, color: AppColors.textDim),
+                          style: TextStyle(fontSize: 13, color: p.textDim),
                         ),
                       )
                     else
                       for (final line in current.requiredResources)
-                        _resourceRow(current, line),
+                        _resourceRow(current, line, p),
                     if (current.activeAllocations.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'ALLOCATIONS',
                         style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.textFaint,
-                            letterSpacing: .6),
+                          fontSize: 10,
+                          color: p.textFaint,
+                          letterSpacing: .6,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       ...current.activeAllocations.map(
@@ -179,7 +185,10 @@ class _AllocationDialogState extends State<AllocationDialog> {
                                 child: Text(
                                   '#${allocation.id} · ${allocation.resourceName} × '
                                   '${allocation.quantity} · ${allocation.status}',
-                                  style: const TextStyle(fontSize: 12),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: p.text,
+                                  ),
                                 ),
                               ),
                               if (allocation.isReserved)
@@ -188,9 +197,12 @@ class _AllocationDialogState extends State<AllocationDialog> {
                                       ? null
                                       : () => dispatchAllocation(allocation),
                                   style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.blue),
-                                  child: const Text('Dispatch',
-                                      style: TextStyle(fontSize: 12)),
+                                    foregroundColor: p.blue,
+                                  ),
+                                  child: const Text(
+                                    'Dispatch',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 )
                               else if (allocation.isDispatched)
                                 TextButton(
@@ -198,23 +210,33 @@ class _AllocationDialogState extends State<AllocationDialog> {
                                       ? null
                                       : () => markDelivered(allocation),
                                   style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.teal),
-                                  child: const Text('Mark Delivered',
-                                      style: TextStyle(fontSize: 12)),
+                                    foregroundColor: p.teal,
+                                  ),
+                                  child: const Text(
+                                    'Mark Delivered',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 )
                               else if (allocation.isDelivered)
-                                const Text('Delivered',
-                                    style: TextStyle(
-                                        fontSize: 11, color: AppColors.teal)),
+                                Text(
+                                  'Delivered',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: p.teal,
+                                  ),
+                                ),
                               if (!allocation.isDelivered)
                                 TextButton(
                                   onPressed: busy
                                       ? null
                                       : () => cancelAllocation(allocation.id),
                                   style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.red),
-                                  child: const Text('Cancel',
-                                      style: TextStyle(fontSize: 12)),
+                                    foregroundColor: p.red,
+                                  ),
+                                  child: const Text(
+                                    'Cancel',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 ),
                             ],
                           ),
@@ -228,13 +250,18 @@ class _AllocationDialogState extends State<AllocationDialog> {
       actions: [
         TextButton(
           onPressed: busy ? null : () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(foregroundColor: p.textDim),
           child: const Text('Close'),
         ),
       ],
     );
   }
 
-  Widget _resourceRow(EmergencyRequest current, RequiredResourceLine line) {
+  Widget _resourceRow(
+    EmergencyRequest current,
+    RequiredResourceLine line,
+    ErasPalette p,
+  ) {
     final allocated = current.allocatedFor(line.resourceId);
     final remaining = current.remainingFor(line.resourceId);
     final inventory = inventoryFor(line.resourceId);
@@ -262,7 +289,8 @@ class _AllocationDialogState extends State<AllocationDialog> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.border),
+        color: p.dark ? p.surface2 : Colors.transparent,
+        border: Border.all(color: p.border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -273,13 +301,16 @@ class _AllocationDialogState extends State<AllocationDialog> {
               Expanded(
                 child: Text(
                   line.resourceName,
-                  style: const TextStyle(
-                      fontSize: 13.5, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: p.text,
+                  ),
                 ),
               ),
               Text(
                 'required ${line.quantity} · allocated $allocated · left $remaining',
-                style: monoStyle(size: 11, color: AppColors.textDim),
+                style: monoStyle(size: 11, color: p.textDim),
               ),
             ],
           ),
@@ -288,13 +319,13 @@ class _AllocationDialogState extends State<AllocationDialog> {
             inventory == null
                 ? 'Your inventory: none'
                 : 'Your inventory: ${inventory.availableQuantity}/${inventory.totalQuantity} (${inventory.status})',
-            style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
+            style: TextStyle(fontSize: 11.5, color: p.textFaint),
           ),
           const SizedBox(height: 8),
           if (blockedReason != null)
             Text(
               blockedReason,
-              style: const TextStyle(fontSize: 12, color: AppColors.amber),
+              style: TextStyle(fontSize: 12, color: p.amber),
             )
           else
             Row(
@@ -305,12 +336,15 @@ class _AllocationDialogState extends State<AllocationDialog> {
                       : () => setState(
                             () => quantities[line.resourceId] = quantity - 1,
                           ),
-                  icon: const Icon(Icons.remove, size: 16),
+                  icon: Icon(Icons.remove, size: 16, color: p.textDim),
                 ),
                 Text(
                   '$quantity',
                   style: monoStyle(
-                      size: 14, color: AppColors.text, weight: FontWeight.w600),
+                    size: 14,
+                    color: p.text,
+                    weight: FontWeight.w600,
+                  ),
                 ),
                 IconButton(
                   onPressed: busy || quantity >= maxQuantity
@@ -318,21 +352,26 @@ class _AllocationDialogState extends State<AllocationDialog> {
                       : () => setState(
                             () => quantities[line.resourceId] = quantity + 1,
                           ),
-                  icon: const Icon(Icons.add, size: 16),
+                  icon: Icon(Icons.add, size: 16, color: p.textDim),
                 ),
                 const Spacer(),
-                FilledButton(
-                  onPressed: busy || inventory == null || quantity <= 0
-                      ? null
-                      : () => allocate(line, inventory, quantity),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
+                PressableScale(
+                  child: FilledButton(
+                    onPressed: busy || inventory == null || quantity <= 0
+                        ? null
+                        : () => allocate(line, inventory, quantity),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: p.blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    child: const Text(
+                      'Allocate',
+                      style: TextStyle(fontSize: 12.5),
                     ),
                   ),
-                  child:
-                      const Text('Allocate', style: TextStyle(fontSize: 12.5)),
                 ),
               ],
             ),

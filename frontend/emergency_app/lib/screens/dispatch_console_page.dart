@@ -9,6 +9,7 @@ import '../services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/auth_motion.dart';
 import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/log_panel.dart';
@@ -855,54 +856,62 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => Dialog(
-          key: const Key('edit-request-dialog'),
-          backgroundColor: AppColors.bg,
-          insetPadding: const EdgeInsets.all(14),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 900,
-              maxHeight: MediaQuery.sizeOf(dialogContext).height * .92,
+        builder: (dialogContext, setDialogState) {
+          final p = ErasPalette.of(dialogContext);
+          return Dialog(
+            key: const Key('edit-request-dialog'),
+            backgroundColor: p.bg,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: p.cardBorder),
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
-              child: NewRequestPanel(
-                initialRequest: request,
-                panelTitle: 'EDIT ${request.displayId}',
-                submitLabel: 'Save changes',
-                resources: resources,
-                submitting: saving,
-                onReload: () => loadResources(silent: true),
-                onUseCurrentLocation: _tryReadEmergencyGeoPoint,
-                onSubmit: (payload) async {
-                  setDialogState(() => saving = true);
-                  try {
-                    await ApiService.updateMyRequest(
-                      requestId: request.id,
-                      emergencyType: payload.emergencyType,
-                      description: payload.description,
-                      location: payload.location,
-                      priority: payload.priority,
-                      latitude: payload.latitude,
-                      longitude: payload.longitude,
-                      requiredResources: payload.requiredResources,
-                    );
-                    if (dialogContext.mounted) {
-                      Navigator.of(dialogContext).pop(true);
+            insetPadding: const EdgeInsets.all(14),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 900,
+                maxHeight: MediaQuery.sizeOf(dialogContext).height * .92,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: NewRequestPanel(
+                  initialRequest: request,
+                  panelTitle: 'EDIT ${request.displayId}',
+                  submitLabel: 'Save changes',
+                  resources: resources,
+                  submitting: saving,
+                  onReload: () => loadResources(silent: true),
+                  onUseCurrentLocation: _tryReadEmergencyGeoPoint,
+                  onSubmit: (payload) async {
+                    setDialogState(() => saving = true);
+                    try {
+                      await ApiService.updateMyRequest(
+                        requestId: request.id,
+                        emergencyType: payload.emergencyType,
+                        description: payload.description,
+                        location: payload.location,
+                        priority: payload.priority,
+                        latitude: payload.latitude,
+                        longitude: payload.longitude,
+                        requiredResources: payload.requiredResources,
+                      );
+                      if (dialogContext.mounted) {
+                        Navigator.of(dialogContext).pop(true);
+                      }
+                      return true;
+                    } catch (error) {
+                      showToast('Edit failed: ${_clean(error)}');
+                      if (dialogContext.mounted) {
+                        setDialogState(() => saving = false);
+                      }
+                      return false;
                     }
-                    return true;
-                  } catch (error) {
-                    showToast('Edit failed: ${_clean(error)}');
-                    if (dialogContext.mounted) {
-                      setDialogState(() => saving = false);
-                    }
-                    return false;
-                  }
-                },
+                  },
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
 
@@ -1014,27 +1023,38 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   Future<void> cancelRequest(EmergencyRequest request) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Cancel emergency request?'),
-        content: Text(
-          'Cancel ${request.displayId}? The request is not deleted and will '
-          'remain in the operational after-action history as CANCELLED.',
-          style: const TextStyle(fontSize: 13, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep request'),
+      builder: (context) {
+        final p = ErasPalette.of(context);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            'Cancel emergency request?',
+            style: TextStyle(color: p.text, fontWeight: FontWeight.w700),
           ),
-          FilledButton(
-            key: const Key('confirm-cancel-request-button'),
-            onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.red),
-            child: const Text('Cancel request'),
+          content: Text(
+            'Cancel ${request.displayId}? The request is not deleted and will '
+            'remain in the operational after-action history as CANCELLED.',
+            style: TextStyle(fontSize: 13, height: 1.4, color: p.textDim),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(foregroundColor: p.textDim),
+              child: const Text('Keep request'),
+            ),
+            FilledButton(
+              key: const Key('confirm-cancel-request-button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: p.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Cancel request'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed != true) return;
@@ -1138,27 +1158,38 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   Future<void> markAllocationDelivered(AllocationLine allocation) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Mark delivered'),
-        content: Text(
-          'Mark this resource as delivered?\n\n'
-          '${allocation.resourceName} × ${allocation.quantity} will be '
-          'marked as delivered and this allocation will be completed.',
-          style: const TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Not yet'),
+      builder: (context) {
+        final p = ErasPalette.of(context);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            'Mark delivered',
+            style: TextStyle(color: p.text, fontWeight: FontWeight.w700),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
-            child: const Text('Mark Delivered'),
+          content: Text(
+            'Mark this resource as delivered?\n\n'
+            '${allocation.resourceName} × ${allocation.quantity} will be '
+            'marked as delivered and this allocation will be completed.',
+            style: TextStyle(fontSize: 13, color: p.textDim),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(foregroundColor: p.textDim),
+              child: const Text('Not yet'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: p.teal,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Mark Delivered'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed != true) return;
@@ -1370,16 +1401,19 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   void showToast(String message) {
     if (!mounted) return;
+    final p = ErasPalette.of(context);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message,
-            style: const TextStyle(color: AppColors.text, fontSize: 13)),
+        content: Text(
+          message,
+          style: TextStyle(color: p.text, fontSize: 13),
+        ),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(milliseconds: 3600),
-        backgroundColor: AppColors.surface2,
+        backgroundColor: p.surface2,
         elevation: 2,
-        shape: const Border(left: BorderSide(color: AppColors.teal, width: 4)),
+        shape: Border(left: BorderSide(color: p.teal, width: 4)),
       ),
     );
   }
@@ -1446,6 +1480,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 720;
     final items = navItemsForRole(role);
@@ -1456,7 +1491,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
     if (isMobile) {
       return Scaffold(
-        backgroundColor: AppColors.bg,
+        backgroundColor: p.bg,
         appBar: MobileAppBar(
           clock: clockLabel,
           pending: pendingCount,
@@ -1471,6 +1506,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         body: SafeArea(
           top: false,
           child: RefreshIndicator(
+            color: p.teal,
+            backgroundColor: p.surface2,
             onRefresh: refreshAll,
             child: _buildMainContent(isMobile: true),
           ),
@@ -1484,6 +1521,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
 
     return Scaffold(
+      backgroundColor: p.bg,
       body: SafeArea(
         bottom: false,
         child: Row(
@@ -1596,16 +1634,21 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       );
     }
 
-    return ListView(
-      // Content-driven scrolling area with compact outer padding. The extra
-      // bottom space on mobile only clears the floating bottom navigation bar.
-      padding: EdgeInsets.fromLTRB(
-        isMobile ? 12 : 24,
-        isMobile ? 12 : 18,
-        isMobile ? 12 : 24,
-        isMobile ? 84 : 28,
+    return AnimatedSwap(
+      duration: AuthMotion.normal,
+      offset: const Offset(0, 8),
+      child: ListView(
+        key: ValueKey<ConsoleView>(activeView),
+        // Content-driven scrolling area with compact outer padding. Extra
+        // bottom space on mobile clears the floating bottom navigation bar.
+        padding: EdgeInsets.fromLTRB(
+          isMobile ? 12 : 24,
+          isMobile ? 12 : 18,
+          isMobile ? 12 : 24,
+          isMobile ? 84 : 28,
+        ),
+        children: children,
       ),
-      children: children,
     );
   }
 
