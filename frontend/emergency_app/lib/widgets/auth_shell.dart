@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 import 'auth_visuals.dart';
 
 /// Brand lock-up: large outlined shield with medical cross + teal glow,
@@ -61,11 +62,17 @@ class ErasMark extends StatelessWidget {
   }
 }
 
+/// Light/dark toggle. The layout and colours are unchanged; the toggle
+/// glides: the thumb slides with a soft glow while the sun and moon icons
+/// cross-fade, all within one 300ms motion (instant under reduced motion).
 class ThemeSwitch extends StatelessWidget {
   const ThemeSwitch({super.key});
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final duration =
+        AuthMotion.scaled(context, const Duration(milliseconds: 300));
+    const curve = Curves.easeOutCubic;
     return Semantics(
         button: true,
         label: dark ? 'Switch to light theme' : 'Switch to dark theme',
@@ -73,7 +80,8 @@ class ThemeSwitch extends StatelessWidget {
           onTap: ThemeController.toggle,
           borderRadius: BorderRadius.circular(24),
           child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
+              duration: duration,
+              curve: curve,
               width: 76,
               height: 38,
               padding: const EdgeInsets.all(4),
@@ -89,29 +97,51 @@ class ThemeSwitch extends StatelessWidget {
                   ]),
               child: Stack(children: [
                 AnimatedAlign(
-                    duration: const Duration(milliseconds: 250),
+                    key: const ValueKey('theme-switch-thumb'),
+                    duration: duration,
+                    curve: curve,
                     alignment:
                         dark ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
+                    child: AnimatedContainer(
+                        duration: duration,
+                        curve: curve,
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: dark
                                 ? const Color(0xFF236BDC)
-                                : const Color(0xFFFFF0C2)))),
-                const Align(
+                                : const Color(0xFFFFF0C2),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: (dark
+                                          ? const Color(0xFF236BDC)
+                                          : const Color(0xFFF5A623))
+                                      .withValues(alpha: .35),
+                                  blurRadius: 8)
+                            ]))),
+                Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                        padding: EdgeInsets.only(left: 6),
-                        child: Icon(Icons.light_mode_rounded,
-                            size: 16, color: Color(0xFFF5A623)))),
-                const Align(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: AnimatedOpacity(
+                            key: const ValueKey('theme-switch-sun'),
+                            duration: duration,
+                            curve: curve,
+                            opacity: dark ? .45 : 1,
+                            child: const Icon(Icons.light_mode_rounded,
+                                size: 16, color: Color(0xFFF5A623))))),
+                Align(
                     alignment: Alignment.centerRight,
                     child: Padding(
-                        padding: EdgeInsets.only(right: 6),
-                        child: Icon(Icons.dark_mode_rounded,
-                            size: 16, color: Color(0xFFBBD3F8)))),
+                        padding: const EdgeInsets.only(right: 6),
+                        child: AnimatedOpacity(
+                            key: const ValueKey('theme-switch-moon'),
+                            duration: duration,
+                            curve: curve,
+                            opacity: dark ? 1 : .45,
+                            child: const Icon(Icons.dark_mode_rounded,
+                                size: 16, color: Color(0xFFBBD3F8))))),
               ])),
         ));
   }
@@ -168,7 +198,9 @@ class AuthShell extends StatelessWidget {
                   : (size.width / desktopBreakpoint).clamp(.56, .8).toDouble();
               return Stack(children: [
                 if (dark)
-                  Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+                  Positioned.fill(child: CustomPaint(painter: _GridPainter()))
+                else
+                  const Positioned.fill(child: _AmbientBackdrop()),
                 if (desktop)
                   _DesktopComposition(scale: scale, child: child)
                 else
@@ -195,7 +227,12 @@ class _DesktopComposition extends StatelessWidget {
         children: [
           Row(
             children: [
-              ErasMark(scale: s),
+              EntranceReveal(
+                duration: const Duration(milliseconds: 600),
+                offset: const Offset(0, 10),
+                beginScale: .96,
+                child: ErasMark(scale: s),
+              ),
               const Spacer(),
               const ThemeSwitch(),
             ],
@@ -209,7 +246,13 @@ class _DesktopComposition extends StatelessWidget {
                 SizedBox(width: 30 * s),
                 SizedBox(
                   width: 400 * s,
-                  child: _AuthCardColumn(scale: s, child: child),
+                  child: EntranceReveal(
+                    delay: const Duration(milliseconds: 200),
+                    duration: const Duration(milliseconds: 650),
+                    offset: const Offset(0, 18),
+                    beginScale: .985,
+                    child: _AuthCardColumn(scale: s, child: child),
+                  ),
                 ),
                 SizedBox(width: 26 * s),
                 SizedBox(
@@ -283,79 +326,121 @@ class _StoryColumn extends StatelessWidget {
       fontWeight: FontWeight.w900,
       color: skin.tealBright,
     );
+    // Staggered line-by-line hero reveal; the logo/heading themselves stay
+    // outside the parallax so they remain stationary under the pointer.
+    Widget heroLine(int index, Widget line) => EntranceReveal(
+          delay: Duration(milliseconds: 120 + 100 * index),
+          duration: const Duration(milliseconds: 550),
+          offset: const Offset(0, 12),
+          child: line,
+        );
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Right Resource.', style: navy),
-        Text('Right Place.', style: navy),
-        Text(
-          'Right Time.',
-          key: const ValueKey('auth-hero-right-time'),
-          style: teal,
+        heroLine(0, Text('Right Resource.', style: navy)),
+        heroLine(1, Text('Right Place.', style: navy)),
+        heroLine(
+          2,
+          Text(
+            'Right Time.',
+            key: const ValueKey('auth-hero-right-time'),
+            style: teal,
+          ),
         ),
         SizedBox(height: 14 * s),
-        Text(
-          'Smarter coordination. Faster response.\n'
-          'Better outcomes for every emergency.',
-          style: TextStyle(
-            fontSize: bodySize,
-            height: 1.5,
-            color: skin.textDim,
+        EntranceReveal(
+          delay: const Duration(milliseconds: 440),
+          duration: const Duration(milliseconds: 550),
+          offset: const Offset(0, 10),
+          child: Text(
+            'Smarter coordination. Faster response.\n'
+            'Better outcomes for every emergency.',
+            style: TextStyle(
+              fontSize: bodySize,
+              height: 1.5,
+              color: skin.textDim,
+            ),
           ),
         ),
       ],
     );
-    final bottom = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(height: 18 * s),
-        AuthFlowStrip(key: const ValueKey('auth-flow'), scale: s),
-        SizedBox(height: 22 * s),
-        AuthStatusCards(key: const ValueKey('auth-status-cards'), scale: s),
-      ],
-    );
-    Widget diagram(double maxHeight) => Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxHeight),
-            child: AuthNetworkDiagram(
-              key: const ValueKey('auth-network'),
-              scale: s,
+    return PointerParallax(
+      enabled: !AuthMotion.reducedMotionOf(context),
+      builder: (context, pointer) {
+        final bottom = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(height: 18 * s),
+            EntranceReveal(
+              delay: const Duration(milliseconds: 550),
+              duration: const Duration(milliseconds: 550),
+              offset: const Offset(0, 8),
+              child: ParallaxLayer(
+                pointer: pointer,
+                depth: 2,
+                child: AuthFlowStrip(
+                  key: const ValueKey('auth-flow'),
+                  scale: s,
+                ),
+              ),
             ),
-          ),
+            SizedBox(height: 22 * s),
+            AuthStatusCards(
+              key: const ValueKey('auth-status-cards'),
+              scale: s,
+              entranceDelay: const Duration(milliseconds: 650),
+            ),
+          ],
         );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final scrollFallback =
-            constraints.maxHeight < _fixedHeight(s) + _minIllustration * s;
-        if (scrollFallback) {
-          return SingleChildScrollView(
-            child: Column(
+        Widget network() => EntranceReveal(
+              delay: const Duration(milliseconds: 350),
+              duration: const Duration(milliseconds: 650),
+              offset: Offset.zero,
+              beginScale: .98,
+              child: ParallaxLayer(
+                pointer: pointer,
+                depth: 4,
+                child: AuthNetworkDiagram(
+                  key: const ValueKey('auth-network'),
+                  scale: s,
+                ),
+              ),
+            );
+        Widget diagram(double maxHeight) => Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: network(),
+              ),
+            );
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final scrollFallback =
+                constraints.maxHeight < _fixedHeight(s) + _minIllustration * s;
+            if (scrollFallback) {
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    heading,
+                    SizedBox(height: 22 * s),
+                    SizedBox(height: 210 * s, child: network()),
+                    bottom,
+                  ],
+                ),
+              );
+            }
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 heading,
                 SizedBox(height: 22 * s),
-                SizedBox(
-                  height: 210 * s,
-                  child: AuthNetworkDiagram(
-                    key: const ValueKey('auth-network'),
-                    scale: s,
-                  ),
+                Expanded(
+                  child: diagram(_maxIllustration * s),
                 ),
                 bottom,
               ],
-            ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            heading,
-            SizedBox(height: 22 * s),
-            Expanded(
-              child: diagram(_maxIllustration * s),
-            ),
-            bottom,
-          ],
+            );
+          },
         );
       },
     );
@@ -397,10 +482,19 @@ class _SideColumn extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: WhyErasCard(scale: scale, fillHeight: true),
+            child: EntranceReveal(
+              delay: const Duration(milliseconds: 330),
+              duration: const Duration(milliseconds: 600),
+              child: WhyErasCard(scale: scale, fillHeight: true),
+            ),
           ),
           SizedBox(height: 16 * scale),
-          TrustCard(scale: scale),
+          EntranceReveal(
+            delay: const Duration(milliseconds: 430),
+            duration: const Duration(milliseconds: 600),
+            offset: const Offset(0, 10),
+            child: TrustCard(scale: scale),
+          ),
         ],
       );
 }
@@ -450,61 +544,113 @@ class _NarrowComposition extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      ErasMark(scale: markScale),
+                      EntranceReveal(
+                        duration: const Duration(milliseconds: 600),
+                        offset: const Offset(0, 10),
+                        beginScale: .96,
+                        child: ErasMark(scale: markScale),
+                      ),
                       const Spacer(),
                       const ThemeSwitch(),
                     ],
                   ),
                   if (showHero) ...[
                     SizedBox(height: 26),
-                    Text('Right Resource.', style: navy),
-                    Text('Right Place.', style: navy),
-                    Text(
-                      'Right Time.',
-                      style: TextStyle(
-                        fontSize: headingSize,
-                        height: 1.14,
-                        letterSpacing: -1.3,
-                        fontWeight: FontWeight.w900,
-                        color: skin.tealBright,
+                    EntranceReveal(
+                      delay: const Duration(milliseconds: 80),
+                      duration: const Duration(milliseconds: 550),
+                      offset: const Offset(0, 12),
+                      child: Text('Right Resource.', style: navy),
+                    ),
+                    EntranceReveal(
+                      delay: const Duration(milliseconds: 180),
+                      duration: const Duration(milliseconds: 550),
+                      offset: const Offset(0, 12),
+                      child: Text('Right Place.', style: navy),
+                    ),
+                    EntranceReveal(
+                      delay: const Duration(milliseconds: 280),
+                      duration: const Duration(milliseconds: 550),
+                      offset: const Offset(0, 12),
+                      child: Text(
+                        'Right Time.',
+                        style: TextStyle(
+                          fontSize: headingSize,
+                          height: 1.14,
+                          letterSpacing: -1.3,
+                          fontWeight: FontWeight.w900,
+                          color: skin.tealBright,
+                        ),
                       ),
                     ),
                     SizedBox(height: 14),
-                    Text(
-                      'Smarter coordination. Faster response.\n'
-                      'Better outcomes for every emergency.',
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.5,
-                        color: skin.textDim,
+                    EntranceReveal(
+                      delay: const Duration(milliseconds: 380),
+                      duration: const Duration(milliseconds: 550),
+                      offset: const Offset(0, 10),
+                      child: Text(
+                        'Smarter coordination. Faster response.\n'
+                        'Better outcomes for every emergency.',
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.5,
+                          color: skin.textDim,
+                        ),
                       ),
                     ),
                   ],
                   if (showHeroVisuals) ...[
                     SizedBox(height: 18),
-                    SizedBox(
-                      height: 210,
-                      child: AuthNetworkDiagram(
-                        key: const ValueKey('auth-network'),
-                        scale: s,
+                    EntranceReveal(
+                      delay: const Duration(milliseconds: 260),
+                      duration: const Duration(milliseconds: 600),
+                      offset: Offset.zero,
+                      beginScale: .98,
+                      child: SizedBox(
+                        height: 210,
+                        child: AuthNetworkDiagram(
+                          key: const ValueKey('auth-network'),
+                          scale: s,
+                        ),
                       ),
                     ),
                     SizedBox(height: 16),
-                    AuthFlowStrip(
-                      key: const ValueKey('auth-flow'),
-                      scale: math.max(s, .66),
+                    EntranceReveal(
+                      delay: const Duration(milliseconds: 340),
+                      duration: const Duration(milliseconds: 550),
+                      offset: const Offset(0, 8),
+                      child: AuthFlowStrip(
+                        key: const ValueKey('auth-flow'),
+                        scale: math.max(s, .66),
+                      ),
                     ),
                   ],
                   SizedBox(height: 26),
-                  child,
+                  EntranceReveal(
+                    delay: const Duration(milliseconds: 120),
+                    duration: const Duration(milliseconds: 650),
+                    offset: const Offset(0, 18),
+                    beginScale: .985,
+                    child: child,
+                  ),
                   SizedBox(height: 20),
-                  WhyErasCard(scale: cardScale),
+                  EntranceReveal(
+                    delay: const Duration(milliseconds: 220),
+                    duration: const Duration(milliseconds: 600),
+                    child: WhyErasCard(scale: cardScale),
+                  ),
                   SizedBox(height: 16),
-                  TrustCard(scale: cardScale),
+                  EntranceReveal(
+                    delay: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 600),
+                    offset: const Offset(0, 10),
+                    child: TrustCard(scale: cardScale),
+                  ),
                   SizedBox(height: 16),
                   AuthStatusCards(
                     key: const ValueKey('auth-status-cards'),
                     scale: cardScale,
+                    entranceDelay: const Duration(milliseconds: 360),
                   ),
                 ],
               ),
@@ -514,6 +660,86 @@ class _NarrowComposition extends StatelessWidget {
       },
     );
   }
+}
+
+/// Barely perceptible light drift for the light theme: one soft teal/blue
+/// radial highlight slowly orbits a small ellipse behind the content, so
+/// the page feels polished without visibly "moving". Renders nothing when
+/// ambient motion is unavailable (tests, reduced motion), keeping the
+/// reference background untouched.
+class _AmbientBackdrop extends StatefulWidget {
+  const _AmbientBackdrop();
+
+  @override
+  State<_AmbientBackdrop> createState() => _AmbientBackdropState();
+}
+
+class _AmbientBackdropState extends State<_AmbientBackdrop>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _ambient;
+  bool _ambientResolved = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_ambientResolved) return;
+    _ambientResolved = true;
+    _ambient = AuthMotion.maybeAmbientController(
+      vsync: this,
+      context: context,
+      period: const Duration(seconds: 18),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ambient?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ambient = _ambient;
+    if (ambient == null) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: _AmbientBackdropPainter(ambient),
+        size: Size.infinite,
+      ),
+    );
+  }
+}
+
+class _AmbientBackdropPainter extends CustomPainter {
+  _AmbientBackdropPainter(this.animation) : super(repaint: animation);
+
+  final Animation<double> animation;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = animation.value * 2 * math.pi;
+    final center = Offset(
+      size.width * (.32 + .05 * math.cos(t)),
+      size.height * (.3 + .07 * math.sin(t)),
+    );
+    final radius = size.shortestSide * .75;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFF12B99D).withValues(alpha: .05),
+            const Color(0xFF2478E5).withValues(alpha: .025),
+            const Color(0x00FFFFFF),
+          ],
+          stops: const [0, .55, 1],
+        ).createShader(Rect.fromCircle(center: center, radius: radius)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _AmbientBackdropPainter oldDelegate) =>
+      oldDelegate.animation != animation;
 }
 
 class _GridPainter extends CustomPainter {

@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import 'auth_motion.dart';
+
 /// Presentation system for the ERAS authentication experience.
 ///
 /// This file contains ONLY visual widgets. Authentication logic (ApiService,
@@ -61,6 +63,9 @@ class AuthSkin {
   Color get cardShadow => dark
       ? Colors.black.withValues(alpha: .32)
       : const Color(0xFF163A61).withValues(alpha: .08);
+  Color get cardShadowHover => dark
+      ? Colors.black.withValues(alpha: .4)
+      : const Color(0xFF163A61).withValues(alpha: .12);
   Color get tileShadow => dark
       ? Colors.black.withValues(alpha: .3)
       : const Color(0xFF163A61).withValues(alpha: .1);
@@ -325,39 +330,61 @@ class _GoogleLogoPainter extends CustomPainter {
 
 /// White rounded card chrome shared by the login, register, feature and
 /// trust cards.
+///
+/// [hoverLift] adds the premium desktop hover treatment used by the auth
+/// card: a 2px rise with a slightly deeper shadow. It is paint-only and
+/// inert on touch devices and under reduced motion.
 class AuthPanel extends StatelessWidget {
-  const AuthPanel({super.key, this.padding, required this.child});
+  const AuthPanel({
+    super.key,
+    this.padding,
+    this.hoverLift = false,
+    required this.child,
+  });
 
   final EdgeInsetsGeometry? padding;
+  final bool hoverLift;
   final Widget child;
+
+  Widget _card(AuthSkin skin, {required bool hovered}) => AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: padding ?? const EdgeInsets.all(30),
+        decoration: BoxDecoration(
+          color: skin.card,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: skin.cardBorder),
+          boxShadow: [
+            BoxShadow(
+              color: hovered ? skin.cardShadowHover : skin.cardShadow,
+              blurRadius: hovered ? 44 : 38,
+              offset: Offset(0, hovered ? 18 : 16),
+            ),
+          ],
+        ),
+        child: child,
+      );
 
   @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
-    return Container(
-      padding: padding ?? const EdgeInsets.all(30),
-      decoration: BoxDecoration(
-        color: skin.card,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: skin.cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: skin.cardShadow,
-            blurRadius: 38,
-            offset: const Offset(0, 16),
-          ),
-        ],
-      ),
-      child: child,
+    if (!hoverLift) return _card(skin, hovered: false);
+    return HoverLift(
+      lift: 2,
+      builder: (context, hovered) => _card(skin, hovered: hovered),
     );
   }
 }
 
 /// Login | Register tab pair used at the top of the auth cards.
 ///
-/// The selected tab has the reference treatment: a subtle light-blue
-/// background, a blue underline and navy/blue text.
-class AuthTabs extends StatelessWidget {
+/// The selected tab keeps the reference treatment: a subtle light-blue
+/// background, a blue underline and navy/blue text. The highlight and
+/// underline glide between the halves like a premium segmented control;
+/// because Login and Register are separate routes, the previously rendered
+/// selection is remembered so the glide also plays when the next screen
+/// builds its own tabs.
+class AuthTabs extends StatefulWidget {
   const AuthTabs({
     super.key,
     required this.registerSelected,
@@ -369,105 +396,227 @@ class AuthTabs extends StatelessWidget {
   final VoidCallback onLoginTap;
   final VoidCallback onRegisterTap;
 
+  /// Selection rendered by the most recent [AuthTabs] instance, so a
+  /// freshly pushed auth screen can animate from the previous tab.
+  static bool? _lastRegisterSelected;
+
+  @override
+  State<AuthTabs> createState() => _AuthTabsState();
+}
+
+class _AuthTabsState extends State<AuthTabs> {
+  late bool _registerSelected;
+
+  @override
+  void initState() {
+    super.initState();
+    _registerSelected =
+        AuthTabs._lastRegisterSelected ?? widget.registerSelected;
+    AuthTabs._lastRegisterSelected = widget.registerSelected;
+    if (_registerSelected != widget.registerSelected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => _registerSelected = widget.registerSelected);
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(AuthTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.registerSelected != widget.registerSelected) {
+      _registerSelected = widget.registerSelected;
+      AuthTabs._lastRegisterSelected = widget.registerSelected;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
+    final duration =
+        AuthMotion.scaled(context, const Duration(milliseconds: 260));
+    final baseStyle = DefaultTextStyle.of(context).style;
     Widget tab(String label, bool selected, VoidCallback onTap) => Expanded(
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(11),
-            child: Container(
+            child: SizedBox(
               height: 44,
-              decoration: BoxDecoration(
-                color: selected ? skin.blueDim : Colors.transparent,
-                borderRadius: BorderRadius.circular(11),
-                border: Border(
-                  bottom: BorderSide(
-                    color: selected ? skin.blue : Colors.transparent,
-                    width: 2.4,
-                  ),
-                ),
-              ),
               child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
+                child: AnimatedDefaultTextStyle(
+                  duration: duration,
+                  curve: Curves.easeOutCubic,
+                  style: baseStyle.copyWith(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: selected ? skin.blue : skin.textFaint,
                   ),
+                  child: Text(label),
                 ),
               ),
             ),
           ),
         );
-    return Row(
-      children: [
-        tab('Login', !registerSelected, onLoginTap),
-        tab('Register', registerSelected, onRegisterTap),
-      ],
+    return SizedBox(
+      height: 44,
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            key: const ValueKey('auth-tabs-highlight'),
+            duration: duration,
+            curve: Curves.easeOutCubic,
+            alignment: _registerSelected
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: FractionallySizedBox(
+              widthFactor: .5,
+              child: Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  color: skin.blueDim,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+              ),
+            ),
+          ),
+          AnimatedAlign(
+            key: const ValueKey('auth-tabs-underline'),
+            duration: duration,
+            curve: Curves.easeOutCubic,
+            alignment: _registerSelected
+                ? Alignment.bottomRight
+                : Alignment.bottomLeft,
+            child: FractionallySizedBox(
+              widthFactor: .5,
+              child: Container(height: 2.4, color: skin.blue),
+            ),
+          ),
+          Row(
+            children: [
+              tab('Login', !_registerSelected, widget.onLoginTap),
+              tab('Register', _registerSelected, widget.onRegisterTap),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
 /// Full-width blue-to-teal gradient action button.
-class AuthPrimaryButton extends StatelessWidget {
+///
+/// Micro-interactions (all paint-only, hover is mouse-only and everything
+/// honours reduced motion):
+///   * hover - rises 1.5px, the shadow deepens and the gradient shifts
+///     subtly while the arrow nudges right,
+///   * press - quick scale to .98,
+///   * loading - the label cross-fades into a progress indicator without
+///     any change to the button's dimensions,
+///   * success - a check briefly replaces the arrow before navigation.
+class AuthPrimaryButton extends StatefulWidget {
   const AuthPrimaryButton({
     super.key,
     required this.label,
     this.onPressed,
     this.loading = false,
+    this.success = false,
     this.arrow = false,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
+  final bool success;
   final bool arrow;
+
+  @override
+  State<AuthPrimaryButton> createState() => _AuthPrimaryButtonState();
+}
+
+class _AuthPrimaryButtonState extends State<AuthPrimaryButton> {
+  bool _hovered = false;
+
+  void _setHovered(bool value) {
+    if (_hovered != value && mounted) setState(() => _hovered = value);
+  }
+
+  Widget _content(bool hovered) {
+    if (widget.loading) {
+      return const SizedBox(
+        key: ValueKey('auth-button-busy'),
+        width: 19,
+        height: 19,
+        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+      );
+    }
+    return Row(
+      key: ValueKey(widget.success ? 'auth-button-done' : 'auth-button-idle'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(widget.label),
+        if (widget.success) ...[
+          const SizedBox(width: 8),
+          const Icon(Icons.check_rounded, size: 18),
+        ] else if (widget.arrow) ...[
+          const SizedBox(width: 8),
+          AnimatedSlide(
+            offset: hovered ? const Offset(.17, 0) : Offset.zero,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            child: const Icon(Icons.arrow_forward_rounded, size: 18),
+          ),
+        ],
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [skin.blue, skin.tealDeep]),
-        borderRadius: BorderRadius.circular(13),
-        boxShadow: [
-          BoxShadow(
-            color: skin.blue.withValues(alpha: .22),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: FilledButton(
-        onPressed: onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          disabledBackgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          foregroundColor: Colors.white,
-        ),
-        child: loading
-            ? const SizedBox(
-                width: 19,
-                height: 19,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(label),
-                  if (arrow) ...[
-                    const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward_rounded, size: 18),
-                  ],
-                ],
+    final reduced = AuthMotion.reducedMotionOf(context);
+    final hovered = _hovered && widget.onPressed != null && !reduced;
+    return MouseRegion(
+      opaque: false,
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
+      child: PressableScale(
+        enabled: widget.onPressed != null,
+        child: AnimatedContainer(
+          duration: reduced ? Duration.zero : const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          transform: Matrix4.translationValues(0, hovered ? -1.5 : 0, 0),
+          transformAlignment: Alignment.center,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: hovered ? const Alignment(-1.4, 0) : Alignment.centerLeft,
+              end: hovered ? const Alignment(.75, 0) : Alignment.centerRight,
+              colors: [skin.blue, skin.tealDeep],
+            ),
+            borderRadius: BorderRadius.circular(13),
+            boxShadow: [
+              BoxShadow(
+                color: skin.blue.withValues(alpha: hovered ? .3 : .22),
+                blurRadius: hovered ? 22 : 18,
+                offset: Offset(0, hovered ? 10 : 8),
               ),
+            ],
+          ),
+          child: FilledButton(
+            onPressed: widget.onPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              disabledBackgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              foregroundColor: Colors.white,
+            ),
+            child: AnimatedSwap(
+              duration: const Duration(milliseconds: 200),
+              child: _content(hovered),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -587,12 +736,21 @@ InputDecoration authFieldDecoration(
       fontWeight: FontWeight.w700,
       color: skin.blue,
     ),
-    prefixIcon: Icon(icon, size: 20, color: skin.textFaint),
+    // No explicit colour on the icon: the state-resolved prefixIconColor
+    // below lets the icon ease to the accent while the field is focused.
+    prefixIcon: Icon(icon, size: 20),
+    prefixIconColor: WidgetStateColor.resolveWith(
+      (states) => states.contains(WidgetState.focused)
+          ? skin.blue
+          : skin.textFaint,
+    ),
     suffixIcon: suffixIcon,
     helperText: helperText,
     helperStyle: TextStyle(fontSize: 10.5, color: skin.textFaint),
     filled: true,
     fillColor: skin.fieldFill,
+    // Barely-there fill shift while the pointer rests on the field.
+    hoverColor: skin.blue.withValues(alpha: .035),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
     border: border,
     enabledBorder: border,
@@ -615,7 +773,13 @@ InputDecoration authFieldDecoration(
 /// Node positions mirror the reference:
 ///  Hospitals upper-left, Ambulances mid-left, Shelters lower-left,
 ///  Air Support upper-right, Responders mid-right, Supplies lower-right.
-class AuthNetworkDiagram extends StatelessWidget {
+///
+/// A single shared controller drives all ambient motion - the emblem's
+/// gentle float, each node's slightly offset drift and the asynchronous
+/// opacity pulse of the connection lines - so the network reads as a live
+/// coordination system without ever rotating or flashing. Ambient motion
+/// is skipped entirely under reduced motion (and in widget tests).
+class AuthNetworkDiagram extends StatefulWidget {
   const AuthNetworkDiagram({super.key, required this.scale});
 
   /// Scale of the 1648x926 reference canvas.
@@ -655,7 +819,35 @@ class AuthNetworkDiagram extends StatelessWidget {
   ];
 
   @override
+  State<AuthNetworkDiagram> createState() => _AuthNetworkDiagramState();
+}
+
+class _AuthNetworkDiagramState extends State<AuthNetworkDiagram>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _ambient;
+  bool _ambientResolved = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_ambientResolved) return;
+    _ambientResolved = true;
+    _ambient = AuthMotion.maybeAmbientController(
+      vsync: this,
+      context: context,
+      period: const Duration(seconds: 5),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ambient?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final scale = widget.scale;
     final skin = AuthSkin.of(context);
     final nodeSize = math.max(40.0, 62 * scale);
     final emblemSize = math.max(66.0, 104 * scale);
@@ -666,6 +858,7 @@ class AuthNetworkDiagram extends StatelessWidget {
       letterSpacing: .2,
       color: skin.textDim,
     );
+    final nodes = AuthNetworkDiagram._nodes;
     return LayoutBuilder(
       builder: (context, constraints) {
         final height =
@@ -685,8 +878,9 @@ class AuthNetworkDiagram extends StatelessWidget {
                     emblemRadius: emblemSize / 2,
                     scale: scale,
                     skin: skin,
+                    pulse: _ambient,
                     points: [
-                      for (final node in _nodes)
+                      for (final node in nodes)
                         Offset(
                           node.f.dx * size.width,
                           node.f.dy * size.height,
@@ -695,24 +889,32 @@ class AuthNetworkDiagram extends StatelessWidget {
                   ),
                 ),
               ),
-              for (final node in _nodes)
+              for (var i = 0; i < nodes.length; i++)
                 Positioned(
-                  left: node.f.dx * size.width - nodeSize / 2,
-                  top: node.f.dy * size.height - nodeSize / 2,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _NodeTile(size: nodeSize, icon: node.icon, skin: skin),
-                      SizedBox(height: labelGap),
-                      PaintedLabel(node.label, style: labelStyle),
-                    ],
+                  left: nodes[i].f.dx * size.width - nodeSize / 2,
+                  top: nodes[i].f.dy * size.height - nodeSize / 2,
+                  child: AmbientDrift(
+                    animation: _ambient,
+                    amplitude: 2.5 + (i % 3),
+                    phase: i * .17,
+                    child: _NetworkNode(
+                      icon: nodes[i].icon,
+                      label: nodes[i].label,
+                      nodeSize: nodeSize,
+                      labelGap: labelGap,
+                      labelStyle: labelStyle,
+                      skin: skin,
+                    ),
                   ),
                 ),
               Positioned(
                 left: center.dx - emblemSize / 2,
                 top: center.dy - emblemSize / 2,
-                child: _CentralEmblem(size: emblemSize, skin: skin),
+                child: AmbientDrift(
+                  animation: _ambient,
+                  amplitude: 2.5,
+                  child: _CentralEmblem(size: emblemSize, skin: skin),
+                ),
               ),
             ],
           ),
@@ -722,21 +924,84 @@ class AuthNetworkDiagram extends StatelessWidget {
   }
 }
 
+/// A resource node with its painted label. Hovering (desktop only) scales
+/// the node up by 4% and deepens the tile's border and shadow slightly.
+class _NetworkNode extends StatefulWidget {
+  const _NetworkNode({
+    required this.icon,
+    required this.label,
+    required this.nodeSize,
+    required this.labelGap,
+    required this.labelStyle,
+    required this.skin,
+  });
+
+  final IconData icon;
+  final String label;
+  final double nodeSize;
+  final double labelGap;
+  final TextStyle labelStyle;
+  final AuthSkin skin;
+
+  @override
+  State<_NetworkNode> createState() => _NetworkNodeState();
+}
+
+class _NetworkNodeState extends State<_NetworkNode> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = AuthMotion.reducedMotionOf(context);
+    final hovered = _hovered && !reduced;
+    return MouseRegion(
+      opaque: false,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedScale(
+        scale: hovered ? 1.04 : 1,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _NodeTile(
+              size: widget.nodeSize,
+              icon: widget.icon,
+              skin: widget.skin,
+              hovered: hovered,
+            ),
+            SizedBox(height: widget.labelGap),
+            PaintedLabel(widget.label, style: widget.labelStyle),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Thin gradient connection lines + soft glow behind the emblem.
+///
+/// [pulse] (the shared ambient animation) drives a very subtle,
+/// per-line-phased opacity breath; with no animation the lines paint at
+/// their reference opacity.
 class _NetworkLinesPainter extends CustomPainter {
-  const _NetworkLinesPainter({
+  _NetworkLinesPainter({
     required this.center,
     required this.emblemRadius,
     required this.scale,
     required this.skin,
     required this.points,
-  });
+    this.pulse,
+  }) : super(repaint: pulse);
 
   final Offset center;
   final double emblemRadius;
   final double scale;
   final AuthSkin skin;
   final List<Offset> points;
+  final Animation<double>? pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -771,9 +1036,16 @@ class _NetworkLinesPainter extends CustomPainter {
       ringPaint(skin.blue.withValues(alpha: .08)),
     );
 
-    // Thin connection lines, teal near the centre fading to blue.
+    // Thin connection lines, teal near the centre fading to blue. Each
+    // line breathes around its reference opacity with its own phase, so
+    // the network shimmers asynchronously instead of blinking in sync.
     final lineWidth = math.max(1.1, 1.5 * scale);
-    for (final point in points) {
+    final t = pulse?.value ?? 0;
+    for (var i = 0; i < points.length; i++) {
+      final breath = pulse == null
+          ? 1.0
+          : 1 + .18 * math.sin((t + i * .16) * 2 * math.pi);
+      final point = points[i];
       canvas.drawLine(
         center,
         point,
@@ -784,8 +1056,8 @@ class _NetworkLinesPainter extends CustomPainter {
             center,
             point,
             [
-              skin.teal.withValues(alpha: .38),
-              skin.blue.withValues(alpha: .16),
+              skin.teal.withValues(alpha: .38 * breath),
+              skin.blue.withValues(alpha: .16 * breath),
             ],
           ),
       );
@@ -796,19 +1068,29 @@ class _NetworkLinesPainter extends CustomPainter {
   bool shouldRepaint(covariant _NetworkLinesPainter oldDelegate) =>
       oldDelegate.center != center ||
       oldDelegate.scale != scale ||
-      oldDelegate.skin.dark != skin.dark;
+      oldDelegate.skin.dark != skin.dark ||
+      oldDelegate.pulse != pulse;
 }
 
-/// Elevated white rounded-square node container.
+/// Elevated white rounded-square node container. [hovered] eases in a
+/// slightly stronger teal border and a marginally deeper shadow.
 class _NodeTile extends StatelessWidget {
-  const _NodeTile({required this.size, required this.icon, required this.skin});
+  const _NodeTile({
+    required this.size,
+    required this.icon,
+    required this.skin,
+    this.hovered = false,
+  });
 
   final double size;
   final IconData icon;
   final AuthSkin skin;
+  final bool hovered;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
         width: size,
         height: size,
         decoration: BoxDecoration(
@@ -818,11 +1100,15 @@ class _NodeTile extends StatelessWidget {
             colors: skin.tileGradient,
           ),
           borderRadius: BorderRadius.circular(size * .3),
-          border: Border.all(color: skin.cardBorder),
+          border: Border.all(
+            color: hovered
+                ? skin.teal.withValues(alpha: .45)
+                : skin.cardBorder,
+          ),
           boxShadow: [
             BoxShadow(
-              color: skin.tileShadow,
-              blurRadius: size * .28,
+              color: hovered ? skin.emblemShadow : skin.tileShadow,
+              blurRadius: hovered ? size * .34 : size * .28,
               offset: Offset(0, size * .12),
             ),
           ],
@@ -940,9 +1226,17 @@ class AuthFlowStrip extends StatelessWidget {
 /// never fabricate operational numbers. They state truthful, live-tracking
 /// facts instead.
 class AuthStatusCards extends StatelessWidget {
-  const AuthStatusCards({super.key, required this.scale});
+  const AuthStatusCards({
+    super.key,
+    required this.scale,
+    this.entranceDelay = Duration.zero,
+  });
 
   final double scale;
+
+  /// Base delay before the first card reveals; the remaining cards follow
+  /// at 70ms intervals.
+  final Duration entranceDelay;
 
   @override
   Widget build(BuildContext context) {
@@ -957,10 +1251,19 @@ class AuthStatusCards extends StatelessWidget {
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (final entry in _statusEntries)
+            for (var i = 0; i < _statusEntries.length; i++)
               SizedBox(
                 width: cardWidth,
-                child: _StatusCard(entry: entry, scale: scale, skin: skin),
+                child: EntranceReveal(
+                  delay: entranceDelay + Duration(milliseconds: 70 * i),
+                  duration: const Duration(milliseconds: 500),
+                  offset: const Offset(0, 8),
+                  child: _StatusCard(
+                    entry: _statusEntries[i],
+                    scale: scale,
+                    skin: skin,
+                  ),
+                ),
               ),
           ],
         );
@@ -1048,57 +1351,67 @@ class _StatusCard extends StatelessWidget {
               color: skin.text,
             ),
           );
-    return Container(
-      padding: EdgeInsets.all(padding),
-      decoration: BoxDecoration(
-        color: skin.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: skin.cardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: skin.softShadow,
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: tileSize,
-            height: tileSize,
-            decoration: BoxDecoration(
-              color: skin.tealDim,
-              borderRadius: BorderRadius.circular(tileSize * .3),
+    return HoverLift(
+      lift: 1.5,
+      builder: (context, hovered) => AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.all(padding),
+        decoration: BoxDecoration(
+          color: skin.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: skin.cardBorder),
+          boxShadow: [
+            BoxShadow(
+              color: hovered ? skin.tileShadow : skin.softShadow,
+              blurRadius: hovered ? 18 : 14,
+              offset: Offset(0, hovered ? 6 : 5),
             ),
-            child: Icon(
-              entry.icon,
-              size: tileSize * .53,
-              color: skin.teal,
-            ),
-          ),
-          SizedBox(width: math.max(8.0, 10 * scale)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                title,
-                SizedBox(height: 2),
-                Text(
-                  entry.detail,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: math.max(9.5, 10.3 * scale),
-                    color: skin.textDim,
-                  ),
+          ],
+        ),
+        child: Row(
+          children: [
+            AnimatedScale(
+              scale: hovered ? 1.03 : 1,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              child: Container(
+                width: tileSize,
+                height: tileSize,
+                decoration: BoxDecoration(
+                  color: skin.tealDim,
+                  borderRadius: BorderRadius.circular(tileSize * .3),
                 ),
-              ],
+                child: Icon(
+                  entry.icon,
+                  size: tileSize * .53,
+                  color: skin.teal,
+                ),
+              ),
             ),
-          ),
-          SizedBox(width: math.max(6.0, 8 * scale)),
-          _StatusPill(label: entry.status, scale: scale, skin: skin),
-        ],
+            SizedBox(width: math.max(8.0, 10 * scale)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  title,
+                  SizedBox(height: 2),
+                  Text(
+                    entry.detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: math.max(9.5, 10.3 * scale),
+                      color: skin.textDim,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: math.max(6.0, 8 * scale)),
+            _StatusPill(label: entry.status, scale: scale, skin: skin),
+          ],
+        ),
       ),
     );
   }
@@ -1197,7 +1510,12 @@ class WhyErasCard extends StatelessWidget {
         );
       }
       rows.add(
-        _FeatureRow(feature: _features[i], scale: scale, skin: skin),
+        EntranceReveal(
+          delay: Duration(milliseconds: 150 + 70 * i),
+          duration: const Duration(milliseconds: 480),
+          offset: const Offset(0, 8),
+          child: _FeatureRow(feature: _features[i], scale: scale, skin: skin),
+        ),
       );
     }
     return AuthPanel(
@@ -1336,37 +1654,53 @@ class _FeatureRow extends StatelessWidget {
               color: skin.text,
             ),
           );
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: tileSize,
-          height: tileSize,
-          decoration: BoxDecoration(
-            color: colorDim,
-            borderRadius: BorderRadius.circular(tileSize * .28),
-          ),
-          child: Icon(feature.icon, size: tileSize * .55, color: color),
-        ),
-        SizedBox(width: math.max(9.0, 12 * scale)),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              title,
-              SizedBox(height: 2.5),
-              Text(
-                feature.description,
-                style: TextStyle(
-                  fontSize: math.max(10.0, 10.8 * scale),
-                  height: 1.38,
-                  color: skin.textDim,
-                ),
+    return HoverLift(
+      lift: 2,
+      builder: (context, hovered) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AnimatedScale(
+            scale: hovered ? 1.05 : 1,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              width: tileSize,
+              height: tileSize,
+              decoration: BoxDecoration(
+                color: colorDim,
+                borderRadius: BorderRadius.circular(tileSize * .28),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: hovered ? .18 : 0),
+                    blurRadius: hovered ? 10 : 0,
+                  ),
+                ],
               ),
-            ],
+              child: Icon(feature.icon, size: tileSize * .55, color: color),
+            ),
           ),
-        ),
-      ],
+          SizedBox(width: math.max(9.0, 12 * scale)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                SizedBox(height: 2.5),
+                Text(
+                  feature.description,
+                  style: TextStyle(
+                    fontSize: math.max(10.0, 10.8 * scale),
+                    height: 1.38,
+                    color: skin.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

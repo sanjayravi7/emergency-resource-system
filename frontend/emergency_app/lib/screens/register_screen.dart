@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
 import 'login_screen.dart';
@@ -145,6 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final skin = AuthSkin.of(context);
     return AuthShell(
         child: AuthPanel(
+      hoverLift: true,
       child: Form(
           key: form,
           child:
@@ -202,63 +204,79 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style:
                           const TextStyle(fontSize: 12, color: AppColors.red))),
             const SizedBox(height: 16),
-            TextFormField(
-                controller: name,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Full name', icon: Icons.person_outline),
-                validator: (v) => requiredField(v, 'Name')),
+            FocusGlow(
+                glowColor: skin.blue,
+                child: TextFormField(
+                    controller: name,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Full name', icon: Icons.person_outline),
+                    validator: (v) => requiredField(v, 'Name'))),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: email,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Email', icon: Icons.mail_outline),
-                validator: validEmail),
+            FocusGlow(
+                glowColor: skin.blue,
+                child: TextFormField(
+                    controller: email,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Email', icon: Icons.mail_outline),
+                    validator: validEmail)),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: phone,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Phone number (optional)',
-                    icon: Icons.phone_outlined)),
+            FocusGlow(
+                glowColor: skin.blue,
+                child: TextFormField(
+                    controller: phone,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Phone number (optional)',
+                        icon: Icons.phone_outlined))),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: password,
-                obscureText: hidePassword,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Password',
-                    icon: Icons.lock_outline,
-                    helperText: 'At least 6 characters',
-                    suffixIcon: IconButton(
-                        tooltip: 'Show or hide password',
-                        onPressed: () =>
-                            setState(() => hidePassword = !hidePassword),
-                        icon: Icon(hidePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined))),
-                validator: (v) =>
-                    requiredField(v, 'Password') ??
-                    (v!.length < 6 ? 'Use at least 6 characters' : null)),
+            FocusGlow(
+                glowColor: skin.blue,
+                child: TextFormField(
+                    controller: password,
+                    obscureText: hidePassword,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Password',
+                        icon: Icons.lock_outline,
+                        helperText: 'At least 6 characters',
+                        suffixIcon: IconButton(
+                            tooltip: 'Show or hide password',
+                            onPressed: () =>
+                                setState(() => hidePassword = !hidePassword),
+                            icon: AnimatedSwap(
+                                child: Icon(
+                                    hidePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    key: ValueKey(hidePassword))))),
+                    validator: (v) =>
+                        requiredField(v, 'Password') ??
+                        (v!.length < 6 ? 'Use at least 6 characters' : null))),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: confirm,
-                obscureText: hideConfirm,
-                decoration: authFieldDecoration(context,
-                    label: 'Confirm password',
-                    icon: Icons.lock_reset_outlined,
-                    suffixIcon: IconButton(
-                        tooltip: 'Show or hide password',
-                        onPressed: () =>
-                            setState(() => hideConfirm = !hideConfirm),
-                        icon: Icon(hideConfirm
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined))),
-                validator: (v) =>
-                    v != password.text ? 'Passwords do not match' : null),
+            FocusGlow(
+                glowColor: skin.blue,
+                child: TextFormField(
+                    controller: confirm,
+                    obscureText: hideConfirm,
+                    decoration: authFieldDecoration(context,
+                        label: 'Confirm password',
+                        icon: Icons.lock_reset_outlined,
+                        suffixIcon: IconButton(
+                            tooltip: 'Show or hide password',
+                            onPressed: () =>
+                                setState(() => hideConfirm = !hideConfirm),
+                            icon: AnimatedSwap(
+                                child: Icon(
+                                    hideConfirm
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    key: ValueKey(hideConfirm))))),
+                    validator: (v) =>
+                        v != password.text ? 'Passwords do not match' : null)),
             if (error != null)
               Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -412,8 +430,13 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
             child: InkWell(
               onTap: _activate,
               borderRadius: BorderRadius.circular(10),
-              child: Container(
+              child: AnimatedContainer(
                 key: ValueKey<String>('role-card-${widget.role.wireName}'),
+                duration: AuthMotion.scaled(
+                  context,
+                  const Duration(milliseconds: 200),
+                ),
+                curve: Curves.easeOutCubic,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
@@ -430,21 +453,27 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                       children: [
                         Icon(widget.icon, size: 22, color: AppColors.text),
                         const Spacer(),
-                        if (selected)
-                          Icon(
-                            Icons.check_circle,
-                            key: ValueKey<String>(
-                              'role-selected-check-${widget.role.wireName}',
-                            ),
-                            size: 20,
-                            color: AppColors.teal,
-                          )
-                        else
-                          const Icon(
-                            Icons.radio_button_unchecked,
-                            size: 20,
-                            color: AppColors.textFaint,
-                          ),
+                        AnimatedSwap(
+                          child: selected
+                              ? Icon(
+                                  Icons.check_circle,
+                                  key: ValueKey<String>(
+                                    'role-selected-check-'
+                                    '${widget.role.wireName}',
+                                  ),
+                                  size: 20,
+                                  color: AppColors.teal,
+                                )
+                              : Icon(
+                                  Icons.radio_button_unchecked,
+                                  key: ValueKey<String>(
+                                    'role-unselected-mark-'
+                                    '${widget.role.wireName}',
+                                  ),
+                                  size: 20,
+                                  color: AppColors.textFaint,
+                                ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
