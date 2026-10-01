@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/auth_shell.dart';
+import '../widgets/auth_visuals.dart';
 import 'login_screen.dart';
 
 /// The two roles PUBLIC registration may choose between. ADMIN is
@@ -24,7 +25,8 @@ extension RegistrationRoleWire on RegistrationRole {
         RegistrationRole.requester =>
           "You'll use ERAS to request emergency resources and assistance.",
         RegistrationRole.responder =>
-          "You'll use ERAS to receive eligible emergencies and provide assistance.",
+          "You'll use ERAS to receive eligible emergencies and provide "
+          'assistance.',
       };
 }
 
@@ -140,59 +142,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final skin = AuthSkin.of(context);
     return AuthShell(
-        child: Container(
-      padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 430 ? 22 : 32),
-      decoration: BoxDecoration(
-          color: dark ? const Color(0xE6102035) : Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-              color: dark ? const Color(0xFF2A4C68) : AppColors.border),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: dark ? .2 : .08),
-                blurRadius: 35,
-                offset: const Offset(0, 14))
-          ]),
+        child: AuthPanel(
       child: Form(
           key: form,
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Row(children: [
-              Expanded(
-                  child: _authTab(
-                      'Login',
-                      false,
-                      () => Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const LoginScreen())))),
-              Expanded(child: _authTab('Register', true, () {}))
-            ]),
-            const SizedBox(height: 24),
-            const Icon(Icons.person_add_alt_1_rounded,
-                color: AppColors.teal, size: 38),
-            const SizedBox(height: 10),
+            AuthTabs(
+                registerSelected: true,
+                onLoginTap: () => Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const LoginScreen())),
+                onRegisterTap: () {}),
+            const SizedBox(height: 20),
+            Center(
+                child: Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                        color: skin.tealDim, shape: BoxShape.circle),
+                    child: const Center(
+                        child: AuthShield(size: 30, outlined: true)))),
+            const SizedBox(height: 12),
             Text('CREATE ACCOUNT',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontSize: 25,
+                    fontSize: 24,
+                    height: 1.2,
                     fontWeight: FontWeight.w800,
-                    color: dark ? Colors.white : AppColors.text)),
+                    letterSpacing: .4,
+                    color: skin.text)),
             const SizedBox(height: 5),
             Text('Join the ERAS emergency response network',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 13,
-                    color: dark ? const Color(0xFF9CAFC4) : AppColors.textDim)),
-            const SizedBox(height: 24),
+                style: TextStyle(fontSize: 13, color: skin.textDim)),
+            const SizedBox(height: 20),
             Text('How would you like to use ERAS?',
                 style: TextStyle(
                     fontSize: 10.5,
                     letterSpacing: 1.1,
                     fontWeight: FontWeight.w800,
-                    color: dark ? const Color(0xFFA9B8CC) : AppColors.textDim)),
+                    color: skin.textDim)),
             const SizedBox(height: 10),
             _roleCards(),
             if (selectedRole != null)
@@ -201,53 +193,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Container(
                       padding: const EdgeInsets.all(11),
                       decoration: BoxDecoration(
-                          color: AppColors.teal.withValues(alpha: .1),
+                          color: skin.tealDim,
                           borderRadius: BorderRadius.circular(9)),
                       child: Text(selectedRole!.explanation,
                           style: TextStyle(
-                              fontSize: 11.5,
-                              color: dark
-                                  ? const Color(0xFFC6D5E4)
-                                  : AppColors.text))))
+                              fontSize: 11.5, color: skin.text))))
             else if (roleError != null)
               Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(roleError!,
                       style:
                           const TextStyle(fontSize: 12, color: AppColors.red))),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             TextFormField(
                 controller: name,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                    labelText: 'Full name',
-                    prefixIcon: Icon(Icons.person_outline)),
+                decoration: authFieldDecoration(context,
+                    label: 'Full name', icon: Icons.person_outline),
                 validator: (v) => requiredField(v, 'Name')),
             const SizedBox(height: 12),
             TextFormField(
                 controller: email,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                    labelText: 'Email', prefixIcon: Icon(Icons.mail_outline)),
+                decoration: authFieldDecoration(context,
+                    label: 'Email', icon: Icons.mail_outline),
                 validator: validEmail),
             const SizedBox(height: 12),
             TextFormField(
                 controller: phone,
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                    labelText: 'Phone number (optional)',
-                    prefixIcon: Icon(Icons.phone_outlined))),
+                decoration: authFieldDecoration(context,
+                    label: 'Phone number (optional)',
+                    icon: Icons.phone_outlined)),
             const SizedBox(height: 12),
             TextFormField(
                 controller: password,
                 obscureText: hidePassword,
                 textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                    labelText: 'Password',
+                decoration: authFieldDecoration(context,
+                    label: 'Password',
+                    icon: Icons.lock_outline,
                     helperText: 'At least 6 characters',
-                    prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                         tooltip: 'Show or hide password',
                         onPressed: () =>
@@ -262,9 +250,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             TextFormField(
                 controller: confirm,
                 obscureText: hideConfirm,
-                decoration: InputDecoration(
-                    labelText: 'Confirm password',
-                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                decoration: authFieldDecoration(context,
+                    label: 'Confirm password',
+                    icon: Icons.lock_reset_outlined,
                     suffixIcon: IconButton(
                         tooltip: 'Show or hide password',
                         onPressed: () =>
@@ -280,48 +268,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Text(error!,
                       style: const TextStyle(color: AppColors.red))),
             const SizedBox(height: 18),
-            DecoratedBox(
-                decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [Color(0xFF2478E5), Color(0xFF08AA91)]),
-                    borderRadius: BorderRadius.circular(12)),
-                child: FilledButton(
-                    onPressed: loading ? null : submit,
-                    style: FilledButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent),
-                    child: loading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Create account'))),
+            AuthPrimaryButton(
+                label: 'Create account',
+                onPressed: loading ? null : submit,
+                loading: loading),
           ])),
     ));
   }
-
-  Widget _authTab(String label, bool selected, VoidCallback tap) => InkWell(
-      onTap: tap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-              color: selected
-                  ? AppColors.teal.withValues(alpha: .1)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              border: Border(
-                  bottom: BorderSide(
-                      color: selected ? AppColors.teal : Colors.transparent,
-                      width: 2))),
-          child: Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: selected
-                      ? AppColors.teal
-                      : Theme.of(context).colorScheme.onSurfaceVariant))));
 
   /// Two selectable role cards. They sit side by side when there is room and
   /// stack vertically on narrow phones so nothing is ever clipped or

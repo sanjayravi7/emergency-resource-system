@@ -1,0 +1,70 @@
+name: Auth UI previews
+
+# Temporary development loop for the auth-screen redesign on arena branches:
+# renders PNG previews of the reference design, verifies formatting, and
+# uploads everything as artifacts. Does not run on main.
+on:
+  push:
+    branches: ['arena/**']
+  workflow_dispatch:
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting (informational)
+        id: fmt
+        continue-on-error: true
+        run: |
+          dart format --output=none --set-exit-if-changed . > "$RUNNER_TEMP/fmt.log" 2>&1
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/fmt.log" || true
+
+      - name: Produce formatting patch
+        if: steps.fmt.outputs.exit != '0'
+        run: |
+          dart format .
+          git diff > "$GITHUB_WORKSPACE/format-drift.patch"
+          git checkout -- .
+
+      - name: Analyze project source
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Render auth previews
+        env:
+          ERAS_AUTH_PREVIEW: '1'
+        run: flutter test test/tools/auth_preview_test.dart --update-goldens
+
+      - name: Upload previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-previews
+          path: frontend/emergency_app/test/tools/goldens/*.png
+          if-no-files-found: error
+
+      - name: Upload formatting patch
+        if: steps.fmt.outputs.exit != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: format-drift
+          path: format-drift.patch
+          if-no-files-found: error
