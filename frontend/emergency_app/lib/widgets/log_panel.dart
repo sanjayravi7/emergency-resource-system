@@ -74,14 +74,8 @@ class LogPanel extends StatelessWidget {
                           entry.displayId,
                           style: monoStyle(size: 12.5, color: p.textDim),
                         )),
-                        DataCell(Text(
-                          entry.emergencyType,
-                          style: TextStyle(color: p.text),
-                        )),
-                        DataCell(Text(
-                          entry.location,
-                          style: TextStyle(color: p.text),
-                        )),
+                        DataCell(Text(entry.emergencyType)),
+                        DataCell(Text(entry.location)),
                         DataCell(
                           Column(
                             mainAxisSize: MainAxisSize.min,

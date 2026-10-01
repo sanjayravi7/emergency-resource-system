@@ -825,39 +825,35 @@ String statusLabel(RequestStatus status) => switch (status) {
       RequestStatus.cancelled => 'CANCELLED',
     };
 
-PillColors statusColors(
-  RequestStatus status, [
-  ErasPalette palette = ErasPalette.light,
-]) {
+PillColors statusColors(RequestStatus status, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
   switch (status) {
     case RequestStatus.pending:
-      return PillColors(palette.amberDim, palette.amber);
+      return PillColors(p.amberDim, p.amber);
     case RequestStatus.accepted:
-      return PillColors(palette.blueDim, palette.blue);
+      return PillColors(p.blueDim, p.blue);
     case RequestStatus.inProgress:
-      return PillColors(palette.blueDim, palette.blue);
+      return PillColors(p.blueDim, p.blue);
     case RequestStatus.partiallyAllocated:
-      return PillColors(palette.amberDim, palette.amber);
+      return PillColors(p.amberDim, p.amber);
     case RequestStatus.completed:
-      return PillColors(palette.tealDim, palette.teal);
+      return PillColors(p.tealDim, p.teal);
     case RequestStatus.cancelled:
-      return PillColors(palette.surface2, palette.textFaint);
+      return PillColors(p.surface2, p.textFaint);
   }
 }
 
-PillColors priorityColors(
-  String priority, [
-  ErasPalette palette = ErasPalette.light,
-]) {
+PillColors priorityColors(String priority, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
   switch (priority.toUpperCase()) {
     case 'CRITICAL':
-      return PillColors(palette.redDim, palette.red);
+      return PillColors(p.redDim, p.red);
     case 'HIGH':
-      return PillColors(palette.amberDim, palette.amber);
+      return PillColors(p.amberDim, p.amber);
     case 'MEDIUM':
-      return PillColors(palette.blueDim, palette.blue);
+      return PillColors(p.blueDim, p.blue);
     default:
-      return PillColors(palette.surface2, palette.textDim);
+      return PillColors(p.surface2, p.textDim);
   }
 }
 
@@ -1139,52 +1135,44 @@ class ResourceMeta {
   final Color color;
 }
 
-ResourceMeta resourceMetaFor(
-  String typeOrName, [
-  ErasPalette palette = ErasPalette.light,
-]) {
+ResourceMeta resourceMetaFor(String typeOrName, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
   final value = typeOrName.toUpperCase();
 
   if (value.contains('AMBULANCE') || value.contains('MEDICAL')) {
-    return ResourceMeta(Icons.local_hospital, palette.redDim, palette.red);
+    return ResourceMeta(Icons.local_hospital, p.redDim, p.red);
   }
   if (value.contains('BLOOD')) {
-    return ResourceMeta(Icons.water_drop, palette.bloodBg, palette.bloodText);
+    return ResourceMeta(Icons.water_drop, p.bloodBg, p.bloodText);
   }
   if (value.contains('OXYGEN')) {
-    return ResourceMeta(Icons.air, palette.blueDim, palette.blue);
+    return ResourceMeta(Icons.air, p.blueDim, p.blue);
   }
   if (value.contains('FIRE')) {
-    return ResourceMeta(
-      Icons.local_fire_department,
-      palette.amberDim,
-      palette.amber,
-    );
+    return ResourceMeta(Icons.local_fire_department, p.amberDim, p.amber);
   }
   if (value.contains('VOLUNTEER') || value.contains('PEOPLE')) {
-    return ResourceMeta(Icons.groups, palette.tealDim, palette.teal);
+    return ResourceMeta(Icons.groups, p.tealDim, p.teal);
   }
   if (value.contains('BOAT') || value.contains('RESCUE')) {
-    return ResourceMeta(Icons.directions_boat, palette.blueDim, palette.blue);
+    return ResourceMeta(Icons.directions_boat, p.blueDim, p.blue);
   }
   if (value.contains('FOOD') || value.contains('WATER')) {
-    return ResourceMeta(Icons.local_drink, palette.tealDim, palette.teal);
+    return ResourceMeta(Icons.local_drink, p.tealDim, p.teal);
   }
 
-  return ResourceMeta(Icons.inventory_2, palette.surface2, palette.textDim);
+  return ResourceMeta(Icons.inventory_2, p.surface2, p.textDim);
 }
 
-Color responderStatusColor(
-  String status, [
-  ErasPalette palette = ErasPalette.light,
-]) {
+Color responderStatusColor(String status, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
   switch (status.toUpperCase()) {
     case 'AVAILABLE':
-      return palette.teal;
+      return p.teal;
     case 'BUSY':
-      return palette.blue;
+      return p.blue;
     default:
-      return palette.textFaint;
+      return p.textFaint;
   }
 }
 

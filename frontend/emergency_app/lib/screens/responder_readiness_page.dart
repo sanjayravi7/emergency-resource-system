@@ -414,24 +414,30 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           PressableScale(
             child: OutlinedButton.icon(
               key: const Key('edit-help-types'),
-              onPressed: _saving
-                  ? null
-                  : () => setState(() {
-                        _editingHelpTypes = !_editingHelpTypes;
-                      }),
+              onPressed: _saving ? null : _toggleEditHelpTypes,
               style: OutlinedButton.styleFrom(
                 backgroundColor: p.dark ? p.surface2 : Colors.transparent,
                 foregroundColor: p.text,
                 side: BorderSide(color: p.border),
               ),
               icon: const Icon(Icons.edit_outlined, size: 17),
-              label: Text(_editingHelpTypes
-                  ? 'DONE EDITING HELP TYPES'
-                  : 'EDIT MY HELP TYPES'),
+              label: Text(
+                _editingHelpTypes
+                    ? 'DONE EDITING HELP TYPES'
+                    : 'EDIT MY HELP TYPES',
+              ),
             ),
           ),
         ],
       );
+
+  void _toggleEditHelpTypes() {
+    setState(() => _editingHelpTypes = !_editingHelpTypes);
+  }
+
+  void _toggleQuantityControls() {
+    setState(() => _showQuantityControls = !_showQuantityControls);
+  }
 
   Widget _inventorySection(ErasPalette p) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,10 +478,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
             const SizedBox(height: 10),
             PressableScale(
               child: OutlinedButton.icon(
-                onPressed: _saving
-                    ? null
-                    : () => setState(
-                        () => _showQuantityControls = !_showQuantityControls),
+                onPressed: _saving ? null : _toggleQuantityControls,
                 style: OutlinedButton.styleFrom(
                   backgroundColor: p.dark ? p.surface2 : Colors.transparent,
                   foregroundColor: p.text,

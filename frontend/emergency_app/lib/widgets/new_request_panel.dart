@@ -472,12 +472,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                           padding: const EdgeInsets.symmetric(vertical: 15),
                         ),
                         child: Text(
-                          widget.submitting
-                              ? 'Saving…'
-                              : (widget.submitLabel ??
-                                  (widget.initialRequest == null
-                                      ? 'Submit request'
-                                      : 'Save changes')),
+                          _submitButtonText,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -493,6 +488,12 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         ),
       ),
     );
+  }
+
+  String get _submitButtonText {
+    if (widget.submitting) return 'Saving…';
+    if (widget.submitLabel != null) return widget.submitLabel!;
+    return widget.initialRequest == null ? 'Submit request' : 'Save changes';
   }
 
   Widget _emergencyFields(bool narrow, ErasPalette p) {

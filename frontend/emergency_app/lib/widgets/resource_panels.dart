@@ -732,93 +732,77 @@ class BackendRespondersPanel extends StatelessWidget {
                         ? Duration(milliseconds: 22 * i)
                         : Duration.zero,
                     offset: const Offset(0, 5),
-                    child: Builder(
-                      builder: (context) {
-                        final r = responders[i];
-                        final color = responderStatusColor(r.status, p);
-
-                        return Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 14 : 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border(bottom: BorderSide(color: p.border)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${r.name}  •  ID ${r.id}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: p.text,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      r.email,
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        color: p.textFaint,
-                                      ),
-                                    ),
-                                    if (r.phone != null) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        r.phone!,
-                                        style: TextStyle(
-                                          fontSize: 11.5,
-                                          color: p.textFaint,
-                                        ),
-                                      ),
-                                    ],
-                                    if (r.location != null &&
-                                        r.location!.isNotEmpty) ...[
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        r.location!,
-                                        style: TextStyle(
-                                          fontSize: 11.5,
-                                          color: p.textDim,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: color.withValues(
-                                    alpha: p.dark ? .16 : .1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  r.status,
-                                  style: monoStyle(
-                                    size: 11,
-                                    color: color,
-                                    weight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                    child: _responderRow(responders[i], p),
                   ),
               ],
             ),
+    );
+  }
+
+  Widget _responderRow(BackendResponder r, ErasPalette p) {
+    final color = responderStatusColor(r.status, p);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 14 : 16,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: p.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${r.name}  •  ID ${r.id}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: p.text,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  r.email,
+                  style: TextStyle(fontSize: 11.5, color: p.textFaint),
+                ),
+                if (r.phone != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    r.phone!,
+                    style: TextStyle(fontSize: 11.5, color: p.textFaint),
+                  ),
+                ],
+                if (r.location != null && r.location!.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    r.location!,
+                    style: TextStyle(fontSize: 11.5, color: p.textDim),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: p.dark ? .16 : .1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              r.status,
+              style: monoStyle(
+                size: 11,
+                color: color,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

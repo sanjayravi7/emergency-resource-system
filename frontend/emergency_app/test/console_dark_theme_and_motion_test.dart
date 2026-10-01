@@ -96,6 +96,22 @@ class _FakeReadinessGateway implements ResponderReadinessGateway {
   Future<void> heartbeat() async {}
 }
 
+Widget _disableAnimationsBuilder(BuildContext context, Widget? child) {
+  return MediaQuery(
+    data: MediaQuery.of(context).copyWith(disableAnimations: true),
+    child: child!,
+  );
+}
+
+Future<bool> _noopAllocate({
+  required int requestId,
+  required int resourceId,
+  required int responderResourceId,
+  required int quantity,
+}) async {
+  return true;
+}
+
 Widget _themed(
   Widget child, {
   Brightness brightness = Brightness.dark,
@@ -106,12 +122,7 @@ Widget _themed(
     theme: erasTheme(Brightness.light),
     darkTheme: erasTheme(Brightness.dark),
     themeMode: mode,
-    builder: reducedMotion
-        ? (context, inner) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(disableAnimations: true),
-              child: inner!,
-            )
-        : null,
+    builder: reducedMotion ? _disableAnimationsBuilder : null,
     home: Scaffold(body: child),
   );
 }
@@ -202,8 +213,7 @@ void main() {
     );
   });
 
-  testWidgets('authenticated shell renders dark surfaces in dark mode',
-      (tester) async {
+  testWidgets('authenticated shell renders dark surfaces', (tester) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     ThemeController.mode.value = ThemeMode.dark;
     addTearDown(() => ThemeController.mode.value = ThemeMode.light);
@@ -255,14 +265,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final panelContainer = tester.widget<AnimatedContainer>(
-      find
-          .descendant(
-            of: find.byType(Panel),
-            matching: find.byType(AnimatedContainer),
-          )
-          .first,
+    final panelFinder = find.descendant(
+      of: find.byType(Panel),
+      matching: find.byType(AnimatedContainer),
     );
+    final panelContainer = tester.widget<AnimatedContainer>(panelFinder.first);
     final panelDeco = panelContainer.decoration! as BoxDecoration;
     expect(panelDeco.color, ErasPalette.darkPalette.surface);
     expect(panelDeco.color, isNot(Colors.white));
@@ -275,15 +282,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(ThemeController.mode.value, ThemeMode.light);
 
-    final lightPanelContainer = tester.widget<AnimatedContainer>(
-      find
-          .descendant(
-            of: find.byType(Panel),
-            matching: find.byType(AnimatedContainer),
-          )
-          .first,
-    );
-    final lightDeco = lightPanelContainer.decoration! as BoxDecoration;
+    final lightContainer = tester.widget<AnimatedContainer>(panelFinder.first);
+    final lightDeco = lightContainer.decoration! as BoxDecoration;
     expect(lightDeco.color, AppColors.surface);
   });
 
@@ -343,8 +343,7 @@ void main() {
     );
   });
 
-  testWidgets('dialogs, banners, readiness, and role cards use dark palette',
-      (tester) async {
+  testWidgets('dialogs and readiness use dark palette', (tester) async {
     final request = _sampleRequest();
     final resource = _sampleResource();
 
@@ -368,14 +367,7 @@ void main() {
                 requestId: request.id,
                 requestProvider: (_) => request,
                 inventoryProvider: () => const <BackendResponderResource>[],
-                onAllocate: ({
-                  required requestId,
-                  required resourceId,
-                  required responderResourceId,
-                  required quantity,
-                }) async {
-                  return true;
-                },
+                onAllocate: _noopAllocate,
                 onCancelAllocation: (_) async => true,
                 onDispatchAllocation: (_) async {},
                 onMarkDelivered: (_) async {},
@@ -402,19 +394,15 @@ void main() {
     // RegisterScreen role cards in dark mode
     await tester.pumpWidget(_themed(const RegisterScreen()));
     await tester.pumpAndSettle();
-    final roleMaterial = tester.widget<Material>(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey<String>('role-card-REQUESTER')),
-            matching: find.byType(Material),
-          )
-          .first,
+    final roleFinder = find.ancestor(
+      of: find.byKey(const ValueKey<String>('role-card-REQUESTER')),
+      matching: find.byType(Material),
     );
+    final roleMaterial = tester.widget<Material>(roleFinder.first);
     expect(roleMaterial.color, ErasPalette.darkPalette.surface2);
   });
 
-  testWidgets('RefreshSpinButton rotates on tap and respects reduced motion',
-      (tester) async {
+  testWidgets('RefreshSpinButton respects reduced motion', (tester) async {
     var tapped = 0;
     await tester.pumpWidget(
       _themed(RefreshSpinButton(onPressed: () => tapped++)),

@@ -214,18 +214,13 @@ PolylineId directConnectionPolylineIdFor(
 /// Builds the straight connection line between one responder and the
 /// emergency. Local map geometry only — no API request. Multiple responders
 /// each get their own line with a unique id.
-Polyline buildDirectConnectionPolyline(
-  DirectConnection connection, [
-  ErasPalette palette = ErasPalette.light,
-]) {
+Polyline buildDirectConnectionPolyline(DirectConnection c, [ErasPalette? p]) {
+  final palette = p ?? ErasPalette.light;
   return Polyline(
-    polylineId: directConnectionPolylineIdFor(
-      connection.requestId,
-      connection.responderId,
-    ),
+    polylineId: directConnectionPolylineIdFor(c.requestId, c.responderId),
     points: <LatLng>[
-      LatLng(connection.responder.latitude, connection.responder.longitude),
-      LatLng(connection.emergency.latitude, connection.emergency.longitude),
+      LatLng(c.responder.latitude, c.responder.longitude),
+      LatLng(c.emergency.latitude, c.emergency.longitude),
     ],
     color: palette.blue,
     width: 4,
