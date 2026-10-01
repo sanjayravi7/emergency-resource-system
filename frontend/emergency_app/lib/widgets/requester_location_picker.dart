@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/eras_models.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 import 'common_widgets.dart';
 
 /// Requester location workflow:
@@ -463,6 +464,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   // ------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final enabled = widget.enabled && !_locating && !_resolving;
 
     return Column(
@@ -470,74 +472,93 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       children: [
         const FieldLabel('Place / location'),
         const SizedBox(height: 6),
-        TextField(
-          key: const Key('location-search-field'),
-          controller: _searchController,
-          enabled: enabled,
-          style: const TextStyle(fontSize: 13),
-          decoration: fieldDecoration(
-            hintText: 'Search for a place, landmark, address…',
-          ).copyWith(
-            prefixIcon:
-                const Icon(Icons.search, size: 18, color: AppColors.textFaint),
-            suffixIcon: _searching
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : null,
+        FocusGlow(
+          borderRadius: 8,
+          child: TextField(
+            key: const Key('location-search-field'),
+            controller: _searchController,
+            enabled: enabled,
+            style: TextStyle(fontSize: 13, color: p.text),
+            decoration: fieldDecoration(
+              hintText: 'Search for a place, landmark, address…',
+              context: context,
+            ).copyWith(
+              prefixIcon: Icon(Icons.search, size: 18, color: p.textFaint),
+              suffixIcon: _searching
+                  ? Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: p.teal,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            onChanged: _onSearchChanged,
+            onSubmitted: (value) {
+              _debounce?.cancel();
+              if (value.trim().length >= 2) {
+                unawaited(_runSearch(value.trim()));
+              }
+            },
           ),
-          onChanged: _onSearchChanged,
-          onSubmitted: (value) {
-            _debounce?.cancel();
-            if (value.trim().length >= 2) {
-              unawaited(_runSearch(value.trim()));
-            }
-          },
         ),
         if (_predictions.isNotEmpty) ...[
           const SizedBox(height: 6),
-          _predictionList(),
+          _predictionList(p),
         ],
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            FilledButton.icon(
-              key: const Key('use-current-location-button'),
-              onPressed: enabled ? () => unawaited(useCurrentLocation()) : null,
-              icon: _locating
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.my_location_rounded, size: 16),
-              label: Text(_locating ? 'Locating…' : 'Use my current location'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.blue,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                textStyle: const TextStyle(fontSize: 12.5),
-              ),
-            ),
-            if (_hasCoordinates)
-              OutlinedButton.icon(
-                key: const Key('clear-location-button'),
-                onPressed: enabled ? clearLocation : null,
-                icon: const Icon(Icons.clear, size: 16),
-                label: const Text('Clear location'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textDim,
-                  side: const BorderSide(color: AppColors.border),
+            PressableScale(
+              enabled: enabled,
+              child: FilledButton.icon(
+                key: const Key('use-current-location-button'),
+                onPressed:
+                    enabled ? () => unawaited(useCurrentLocation()) : null,
+                icon: _locating
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.my_location_rounded, size: 16),
+                label:
+                    Text(_locating ? 'Locating…' : 'Use my current location'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: p.blue,
+                  foregroundColor: Colors.white,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   textStyle: const TextStyle(fontSize: 12.5),
+                ),
+              ),
+            ),
+            if (_hasCoordinates)
+              PressableScale(
+                enabled: enabled,
+                child: OutlinedButton.icon(
+                  key: const Key('clear-location-button'),
+                  onPressed: enabled ? clearLocation : null,
+                  icon: const Icon(Icons.clear, size: 16),
+                  label: const Text('Clear location'),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: p.dark ? p.surface2 : Colors.transparent,
+                    foregroundColor: p.textDim,
+                    side: BorderSide(color: p.border),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    textStyle: const TextStyle(fontSize: 12.5),
+                  ),
                 ),
               ),
           ],
@@ -545,23 +566,27 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         const SizedBox(height: 10),
         const FieldLabel('Place'),
         const SizedBox(height: 6),
-        TextField(
-          key: const Key('location-place-field'),
-          controller: widget.placeController,
-          enabled: widget.enabled,
-          minLines: 1,
-          maxLines: 2,
-          style: const TextStyle(fontSize: 13),
-          decoration: fieldDecoration(
-            hintText: 'Human readable place, e.g. Kolenchery, Kerala',
+        FocusGlow(
+          borderRadius: 8,
+          child: TextField(
+            key: const Key('location-place-field'),
+            controller: widget.placeController,
+            enabled: widget.enabled,
+            minLines: 1,
+            maxLines: 2,
+            style: TextStyle(fontSize: 13, color: p.text),
+            decoration: fieldDecoration(
+              hintText: 'Human readable place, e.g. Kolenchery, Kerala',
+              context: context,
+            ),
+            onChanged: (_) => widget.onPlaceTextChanged?.call(),
           ),
-          onChanged: (_) => widget.onPlaceTextChanged?.call(),
         ),
         const SizedBox(height: 8),
-        _coordinateBox(),
+        _coordinateBox(p),
         if (_hasCoordinates) ...[
           const SizedBox(height: 12),
-          _nearbyPlacesSection(),
+          _nearbyPlacesSection(p),
         ],
         if (_statusMessage != null) ...[
           const SizedBox(height: 6),
@@ -571,7 +596,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
             style: TextStyle(
               fontSize: 11.5,
               height: 1.35,
-              color: _statusIsError ? AppColors.amber : AppColors.teal,
+              color: _statusIsError ? p.amber : p.teal,
             ),
           ),
         ],
@@ -586,14 +611,14 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   // ------------------------------------------------------------------
   // Nearby places UI (shown once coordinates exist)
   // ------------------------------------------------------------------
-  Widget _nearbyPlacesSection() {
+  Widget _nearbyPlacesSection(ErasPalette p) {
     return Container(
       key: const Key('nearby-places-section'),
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface2,
-        border: Border.all(color: AppColors.border),
+        color: p.surface2,
+        border: Border.all(color: p.border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -601,29 +626,27 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         children: [
           Row(
             children: [
-              const Icon(Icons.near_me_rounded,
-                  size: 14, color: AppColors.teal),
+              Icon(Icons.near_me_rounded, size: 14, color: p.teal),
               const SizedBox(width: 7),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'NEARBY PLACES',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: .8,
-                    color: AppColors.textDim,
+                    color: p.textDim,
                   ),
                 ),
               ),
-              _nearbyRefreshButton(),
+              _nearbyRefreshButton(p),
             ],
           ),
           const SizedBox(height: 5),
-          const Text(
+          Text(
             'Real places around your current coordinates '
             '(Google Places API (New) Nearby Search, ranked by distance).',
-            style: TextStyle(
-                fontSize: 10.5, color: AppColors.textFaint, height: 1.35),
+            style: TextStyle(fontSize: 10.5, color: p.textFaint, height: 1.35),
           ),
           const SizedBox(height: 9),
           if (_nearbyUnavailable)
@@ -632,52 +655,55 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: BoxDecoration(
-                color: AppColors.amberDim,
+                color: p.amberDim,
                 borderRadius: BorderRadius.circular(5),
                 border: Border.all(
-                  color: AppColors.amber.withValues(alpha: .35),
+                  color: p.amber.withValues(alpha: .35),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 PlacesApiDisabledException.userMessage,
                 style: TextStyle(
                   fontSize: 11.5,
                   height: 1.35,
-                  color: AppColors.amber,
+                  color: p.amber,
                 ),
               ),
             )
           else ...[
-            _nearbyCategoryChips(),
+            _nearbyCategoryChips(p),
             if (_nearbyStatusMessage != null) ...[
               const SizedBox(height: 7),
               Text(
                 _nearbyStatusMessage!,
                 key: const Key('nearby-status-text'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11.5,
                   height: 1.35,
-                  color: AppColors.amber,
+                  color: p.amber,
                 ),
               ),
             ],
             if (_nearbyLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 child: SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: p.teal,
+                  ),
                 ),
               ),
-            if (_nearbyResults.isNotEmpty) _nearbyResultsList(),
+            if (_nearbyResults.isNotEmpty) _nearbyResultsList(p),
           ],
         ],
       ),
     );
   }
 
-  Widget _nearbyRefreshButton() {
+  Widget _nearbyRefreshButton(ErasPalette p) {
     final canRefresh =
         widget.enabled && !_nearbyLoading && _nearbyCategory != null;
 
@@ -685,23 +711,27 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       key: const Key('nearby-refresh-button'),
       onPressed: canRefresh ? () => unawaited(_refreshNearbyPlaces()) : null,
       icon: _nearbyLoading
-          ? const SizedBox(
+          ? SizedBox(
               width: 12,
               height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: p.teal,
+              ),
             )
           : const Icon(Icons.refresh, size: 14),
       label: const Text('Refresh'),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.teal,
-        side: const BorderSide(color: AppColors.border),
+        backgroundColor: p.dark ? p.surface : Colors.transparent,
+        foregroundColor: p.teal,
+        side: BorderSide(color: p.border),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         textStyle: const TextStyle(fontSize: 11),
       ),
     );
   }
 
-  Widget _nearbyCategoryChips() {
+  Widget _nearbyCategoryChips(ErasPalette p) {
     final enabled = widget.enabled && !_nearbyLoading;
 
     return Wrap(
@@ -719,18 +749,16 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
             showCheckmark: false,
             visualDensity: VisualDensity.compact,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            backgroundColor: AppColors.surface,
-            selectedColor: AppColors.tealDim,
+            backgroundColor: p.surface,
+            selectedColor: p.tealDim,
             side: BorderSide(
               color: _nearbyCategory == category
-                  ? AppColors.teal.withValues(alpha: .4)
-                  : AppColors.border,
+                  ? p.teal.withValues(alpha: .45)
+                  : p.border,
             ),
             labelStyle: TextStyle(
               fontSize: 11.5,
-              color: _nearbyCategory == category
-                  ? AppColors.teal
-                  : AppColors.textDim,
+              color: _nearbyCategory == category ? p.teal : p.textDim,
               fontWeight: _nearbyCategory == category
                   ? FontWeight.w600
                   : FontWeight.w400,
@@ -740,7 +768,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     );
   }
 
-  Widget _nearbyResultsList() {
+  Widget _nearbyResultsList(ErasPalette p) {
     final category = _nearbyCategory;
     if (category == null) return const SizedBox.shrink();
 
@@ -752,8 +780,8 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       key: const Key('nearby-result-list'),
       margin: const EdgeInsets.only(top: 9),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
+        color: p.surface,
+        border: Border.all(color: p.border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -766,33 +794,32 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
               children: [
                 Text(
                   category.pluralLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.text,
+                    color: p.text,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Within ${_radiusKilometersLabel()} of $centerText · '
                   'ranked by distance',
-                  style: const TextStyle(
-                      fontSize: 10.5, color: AppColors.textFaint),
+                  style: TextStyle(fontSize: 10.5, color: p.textFaint),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
+          Divider(height: 1, color: p.border),
           for (var index = 0; index < _nearbyResults.length; index++) ...[
-            if (index > 0) const Divider(height: 1, color: AppColors.border),
-            _nearbyResultRow(_nearbyResults[index]),
+            if (index > 0) Divider(height: 1, color: p.border),
+            _nearbyResultRow(_nearbyResults[index], p),
           ],
         ],
       ),
     );
   }
 
-  Widget _nearbyResultRow(NearbyPlace place) {
+  Widget _nearbyResultRow(NearbyPlace place, ErasPalette p) {
     return InkWell(
       key: Key('nearby-result-${place.placeId}'),
       onTap: widget.enabled ? () => unawaited(selectNearbyPlace(place)) : null,
@@ -801,8 +828,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.place_outlined,
-                size: 15, color: AppColors.textFaint),
+            Icon(Icons.place_outlined, size: 15, color: p.textFaint),
             const SizedBox(width: 9),
             Expanded(
               child: Column(
@@ -810,10 +836,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                 children: [
                   Text(
                     place.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.text,
+                      color: p.text,
                     ),
                   ),
                   if (place.address.isNotEmpty)
@@ -821,10 +847,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         place.address,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           height: 1.3,
-                          color: AppColors.textFaint,
+                          color: p.textFaint,
                         ),
                       ),
                     ),
@@ -837,7 +863,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                 place.distanceLabel,
                 style: monoStyle(
                   size: 11,
-                  color: AppColors.teal,
+                  color: p.teal,
                   weight: FontWeight.w600,
                 ),
               ),
@@ -848,12 +874,12 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     );
   }
 
-  Widget _predictionList() {
+  Widget _predictionList(ErasPalette p) {
     return Container(
       key: const Key('location-prediction-list'),
       decoration: BoxDecoration(
-        color: AppColors.surface2,
-        border: Border.all(color: AppColors.border),
+        color: p.surface2,
+        border: Border.all(color: p.border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -869,8 +895,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 child: Row(
                   children: [
-                    const Icon(Icons.place_outlined,
-                        size: 16, color: AppColors.textFaint),
+                    Icon(Icons.place_outlined, size: 16, color: p.textFaint),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -878,14 +903,15 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
                         children: [
                           Text(
                             prediction.primaryText,
-                            style: const TextStyle(
-                                fontSize: 12.5, color: AppColors.text),
+                            style: TextStyle(fontSize: 12.5, color: p.text),
                           ),
                           if (prediction.secondaryText.isNotEmpty)
                             Text(
                               prediction.secondaryText,
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.textFaint),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: p.textFaint,
+                              ),
                             ),
                         ],
                       ),
@@ -899,17 +925,19 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
     );
   }
 
-  Widget _coordinateBox() {
-    return Container(
+  Widget _coordinateBox(ErasPalette p) {
+    return AnimatedContainer(
+      duration: AuthMotion.fast,
+      curve: AuthMotion.outCurve,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
-        color: _hasCoordinates ? AppColors.tealDim : AppColors.surface2,
+        color: _hasCoordinates ? p.tealDim : p.surface2,
         borderRadius: BorderRadius.circular(5),
         border: Border.all(
           color: _hasCoordinates
-              ? AppColors.teal.withValues(alpha: .35)
-              : AppColors.border,
+              ? p.teal.withValues(alpha: p.dark ? .45 : .35)
+              : p.border,
         ),
       ),
       child: Text(
@@ -920,7 +948,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         style: TextStyle(
           fontSize: 11.5,
           height: 1.35,
-          color: _hasCoordinates ? AppColors.teal : AppColors.textFaint,
+          color: _hasCoordinates ? p.teal : (p.dark ? p.textDim : p.textFaint),
         ),
       ),
     );

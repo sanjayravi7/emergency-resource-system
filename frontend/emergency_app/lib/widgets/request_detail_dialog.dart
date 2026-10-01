@@ -25,14 +25,16 @@ class RequestDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final size = MediaQuery.sizeOf(context);
     return Dialog(
       key: const Key('request-detail-dialog'),
-      backgroundColor: AppColors.surface,
+      backgroundColor: p.surface,
+      surfaceTintColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: p.cardBorder),
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: 880, maxHeight: size.height * .9),
@@ -47,19 +49,20 @@ class RequestDetailDialog extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'REQUEST DETAILS',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: .8,
+                            color: p.text,
                           ),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           request.displayId,
                           key: const Key('request-detail-id'),
-                          style: monoStyle(size: 12, color: AppColors.textDim),
+                          style: monoStyle(size: 12, color: p.textDim),
                         ),
                       ],
                     ),
@@ -68,12 +71,12 @@ class RequestDetailDialog extends StatelessWidget {
                   IconButton(
                     tooltip: 'Close request details',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close, color: p.textDim),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: p.border),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -94,6 +97,7 @@ class _RequestDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final requester = request.requester;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -136,27 +140,30 @@ class _RequestDetailBody extends StatelessWidget {
                 ? request.description!
                 : 'No description provided.',
             key: const Key('request-detail-description'),
-            style: const TextStyle(fontSize: 13, height: 1.45),
+            style: TextStyle(fontSize: 13, height: 1.45, color: p.text),
           ),
         ),
         const SizedBox(height: 12),
         _Section(
           title: 'REQUESTER',
           child: requester == null
-              ? const Text('Requester details unavailable.')
+              ? Text(
+                  'Requester details unavailable.',
+                  style: TextStyle(color: p.textFaint),
+                )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(requester.name),
+                    Text(requester.name, style: TextStyle(color: p.text)),
                     if ((requester.email ?? '').isNotEmpty)
                       Text(
                         requester.email!,
-                        style: const TextStyle(color: AppColors.textDim),
+                        style: TextStyle(color: p.textDim),
                       ),
                     if ((requester.phone ?? '').isNotEmpty)
                       Text(
                         requester.phone!,
-                        style: const TextStyle(color: AppColors.textDim),
+                        style: TextStyle(color: p.textDim),
                       ),
                   ],
                 ),
@@ -170,9 +177,9 @@ class _RequestDetailBody extends StatelessWidget {
         _Section(
           title: 'REQUIRED RESOURCES',
           child: request.requiredResources.isEmpty
-              ? const Text(
+              ? Text(
                   'No resources requested.',
-                  style: TextStyle(color: AppColors.textFaint),
+                  style: TextStyle(color: p.textFaint),
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,9 +198,9 @@ class _RequestDetailBody extends StatelessWidget {
         _Section(
           title: 'ALLOCATION HISTORY',
           child: request.allocations.isEmpty
-              ? const Text(
+              ? Text(
                   'No allocation history.',
-                  style: TextStyle(color: AppColors.textFaint),
+                  style: TextStyle(color: p.textFaint),
                 )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,10 +227,11 @@ class _AssignmentsDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     if (request.assignments.isEmpty && request.acceptedBy == null) {
-      return const Text(
+      return Text(
         'No responder assigned.',
-        style: TextStyle(color: AppColors.textFaint),
+        style: TextStyle(color: p.textFaint),
       );
     }
 
@@ -264,19 +272,20 @@ class _AssignmentRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 7),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.person_outline, size: 16, color: AppColors.textDim),
+          Icon(Icons.person_outline, size: 16, color: p.textDim),
           const SizedBox(width: 7),
           Expanded(
             child: Text(
               '$name · $status'
               '${timestamp == null ? '' : ' · ${formatDateTime(timestamp)}'}'
               '${endedAt == null ? '' : ' · ended ${formatDateTime(endedAt)}'}',
-              style: const TextStyle(fontSize: 12.5, height: 1.35),
+              style: TextStyle(fontSize: 12.5, height: 1.35, color: p.text),
             ),
           ),
         ],
@@ -293,11 +302,12 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface2,
-        border: Border.all(color: AppColors.border),
+        color: p.surface2,
+        border: Border.all(color: p.border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -305,10 +315,10 @@ class _Section extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: AppColors.textFaint,
+              color: p.textFaint,
               letterSpacing: .6,
             ),
           ),
@@ -328,12 +338,13 @@ class _DetailTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     return Container(
       width: 200,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.surface2,
-        border: Border.all(color: AppColors.border),
+        color: p.surface2,
+        border: Border.all(color: p.border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -341,14 +352,17 @@ class _DetailTile extends StatelessWidget {
         children: [
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 9.5,
-              color: AppColors.textFaint,
+              color: p.textFaint,
               letterSpacing: .5,
             ),
           ),
           const SizedBox(height: 4),
-          SelectableText(value, style: const TextStyle(fontSize: 12.5)),
+          SelectableText(
+            value,
+            style: TextStyle(fontSize: 12.5, color: p.text),
+          ),
         ],
       ),
     );

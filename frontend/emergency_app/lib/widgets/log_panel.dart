@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 import 'common_widgets.dart';
 import 'operational_status.dart';
 
@@ -21,27 +22,40 @@ class LogPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+    final entries = logEntries.take(50).toList(growable: false);
+
     return Panel(
       title: 'CLOSED / AFTER-ACTION LOG',
       hint: 'Completed and cancelled requests',
-      child: logEntries.isEmpty
+      child: entries.isEmpty
           ? const EmptyState('Nothing closed out yet.')
           : isMobile
               ? Column(
-                  children: logEntries
-                      .take(50)
-                      .map((entry) => _LogCard(
-                            request: entry,
-                            onView: onViewRequest,
-                          ))
-                      .toList(),
+                  children: [
+                    for (var i = 0; i < entries.length; i++)
+                      EntranceReveal(
+                        delay: i < 5
+                            ? Duration(milliseconds: 28 * i)
+                            : Duration.zero,
+                        offset: const Offset(0, 6),
+                        child: _LogCard(
+                          request: entries[i],
+                          onView: onViewRequest,
+                        ),
+                      ),
+                  ],
                 )
               : SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
-                    headingTextStyle: tableHeadStyle(),
-                    dataTextStyle:
-                        const TextStyle(fontSize: 13, color: AppColors.text),
+                    headingTextStyle: tableHeadStyle(context),
+                    dataTextStyle: TextStyle(fontSize: 13, color: p.text),
+                    headingRowColor: WidgetStatePropertyAll(
+                      p.dark
+                          ? p.surface2.withValues(alpha: .42)
+                          : Colors.transparent,
+                    ),
                     dataRowMinHeight: 72,
                     dataRowMaxHeight: 180,
                     columns: const [
@@ -54,12 +68,11 @@ class LogPanel extends StatelessWidget {
                       DataColumn(label: Text('STATUS')),
                       DataColumn(label: Text('ACTION')),
                     ],
-                    rows: logEntries.take(50).map((entry) {
+                    rows: entries.map((entry) {
                       return DataRow(cells: [
                         DataCell(Text(
                           entry.displayId,
-                          style:
-                              monoStyle(size: 12.5, color: AppColors.textDim),
+                          style: monoStyle(size: 12.5, color: p.textDim),
                         )),
                         DataCell(Text(entry.emergencyType)),
                         DataCell(Text(entry.location)),
@@ -69,9 +82,7 @@ class LogPanel extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               if (entry.requiredResources.isEmpty)
-                                const Text('-',
-                                    style:
-                                        TextStyle(color: AppColors.textFaint))
+                                Text('-', style: TextStyle(color: p.textFaint))
                               else
                                 ...entry.requiredResources.map(
                                   (line) => ResourceChip(
@@ -81,14 +92,14 @@ class LogPanel extends StatelessWidget {
                                   ),
                                 ),
                               if (entry.allocations.isNotEmpty) ...[
-                                const Divider(
-                                    height: 6, color: AppColors.border),
+                                Divider(height: 6, color: p.border),
                                 // PHASE F: allocations are grouped by the
                                 // responder who owns them; every status
                                 // (RESERVED/DISPATCHED/DELIVERED/CANCELLED)
                                 // is preserved per row.
                                 _AllocationsByResponder(
-                                    allocations: entry.allocations),
+                                  allocations: entry.allocations,
+                                ),
                               ],
                             ],
                           ),
@@ -101,7 +112,7 @@ class LogPanel extends StatelessWidget {
                         ),
                         DataCell(Text(
                           formatDateTime(entry.createdAt),
-                          style: monoStyle(size: 12, color: AppColors.textDim),
+                          style: monoStyle(size: 12, color: p.textDim),
                         )),
                         DataCell(
                           SizedBox(
@@ -121,12 +132,20 @@ class LogPanel extends StatelessWidget {
                           ),
                         ),
                         DataCell(
-                          OutlinedButton(
-                            key: Key('view-log-request-${entry.id}'),
-                            onPressed: onViewRequest == null
-                                ? null
-                                : () => onViewRequest!(entry),
-                            child: const Text('VIEW'),
+                          PressableScale(
+                            child: OutlinedButton(
+                              key: Key('view-log-request-${entry.id}'),
+                              onPressed: onViewRequest == null
+                                  ? null
+                                  : () => onViewRequest!(entry),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor:
+                                    p.dark ? p.surface2 : Colors.transparent,
+                                foregroundColor: p.textDim,
+                                side: BorderSide(color: p.border),
+                              ),
+                              child: const Text('VIEW'),
+                            ),
                           ),
                         ),
                       ]);
@@ -144,10 +163,12 @@ class _LogCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: p.border)),
       ),
       child: Row(
         children: [
@@ -158,21 +179,20 @@ class _LogCard extends StatelessWidget {
                 Text(
                   request.displayId,
                   style: monoStyle(
-                      size: 12.5,
-                      color: AppColors.textDim,
-                      weight: FontWeight.w600),
+                    size: 12.5,
+                    color: p.textDim,
+                    weight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   '${request.emergencyType} · ${request.location}',
-                  style:
-                      const TextStyle(fontSize: 12, color: AppColors.textDim),
+                  style: TextStyle(fontSize: 12, color: p.text),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   request.resourcesSummary,
-                  style: const TextStyle(
-                      fontSize: 11.5, color: AppColors.textFaint),
+                  style: TextStyle(fontSize: 11.5, color: p.textFaint),
                 ),
                 const SizedBox(height: 2),
                 _RespondersSummary(request: request, mobile: true),
@@ -191,10 +211,17 @@ class _LogCard extends StatelessWidget {
               StatusPill(status: request.status),
               if (onView != null) ...[
                 const SizedBox(height: 8),
-                OutlinedButton(
-                  key: Key('view-log-request-${request.id}'),
-                  onPressed: () => onView!(request),
-                  child: const Text('VIEW'),
+                PressableScale(
+                  child: OutlinedButton(
+                    key: Key('view-log-request-${request.id}'),
+                    onPressed: () => onView!(request),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: p.dark ? p.surface2 : Colors.transparent,
+                      foregroundColor: p.textDim,
+                      side: BorderSide(color: p.border),
+                    ),
+                    child: const Text('VIEW'),
+                  ),
                 ),
               ],
             ],
@@ -217,6 +244,7 @@ class _RespondersSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final names = <String>[];
     void add(String? name) {
       final trimmed = name?.trim();
@@ -231,8 +259,10 @@ class _RespondersSummary extends StatelessWidget {
       add(assignment.responder?.name ?? 'Responder #${assignment.responderId}');
     }
     if (names.isEmpty) {
-      return Text(mobile ? 'Responder: -' : '-',
-          style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint));
+      return Text(
+        mobile ? 'Responder: -' : '-',
+        style: TextStyle(fontSize: 11.5, color: p.textFaint),
+      );
     }
 
     if (!mobile) {
@@ -241,13 +271,13 @@ class _RespondersSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final name in names)
-            Text(name, style: const TextStyle(fontSize: 12.5)),
+            Text(name, style: TextStyle(fontSize: 12.5, color: p.text)),
         ],
       );
     }
     return Text(
       'Responders: ${names.join(', ')}',
-      style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
+      style: TextStyle(fontSize: 11.5, color: p.textFaint),
     );
   }
 }
@@ -264,6 +294,7 @@ class _AllocationsByResponder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     // Preserve the payload order but bucket by responder owner.
     final grouped = <int, List<AllocationLine>>{};
     for (final allocation in allocations) {
@@ -281,10 +312,11 @@ class _AllocationsByResponder extends StatelessWidget {
               '${entry.value.first.responderName ?? 'Responder #${entry.key}'}'
               ' · ${entry.value.length} allocation'
               '${entry.value.length == 1 ? '' : 's'}',
-              style: const TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textFaint),
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: p.textFaint,
+              ),
             ),
             const SizedBox(height: 2),
           ],
