@@ -68,9 +68,8 @@ class ResourceCatalogPanel extends StatelessWidget {
                   ),
                 for (var i = 0; i < resources.length; i++)
                   EntranceReveal(
-                    delay: i < 6
-                        ? Duration(milliseconds: 22 * i)
-                        : Duration.zero,
+                    delay:
+                        i < 6 ? Duration(milliseconds: 22 * i) : Duration.zero,
                     offset: const Offset(0, 5),
                     child: _ResourceRow(
                       resource: resources[i],
@@ -728,9 +727,8 @@ class BackendRespondersPanel extends StatelessWidget {
               children: [
                 for (var i = 0; i < responders.length; i++)
                   EntranceReveal(
-                    delay: i < 6
-                        ? Duration(milliseconds: 22 * i)
-                        : Duration.zero,
+                    delay:
+                        i < 6 ? Duration(milliseconds: 22 * i) : Duration.zero,
                     offset: const Offset(0, 5),
                     child: _responderRow(responders[i], p),
                   ),

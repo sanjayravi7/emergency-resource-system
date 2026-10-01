@@ -139,9 +139,8 @@ class LogPanel extends StatelessWidget {
                                   ? null
                                   : () => onViewRequest!(entry),
                               style: OutlinedButton.styleFrom(
-                                backgroundColor: p.dark
-                                    ? p.surface2
-                                    : Colors.transparent,
+                                backgroundColor:
+                                    p.dark ? p.surface2 : Colors.transparent,
                                 foregroundColor: p.textDim,
                                 side: BorderSide(color: p.border),
                               ),

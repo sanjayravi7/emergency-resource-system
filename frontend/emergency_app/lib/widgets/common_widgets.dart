@@ -272,9 +272,8 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = ErasPalette.of(context);
     final colors = statusColors(status, p);
-    final pillBorder = p.dark
-        ? Border.all(color: colors.text.withValues(alpha: .28))
-        : null;
+    final pillBorder =
+        p.dark ? Border.all(color: colors.text.withValues(alpha: .28)) : null;
 
     return AnimatedContainer(
       duration: AuthMotion.fast,
@@ -314,9 +313,8 @@ class PriorityPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = ErasPalette.of(context);
     final colors = priorityColors(priority, p);
-    final pillBorder = p.dark
-        ? Border.all(color: colors.text.withValues(alpha: .28))
-        : null;
+    final pillBorder =
+        p.dark ? Border.all(color: colors.text.withValues(alpha: .28)) : null;
 
     return AnimatedContainer(
       duration: AuthMotion.fast,
@@ -412,8 +410,8 @@ class InfoChip extends StatelessWidget {
         children: [
           Text(
             label.toUpperCase(),
-            style: TextStyle(
-                fontSize: 9.5, color: p.textFaint, letterSpacing: .5),
+            style:
+                TextStyle(fontSize: 9.5, color: p.textFaint, letterSpacing: .5),
           ),
           const SizedBox(height: 1),
           Text(

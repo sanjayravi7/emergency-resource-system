@@ -137,9 +137,8 @@ class _ResponderChoice extends StatelessWidget {
         curve: AuthMotion.outCurve,
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: selected
-              ? p.tealDim.withValues(alpha: .45)
-              : Colors.transparent,
+          color:
+              selected ? p.tealDim.withValues(alpha: .45) : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(

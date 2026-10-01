@@ -101,9 +101,8 @@ class _TimelineStep extends StatelessWidget {
         color: reached ? p.tealDim : p.surface2,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: reached
-              ? p.teal.withValues(alpha: p.dark ? .45 : .35)
-              : p.border,
+          color:
+              reached ? p.teal.withValues(alpha: p.dark ? .45 : .35) : p.border,
         ),
       ),
       child: Text(

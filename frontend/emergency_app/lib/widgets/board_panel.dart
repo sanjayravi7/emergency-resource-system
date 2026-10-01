@@ -526,8 +526,8 @@ class BoardPanel extends StatelessWidget {
                     backgroundColor: p.dark ? p.surface2 : Colors.transparent,
                     foregroundColor: p.amber,
                     side: BorderSide(color: p.amber),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   child: const Text('Stop Live Location',
                       style: TextStyle(fontSize: 12)),
@@ -542,8 +542,8 @@ class BoardPanel extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: p.blue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   child: const Text('Start Live Location',
                       style: TextStyle(fontSize: 12)),
@@ -875,8 +875,8 @@ class _RequestCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'REQUIRED RESOURCES',
-            style: TextStyle(
-                fontSize: 9.5, color: p.textFaint, letterSpacing: .5),
+            style:
+                TextStyle(fontSize: 9.5, color: p.textFaint, letterSpacing: .5),
           ),
           const SizedBox(height: 4),
           if (request.requiredResources.isEmpty)
