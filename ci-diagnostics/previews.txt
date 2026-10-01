@@ -1,0 +1,24 @@
+
+lib/widgets/auth_visuals.dart:783:31: Error: Member not found: 'Gradient.linear'.
+          ..shader = Gradient.linear(
+                              ^^^^^^
+lib/widgets/auth_visuals.dart:960:33: Error: The getter '_entries' isn't defined for the type 'AuthStatusCards'.
+ - 'AuthStatusCards' is from 'package:dispatch_console_flutter/widgets/auth_visuals.dart' ('lib/widgets/auth_visuals.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named '_entries'.
+            for (final entry in _entries)
+                                ^^^^^^^^
+::group::❌ loading /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/tools/auth_preview_test.dart (failed)
+Failed to load "/home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/tools/auth_preview_test.dart":
+Compilation failed for testPath=/home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/tools/auth_preview_test.dart: lib/widgets/auth_visuals.dart:783:31: Error: Member not found: 'Gradient.linear'.
+          ..shader = Gradient.linear(
+                              ^^^^^^
+lib/widgets/auth_visuals.dart:960:33: Error: The getter '_entries' isn't defined for the type 'AuthStatusCards'.
+ - 'AuthStatusCards' is from 'package:dispatch_console_flutter/widgets/auth_visuals.dart' ('lib/widgets/auth_visuals.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named '_entries'.
+            for (final entry in _entries)
+                                ^^^^^^^^
+.
+
+::endgroup::
+
+::error::0 tests passed, 1 failed.

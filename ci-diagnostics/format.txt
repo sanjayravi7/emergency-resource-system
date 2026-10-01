@@ -1,0 +1,5 @@
+Changed lib/screens/login_screen.dart
+Changed lib/screens/register_screen.dart
+Changed lib/widgets/auth_shell.dart
+Changed lib/widgets/auth_visuals.dart
+Formatted 53 files (4 changed) in 0.18 seconds.
