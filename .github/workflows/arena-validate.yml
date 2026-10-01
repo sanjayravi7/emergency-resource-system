@@ -1,0 +1,62 @@
+# TEMPORARY validation helper for the arena/01a0f8f0 branch.
+#
+# The development sandbox for this branch cannot reach the Flutter/Dart
+# download hosts, so formatting, analysis and tests are validated here.
+# `dart format` fixes are committed back to the branch automatically.
+# This file is removed before the branch is merged; it never touches
+# dart.yml and never runs for main.
+name: Arena validate (temporary)
+
+on:
+  push:
+    branches: ["arena/01a0f8f0-emergency-resource-system"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: arena-validate
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Apply formatting
+        run: dart format .
+
+      - name: Commit formatting fixes (if any)
+        working-directory: ${{ github.workspace }}
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "Apply dart format"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
+      - name: Analyze project source
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
