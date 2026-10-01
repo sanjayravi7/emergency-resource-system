@@ -435,6 +435,7 @@ class _NarrowComposition extends StatelessWidget {
         // only kept when the viewport is large enough for them to coexist
         // with the card hierarchy (tablet and up); they are dropped on
         // phones so the auth card stays near the top of the page.
+        final showHero = constraints.maxHeight >= 700;
         final showHeroVisuals =
             constraints.maxWidth >= 760 && constraints.maxHeight >= 720;
         return SingleChildScrollView(
@@ -454,29 +455,31 @@ class _NarrowComposition extends StatelessWidget {
                       const ThemeSwitch(),
                     ],
                   ),
-                  SizedBox(height: 26),
-                  Text('Right Resource.', style: navy),
-                  Text('Right Place.', style: navy),
-                  Text(
-                    'Right Time.',
-                    style: TextStyle(
-                      fontSize: headingSize,
-                      height: 1.14,
-                      letterSpacing: -1.3,
-                      fontWeight: FontWeight.w900,
-                      color: skin.tealBright,
+                  if (showHero) ...[
+                    SizedBox(height: 26),
+                    Text('Right Resource.', style: navy),
+                    Text('Right Place.', style: navy),
+                    Text(
+                      'Right Time.',
+                      style: TextStyle(
+                        fontSize: headingSize,
+                        height: 1.14,
+                        letterSpacing: -1.3,
+                        fontWeight: FontWeight.w900,
+                        color: skin.tealBright,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 14),
-                  Text(
-                    'Smarter coordination. Faster response.\n'
-                    'Better outcomes for every emergency.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      height: 1.5,
-                      color: skin.textDim,
+                    SizedBox(height: 14),
+                    Text(
+                      'Smarter coordination. Faster response.\n'
+                      'Better outcomes for every emergency.',
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.5,
+                        color: skin.textDim,
+                      ),
                     ),
-                  ),
+                  ],
                   if (showHeroVisuals) ...[
                     SizedBox(height: 18),
                     SizedBox(
