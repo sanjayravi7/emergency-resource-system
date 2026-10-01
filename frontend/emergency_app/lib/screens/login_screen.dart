@@ -113,8 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 5),
                   Text('Sign in to continue to ERAS',
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 13, color: skin.textDim)),
+                      style: TextStyle(fontSize: 13, color: skin.textDim)),
                   const SizedBox(height: 24),
                   TextField(
                       key: const ValueKey('login-email'),
@@ -122,8 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       decoration: authFieldDecoration(context,
-                          label: 'Email',
-                          icon: Icons.mail_outline_rounded)),
+                          label: 'Email', icon: Icons.mail_outline_rounded)),
                   const SizedBox(height: 13),
                   TextField(
                       key: const ValueKey('login-password'),
@@ -153,8 +151,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               height: 24,
                               child: Checkbox(
                                   value: rememberMe,
-                                  onChanged: (v) => setState(
-                                      () => rememberMe = v ?? false))),
+                                  onChanged: (v) =>
+                                      setState(() => rememberMe = v ?? false))),
                           const SizedBox(width: 7),
                           Text('Remember me',
                               style: TextStyle(
@@ -162,9 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ]),
                         InkWell(
                             onTap: () => _notifyUnavailable(
-                              'Password reset is managed by '
-                              'your ERAS administrator.',
-                            ),
+                                  'Password reset is managed by '
+                                  'your ERAS administrator.',
+                                ),
                             borderRadius: BorderRadius.circular(8),
                             child: Padding(
                                 padding:
@@ -193,8 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               Expanded(
                                   child: Text(errorMessage!,
                                       style: TextStyle(
-                                          fontSize: 12.5,
-                                          color: skin.red)))
+                                          fontSize: 12.5, color: skin.red)))
                             ]))
                   ],
                   const SizedBox(height: 16),

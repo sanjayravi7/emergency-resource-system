@@ -435,8 +435,8 @@ class _NarrowComposition extends StatelessWidget {
         // only kept when the viewport is large enough for them to coexist
         // with the card hierarchy (tablet and up); they are dropped on
         // phones so the auth card stays near the top of the page.
-        final showHeroVisuals = constraints.maxWidth >= 760 &&
-            constraints.maxHeight >= 720;
+        final showHeroVisuals =
+            constraints.maxWidth >= 760 && constraints.maxHeight >= 720;
         return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
           child: Center(

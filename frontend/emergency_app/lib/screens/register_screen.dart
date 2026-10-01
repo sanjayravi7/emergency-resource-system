@@ -26,7 +26,7 @@ extension RegistrationRoleWire on RegistrationRole {
           "You'll use ERAS to request emergency resources and assistance.",
         RegistrationRole.responder =>
           "You'll use ERAS to receive eligible emergencies and provide "
-          'assistance.',
+              'assistance.',
       };
 }
 
@@ -151,10 +151,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             AuthTabs(
                 registerSelected: true,
-                onLoginTap: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const LoginScreen())),
+                onLoginTap: () => Navigator.pushReplacement(context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen())),
                 onRegisterTap: () {}),
             const SizedBox(height: 20),
             Center(
@@ -196,8 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           color: skin.tealDim,
                           borderRadius: BorderRadius.circular(9)),
                       child: Text(selectedRole!.explanation,
-                          style: TextStyle(
-                              fontSize: 11.5, color: skin.text))))
+                          style: TextStyle(fontSize: 11.5, color: skin.text))))
             else if (roleError != null)
               Padding(
                   padding: const EdgeInsets.only(top: 8),

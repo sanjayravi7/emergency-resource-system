@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' show Gradient;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -35,13 +35,11 @@ class AuthSkin {
       dark ? const Color(0xB30B1A2E) : const Color(0xFFF9FBFD);
   Color get fieldBorder =>
       dark ? const Color(0xFF2A4C68) : const Color(0xFFDCE5F0);
-  Color get divider =>
-      dark ? const Color(0xFF29425F) : const Color(0xFFE3EAF3);
+  Color get divider => dark ? const Color(0xFF29425F) : const Color(0xFFE3EAF3);
 
   // -- Ink -----------------------------------------------------------------
   Color get text => dark ? Colors.white : const Color(0xFF10213B);
-  Color get textDim =>
-      dark ? const Color(0xFF9EB0C6) : const Color(0xFF5A6B82);
+  Color get textDim => dark ? const Color(0xFF9EB0C6) : const Color(0xFF5A6B82);
   Color get textFaint =>
       dark ? const Color(0xFF71859C) : const Color(0xFF8B9AAE);
 
@@ -51,11 +49,9 @@ class AuthSkin {
       dark ? const Color(0xFF2AD8C4) : const Color(0xFF12B99D);
   Color get tealDeep =>
       dark ? const Color(0xFF149B8B) : const Color(0xFF08AA91);
-  Color get tealDim =>
-      dark ? const Color(0x2622C9B6) : const Color(0xFFE4F7F3);
+  Color get tealDim => dark ? const Color(0x2622C9B6) : const Color(0xFFE4F7F3);
   Color get blue => dark ? const Color(0xFF4E9AF5) : const Color(0xFF2478E5);
-  Color get blueDim =>
-      dark ? const Color(0xFF14344F) : const Color(0xFFE9F1FC);
+  Color get blueDim => dark ? const Color(0xFF14344F) : const Color(0xFFE9F1FC);
   Color get amber => dark ? const Color(0xFFF0B45C) : const Color(0xFFC77E18);
   Color get amberDim =>
       dark ? const Color(0xFF3A2E15) : const Color(0xFFFBF1DE);
@@ -97,8 +93,8 @@ class PaintedLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolved = style ??
-        const TextStyle(fontSize: 11, color: Color(0xFF5A6B82));
+    final resolved =
+        style ?? const TextStyle(fontSize: 11, color: Color(0xFF5A6B82));
     final scaler = MediaQuery.textScalerOf(context);
     return Semantics(
       label: text,
@@ -238,8 +234,7 @@ class _ShieldPainter extends CustomPainter {
     if (outlined) {
       canvas.drawPath(
         shield,
-        Paint()
-          ..color = skin.dark ? const Color(0xFF0E2237) : Colors.white,
+        Paint()..color = skin.dark ? const Color(0xFF0E2237) : Colors.white,
       );
       canvas.drawPath(
         shield,
@@ -756,7 +751,7 @@ class _NetworkLinesPainter extends CustomPainter {
     );
 
     // Concentric rings around the emblem.
-    final ringPaint = (Color color) => Paint()
+    Paint ringPaint(Color color) => Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
       ..color = color;
@@ -780,7 +775,7 @@ class _NetworkLinesPainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = lineWidth
-          ..shader = Gradient.linear(
+          ..shader = ui.Gradient.linear(
             center,
             point,
             [
@@ -957,7 +952,7 @@ class AuthStatusCards extends StatelessWidget {
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (final entry in _entries)
+            for (final entry in _statusEntries)
               SizedBox(
                 width: cardWidth,
                 child: _StatusCard(entry: entry, scale: scale, skin: skin),
