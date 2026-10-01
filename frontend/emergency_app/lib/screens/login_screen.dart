@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/socket_service.dart';
+import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
 import 'dispatch_console_page.dart';
@@ -17,7 +18,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController(),
       passwordController = TextEditingController();
-  bool loading = false, obscurePassword = true, rememberMe = false;
+  final emailFocus = FocusNode(), passwordFocus = FocusNode();
+  bool loading = false,
+      obscurePassword = true,
+      rememberMe = false,
+      success = false;
   String? errorMessage;
   Future<void> login() async {
     FocusScope.of(context).unfocus();
@@ -35,6 +40,11 @@ class _LoginScreenState extends State<LoginScreen> {
           emailController.text.trim(), passwordController.text);
       SocketService.instance.connect();
       if (!mounted) return;
+      // Flip the button to its success state synchronously, immediately
+      // before handing off to the next screen; this never delays
+      // navigation, it only lets the in-flight button frame read as
+      // "done" rather than snapping straight to a new page.
+      setState(() => success = true);
       if (ApiService.isResponder) {
         Navigator.pushReplacement(
             context,
@@ -74,6 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    emailFocus.dispose();
+    passwordFocus.dispose();
     super.dispose();
   }
 
@@ -83,6 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return AuthShell(
         child: AuthPanel(
             key: const ValueKey('auth-login-card'),
+            hoverable: true,
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -115,31 +128,40 @@ class _LoginScreenState extends State<LoginScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 13, color: skin.textDim)),
                   const SizedBox(height: 24),
-                  TextField(
-                      key: const ValueKey('login-email'),
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      decoration: authFieldDecoration(context,
-                          label: 'Email', icon: Icons.mail_outline_rounded)),
+                  AuthAnimatedField(
+                      focusNode: emailFocus,
+                      child: TextField(
+                          key: const ValueKey('login-email'),
+                          controller: emailController,
+                          focusNode: emailFocus,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          decoration: authFieldDecoration(context,
+                              label: 'Email',
+                              icon: Icons.mail_outline_rounded))),
                   const SizedBox(height: 13),
-                  TextField(
-                      key: const ValueKey('login-password'),
-                      controller: passwordController,
-                      obscureText: obscurePassword,
-                      decoration: authFieldDecoration(context,
-                          label: 'Password',
-                          icon: Icons.lock_outline_rounded,
-                          suffixIcon: IconButton(
-                              tooltip: 'Show or hide password',
-                              onPressed: () => setState(
-                                  () => obscurePassword = !obscurePassword),
-                              icon: Icon(obscurePassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined))),
-                      onSubmitted: (_) {
-                        if (!loading) login();
-                      }),
+                  AuthAnimatedField(
+                      focusNode: passwordFocus,
+                      child: TextField(
+                          key: const ValueKey('login-password'),
+                          controller: passwordController,
+                          focusNode: passwordFocus,
+                          obscureText: obscurePassword,
+                          decoration: authFieldDecoration(context,
+                              label: 'Password',
+                              icon: Icons.lock_outline_rounded,
+                              suffixIcon: IconButton(
+                                  tooltip: 'Show or hide password',
+                                  onPressed: () => setState(() =>
+                                      obscurePassword = !obscurePassword),
+                                  icon: authAnimatedSwitchIcon(context,
+                                      state: obscurePassword,
+                                      whenTrue: Icons.visibility_outlined,
+                                      whenFalse:
+                                          Icons.visibility_off_outlined))),
+                          onSubmitted: (_) {
+                            if (!loading) login();
+                          })),
                   const SizedBox(height: 10),
                   Wrap(
                       alignment: WrapAlignment.spaceBetween,
@@ -149,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           SizedBox(
                               width: 24,
                               height: 24,
-                              child: Checkbox(
+                              child: BouncyCheckbox(
                                   value: rememberMe,
                                   onChanged: (v) =>
                                       setState(() => rememberMe = v ?? false))),
@@ -199,6 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       label: 'Sign in',
                       onPressed: loading ? null : login,
                       loading: loading,
+                      success: success,
                       arrow: true),
                   const SizedBox(height: 20),
                   AuthDividerLabel(),

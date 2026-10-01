@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
 import 'login_screen.dart';
@@ -45,6 +46,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email = TextEditingController(),
       phone = TextEditingController();
   final password = TextEditingController(), confirm = TextEditingController();
+  final nameFocus = FocusNode(),
+      emailFocus = FocusNode(),
+      phoneFocus = FocusNode(),
+      passwordFocus = FocusNode(),
+      confirmFocus = FocusNode();
   final form = GlobalKey<FormState>();
   bool loading = false, hidePassword = true, hideConfirm = true;
   String? error;
@@ -137,6 +143,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     for (final c in [name, email, phone, password, confirm]) {
       c.dispose();
     }
+    for (final f in [
+      nameFocus,
+      emailFocus,
+      phoneFocus,
+      passwordFocus,
+      confirmFocus,
+    ]) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -145,6 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final skin = AuthSkin.of(context);
     return AuthShell(
         child: AuthPanel(
+      hoverable: true,
       child: Form(
           key: form,
           child:
@@ -202,63 +218,81 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style:
                           const TextStyle(fontSize: 12, color: AppColors.red))),
             const SizedBox(height: 16),
-            TextFormField(
-                controller: name,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Full name', icon: Icons.person_outline),
-                validator: (v) => requiredField(v, 'Name')),
+            AuthAnimatedField(
+                focusNode: nameFocus,
+                child: TextFormField(
+                    controller: name,
+                    focusNode: nameFocus,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Full name', icon: Icons.person_outline),
+                    validator: (v) => requiredField(v, 'Name'))),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: email,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Email', icon: Icons.mail_outline),
-                validator: validEmail),
+            AuthAnimatedField(
+                focusNode: emailFocus,
+                child: TextFormField(
+                    controller: email,
+                    focusNode: emailFocus,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Email', icon: Icons.mail_outline),
+                    validator: validEmail)),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: phone,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Phone number (optional)',
-                    icon: Icons.phone_outlined)),
+            AuthAnimatedField(
+                focusNode: phoneFocus,
+                child: TextFormField(
+                    controller: phone,
+                    focusNode: phoneFocus,
+                    keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Phone number (optional)',
+                        icon: Icons.phone_outlined))),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: password,
-                obscureText: hidePassword,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(context,
-                    label: 'Password',
-                    icon: Icons.lock_outline,
-                    helperText: 'At least 6 characters',
-                    suffixIcon: IconButton(
-                        tooltip: 'Show or hide password',
-                        onPressed: () =>
-                            setState(() => hidePassword = !hidePassword),
-                        icon: Icon(hidePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined))),
-                validator: (v) =>
-                    requiredField(v, 'Password') ??
-                    (v!.length < 6 ? 'Use at least 6 characters' : null)),
+            AuthAnimatedField(
+                focusNode: passwordFocus,
+                child: TextFormField(
+                    controller: password,
+                    focusNode: passwordFocus,
+                    obscureText: hidePassword,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(context,
+                        label: 'Password',
+                        icon: Icons.lock_outline,
+                        helperText: 'At least 6 characters',
+                        suffixIcon: IconButton(
+                            tooltip: 'Show or hide password',
+                            onPressed: () =>
+                                setState(() => hidePassword = !hidePassword),
+                            icon: authAnimatedSwitchIcon(context,
+                                state: hidePassword,
+                                whenTrue: Icons.visibility_outlined,
+                                whenFalse: Icons.visibility_off_outlined))),
+                    validator: (v) =>
+                        requiredField(v, 'Password') ??
+                        (v!.length < 6 ? 'Use at least 6 characters' : null))),
             const SizedBox(height: 12),
-            TextFormField(
-                controller: confirm,
-                obscureText: hideConfirm,
-                decoration: authFieldDecoration(context,
-                    label: 'Confirm password',
-                    icon: Icons.lock_reset_outlined,
-                    suffixIcon: IconButton(
-                        tooltip: 'Show or hide password',
-                        onPressed: () =>
-                            setState(() => hideConfirm = !hideConfirm),
-                        icon: Icon(hideConfirm
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined))),
-                validator: (v) =>
-                    v != password.text ? 'Passwords do not match' : null),
+            AuthAnimatedField(
+                focusNode: confirmFocus,
+                child: TextFormField(
+                    controller: confirm,
+                    focusNode: confirmFocus,
+                    obscureText: hideConfirm,
+                    decoration: authFieldDecoration(context,
+                        label: 'Confirm password',
+                        icon: Icons.lock_reset_outlined,
+                        suffixIcon: IconButton(
+                            tooltip: 'Show or hide password',
+                            onPressed: () =>
+                                setState(() => hideConfirm = !hideConfirm),
+                            icon: authAnimatedSwitchIcon(context,
+                                state: hideConfirm,
+                                whenTrue: Icons.visibility_outlined,
+                                whenFalse: Icons.visibility_off_outlined))),
+                    validator: (v) => v != password.text
+                        ? 'Passwords do not match'
+                        : null)),
             if (error != null)
               Padding(
                   padding: const EdgeInsets.only(top: 12),

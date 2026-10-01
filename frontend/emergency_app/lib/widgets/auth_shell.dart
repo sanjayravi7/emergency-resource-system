@@ -1,7 +1,10 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, PointerHoverEvent;
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 import 'auth_visuals.dart';
 
 /// Brand lock-up: large outlined shield with medical cross + teal glow,
@@ -18,11 +21,7 @@ class ErasMark extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AuthShield(
-          key: const ValueKey('eras-brand-shield'),
-          size: 62 * scale,
-          outlined: true,
-        ),
+        _HoverableShield(size: 62 * scale),
         SizedBox(width: 14 * scale),
         Flexible(
           child: Column(
@@ -61,11 +60,67 @@ class ErasMark extends StatelessWidget {
   }
 }
 
+/// Wraps the brand shield with a barely-there desktop hover: a 1-2px lift
+/// and a soft shadow. The [ValueKey] stays on the [AuthShield] itself so
+/// the visual-geometry tests keep measuring the exact same render object.
+class _HoverableShield extends StatefulWidget {
+  const _HoverableShield({required this.size});
+
+  final double size;
+
+  @override
+  State<_HoverableShield> createState() => _HoverableShieldState();
+}
+
+class _HoverableShieldState extends State<_HoverableShield> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = authMotionDuration(
+      context,
+      const Duration(milliseconds: 200),
+    );
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: duration,
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, _hovered ? -1.5 : 0, 0),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(widget.size * .32),
+          boxShadow: _hovered
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : const [],
+        ),
+        child: AuthShield(
+          key: const ValueKey('eras-brand-shield'),
+          size: widget.size,
+          outlined: true,
+        ),
+      ),
+    );
+  }
+}
+
 class ThemeSwitch extends StatelessWidget {
   const ThemeSwitch({super.key});
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final duration = authMotionDuration(
+      context,
+      const Duration(milliseconds: 300),
+    );
+    final thumbColor =
+        dark ? const Color(0xFF236BDC) : const Color(0xFFFFF0C2);
     return Semantics(
         button: true,
         label: dark ? 'Switch to light theme' : 'Switch to dark theme',
@@ -73,7 +128,8 @@ class ThemeSwitch extends StatelessWidget {
           onTap: ThemeController.toggle,
           borderRadius: BorderRadius.circular(24),
           child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
+              duration: duration,
+              curve: Curves.easeOut,
               width: 76,
               height: 38,
               padding: const EdgeInsets.all(4),
@@ -89,29 +145,42 @@ class ThemeSwitch extends StatelessWidget {
                   ]),
               child: Stack(children: [
                 AnimatedAlign(
-                    duration: const Duration(milliseconds: 250),
+                    duration: duration,
+                    curve: Curves.easeOut,
                     alignment:
                         dark ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
+                    child: AnimatedContainer(
+                        duration: duration,
+                        curve: Curves.easeOut,
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: dark
-                                ? const Color(0xFF236BDC)
-                                : const Color(0xFFFFF0C2)))),
-                const Align(
+                            color: thumbColor,
+                            boxShadow: [
+                              BoxShadow(
+                                color: thumbColor.withValues(alpha: .45),
+                                blurRadius: 8,
+                              ),
+                            ]))),
+                Align(
                     alignment: Alignment.centerLeft,
                     child: Padding(
-                        padding: EdgeInsets.only(left: 6),
-                        child: Icon(Icons.light_mode_rounded,
-                            size: 16, color: Color(0xFFF5A623)))),
-                const Align(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: AnimatedOpacity(
+                            duration: duration,
+                            opacity: dark ? .35 : 1.0,
+                            child: const Icon(Icons.light_mode_rounded,
+                                size: 16, color: Color(0xFFF5A623))))),
+                Align(
                     alignment: Alignment.centerRight,
                     child: Padding(
-                        padding: EdgeInsets.only(right: 6),
-                        child: Icon(Icons.dark_mode_rounded,
-                            size: 16, color: Color(0xFFBBD3F8)))),
+                        padding: const EdgeInsets.only(right: 6),
+                        child: AnimatedOpacity(
+                            duration: duration,
+                            opacity: dark ? 1.0 : .35,
+                            child: const Icon(Icons.dark_mode_rounded,
+                                size: 16, color: Color(0xFFBBD3F8))))),
               ])),
         ));
   }
@@ -124,7 +193,7 @@ class ThemeSwitch extends StatelessWidget {
 /// strip + status cards on the left, the login/register card centre-right,
 /// the "Why ERAS?" column to its right and the trust card bottom-right.
 /// The dark theme keeps the existing ERAS dark design language.
-class AuthShell extends StatelessWidget {
+class AuthShell extends StatefulWidget {
   const AuthShell({super.key, required this.child});
 
   final Widget child;
@@ -137,44 +206,151 @@ class AuthShell extends StatelessWidget {
   static const double desktopBreakpoint = 1150;
 
   @override
+  State<AuthShell> createState() => _AuthShellState();
+}
+
+class _AuthShellState extends State<AuthShell>
+    with SingleTickerProviderStateMixin {
+  /// Drives the one-shot staggered entrance (brand, hero, cards, status
+  /// row). Plays once per mount; never repeats, so it is always
+  /// `pumpAndSettle` safe.
+  late final AnimationController _entrance = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (reducedMotionOf(context)) {
+      _entrance.duration = const Duration(milliseconds: 180);
+    }
+    _entrance.forward();
+  }
+
+  @override
+  void dispose() {
+    _entrance.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-        body: AnimatedContainer(
-            duration: const Duration(milliseconds: 350),
-            decoration: BoxDecoration(
-                gradient: dark
-                    ? const RadialGradient(
-                        center: Alignment(-.35, -.25),
-                        radius: 1.25,
-                        colors: [
-                            Color(0xFF102B42),
-                            Color(0xFF071321),
-                            Color(0xFF050E19)
-                          ])
-                    : const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                            Color(0xFFFFFFFF),
-                            Color(0xFFF4F8FC),
-                            Color(0xFFEDF4F9)
-                          ])),
-            child: SafeArea(child: LayoutBuilder(builder: (context, c) {
-              final size = c.biggest;
-              final desktop = size.width >= desktopBreakpoint;
-              final scale = desktop
-                  ? (size.width / referenceWidth).clamp(.68, 1.0).toDouble()
-                  : (size.width / desktopBreakpoint).clamp(.56, .8).toDouble();
-              return Stack(children: [
-                if (dark)
-                  Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-                if (desktop)
-                  _DesktopComposition(scale: scale, child: child)
-                else
-                  _NarrowComposition(scale: scale, child: child),
-              ]);
-            }))));
+    return AuthEntranceScope(
+      animation: _entrance,
+      child: Scaffold(
+          body: _AnimatedAuthBackground(
+              dark: dark,
+              child: SafeArea(child: LayoutBuilder(builder: (context, c) {
+                final size = c.biggest;
+                final desktop = size.width >= AuthShell.desktopBreakpoint;
+                final scale = desktop
+                    ? (size.width / AuthShell.referenceWidth)
+                        .clamp(.68, 1.0)
+                        .toDouble()
+                    : (size.width / AuthShell.desktopBreakpoint)
+                        .clamp(.56, .8)
+                        .toDouble();
+                return Stack(children: [
+                  if (dark)
+                    Positioned.fill(
+                        child: CustomPaint(painter: _GridPainter())),
+                  if (desktop)
+                    _DesktopComposition(scale: scale, child: widget.child)
+                  else
+                    _NarrowComposition(scale: scale, child: widget.child),
+                ]);
+              })))),
+    );
+  }
+}
+
+/// Background surface for the auth page. The dark theme keeps its existing,
+/// static atmosphere untouched. The light theme gets an almost
+/// imperceptible gradient drift - never more than a light-position shift of
+/// a few percent - disabled under reduced motion and in automated tests, so
+/// at rest it renders pixel-identical to the original static gradient.
+class _AnimatedAuthBackground extends StatefulWidget {
+  const _AnimatedAuthBackground({required this.dark, required this.child});
+
+  final bool dark;
+  final Widget child;
+
+  @override
+  State<_AnimatedAuthBackground> createState() =>
+      _AnimatedAuthBackgroundState();
+}
+
+class _AnimatedAuthBackgroundState extends State<_AnimatedAuthBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 16),
+  );
+  bool _running = false;
+
+  void _syncRunning(bool shouldRun) {
+    if (shouldRun == _running) return;
+    _running = shouldRun;
+    if (shouldRun) {
+      _controller.repeat(reverse: true);
+    } else {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.dark) {
+      _syncRunning(false);
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(-.35, -.25),
+            radius: 1.25,
+            colors: [Color(0xFF102B42), Color(0xFF071321), Color(0xFF050E19)],
+          ),
+        ),
+        child: widget.child,
+      );
+    }
+    _syncRunning(ambientMotionOf(context));
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _running ? _controller.value : 0.0;
+        final begin =
+            Alignment.lerp(Alignment.topLeft, const Alignment(-.88, -.92), t)!;
+        final end =
+            Alignment.lerp(Alignment.bottomRight, const Alignment(.92, .88), t)!;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: begin,
+              end: end,
+              colors: const [
+                Color(0xFFFFFFFF),
+                Color(0xFFF4F8FC),
+                Color(0xFFEDF4F9),
+              ],
+            ),
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
   }
 }
 
@@ -195,7 +371,12 @@ class _DesktopComposition extends StatelessWidget {
         children: [
           Row(
             children: [
-              ErasMark(scale: s),
+              AuthStagger(
+                end: .62,
+                offset: 10,
+                beginScale: .96,
+                child: ErasMark(scale: s),
+              ),
               const Spacer(),
               const ThemeSwitch(),
             ],
@@ -230,7 +411,7 @@ class _DesktopComposition extends StatelessWidget {
 ///
 /// When the window is too short for the full composition the region falls
 /// back to vertical scrolling with a fixed-size illustration.
-class _StoryColumn extends StatelessWidget {
+class _StoryColumn extends StatefulWidget {
   const _StoryColumn({required this.scale});
 
   final double scale;
@@ -264,9 +445,50 @@ class _StoryColumn extends StatelessWidget {
   }
 
   @override
+  State<_StoryColumn> createState() => _StoryColumnState();
+}
+
+/// Owns the extremely subtle desktop mouse-parallax for this region: the
+/// network illustration and flow strip drift a handful of pixels towards
+/// the pointer (at different speeds, "layers"), while the brand and the
+/// heading above stay put. Mouse-only (touch devices never emit hover
+/// events) and skipped entirely under reduced motion.
+class _StoryColumnState extends State<_StoryColumn> {
+  Offset _target = Offset.zero;
+
+  void _handleHover(PointerHoverEvent event, Size size) {
+    if (event.kind != PointerDeviceKind.mouse) return;
+    if (size.width <= 0 || size.height <= 0) return;
+    if (reducedMotionOf(context)) return;
+    final dx = ((event.localPosition.dx / size.width) * 2 - 1)
+        .clamp(-1.0, 1.0);
+    final dy = ((event.localPosition.dy / size.height) * 2 - 1)
+        .clamp(-1.0, 1.0);
+    final next = Offset(dx, dy);
+    if ((next - _target).distance > 0.015) {
+      setState(() => _target = next);
+    }
+  }
+
+  void _resetPointer() {
+    if (_target != Offset.zero) setState(() => _target = Offset.zero);
+  }
+
+  Widget _parallax(Widget child, double maxShift) => TweenAnimationBuilder<Offset>(
+        tween: Tween<Offset>(begin: Offset.zero, end: _target),
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+        builder: (context, value, c) => Transform.translate(
+          offset: Offset(value.dx * maxShift, value.dy * maxShift * .6),
+          child: c,
+        ),
+        child: child,
+      );
+
+  @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
-    final s = scale;
+    final s = widget.scale;
     final headingSize = 46 * s;
     final bodySize = 15.5 * s;
     final navy = TextStyle(
@@ -286,21 +508,38 @@ class _StoryColumn extends StatelessWidget {
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Right Resource.', style: navy),
-        Text('Right Place.', style: navy),
-        Text(
-          'Right Time.',
-          key: const ValueKey('auth-hero-right-time'),
-          style: teal,
+        AuthStagger(
+          start: .05,
+          end: .62,
+          child: Text('Right Resource.', style: navy),
+        ),
+        AuthStagger(
+          start: .14,
+          end: .71,
+          child: Text('Right Place.', style: navy),
+        ),
+        AuthStagger(
+          start: .23,
+          end: .80,
+          child: Text(
+            'Right Time.',
+            key: const ValueKey('auth-hero-right-time'),
+            style: teal,
+          ),
         ),
         SizedBox(height: 14 * s),
-        Text(
-          'Smarter coordination. Faster response.\n'
-          'Better outcomes for every emergency.',
-          style: TextStyle(
-            fontSize: bodySize,
-            height: 1.5,
-            color: skin.textDim,
+        AuthStagger(
+          start: .32,
+          end: .78,
+          offset: 10,
+          child: Text(
+            'Smarter coordination. Faster response.\n'
+            'Better outcomes for every emergency.',
+            style: TextStyle(
+              fontSize: bodySize,
+              height: 1.5,
+              color: skin.textDim,
+            ),
           ),
         ),
       ],
@@ -309,7 +548,15 @@ class _StoryColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(height: 18 * s),
-        AuthFlowStrip(key: const ValueKey('auth-flow'), scale: s),
+        _parallax(
+          AuthStagger(
+            start: .28,
+            end: .78,
+            offset: 10,
+            child: AuthFlowStrip(key: const ValueKey('auth-flow'), scale: s),
+          ),
+          2,
+        ),
         SizedBox(height: 22 * s),
         AuthStatusCards(key: const ValueKey('auth-status-cards'), scale: s),
       ],
@@ -317,45 +564,67 @@ class _StoryColumn extends StatelessWidget {
     Widget diagram(double maxHeight) => Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxHeight: maxHeight),
-            child: AuthNetworkDiagram(
-              key: const ValueKey('auth-network'),
-              scale: s,
+            child: _parallax(
+              AuthStagger(
+                end: .55,
+                offset: 14,
+                child: AuthNetworkDiagram(
+                  key: const ValueKey('auth-network'),
+                  scale: s,
+                ),
+              ),
+              5,
             ),
           ),
         );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final scrollFallback =
-            constraints.maxHeight < _fixedHeight(s) + _minIllustration * s;
-        if (scrollFallback) {
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                heading,
-                SizedBox(height: 22 * s),
-                SizedBox(
-                  height: 210 * s,
-                  child: AuthNetworkDiagram(
-                    key: const ValueKey('auth-network'),
-                    scale: s,
-                  ),
+        final size = Size(
+          constraints.maxWidth,
+          constraints.maxHeight.isFinite ? constraints.maxHeight : 600,
+        );
+        final scrollFallback = constraints.maxHeight <
+            widget._fixedHeight(s) + _StoryColumn._minIllustration * s;
+        final content = scrollFallback
+            ? SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    heading,
+                    SizedBox(height: 22 * s),
+                    SizedBox(
+                      height: 210 * s,
+                      child: _parallax(
+                        AuthStagger(
+                          end: .55,
+                          offset: 14,
+                          child: AuthNetworkDiagram(
+                            key: const ValueKey('auth-network'),
+                            scale: s,
+                          ),
+                        ),
+                        5,
+                      ),
+                    ),
+                    bottom,
+                  ],
                 ),
-                bottom,
-              ],
-            ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            heading,
-            SizedBox(height: 22 * s),
-            Expanded(
-              child: diagram(_maxIllustration * s),
-            ),
-            bottom,
-          ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  heading,
+                  SizedBox(height: 22 * s),
+                  Expanded(
+                    child: diagram(_StoryColumn._maxIllustration * s),
+                  ),
+                  bottom,
+                ],
+              );
+        return MouseRegion(
+          onHover: (event) => _handleHover(event, size),
+          onExit: (_) => _resetPointer(),
+          child: content,
         );
       },
     );
@@ -378,7 +647,15 @@ class _AuthCardColumn extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [child],
+              children: [
+                AuthStagger(
+                  start: .15,
+                  end: .75,
+                  offset: 18,
+                  beginScale: .985,
+                  child: child,
+                ),
+              ],
             ),
           ),
         ),
@@ -397,10 +674,20 @@ class _SideColumn extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: WhyErasCard(scale: scale, fillHeight: true),
+            child: AuthStagger(
+              start: .25,
+              end: .82,
+              offset: 10,
+              child: WhyErasCard(scale: scale, fillHeight: true),
+            ),
           ),
           SizedBox(height: 16 * scale),
-          TrustCard(scale: scale),
+          AuthStagger(
+            start: .3,
+            end: .85,
+            offset: 10,
+            child: TrustCard(scale: scale),
+          ),
         ],
       );
 }
@@ -450,33 +737,55 @@ class _NarrowComposition extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      ErasMark(scale: markScale),
+                      AuthStagger(
+                        end: .62,
+                        offset: 10,
+                        beginScale: .96,
+                        child: ErasMark(scale: markScale),
+                      ),
                       const Spacer(),
                       const ThemeSwitch(),
                     ],
                   ),
                   if (showHero) ...[
                     SizedBox(height: 26),
-                    Text('Right Resource.', style: navy),
-                    Text('Right Place.', style: navy),
-                    Text(
-                      'Right Time.',
-                      style: TextStyle(
-                        fontSize: headingSize,
-                        height: 1.14,
-                        letterSpacing: -1.3,
-                        fontWeight: FontWeight.w900,
-                        color: skin.tealBright,
+                    AuthStagger(
+                      start: .05,
+                      end: .62,
+                      child: Text('Right Resource.', style: navy),
+                    ),
+                    AuthStagger(
+                      start: .14,
+                      end: .71,
+                      child: Text('Right Place.', style: navy),
+                    ),
+                    AuthStagger(
+                      start: .23,
+                      end: .80,
+                      child: Text(
+                        'Right Time.',
+                        style: TextStyle(
+                          fontSize: headingSize,
+                          height: 1.14,
+                          letterSpacing: -1.3,
+                          fontWeight: FontWeight.w900,
+                          color: skin.tealBright,
+                        ),
                       ),
                     ),
                     SizedBox(height: 14),
-                    Text(
-                      'Smarter coordination. Faster response.\n'
-                      'Better outcomes for every emergency.',
-                      style: TextStyle(
-                        fontSize: 15,
-                        height: 1.5,
-                        color: skin.textDim,
+                    AuthStagger(
+                      start: .32,
+                      end: .78,
+                      offset: 10,
+                      child: Text(
+                        'Smarter coordination. Faster response.\n'
+                        'Better outcomes for every emergency.',
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.5,
+                          color: skin.textDim,
+                        ),
                       ),
                     ),
                   ],
@@ -496,11 +805,27 @@ class _NarrowComposition extends StatelessWidget {
                     ),
                   ],
                   SizedBox(height: 26),
-                  child,
+                  AuthStagger(
+                    start: .15,
+                    end: .75,
+                    offset: 18,
+                    beginScale: .985,
+                    child: child,
+                  ),
                   SizedBox(height: 20),
-                  WhyErasCard(scale: cardScale),
+                  AuthStagger(
+                    start: .25,
+                    end: .82,
+                    offset: 10,
+                    child: WhyErasCard(scale: cardScale),
+                  ),
                   SizedBox(height: 16),
-                  TrustCard(scale: cardScale),
+                  AuthStagger(
+                    start: .3,
+                    end: .85,
+                    offset: 10,
+                    child: TrustCard(scale: cardScale),
+                  ),
                   SizedBox(height: 16),
                   AuthStatusCards(
                     key: const ValueKey('auth-status-cards'),
