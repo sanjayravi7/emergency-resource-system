@@ -52,20 +52,34 @@ Widget _app(Widget child) => MaterialApp(
     );
 
 void main() {
-  testWidgets('request timeline shows the complete operational sequence',
+  testWidgets('request timeline shows the normal lifecycle sequence',
       (tester) async {
     await tester.pumpWidget(_app(OperationalTimeline(request: _request())));
 
+    // One lifecycle for every emergency, resource-free or resource-bearing.
     for (final label in <String>[
       'PENDING',
       'ACCEPTED',
-      'ALLOCATED',
-      'DISPATCHED',
-      'DELIVERED',
+      'IN PROGRESS',
       'COMPLETED',
     ]) {
       expect(find.text(label), findsOneWidget);
     }
+    // Legacy allocation states are history, never lifecycle steps - even
+    // when the request carries a legacy allocation row.
+    for (final label in <String>['ALLOCATED', 'DISPATCHED', 'DELIVERED']) {
+      expect(find.text(label), findsNothing);
+    }
+  });
+
+  testWidgets(
+      'request timeline reaches IN PROGRESS and COMPLETED from the request status alone',
+      (tester) async {
+    final request = _request(requestStatus: 'COMPLETED');
+    await tester.pumpWidget(_app(OperationalTimeline(request: request)));
+    expect(find.text('COMPLETED'), findsOneWidget);
+    expect(find.text('IN PROGRESS'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('allocation row shows resource quantity responder and status',

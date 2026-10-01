@@ -53,7 +53,7 @@ router.patch(
   requestController.acceptRequest
 );
 
-// RESPONDER starts work on a resource-free emergency
+// RESPONDER starts work on an accepted emergency (resource-free or resource-bearing)
 router.post(
   "/:id/start",
   authenticate,
@@ -61,7 +61,7 @@ router.post(
   requestController.startResponse
 );
 
-// RESPONDER completes a resource-free emergency
+// RESPONDER completes an in-progress emergency (resource-free or resource-bearing)
 router.post(
   "/:id/complete",
   authenticate,

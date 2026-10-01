@@ -1034,16 +1034,12 @@ exports.startEmergencyResponse = async (responderId, requestId) => {
       throw new Error('Request must be accepted before starting response');
     }
 
-    const requiredResources = await tx.requestResource.findMany({
-      where: { requestId: numericRequestId },
-      select: { id: true },
-    });
-    if (requiredResources.length > 0) {
-      throw new Error(
-        'Cannot start response on request with required resources'
-      );
-    }
-
+    // Resource-bearing emergencies follow the SAME responder workflow as
+    // resource-free ones: ACCEPTED -> IN_PROGRESS -> COMPLETED. Required
+    // resources were already matched against the responder's inventory at
+    // acceptance time (findServableRequiredResources); starting the response
+    // never requires Allocation rows. Allocation remains a legacy /
+    // compatibility backend and is not part of this workflow.
     const lockedResponders = await tx.$queryRaw`
       SELECT id, role, "isActive"
       FROM "User"
@@ -1129,16 +1125,13 @@ exports.completeEmergencyResponse = async (responderId, requestId) => {
         throw new Error('Request must be in progress to complete response');
       }
 
-      const requiredResources = await tx.requestResource.findMany({
-        where: { requestId: numericRequestId },
-        select: { id: true },
-      });
-      if (requiredResources.length > 0) {
-        throw new Error(
-          'Cannot complete response on request with required resources'
-        );
-      }
-
+      // Completion is allowed for resource-bearing emergencies too and never
+      // requires Allocation rows. INVENTORY QUANTITY SEMANTICS: responder
+      // inventory (ResponderResource.availableQuantity) is used as
+      // availability/matching information for acceptance. Physical CONSUMABLE
+      // quantities change ONLY through the legacy Allocation service
+      // (reserve / cancel / deliver); this workflow deliberately does NOT
+      // decrement inventory and does NOT create hidden Allocation records.
       const lockedResponders = await tx.$queryRaw`
         SELECT id, role, "isActive"
         FROM "User"
@@ -1174,6 +1167,14 @@ exports.completeEmergencyResponse = async (responderId, requestId) => {
         );
       }
 
+      // MULTI-RESPONDER SEMANTICS (unchanged from the approved resource-free
+      // workflow): COMPLETE RESPONSE is an explicit terminal action on the
+      // EMERGENCY taken by an assigned responder - it declares the emergency
+      // handled, so every ACTIVE assignment on the request ends in the same
+      // transaction and all of those responders are released/notified. A
+      // responder who merely wants to leave while others keep working uses
+      // "End Assignment" (endResponderAssignment), which never completes the
+      // request. Resource-bearing and resource-free requests share this rule.
       const activeAssignments = await tx.responderAssignment.findMany({
         where: { requestId: numericRequestId, status: 'ACTIVE' },
         select: { responderId: true },

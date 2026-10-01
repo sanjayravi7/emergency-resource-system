@@ -9,7 +9,6 @@ import '../services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/allocation_dialog.dart';
 import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/log_panel.dart';
@@ -1056,6 +1055,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (isAdmin) await loadResponders();
   }
 
+  // ---------------------------------------------------------------------
+  // LEGACY allocation backend wrappers (Allocate / Dispatch / Delivered).
+  // They are intentionally NOT part of the normal responder workflow, which
+  // is Accept -> START RESPONSE -> COMPLETE RESPONSE for every emergency.
+  // They remain only for history/compatibility (e.g. a requester confirming
+  // receipt of a pre-existing allocation) and are not wired to the
+  // responder board.
+  // ---------------------------------------------------------------------
   Future<bool> allocateResource({
     required int requestId,
     required int resourceId,
@@ -1331,27 +1338,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
 
     await loadResources();
-  }
-
-  void openAllocationDialog(EmergencyRequest request) {
-    if (request.requiredResources.isEmpty) {
-      showToast(
-        'This emergency requires no physical resources. Use START RESPONSE.',
-      );
-      return;
-    }
-    showDialog<void>(
-      context: context,
-      builder: (context) => AllocationDialog(
-        requestId: request.id,
-        requestProvider: findRequest,
-        inventoryProvider: () => myInventory,
-        onAllocate: allocateResource,
-        onCancelAllocation: cancelAllocation,
-        onDispatchAllocation: dispatchAllocation,
-        onMarkDelivered: markAllocationDelivered,
-      ),
-    );
   }
 
   EmergencyRequest? findRequest(int id) {
@@ -1645,12 +1631,13 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           emptyMessage:
               'Accept a compatible request below to start working on it.',
           onViewRequest: viewRequest,
+          // Normal responder workflow for every emergency (resource-free or
+          // resource-bearing): Accept -> START RESPONSE -> COMPLETE RESPONSE.
+          // The legacy Allocate / Dispatch / Delivered hooks are deliberately
+          // NOT wired here, so no allocation control appears on this board.
           onStartResponse: startResponse,
           onCompleteResponse: completeResponse,
-          onAllocate: openAllocationDialog,
           onEndAssignment: endAssignment,
-          onDispatchAllocation: dispatchAllocation,
-          onMarkDelivered: markAllocationDelivered,
           onStartLocationSharing: startLocationSharing,
           onStopLocationSharing: stopLocationSharing,
           liveLocations: locationStore.locationsByRequest,
