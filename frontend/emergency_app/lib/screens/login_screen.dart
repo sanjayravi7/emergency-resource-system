@@ -53,9 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 builder: (_) => const DispatchConsolePage()));
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() =>
             errorMessage = error.toString().replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => loading = false);
     }

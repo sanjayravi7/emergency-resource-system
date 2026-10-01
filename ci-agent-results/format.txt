@@ -1,7 +1,0 @@
-Formatted lib/main.dart
-Formatted lib/screens/login_screen.dart
-Formatted lib/screens/register_screen.dart
-Formatted lib/theme/app_theme.dart
-Formatted lib/widgets/auth_shell.dart
-Formatted 50 files (5 changed) in 0.29 seconds.
-format_write_exit=0

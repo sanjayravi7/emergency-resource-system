@@ -377,10 +377,12 @@ class _GridPainter extends CustomPainter {
       ..color = (dark ? const Color(0xFF5C8BA7) : const Color(0xFF6593B2))
           .withValues(alpha: dark ? .045 : .035)
       ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 42)
+    for (double x = 0; x < size.width; x += 42) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
-    for (double y = 0; y < size.height; y += 42)
+    }
+    for (double y = 0; y < size.height; y += 42) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
   }
 
   @override
