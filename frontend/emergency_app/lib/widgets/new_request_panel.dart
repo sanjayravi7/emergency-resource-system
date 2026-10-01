@@ -933,13 +933,13 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
     );
   }
 
-  Color _shortAvailabilityColor(ErasPalette p, ResourceItem r) {
+  Color _shortAvailabilityColor(ErasPalette p, BackendResource r) {
     if (r.isOutOfStock) return p.red;
     if (r.hasNoRespondersOnline) return p.amber;
     return p.textFaint;
   }
 
-  Color _lineAvailabilityColor(ErasPalette p, ResourceItem? r) {
+  Color _lineAvailabilityColor(ErasPalette p, BackendResource? r) {
     if (r == null) return p.textFaint;
     if (r.isOutOfStock) return p.red;
     if (r.isLowStock) return p.amber;
