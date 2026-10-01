@@ -5,9 +5,9 @@ import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
 
-/// A presentation of the persisted request/allocation states. It intentionally
-/// has no mutable lifecycle state of its own: every highlighted step is read
-/// directly from the latest backend request snapshot.
+/// A presentation of the persisted request lifecycle. It intentionally has no
+/// mutable lifecycle state of its own: every highlighted step is read directly
+/// from the latest backend request snapshot.
 class OperationalTimeline extends StatelessWidget {
   const OperationalTimeline({
     super.key,
@@ -28,25 +28,21 @@ class OperationalTimeline extends StatelessWidget {
       );
     }
 
-    final allocations = request.allocations
-        .where((allocation) => allocation.status != 'CANCELLED')
-        .toList(growable: false);
+    // One lifecycle for every emergency, resource-free or resource-bearing:
+    // PENDING -> ACCEPTED -> IN PROGRESS -> COMPLETED. Each step is derived
+    // from the persisted request status only; legacy allocation rows (if a
+    // request has any) are listed separately as history and never drive
+    // this timeline.
     final accepted =
         request.acceptedBy != null || request.status != RequestStatus.pending;
-    final allocated = allocations.isNotEmpty;
-    final dispatched = allocations.any(
-      (allocation) =>
-          allocation.status == 'DISPATCHED' || allocation.status == 'DELIVERED',
-    );
-    final delivered =
-        allocations.any((allocation) => allocation.status == 'DELIVERED');
     final completed = request.status == RequestStatus.completed;
+    final inProgress = completed ||
+        request.status == RequestStatus.inProgress ||
+        request.status == RequestStatus.partiallyAllocated;
     final states = <(String, bool)>[
       ('PENDING', true),
       ('ACCEPTED', accepted),
-      ('ALLOCATED', allocated),
-      ('DISPATCHED', dispatched),
-      ('DELIVERED', delivered),
+      ('IN PROGRESS', inProgress),
       ('COMPLETED', completed),
     ];
 

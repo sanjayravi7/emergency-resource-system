@@ -54,6 +54,8 @@ class BoardPanel extends StatelessWidget {
   final void Function(EmergencyRequest request)? onAccept;
   final void Function(EmergencyRequest request)? onStartResponse;
   final void Function(EmergencyRequest request)? onCompleteResponse;
+  /// LEGACY allocation workflow hooks. Leave them null (the normal responder
+  /// console does) and no Allocate / Dispatch / Delivered control is rendered.
   final void Function(EmergencyRequest request)? onAllocate;
   final void Function(EmergencyRequest request)? onEndAssignment;
   final void Function(EmergencyRequest request)? onCancelRequest;
@@ -76,9 +78,12 @@ class BoardPanel extends StatelessWidget {
       !request.isFullyAllocated &&
       onAccept != null;
 
+  // Normal responder workflow for EVERY emergency, resource-free or
+  // resource-bearing: Accept -> START RESPONSE -> COMPLETE RESPONSE. The
+  // requested resources are matched server-side at acceptance; starting and
+  // completing never depend on required resources or Allocation rows.
   bool _canStartResponse(EmergencyRequest request) =>
       role == 'RESPONDER' &&
-      request.requiredResources.isEmpty &&
       request.status == RequestStatus.accepted &&
       currentUserId != null &&
       (request.isAssignedTo(currentUserId!) ||
@@ -87,14 +92,17 @@ class BoardPanel extends StatelessWidget {
 
   bool _canCompleteResponse(EmergencyRequest request) =>
       role == 'RESPONDER' &&
-      request.requiredResources.isEmpty &&
       request.status == RequestStatus.inProgress &&
       currentUserId != null &&
       (request.isAssignedTo(currentUserId!) ||
           request.isLegacyAcceptedBy(currentUserId!)) &&
       onCompleteResponse != null;
 
-  // Part 7 gate classification:
+  // LEGACY allocation controls (Allocate / Confirm & Dispatch / Mark
+  // Delivered). They render ONLY when a caller explicitly wires the matching
+  // callback; the normal responder console never does, so the normal
+  // responder workflow contains just Accept -> Start Response -> Complete
+  // Response. Kept for compatibility/history views only.
   //  - Allocate: RESPONDER who PARTICIPATES (ACTIVE assignment, an
   //    unfinished allocation of theirs, or the legacy acceptedBy lead) -
   //    the same rule the backend authorizes. Only for resource-bearing requests.
@@ -292,6 +300,32 @@ class BoardPanel extends StatelessWidget {
     }
 
     if (_canCompleteResponse(request)) {
+      // Active response: the status pill already reads IN PROGRESS; surface
+      // this device's live-location state next to the completion control.
+      // ON/OFF reflects the real local sharing state (permission + stream),
+      // never a guess - another responder's stream never turns it ON.
+      actions.add(
+        Container(
+          key: Key('location-sharing-state-${request.id}'),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surface2,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Text(
+            'Location sharing: '
+            '${sharingRequestId == request.id ? 'ON' : 'OFF'}',
+            style: monoStyle(
+              size: 11,
+              color: sharingRequestId == request.id
+                  ? AppColors.teal
+                  : AppColors.textDim,
+              weight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
       actions.add(
         FilledButton(
           onPressed: () => onCompleteResponse!(request),

@@ -108,8 +108,6 @@ const ACCEPTANCE_CLIENT_ERROR_MESSAGES = [
   'Request must be accepted before starting response',
   'Request must be in progress to complete response',
   'Request is already in progress',
-  'Cannot start response on request with required resources',
-  'Cannot complete response on request with required resources',
 ];
 
 exports.acceptRequest = async (req, res, next) => {

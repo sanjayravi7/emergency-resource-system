@@ -441,7 +441,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       expect(requestAfterDelivery.status).toBe('COMPLETED');
     });
 
-    test('10. Cannot start or complete response on resource-bearing request', async () => {
+    test('10. Resource-bearing request follows the same ACCEPTED → IN_PROGRESS → COMPLETED workflow without Allocation', async () => {
       const createRes = await request(app)
         .post('/api/requests')
         .set('Authorization', `Bearer ${requesterToken}`)
@@ -462,9 +462,19 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       const startRes = await request(app)
         .post(`/api/requests/${emergencyId}/start`)
         .set('Authorization', `Bearer ${medicalToken}`);
+      expect(startRes.statusCode).toBe(200);
+      expect(startRes.body.request.status).toBe('IN_PROGRESS');
 
-      expect(startRes.statusCode).toBe(400);
-      expect(startRes.body.message).toMatch(/required resources/i);
+      const completeRes = await request(app)
+        .post(`/api/requests/${emergencyId}/complete`)
+        .set('Authorization', `Bearer ${medicalToken}`);
+      expect(completeRes.statusCode).toBe(200);
+      expect(completeRes.body.request.status).toBe('COMPLETED');
+
+      const allocations = await prisma.allocation.findMany({
+        where: { requestId: emergencyId },
+      });
+      expect(allocations).toHaveLength(0);
     });
 
     test('11. Unauthorized responder cannot start/complete another responder\'s request', async () => {

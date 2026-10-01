@@ -182,13 +182,14 @@ void main() {
     expect(completeClicked, isTrue);
   });
 
-  testWidgets('17. Resource-bearing request still shows Allocate',
+  testWidgets(
+      '17. Resource-bearing request follows the same workflow: START RESPONSE, no Allocate',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    var allocateClicked = false;
+    var startClicked = false;
     final request = resourceBearingRequest(id: 103, status: 'ACCEPTED');
 
     await tester.pumpWidget(host(
@@ -199,25 +200,26 @@ void main() {
         role: 'RESPONDER',
         currentUserId: 11,
         emptyMessage: 'None',
-        onStartResponse: (_) {},
+        onStartResponse: (_) => startClicked = true,
         onCompleteResponse: (_) {},
-        onAllocate: (_) => allocateClicked = true,
         onEndAssignment: (_) {},
       ),
     ));
     await tester.pump();
 
-    expect(find.text('Allocate'), findsOneWidget);
+    expect(find.text('START RESPONSE'), findsOneWidget);
     expect(find.text('End Assignment'), findsOneWidget);
-    expect(find.text('START RESPONSE'), findsNothing);
+    expect(find.text('Allocate'), findsNothing);
     expect(find.text('COMPLETE RESPONSE'), findsNothing);
+    // Requested resources stay visible on the card.
+    expect(find.text('Ambulance × 1'), findsOneWidget);
 
-    final allocateButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Allocate'),
+    final startButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'START RESPONSE'),
     );
-    allocateButton.onPressed!();
+    startButton.onPressed!();
     await tester.pump();
-    expect(allocateClicked, isTrue);
+    expect(startClicked, isTrue);
   });
 
   testWidgets(

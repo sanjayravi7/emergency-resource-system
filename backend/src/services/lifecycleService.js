@@ -302,6 +302,19 @@ async function syncRequestStatus(tx, requestId) {
     status = 'PENDING';
   }
 
+  // Responder-driven progress is authoritative for resource-bearing requests
+  // as well: START RESPONSE moves ACCEPTED -> IN_PROGRESS without any
+  // Allocation rows, so an allocation-derived recompute (another responder
+  // joining, a legacy allocation being cancelled, ...) must never regress an
+  // IN_PROGRESS emergency back to ACCEPTED/PENDING. Legacy allocation
+  // delivery may still advance it to PARTIALLY_ALLOCATED / COMPLETED.
+  if (
+    request.status === 'IN_PROGRESS' &&
+    (status === 'ACCEPTED' || status === 'PENDING')
+  ) {
+    return request;
+  }
+
   if (status === 'COMPLETED') {
     // Completion and assignment cleanup share the caller's transaction (the
     // allocation delivery transaction in the normal path).
