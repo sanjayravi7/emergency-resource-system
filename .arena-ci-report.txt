@@ -1,0 +1,282 @@
+== flutter --version ==
+Flutter 3.47.6 • channel stable • https://github.com/flutter/flutter.git
+Framework • revision 5fc346839b (22 hours ago) • 2026-09-30 15:02:49 -0700
+Engine • hash b8c8d3d8d5d0095127057f8a29ca8cc53da2167c (revision 692136cb65) (2 days ago) • 2026-09-30 00:56:59.000Z
+Tools • Dart 3.13.5 • DevTools 2.60.0
+
+== dart format ==
+Formatted 55 files (0 changed) in 0.30 seconds.
+
+== flutter analyze ==
+Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.59 (1.3.77 available)
+  firebase_core 3.15.2 (4.15.0 available)
+  firebase_core_platform_interface 6.0.3 (8.1.1 available)
+  firebase_core_web 2.24.1 (3.12.0 available)
+  firebase_messaging 15.2.10 (16.7.0 available)
+  firebase_messaging_platform_interface 4.6.10 (4.10.0 available)
+  firebase_messaging_web 3.10.10 (4.2.5 available)
+  flutter_lints 5.0.0 (6.0.0 available)
+  geolocator 13.0.4 (14.1.1 available)
+  geolocator_android 4.6.2 (5.1.1 available)
+  geolocator_platform_interface 4.3.0 (4.4.0 available)
+  google_maps_flutter 2.18.1 (2.18.2 available)
+  google_maps_flutter_android 2.20.0 (2.21.0 available)
+  js 0.6.7 (0.7.2 available)
+  lints 5.1.1 (6.1.0 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  socket_io_client 2.0.3+1 (3.1.6 available)
+  socket_io_common 2.0.3 (3.1.1 available)
+  test_api 0.7.12 (0.7.14 available)
+Got dependencies!
+19 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing emergency_app...                                      
+No issues found! (ran in 8.3s)
+
+== flutter test (github reporter) ==
+Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.59 (1.3.77 available)
+  firebase_core 3.15.2 (4.15.0 available)
+  firebase_core_platform_interface 6.0.3 (8.1.1 available)
+  firebase_core_web 2.24.1 (3.12.0 available)
+  firebase_messaging 15.2.10 (16.7.0 available)
+  firebase_messaging_platform_interface 4.6.10 (4.10.0 available)
+  firebase_messaging_web 3.10.10 (4.2.5 available)
+  flutter_lints 5.0.0 (6.0.0 available)
+  geolocator 13.0.4 (14.1.1 available)
+  geolocator_android 4.6.2 (5.1.1 available)
+  geolocator_platform_interface 4.3.0 (4.4.0 available)
+  google_maps_flutter 2.18.1 (2.18.2 available)
+  google_maps_flutter_android 2.20.0 (2.21.0 available)
+  js 0.6.7 (0.7.2 available)
+  lints 5.1.1 (6.1.0 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  socket_io_client 2.0.3+1 (3.1.6 available)
+  socket_io_common 2.0.3 (3.1.1 available)
+  test_api 0.7.12 (0.7.14 available)
+Got dependencies!
+19 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.assigned adds the assignment and updates the board
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a duplicate responder.assigned never duplicates the assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.assigned without a snapshot merges the single row
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) request.updated refreshes the assignments of a known request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a redacted request.updated keeps a still-joinable pending card and removes a no-longer-joinable one
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) location updates from two responders are stored by responderId
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.location.stop removes only that responder stream
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) terminal cleanup removes every responder location of the request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) per-responder stops never cross-clear, the terminal request does
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a redacted terminal request.updated also clears every location
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a full snapshot REPLACES assignments, an incremental row MERGES
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) allocation.updated patches a request without losing assignments
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the complete operational sequence
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: allocation row shows resource quantity responder and status
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: connection indicator exposes all operational states
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: responder availability uses backend status and unfinished count
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line appears for two valid points
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line updates when the responder coordinate changes
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when emergency coordinates are missing
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when responder coordinates are missing
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when nobody accepted the emergency
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line no line when the live responder is not the assignee
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line line is removed when the request becomes completed or cancelled
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct connection line a last-known responder point still draws the connection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL Get directions constructs the correct universal Maps URL
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL URL carries the responder coordinates as origin
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL URL carries the emergency coordinates as destination
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL URL requests driving mode and the api=1 scheme
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL dir_action=navigate is omitted when navigation is not appropriate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL the URL opens through the injected URL launcher abstraction
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL a last-known responder position does not force navigate mode
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Google Maps directions URL a launcher failure is reported instead of thrown
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError recognises the Maps JS geocoder denial verbatim
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError recognises a disabled Geocoding API and a referrer rejection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError does not treat an empty Google answer as an authorization failure
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError the hint names the Google Cloud settings that must be fixed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isPlacesApiDisabledError recognises the blocked Places API (New) v1 method
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isPlacesApiDisabledError recognises a project that never enabled Places API (New)
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isPlacesApiDisabledError keeps the graceful user message stable
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard shows LIVE/SET state and a clearly labelled direct distance
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts backend snapshot parses Blood x2 + Fire SERVICE x1 and participants
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts REST and repeated socket snapshots merge idempotently
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts malformed location payloads never become a zero-zero marker
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts assignment end removes only A; B and allocation participation remain
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts terminal REST reconciliation clears all responder locations
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts 0, 1, 2, and 3 responder geometry stays pair-scoped
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H production contracts directions assertions decode URI query parameters
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard Get directions button triggers the callback
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard mobile widths use a full-width tappable directions button
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard desktop width keeps the compact card
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard last-known responder state renders LAST KNOWN
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: OperationalGoogleMap responsive layout mobile widths (320, 360, 390, 430) render map, controls, card, and legend without overflow
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: OperationalGoogleMap responsive layout completed/cancelled requests remove navigation card on mobile
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: OperationalGoogleMap responsive layout desktop width keeps overlay layout with full control labels
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality empty description is normalized to null
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality whitespace-only description is normalized to null
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality accepts null/missing description
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: Emergency request description optionality preserves non-empty description
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) one live connection per participating responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) each (request, responder) pair draws its own polyline id
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) a live point of a non-participating responder creates no line
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) an allocation-only responder is relevant without an assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) a CANCELLED allocation alone does not make a responder relevant
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) two requests with two responders produce four isolated lines
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) Get directions opens the Google Maps URL for each responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) every navigation card can be scrolled to and tapped
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX join action is offered for every open joinable lifecycle
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) a navigation card is never clipped by the deck
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) every connection distance is haversine straight-line only
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: direct distance is straight-line only
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX ended lead, active assignment, and allocation-only owner render once
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX location and end controls are isolated to the signed-in responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX requester/responder cards fit 320/360/390 and desktop widths
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login screen renders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login requires email and password
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: registration page renders with ERAS identity
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: two role cards are visible
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: ADMIN is not offered as a public registration option
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: REQUESTER card can be selected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: RESPONDER card can be selected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: requester board shows lead and additional responders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: selecting one role deselects the other (single choice)
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: an additional assigned responder gets the allocation actions
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: an ENDED-only responder gets no responder actions
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role cards expose selected semantics for assistive tech
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: an allocation-only responder drives their own allocation
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: mobile board renders a multi-responder card without overflow
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: mobile NavigationDeck stacks multiple cards without overflow
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: registration cannot submit without a role selection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: REQUESTER registration sends role=REQUESTER and navigates to login
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: RESPONDER registration sends role=RESPONDER
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: duplicate email shows a friendly message and no second account
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: entrance reveal fades the auth card in and fully settles
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role cards lay out cleanly across phone and desktop widths
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: reduced motion: short fade only, no stagger, no ambient animation
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role selection is keyboard operable (focus + Enter)
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: ambient network motion runs only when explicitly enabled
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: tab selection glides between the auth screens
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: sign-in button keeps its exact size while loading
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: focusing the email field raises its soft glow
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: theme switch slides the thumb and cross-fades sun/moon
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: pointer hover lifts the auth card and the status cards
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: denied permission does not block the dashboard and shows banner
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: password visibility icon cross-fades on toggle
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: ENABLE LOCATION retries and removes banner after a grant
+::endgroup::
+::group::✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService startForResponder is a silent no-op without a Firebase setup
+push notifications unavailable: PlatformException(channel-error, Unable to establish connection on channel: "dev.flutter.pigeon.firebase_core_platform_interface.FirebaseCoreHostApi.initializeCore"., null, null)
+::endgroup::
+::group::✅ Passing tests
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService stop() without a previous registration never throws
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService non-responders never attempt a registration
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService platformLabel describes the client for the backend
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: ADMIN navigation includes New Emergency
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) updates only the matching request and preserves other markers
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) responders A and B coexist on the same request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) updating responder A leaves responder B untouched
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) one responder stopping keeps the other responder live
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) remove() fully drops only one responder point
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) location stop retains the coordinate as last-known
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) local sharing is tracked per responder identity
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) disconnect stops local sharing and marks every point stale
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) completed and cancelled reconciliation removes tracking state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) REST reconciliation never overwrites an active live coordinate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) reconcile merges persisted points for multiple assigned responders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) reconcile drops points of responders who left the request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) singleLocationFor never guesses a responder
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/live_location_store_test.dart: LiveLocationStore (multi-responder, Phase F) clearRequest removes every responder location of the request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: ADMIN sees ACCEPT / ASSIGN for a PENDING request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: assignment picker only displays backend-compatible responders
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: REQUESTER sees EDIT and CANCEL REQUEST for PENDING
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: REQUESTER does not see EDIT for COMPLETED
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: manual location submits null coordinates rather than 0,0
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: request detail view includes the operational request fields
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: denied location state shows a non-blocking retry action
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: permission states distinguish granted, promptable and blocked
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: goes available with FIRE selected and zero resources
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an old payload without assignments parses to an empty list
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an explicitly empty assignments array parses
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) multiple assignments parse with full state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) isAssignedTo(A) is true only through the ACTIVE assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) isAssignedTo(B) works and unrelated ids are not assigned
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an ENDED assignment is never active work
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) acceptedBy remains the lead responder alongside assignments
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: resource inventory controls still render when catalog has rows
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) the lead without an assignment row stays a legacy participant
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) an allocation-only responder participates without an assignment
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/eras_models_assignments_test.dart: EmergencyRequest.assignments (Phase F) withAssignment replaces the same responder without duplicating
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: login page has email, password and sign-in - no role selection
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: login stores the role returned by the server for every role
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker A. current location success: GPS -> reverse geocode -> place filled
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker B. reverse geocode failure keeps coordinates and asks for manual place
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker C. place selection sets both the place text and exact coordinates
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker map tap updates coordinates and reverse geocodes them
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: REQUESTER login opens the requester experience
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: RESPONDER login opens the responder experience
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: ADMIN login opens the admin experience
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation D. coordinates + place -> submit allowed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation E. empty description -> submit allowed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: creates a request marker only from real request coordinates
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: distinguishes pending request markers from active emergencies
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: creates a LIVE responder marker from Socket.IO location state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: responder location update moves the same stable marker id
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: live to last-known transition keeps the marker but changes its state
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: completed and cancelled requests remove active map tracking
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: two responders on one request render isolated marker pairs
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: lead is named and unrelated stale responder points are rejected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: responder snippets list only that responder's allocated resources
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_google_map_test.dart: multiple request locations stay isolated by request id
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation F. whitespace-only description -> submitted as empty/null
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation H. missing place -> submit rejected
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: J. Socket.IO live responder location live location updates never trigger reverse geocoding or nearby search
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: zero available responders never block a SERVICE resource
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 15. Resource-free request shows START RESPONSE after acceptance and hides Allocate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: the requester is told the request queues instead of being blocked
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 16. Resource-free IN_PROGRESS request shows COMPLETE RESPONSE
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 17. Resource-bearing request still shows Allocate
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_free_workflow_ui_test.dart: 18. Empty AllocationDialog gracefully explains no physical resources for zero-resource request
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: the explanatory PostgreSQL paragraph is removed
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: an empty catalog never blocks submission and shows an optional-resources hint
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: an empty catalog shows an informational hint, not a resource-required blocker
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: a CONSUMABLE resource without inventory stays blocked
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: the availability label separates inventory from staffing
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping 2. every category maps to valid Google Table A place types
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping 2b. specific categories map to the expected Google types
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping 3. NearbyPlace exposes name/address/coordinates + labels
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping distance labels format metres and kilometres
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping haversine distance matches real-world scale
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping the default nearby radius is 5 km, not 30 km
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping Places API disabled errors are recognised from Google messages
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby place models and category mapping PlacesApiDisabledException carries the exact user guidance
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 1. nearby request uses the current GPS latitude/longitude (5 km)
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 3. nearby results render name, distance and address
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: desktop composition matches the reference geometry
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: mobile stacks brand, hero, login, features then status
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: tablet keeps the full hierarchy and stays overflow-free
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 4. selecting a nearby place updates the form label + exact coordinates and allows submission
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 5. Places API (New) disabled -> graceful message, no crash, form keeps working
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 5b. generic nearby failure -> status text, no crash
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 6. existing autocomplete still works while nearby is unavailable
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 7. reverse geocoding keeps working after nearby failures
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow explicit refresh and location changes re-query; typing never does
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow no coordinates -> nearby section hidden
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: 8. Socket.IO live responder updates live responder location updates never trigger Nearby Search
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 13. MY HELP TYPES panel renders saved backend categories
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 14. Empty inventory does not hide help types
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 19. Help-type editing action still works
+✅ /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: Clean empty state for ResponderHelpTypesPanel when none configured
+::endgroup::
+
+🎉 209 tests passed.
+
+== overall status: 0 ==
