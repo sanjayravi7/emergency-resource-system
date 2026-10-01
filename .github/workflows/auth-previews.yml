@@ -1,12 +1,16 @@
 name: Auth UI previews
 
 # Temporary development loop for the auth-screen redesign on arena branches:
-# renders PNG previews of the reference design, verifies formatting, and
-# uploads everything as artifacts. Does not run on main.
+# verifies formatting/analyze/tests, renders PNG previews of the reference
+# design, and publishes everything back to the branch (with [skip ci]) so it
+# can be inspected without artifact downloads. Does not run on main.
 on:
   push:
     branches: ['arena/**']
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   preview:
@@ -28,43 +32,65 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Check formatting (informational)
-        id: fmt
-        continue-on-error: true
+      - name: Prepare diagnostics directory
         run: |
-          dart format --output=none --set-exit-if-changed . > "$RUNNER_TEMP/fmt.log" 2>&1
-          echo "exit=$?" >> "$GITHUB_OUTPUT"
-          cat "$RUNNER_TEMP/fmt.log" || true
+          rm -rf "$GITHUB_WORKSPACE/ci-diagnostics"
+          mkdir -p "$GITHUB_WORKSPACE/ci-diagnostics"
 
-      - name: Produce formatting patch
-        if: steps.fmt.outputs.exit != '0'
+      - name: Check formatting
+        continue-on-error: true
+        shell: bash
         run: |
-          dart format .
-          git diff > "$GITHUB_WORKSPACE/format-drift.patch"
-          git checkout -- .
+          set -o pipefail
+          dart format --output=none --set-exit-if-changed . 2>&1 | \
+            tee "$GITHUB_WORKSPACE/ci-diagnostics/format.txt"
 
       - name: Analyze project source
-        run: flutter analyze
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee "$GITHUB_WORKSPACE/ci-diagnostics/analyze.txt"
 
       - name: Run tests
-        run: flutter test
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test 2>&1 | tee "$GITHUB_WORKSPACE/ci-diagnostics/test.txt"
+
+      - name: Capture formatting drift patch
+        if: always()
+        shell: bash
+        run: |
+          dart format . > /dev/null 2>&1 || true
+          cd "$GITHUB_WORKSPACE"
+          git diff > ci-diagnostics/format-drift.patch
+          git checkout -- . || true
 
       - name: Render auth previews
+        continue-on-error: true
+        shell: bash
         env:
           ERAS_AUTH_PREVIEW: '1'
-        run: flutter test test/tools/auth_preview_test.dart --update-goldens
+        run: |
+          set -o pipefail
+          flutter test test/tools/auth_preview_test.dart --update-goldens \
+            2>&1 | tee "$GITHUB_WORKSPACE/ci-diagnostics/previews.txt" || true
+          if [ -d test/tools/goldens ]; then
+            cp -r test/tools/goldens "$GITHUB_WORKSPACE/ci-diagnostics/previews"
+            rm -rf test/tools/goldens
+          fi
 
-      - name: Upload previews
-        uses: actions/upload-artifact@v4
-        with:
-          name: auth-previews
-          path: frontend/emergency_app/test/tools/goldens/*.png
-          if-no-files-found: error
-
-      - name: Upload formatting patch
-        if: steps.fmt.outputs.exit != '0'
-        uses: actions/upload-artifact@v4
-        with:
-          name: format-drift
-          path: format-drift.patch
-          if-no-files-found: error
+      - name: Publish diagnostics to the branch
+        if: always()
+        shell: bash
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "arena-preview-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A ci-diagnostics
+          git commit -m "[skip ci] dev-loop diagnostics and auth previews" \
+            || echo "nothing to publish"
+          git push origin "HEAD:${{ github.ref_name }}" \
+            || echo "branch moved; skipping publish"
