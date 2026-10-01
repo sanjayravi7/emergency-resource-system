@@ -1,0 +1,6 @@
+Analyzing emergency_app...                                      
+
+   info • The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'. Try removing the import directive • test/zz_overflow_diag_test.dart:7:8 • unnecessary_import
+
+1 issue found. (ran in 8.4s)
+analyze_exit=1
