@@ -212,17 +212,17 @@ class ConnectionStatusIndicator extends StatelessWidget {
       RealtimeConnectionStatus.connected => (
           'CONNECTED',
           p.teal,
-          Icons.wifi_rounded,
+          Icons.wifi_rounded
         ),
       RealtimeConnectionStatus.reconnecting => (
           'RECONNECTING',
           p.amber,
-          Icons.sync_rounded,
+          Icons.sync_rounded
         ),
       RealtimeConnectionStatus.offline => (
           'OFFLINE',
           p.red,
-          Icons.wifi_off_rounded,
+          Icons.wifi_off_rounded
         ),
     };
     final borderColor = color.withValues(alpha: p.dark ? .42 : .35);

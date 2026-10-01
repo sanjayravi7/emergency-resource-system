@@ -250,12 +250,12 @@ ThemeData erasTheme(Brightness brightness) {
     onSurface: palette.text,
   );
   final border = palette.border;
-  final baseText =
-      (dark ? ThemeData.dark() : ThemeData.light()).textTheme.apply(
-            fontFamily: 'Arial',
-            bodyColor: palette.text,
-            displayColor: palette.text,
-          );
+  final baseTheme = dark ? ThemeData.dark() : ThemeData.light();
+  final baseText = baseTheme.textTheme.apply(
+    fontFamily: 'Arial',
+    bodyColor: palette.text,
+    displayColor: palette.text,
+  );
 
   return ThemeData(
     useMaterial3: true,

@@ -277,9 +277,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 720),
             child: _loading
-                ? Center(
-                    child: CircularProgressIndicator(color: p.teal),
-                  )
+                ? Center(child: CircularProgressIndicator(color: p.teal))
                 : ListView(
                     padding: const EdgeInsets.all(16),
                     children: <Widget>[
