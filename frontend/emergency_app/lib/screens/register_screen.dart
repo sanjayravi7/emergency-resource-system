@@ -201,8 +201,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(roleError!,
-                      style:
-                          const TextStyle(fontSize: 12, color: AppColors.red))),
+                      style: TextStyle(fontSize: 12, color: skin.red))),
             const SizedBox(height: 16),
             FocusGlow(
                 glowColor: skin.blue,
@@ -280,8 +279,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             if (error != null)
               Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: Text(error!,
-                      style: const TextStyle(color: AppColors.red))),
+                  child: Text(error!, style: TextStyle(color: skin.red))),
             const SizedBox(height: 18),
             AuthPrimaryButton(
                 label: 'Create account',
@@ -395,12 +393,10 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final selected = widget.selected;
-    final borderColor = _keyboardFocus
-        ? AppColors.blue
-        : selected
-            ? AppColors.teal
-            : AppColors.border;
+    final baseBorder = selected ? p.teal : p.border;
+    final borderColor = _keyboardFocus ? p.blue : baseBorder;
     final borderWidth = _keyboardFocus || selected ? 2.0 : 1.0;
 
     return Semantics(
@@ -425,7 +421,7 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
             ),
           },
           child: Material(
-            color: selected ? AppColors.tealDim : AppColors.surface,
+            color: selected ? p.tealDim : (p.dark ? p.surface2 : p.surface),
             borderRadius: BorderRadius.circular(10),
             child: InkWell(
               onTap: _activate,
@@ -451,7 +447,7 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                   children: [
                     Row(
                       children: [
-                        Icon(widget.icon, size: 22, color: AppColors.text),
+                        Icon(widget.icon, size: 22, color: p.text),
                         const Spacer(),
                         AnimatedSwap(
                           child: selected
@@ -462,7 +458,7 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                                     '${widget.role.wireName}',
                                   ),
                                   size: 20,
-                                  color: AppColors.teal,
+                                  color: p.teal,
                                 )
                               : Icon(
                                   Icons.radio_button_unchecked,
@@ -471,7 +467,7 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                                     '${widget.role.wireName}',
                                   ),
                                   size: 20,
-                                  color: AppColors.textFaint,
+                                  color: p.textFaint,
                                 ),
                         ),
                       ],
@@ -479,18 +475,19 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                     const SizedBox(height: 10),
                     Text(
                       widget.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: .3,
+                        color: p.text,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       widget.description,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11.5,
-                        color: AppColors.textDim,
+                        color: p.textDim,
                       ),
                     ),
                     if (selected) ...[
@@ -500,11 +497,11 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                         key: ValueKey<String>(
                           'role-selected-tag-${widget.role.wireName}',
                         ),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1,
-                          color: AppColors.teal,
+                          color: p.teal,
                         ),
                       ),
                     ],

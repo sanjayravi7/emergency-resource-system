@@ -825,27 +825,37 @@ String statusLabel(RequestStatus status) => switch (status) {
       RequestStatus.cancelled => 'CANCELLED',
     };
 
-PillColors statusColors(RequestStatus status) => switch (status) {
-      RequestStatus.pending =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.accepted =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.inProgress =>
-        const PillColors(AppColors.blueDim, AppColors.blue),
-      RequestStatus.partiallyAllocated =>
-        const PillColors(AppColors.amberDim, AppColors.amber),
-      RequestStatus.completed =>
-        const PillColors(AppColors.tealDim, AppColors.teal),
-      RequestStatus.cancelled =>
-        const PillColors(AppColors.surface2, AppColors.textFaint),
-    };
+PillColors statusColors(RequestStatus status, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
+  switch (status) {
+    case RequestStatus.pending:
+      return PillColors(p.amberDim, p.amber);
+    case RequestStatus.accepted:
+      return PillColors(p.blueDim, p.blue);
+    case RequestStatus.inProgress:
+      return PillColors(p.blueDim, p.blue);
+    case RequestStatus.partiallyAllocated:
+      return PillColors(p.amberDim, p.amber);
+    case RequestStatus.completed:
+      return PillColors(p.tealDim, p.teal);
+    case RequestStatus.cancelled:
+      return PillColors(p.surface2, p.textFaint);
+  }
+}
 
-PillColors priorityColors(String priority) => switch (priority.toUpperCase()) {
-      'CRITICAL' => const PillColors(AppColors.redDim, AppColors.red),
-      'HIGH' => const PillColors(AppColors.amberDim, AppColors.amber),
-      'MEDIUM' => const PillColors(AppColors.blueDim, AppColors.blue),
-      _ => const PillColors(AppColors.surface2, AppColors.textDim),
-    };
+PillColors priorityColors(String priority, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
+  switch (priority.toUpperCase()) {
+    case 'CRITICAL':
+      return PillColors(p.redDim, p.red);
+    case 'HIGH':
+      return PillColors(p.amberDim, p.amber);
+    case 'MEDIUM':
+      return PillColors(p.blueDim, p.blue);
+    default:
+      return PillColors(p.surface2, p.textDim);
+  }
+}
 
 class EmergencyRequest {
   const EmergencyRequest({
@@ -1125,48 +1135,44 @@ class ResourceMeta {
   final Color color;
 }
 
-ResourceMeta resourceMetaFor(String typeOrName) {
+ResourceMeta resourceMetaFor(String typeOrName, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
   final value = typeOrName.toUpperCase();
 
   if (value.contains('AMBULANCE') || value.contains('MEDICAL')) {
-    return const ResourceMeta(
-        Icons.local_hospital, AppColors.redDim, AppColors.red);
+    return ResourceMeta(Icons.local_hospital, p.redDim, p.red);
   }
   if (value.contains('BLOOD')) {
-    return const ResourceMeta(
-        Icons.water_drop, Color(0xFFFCE4F3), Color(0xFFC23E96));
+    return ResourceMeta(Icons.water_drop, p.bloodBg, p.bloodText);
   }
   if (value.contains('OXYGEN')) {
-    return const ResourceMeta(Icons.air, AppColors.blueDim, AppColors.blue);
+    return ResourceMeta(Icons.air, p.blueDim, p.blue);
   }
   if (value.contains('FIRE')) {
-    return const ResourceMeta(
-        Icons.local_fire_department, AppColors.amberDim, AppColors.amber);
+    return ResourceMeta(Icons.local_fire_department, p.amberDim, p.amber);
   }
   if (value.contains('VOLUNTEER') || value.contains('PEOPLE')) {
-    return const ResourceMeta(Icons.groups, AppColors.tealDim, AppColors.teal);
+    return ResourceMeta(Icons.groups, p.tealDim, p.teal);
   }
   if (value.contains('BOAT') || value.contains('RESCUE')) {
-    return const ResourceMeta(
-        Icons.directions_boat, AppColors.blueDim, AppColors.blue);
+    return ResourceMeta(Icons.directions_boat, p.blueDim, p.blue);
   }
   if (value.contains('FOOD') || value.contains('WATER')) {
-    return const ResourceMeta(
-        Icons.local_drink, AppColors.tealDim, AppColors.teal);
+    return ResourceMeta(Icons.local_drink, p.tealDim, p.teal);
   }
 
-  return const ResourceMeta(
-      Icons.inventory_2, AppColors.surface2, AppColors.textDim);
+  return ResourceMeta(Icons.inventory_2, p.surface2, p.textDim);
 }
 
-Color responderStatusColor(String status) {
+Color responderStatusColor(String status, [ErasPalette? palette]) {
+  final p = palette ?? ErasPalette.light;
   switch (status.toUpperCase()) {
     case 'AVAILABLE':
-      return AppColors.teal;
+      return p.teal;
     case 'BUSY':
-      return AppColors.blue;
+      return p.blue;
     default:
-      return AppColors.textFaint;
+      return p.textFaint;
   }
 }
 

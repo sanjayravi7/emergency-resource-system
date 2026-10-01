@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../services/socket_service.dart';
 import '../models/eras_models.dart';
+import '../services/socket_service.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 import 'common_widgets.dart';
 
 /// A presentation of the persisted request lifecycle. It intentionally has no
@@ -20,11 +21,12 @@ class OperationalTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     if (request.status == RequestStatus.cancelled) {
-      return const _TerminalNotice(
+      return _TerminalNotice(
         icon: Icons.cancel_outlined,
         label: 'CANCELLED',
-        color: AppColors.textFaint,
+        color: p.textFaint,
       );
     }
 
@@ -64,8 +66,7 @@ class OperationalTimeline extends StatelessWidget {
               Icon(
                 Icons.arrow_forward_rounded,
                 size: compact ? 10 : 12,
-                color:
-                    states[index + 1].$2 ? AppColors.teal : AppColors.textFaint,
+                color: states[index + 1].$2 ? p.teal : p.textFaint,
               ),
           ],
         ],
@@ -87,25 +88,28 @@ class _TimelineStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final p = ErasPalette.of(context);
+
+    return AnimatedContainer(
+      duration: AuthMotion.fast,
+      curve: AuthMotion.outCurve,
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 5 : 7,
         vertical: compact ? 2 : 3,
       ),
       decoration: BoxDecoration(
-        color: reached ? AppColors.tealDim : AppColors.surface2,
+        color: reached ? p.tealDim : p.surface2,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: reached
-              ? AppColors.teal.withValues(alpha: .35)
-              : AppColors.border,
+          color:
+              reached ? p.teal.withValues(alpha: p.dark ? .45 : .35) : p.border,
         ),
       ),
       child: Text(
         label,
         style: monoStyle(
           size: compact ? 8 : 9,
-          color: reached ? AppColors.teal : AppColors.textFaint,
+          color: reached ? p.teal : p.textFaint,
           weight: reached ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
@@ -130,9 +134,10 @@ class _TerminalNotice extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 5),
-          Text(label,
-              style:
-                  monoStyle(size: 10, color: color, weight: FontWeight.w700)),
+          Text(
+            label,
+            style: monoStyle(size: 10, color: color, weight: FontWeight.w700),
+          ),
         ],
       );
 }
@@ -151,6 +156,7 @@ class AllocationOperationalRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final content = Wrap(
       spacing: compact ? 5 : 8,
       runSpacing: 4,
@@ -161,21 +167,21 @@ class AllocationOperationalRow extends StatelessWidget {
           style: TextStyle(
             fontSize: compact ? 10.5 : 12,
             fontWeight: FontWeight.w600,
-            color: AppColors.text,
+            color: p.text,
           ),
         ),
         Text(
           'Quantity ${allocation.quantity}',
           style: TextStyle(
             fontSize: compact ? 9.5 : 11,
-            color: AppColors.textDim,
+            color: p.textDim,
           ),
         ),
         Text(
           'Responder: ${allocation.responderName ?? 'unassigned'}',
           style: TextStyle(
             fontSize: compact ? 9.5 : 11,
-            color: AppColors.textDim,
+            color: p.textDim,
           ),
         ),
         AllocationStatusBadge(status: allocation.status),
@@ -195,8 +201,8 @@ class AllocationOperationalRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 5),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surface2,
-        border: Border.all(color: AppColors.border),
+        color: p.surface2,
+        border: Border.all(color: p.border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: content,
@@ -211,18 +217,19 @@ class AllocationStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final normalized = status.toUpperCase();
     final color = switch (normalized) {
-      'RESERVED' => AppColors.amber,
-      'DISPATCHED' => AppColors.blue,
-      'DELIVERED' => AppColors.teal,
-      _ => AppColors.textFaint,
+      'RESERVED' => p.amber,
+      'DISPATCHED' => p.blue,
+      'DELIVERED' => p.teal,
+      _ => p.textFaint,
     };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .12),
+        color: color.withValues(alpha: p.dark ? .18 : .12),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -255,7 +262,8 @@ class LocationSharingSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AppColors.teal : AppColors.textFaint;
+    final p = ErasPalette.of(context);
+    final color = isActive ? p.teal : p.textFaint;
     final suffix = (responderLabel ?? '').isEmpty ? '' : ' · $responderLabel';
     final title = isActive
         ? location == null
@@ -276,8 +284,10 @@ class LocationSharingSummary extends StatelessWidget {
       decoration: compact
           ? null
           : BoxDecoration(
-              color: color.withValues(alpha: .08),
-              border: Border.all(color: color.withValues(alpha: .25)),
+              color: color.withValues(alpha: p.dark ? .14 : .08),
+              border: Border.all(
+                color: color.withValues(alpha: p.dark ? .35 : .25),
+              ),
               borderRadius: BorderRadius.circular(6),
             ),
       child: Column(
@@ -312,7 +322,7 @@ class LocationSharingSummary extends StatelessWidget {
               detail,
               style: TextStyle(
                 fontSize: compact ? 9 : 10.5,
-                color: AppColors.textDim,
+                color: p.textDim,
               ),
             ),
           if (!compact)
@@ -341,25 +351,26 @@ class ResponderAvailabilityBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final status = responder?.status.toUpperCase() ?? 'SYNCING';
     final isBusy = status == 'BUSY';
     final isAvailable = status == 'AVAILABLE';
-    final color = isBusy
-        ? AppColors.amber
-        : isAvailable
-            ? AppColors.teal
-            : AppColors.textFaint;
+    final color = isBusy ? p.amber : (isAvailable ? p.teal : p.textFaint);
     final detail = unfinishedAllocations == 0
         ? 'No unfinished work'
         : '$unfinishedAllocations unfinished allocation${unfinishedAllocations == 1 ? '' : 's'}';
 
-    return Container(
+    return AnimatedContainer(
+      duration: AuthMotion.normal,
+      curve: AuthMotion.outCurve,
       key: const ValueKey<String>('responder-availability-banner'),
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .10),
-        border: Border.all(color: color.withValues(alpha: .35)),
+        color: color.withValues(alpha: p.dark ? .14 : .10),
+        border: Border.all(
+          color: color.withValues(alpha: p.dark ? .42 : .35),
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -385,15 +396,14 @@ class ResponderAvailabilityBanner extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   detail,
-                  style:
-                      const TextStyle(fontSize: 12, color: AppColors.textDim),
+                  style: TextStyle(fontSize: 12, color: p.textDim),
                 ),
                 if (isBusy)
-                  const Text(
+                  Text(
                     'Finish or cancel remaining work to become available',
                     style: TextStyle(
                       fontSize: 10.5,
-                      color: AppColors.textFaint,
+                      color: p.textFaint,
                     ),
                   ),
               ],

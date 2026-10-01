@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 import 'common_widgets.dart';
 
 // ── Resource catalog (read for everyone, managed by ADMIN) ─────────────────
@@ -26,6 +27,7 @@ class ResourceCatalogPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final lowStock = resources.where((r) => r.isActive && r.isLowStock).length;
     final outOfStock =
         resources.where((r) => r.isActive && r.isOutOfStock).length;
@@ -37,7 +39,7 @@ class ResourceCatalogPanel extends StatelessWidget {
           ? TextButton.icon(
               onPressed: onCreate,
               icon: const Icon(Icons.add, size: 16),
-              style: TextButton.styleFrom(foregroundColor: AppColors.teal),
+              style: TextButton.styleFrom(foregroundColor: p.teal),
               label:
                   const Text('New resource', style: TextStyle(fontSize: 12.5)),
             )
@@ -51,21 +53,31 @@ class ResourceCatalogPanel extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 10),
-                    color: AppColors.amberDim,
+                    decoration: BoxDecoration(
+                      color: p.amberDim,
+                      border: Border(
+                        bottom: BorderSide(
+                          color: p.amber.withValues(alpha: .35),
+                        ),
+                      ),
+                    ),
                     child: Text(
                       '$lowStock low stock · $outOfStock out of stock',
-                      style:
-                          const TextStyle(fontSize: 12, color: AppColors.amber),
+                      style: TextStyle(fontSize: 12, color: p.amber),
                     ),
                   ),
-                ...resources.map(
-                  (resource) => _ResourceRow(
-                    resource: resource,
-                    isAdmin: isAdmin,
-                    onEdit: onEdit,
-                    onToggleActive: onToggleActive,
+                for (var i = 0; i < resources.length; i++)
+                  EntranceReveal(
+                    delay:
+                        i < 6 ? Duration(milliseconds: 22 * i) : Duration.zero,
+                    offset: const Offset(0, 5),
+                    child: _ResourceRow(
+                      resource: resources[i],
+                      isAdmin: isAdmin,
+                      onEdit: onEdit,
+                      onToggleActive: onToggleActive,
+                    ),
                   ),
-                ),
               ],
             ),
     );
@@ -87,13 +99,16 @@ class _ResourceRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final meta =
-        resourceMetaFor(resource.type.isEmpty ? resource.name : resource.type);
+    final p = ErasPalette.of(context);
+    final meta = resourceMetaFor(
+      resource.type.isEmpty ? resource.name : resource.type,
+      p,
+    );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: p.border)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,14 +132,17 @@ class _ResourceRow extends StatelessWidget {
                     Flexible(
                       child: Text(
                         resource.name,
-                        style: const TextStyle(
-                            fontSize: 13.5, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: p.text,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'ID ${resource.id}',
-                      style: monoStyle(size: 11, color: AppColors.textFaint),
+                      style: monoStyle(size: 11, color: p.textFaint),
                     ),
                   ],
                 ),
@@ -134,8 +152,7 @@ class _ResourceRow extends StatelessWidget {
                     resource.type,
                     if (resource.location != null) resource.location!,
                   ].join(' · '),
-                  style: const TextStyle(
-                      fontSize: 11.5, color: AppColors.textFaint),
+                  style: TextStyle(fontSize: 11.5, color: p.textFaint),
                 ),
               ],
             ),
@@ -146,18 +163,18 @@ class _ResourceRow extends StatelessWidget {
               Text(
                 '${resource.availableQuantity}/${resource.totalQuantity}'
                 '${resource.unit == null ? '' : ' ${resource.unit}'}',
-                style: monoStyle(size: 12.5, color: AppColors.textDim),
+                style: monoStyle(size: 12.5, color: p.textDim),
               ),
               const SizedBox(height: 4),
               Wrap(
                 spacing: 6,
                 children: [
                   if (!resource.isActive)
-                    const _Tag(text: 'INACTIVE', color: AppColors.textFaint),
+                    _Tag(text: 'INACTIVE', color: p.textFaint),
                   if (resource.isActive && resource.isOutOfStock)
-                    const _Tag(text: 'OUT OF STOCK', color: AppColors.red),
+                    _Tag(text: 'OUT OF STOCK', color: p.red),
                   if (resource.isActive && resource.isLowStock)
-                    const _Tag(text: 'LOW STOCK', color: AppColors.amber),
+                    _Tag(text: 'LOW STOCK', color: p.amber),
                 ],
               ),
             ],
@@ -167,8 +184,7 @@ class _ResourceRow extends StatelessWidget {
             IconButton(
               tooltip: 'Edit resource',
               onPressed: onEdit == null ? null : () => onEdit!(resource),
-              icon: const Icon(Icons.edit_outlined,
-                  size: 17, color: AppColors.textDim),
+              icon: Icon(Icons.edit_outlined, size: 17, color: p.textDim),
             ),
             IconButton(
               tooltip: resource.isActive ? 'Deactivate' : 'Restore',
@@ -180,7 +196,7 @@ class _ResourceRow extends StatelessWidget {
                     ? Icons.toggle_on_outlined
                     : Icons.toggle_off_outlined,
                 size: 20,
-                color: resource.isActive ? AppColors.teal : AppColors.textFaint,
+                color: resource.isActive ? p.teal : p.textFaint,
               ),
             ),
           ],
@@ -197,10 +213,15 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: color),
+        color: p.dark ? color.withValues(alpha: .16) : Colors.transparent,
+        border: Border.all(
+          color: p.dark ? color.withValues(alpha: .65) : color,
+        ),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Text(
@@ -311,13 +332,20 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+
     return AlertDialog(
-      backgroundColor: AppColors.surface,
+      backgroundColor: p.surface,
+      surfaceTintColor: Colors.transparent,
       title: Text(
         widget.resource == null
             ? 'New resource'
             : 'Edit ${widget.resource!.name}',
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: p.text,
+        ),
       ),
       content: SizedBox(
         width: 460,
@@ -326,31 +354,47 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _field('Name', nameController),
-              _field('Type', typeController, hint: 'AMBULANCE, OXYGEN, FIRE…'),
+              _field('Name', nameController, p),
+              _field(
+                'Type',
+                typeController,
+                p,
+                hint: 'AMBULANCE, OXYGEN, FIRE…',
+              ),
               Row(
                 children: [
-                  Expanded(child: _field('Total quantity', totalController)),
+                  Expanded(child: _field('Total quantity', totalController, p)),
                   const SizedBox(width: 10),
                   Expanded(
-                      child: _field('Available quantity', availableController)),
+                    child: _field(
+                      'Available quantity',
+                      availableController,
+                      p,
+                    ),
+                  ),
                 ],
               ),
               Row(
                 children: [
                   Expanded(
-                      child: _field('Unit', unitController,
-                          hint: 'vehicle, unit, cylinder…')),
+                    child: _field(
+                      'Unit',
+                      unitController,
+                      p,
+                      hint: 'vehicle, unit, cylinder…',
+                    ),
+                  ),
                   const SizedBox(width: 10),
-                  Expanded(child: _field('Location', locationController)),
+                  Expanded(child: _field('Location', locationController, p)),
                 ],
               ),
-              _field('Low stock threshold', thresholdController),
+              _field('Low stock threshold', thresholdController, p),
               if (error != null) ...[
                 const SizedBox(height: 8),
-                Text(error!,
-                    style:
-                        const TextStyle(fontSize: 12.5, color: AppColors.red)),
+                Text(
+                  error!,
+                  style: TextStyle(fontSize: 12.5, color: p.red),
+                ),
               ],
             ],
           ),
@@ -359,19 +403,29 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(foregroundColor: p.textDim),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: save,
-          style: FilledButton.styleFrom(backgroundColor: AppColors.teal),
-          child: const Text('Save'),
+        PressableScale(
+          child: FilledButton(
+            onPressed: save,
+            style: FilledButton.styleFrom(
+              backgroundColor: p.teal,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Save'),
+          ),
         ),
       ],
     );
   }
 
-  Widget _field(String label, TextEditingController controller,
-      {String? hint}) {
+  Widget _field(
+    String label,
+    TextEditingController controller,
+    ErasPalette p, {
+    String? hint,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
@@ -379,10 +433,13 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
         children: [
           FieldLabel(label),
           const SizedBox(height: 5),
-          TextField(
-            controller: controller,
-            style: const TextStyle(fontSize: 13),
-            decoration: fieldDecoration(hintText: hint),
+          FocusGlow(
+            borderRadius: 8,
+            child: TextField(
+              controller: controller,
+              style: TextStyle(fontSize: 13, color: p.text),
+              decoration: fieldDecoration(hintText: hint, context: context),
+            ),
           ),
         ],
       ),
@@ -406,6 +463,7 @@ class ResponderHelpTypesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
     final activeTypes = helpTypes.where((ht) => ht.enabled).toList();
 
     return Panel(
@@ -423,10 +481,18 @@ class ResponderHelpTypesPanel extends StatelessWidget {
                 if (onEditHelpTypes != null)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: OutlinedButton.icon(
-                      onPressed: onEditHelpTypes,
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('EDIT MY HELP TYPES'),
+                    child: PressableScale(
+                      child: OutlinedButton.icon(
+                        onPressed: onEditHelpTypes,
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor:
+                              p.dark ? p.surface2 : Colors.transparent,
+                          foregroundColor: p.text,
+                          side: BorderSide(color: p.border),
+                        ),
+                        label: const Text('EDIT MY HELP TYPES'),
+                      ),
                     ),
                   ),
               ],
@@ -444,16 +510,17 @@ class ResponderHelpTypesPanel extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: AppColors.tealDim,
+                          color: p.tealDim,
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                              color: AppColors.teal.withValues(alpha: 0.3)),
+                            color: p.teal.withValues(alpha: p.dark ? .45 : .3),
+                          ),
                         ),
                         child: Text(
                           ht.displayLabel.toUpperCase(),
                           style: monoStyle(
                             size: 12,
-                            color: AppColors.teal,
+                            color: p.teal,
                             weight: FontWeight.w700,
                           ),
                         ),
@@ -462,10 +529,18 @@ class ResponderHelpTypesPanel extends StatelessWidget {
                   ),
                   if (onEditHelpTypes != null) ...[
                     const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      onPressed: onEditHelpTypes,
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('EDIT MY HELP TYPES'),
+                    PressableScale(
+                      child: OutlinedButton.icon(
+                        onPressed: onEditHelpTypes,
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor:
+                              p.dark ? p.surface2 : Colors.transparent,
+                          foregroundColor: p.text,
+                          side: BorderSide(color: p.border),
+                        ),
+                        label: const Text('EDIT MY HELP TYPES'),
+                      ),
                     ),
                   ],
                 ],
@@ -491,6 +566,8 @@ class ResponderResourcesPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+
     return Panel(
       title: title,
       hint: 'ResponderResource rows from PostgreSQL',
@@ -499,6 +576,7 @@ class ResponderResourcesPanel extends StatelessWidget {
           : TextButton.icon(
               onPressed: onEditInventory,
               icon: const Icon(Icons.tune, size: 15),
+              style: TextButton.styleFrom(foregroundColor: p.teal),
               label:
                   const Text('EDIT INVENTORY', style: TextStyle(fontSize: 11)),
             ),
@@ -512,21 +590,20 @@ class ResponderResourcesPanel extends StatelessWidget {
           : Column(
               mainAxisSize: MainAxisSize.min,
               children: resources.map((item) {
-                final meta = resourceMetaFor(item.resourceType.isEmpty
-                    ? item.resourceName
-                    : item.resourceType);
+                final meta = resourceMetaFor(
+                  item.resourceType.isEmpty
+                      ? item.resourceName
+                      : item.resourceType,
+                  p,
+                );
 
-                final statusColor = item.status == 'AVAILABLE'
-                    ? AppColors.teal
-                    : item.status == 'BUSY'
-                        ? AppColors.blue
-                        : AppColors.textFaint;
+                final statusColor = responderStatusColor(item.status, p);
 
                 return Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: AppColors.border)),
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: p.border)),
                   ),
                   child: Row(
                     children: [
@@ -549,8 +626,11 @@ class ResponderResourcesPanel extends StatelessWidget {
                           children: [
                             Text(
                               item.resourceName,
-                              style: const TextStyle(
-                                  fontSize: 13.5, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: p.text,
+                              ),
                             ),
                             if (item.resourceType.isNotEmpty ||
                                 item.unit != null) ...[
@@ -561,8 +641,10 @@ class ResponderResourcesPanel extends StatelessWidget {
                                     item.resourceType,
                                   if (item.unit != null) item.unit!,
                                 ].join(' · '),
-                                style: const TextStyle(
-                                    fontSize: 11, color: AppColors.textFaint),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: p.textFaint,
+                                ),
                               ),
                             ],
                           ],
@@ -576,18 +658,17 @@ class ResponderResourcesPanel extends StatelessWidget {
                           Text(
                             '${item.availableQuantity} / ${item.totalQuantity}',
                             style: monoStyle(
-                                size: 13,
-                                color: AppColors.text,
-                                weight: FontWeight.w600),
+                              size: 13,
+                              color: p.text,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                           const SizedBox(height: 3),
                           Text(
                             item.isEnabled ? 'ENABLED' : 'DISABLED',
                             style: monoStyle(
                               size: 9.5,
-                              color: item.isEnabled
-                                  ? AppColors.teal
-                                  : AppColors.textFaint,
+                              color: item.isEnabled ? p.teal : p.textFaint,
                               weight: FontWeight.w600,
                             ),
                           ),
@@ -596,7 +677,9 @@ class ResponderResourcesPanel extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: .12),
+                              color: statusColor.withValues(
+                                alpha: p.dark ? .18 : .12,
+                              ),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -633,70 +716,91 @@ class BackendRespondersPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+
     return Panel(
       title: 'LIVE RESPONDERS',
       hint: 'Responders loaded from PostgreSQL',
       child: responders.isEmpty
           ? const EmptyState('No responders found in the database.')
           : Column(
-              children: responders.map((r) {
-                final color = responderStatusColor(r.status);
-
-                return Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 14 : 16,
-                    vertical: 12,
+              children: [
+                for (var i = 0; i < responders.length; i++)
+                  EntranceReveal(
+                    delay:
+                        i < 6 ? Duration(milliseconds: 22 * i) : Duration.zero,
+                    offset: const Offset(0, 5),
+                    child: _responderRow(responders[i], p),
                   ),
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: AppColors.border)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${r.name}  •  ID ${r.id}',
-                              style: const TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              r.email,
-                              style: const TextStyle(
-                                  fontSize: 11.5, color: AppColors.textFaint),
-                            ),
-                            if (r.phone != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                r.phone!,
-                                style: const TextStyle(
-                                    fontSize: 11.5, color: AppColors.textFaint),
-                              ),
-                            ],
-                            if (r.location != null &&
-                                r.location!.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                r.location!,
-                                style: const TextStyle(
-                                    fontSize: 11.5, color: AppColors.textDim),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      Text(
-                        r.status,
-                        style: monoStyle(
-                            size: 11, color: color, weight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
+              ],
             ),
+    );
+  }
+
+  Widget _responderRow(BackendResponder r, ErasPalette p) {
+    final color = responderStatusColor(r.status, p);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 14 : 16,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: p.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${r.name}  •  ID ${r.id}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: p.text,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  r.email,
+                  style: TextStyle(fontSize: 11.5, color: p.textFaint),
+                ),
+                if (r.phone != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    r.phone!,
+                    style: TextStyle(fontSize: 11.5, color: p.textFaint),
+                  ),
+                ],
+                if (r.location != null && r.location!.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    r.location!,
+                    style: TextStyle(fontSize: 11.5, color: p.textDim),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: p.dark ? .16 : .1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              r.status,
+              style: monoStyle(
+                size: 11,
+                color: color,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
