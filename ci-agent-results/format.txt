@@ -1,0 +1,2 @@
+Formatted 50 files (0 changed) in 0.28 seconds.
+format_write_exit=0
