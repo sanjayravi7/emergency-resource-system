@@ -255,7 +255,9 @@ void main() {
     expect(find.text('Fire'), findsWidgets);
     expect(find.text('Critical'), findsWidgets);
     expect(find.text('Medical Kit'), findsWidgets);
-    expect(find.text('9.991100, 76.662200'), findsOneWidget);
+    // The picker labels the loaded coordinates (see
+    // RequesterLocationPicker's 'location-coordinates-text').
+    expect(find.text('Coordinates: 9.991100, 76.662200'), findsOneWidget);
   });
 
   testWidgets('manual location submits null coordinates rather than 0,0', (
