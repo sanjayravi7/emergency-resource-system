@@ -413,9 +413,11 @@ void main() {
     expect(find.byKey(requesterCardKey), findsOneWidget);
     expect(find.byKey(responderCardKey), findsOneWidget);
 
-    // Selecting still works at narrow width.
-    await tester.tap(find.byKey(requesterCardKey));
-    await tester.pump();
+    // Selecting still works at narrow width. Current Flutter text metrics
+    // place the stacked card just below the 800px fold on this surface
+    // (also on unmodified main), so bring it into view first - exactly
+    // like a real user would (see _tapAfterScroll).
+    await _tapAfterScroll(tester, find.byKey(requesterCardKey));
     expect(find.byKey(requesterSelectedTagKey), findsOneWidget);
     expect(tester.takeException(), isNull);
 
