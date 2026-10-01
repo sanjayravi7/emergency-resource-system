@@ -116,8 +116,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('tab selection glides between the auth screens',
-      (tester) async {
+  testWidgets('tab selection glides between the auth screens', (tester) async {
     _setSize(tester, _desktop);
 
     AnimatedAlign underline() => tester.widget<AnimatedAlign>(
@@ -190,8 +189,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('focusing the email field raises its soft glow',
-      (tester) async {
+  testWidgets('focusing the email field raises its soft glow', (tester) async {
     _setSize(tester, _desktop);
     await tester.pumpWidget(_app(const LoginScreen()));
     await tester.pumpAndSettle();
@@ -313,8 +311,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('password visibility icon cross-fades on toggle',
-      (tester) async {
+  testWidgets('password visibility icon cross-fades on toggle', (tester) async {
     _setSize(tester, _desktop);
     await tester.pumpWidget(_app(const LoginScreen()));
     await tester.pumpAndSettle();

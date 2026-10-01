@@ -740,9 +740,8 @@ InputDecoration authFieldDecoration(
     // below lets the icon ease to the accent while the field is focused.
     prefixIcon: Icon(icon, size: 20),
     prefixIconColor: WidgetStateColor.resolveWith(
-      (states) => states.contains(WidgetState.focused)
-          ? skin.blue
-          : skin.textFaint,
+      (states) =>
+          states.contains(WidgetState.focused) ? skin.blue : skin.textFaint,
     ),
     suffixIcon: suffixIcon,
     helperText: helperText,
@@ -1042,9 +1041,8 @@ class _NetworkLinesPainter extends CustomPainter {
     final lineWidth = math.max(1.1, 1.5 * scale);
     final t = pulse?.value ?? 0;
     for (var i = 0; i < points.length; i++) {
-      final breath = pulse == null
-          ? 1.0
-          : 1 + .18 * math.sin((t + i * .16) * 2 * math.pi);
+      final breath =
+          pulse == null ? 1.0 : 1 + .18 * math.sin((t + i * .16) * 2 * math.pi);
       final point = points[i];
       canvas.drawLine(
         center,
@@ -1101,9 +1099,7 @@ class _NodeTile extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(size * .3),
           border: Border.all(
-            color: hovered
-                ? skin.teal.withValues(alpha: .45)
-                : skin.cardBorder,
+            color: hovered ? skin.teal.withValues(alpha: .45) : skin.cardBorder,
           ),
           boxShadow: [
             BoxShadow(

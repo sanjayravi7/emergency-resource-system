@@ -96,8 +96,7 @@ class EntranceReveal extends StatefulWidget {
 
 class _EntranceRevealState extends State<EntranceReveal>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this);
+  late final AnimationController _controller = AnimationController(vsync: this);
   late Animation<double> _progress;
   bool _reduced = false;
   bool _started = false;

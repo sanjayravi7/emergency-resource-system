@@ -147,8 +147,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               icon: Icons.lock_outline_rounded,
                               suffixIcon: IconButton(
                                   tooltip: 'Show or hide password',
-                                  onPressed: () => setState(() =>
-                                      obscurePassword = !obscurePassword),
+                                  onPressed: () => setState(
+                                      () => obscurePassword = !obscurePassword),
                                   icon: AnimatedSwap(
                                       child: Icon(
                                           obscurePassword
