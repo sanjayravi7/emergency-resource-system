@@ -241,9 +241,10 @@ class _HoverLiftState extends State<HoverLift> {
   Widget build(BuildContext context) {
     final reduced = AuthMotion.reducedMotionOf(context);
     final hovered = _hovered && widget.enabled && !reduced;
-    final transform = Matrix4.identity()
-      ..translate(0.0, hovered ? -widget.lift : 0.0)
-      ..scale(hovered ? widget.hoverScale : 1.0);
+    final scale = hovered ? widget.hoverScale : 1.0;
+    final transform =
+        Matrix4.translationValues(0, hovered ? -widget.lift : 0, 0)
+          ..multiply(Matrix4.diagonal3Values(scale, scale, 1));
     return MouseRegion(
       opaque: false,
       onEnter: (_) => _setHovered(true),
