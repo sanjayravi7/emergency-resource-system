@@ -358,7 +358,8 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
                     if (selected) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'SELECTE           key: ValueKey<String>(
+                        'SELECTED',
+                        key: ValueKey<String>(
                           'role-selected-tag-${widget.role.wireName}',
                         ),
                         style: const TextStyle(
@@ -376,10 +377,6 @@ class _RoleSelectionCardState extends State<_RoleSelectionCard> {
           ),
         ),
       ),
-    );
-  }
-}
- ),
     );
   }
 }

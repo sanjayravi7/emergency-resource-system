@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override void dispose(){emailController.dispose();passwordController.dispose();super.dispose();}
   @override Widget build(BuildContext context){ final dark=Theme.of(context).brightness==Brightness.dark; return AuthShell(child:Container(
     padding:EdgeInsets.all(MediaQuery.sizeOf(context).width<430?22:34),
-    decoration:BoxDecoration(color:dark?const Color(0xE6102035):Colors.white,borderRadius:BorderRadius.circular(22),border:Border.all(color:dark?const Color(0xFF2A4C68):AppColors.border),boxShadow:[BoxShadow(color:(dark?const Color(0xFF00BFA8):const Color(0xFF163A61)).withValues(alpha:dark?.1:.09),blurRadius:35,offset:const Offset(0,14))]),
+    decoration:BoxDecoration(color:dark?const Color(0xE6102035):Colors.white,borderRadius:BorderRadius.circular(22),border:Border.all(color:dark?const Color(0xFF2A4C68):AppColors.border),boxShadow:[BoxShadow(color:(dark?const Color(0xFF00BFA8):const Color(0xFF163A61)).withValues(alpha:dark ? .1 : .09),blurRadius:35,offset:const Offset(0,14))]),
     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
       Row(children:[Expanded(child:_tab('Login',true,(){})),Expanded(child:_tab('Register',false,()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>const RegisterScreen()))))]),
       const SizedBox(height:28), Center(child:Container(width:54,height:54,decoration:BoxDecoration(color:const Color(0xFF0BAE94).withValues(alpha:.12),shape:BoxShape.circle),child:const Icon(Icons.shield_outlined,color:Color(0xFF0BAE94),size:29))),
