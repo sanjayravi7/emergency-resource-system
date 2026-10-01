@@ -24,20 +24,26 @@ class ErasMark extends StatelessWidget {
           child: const Icon(Icons.health_and_safety_rounded,
               color: Colors.white, size: 27)),
       const SizedBox(width: 12),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('ERAS',
-            style: TextStyle(
-                fontSize: compact ? 22 : 26,
-                height: 1,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.4,
-                color: dark ? Colors.white : AppColors.text)),
-        const SizedBox(height: 4),
-        Text('Emergency Resource Allocation System',
-            style: TextStyle(
-                fontSize: compact ? 9 : 10.5,
-                color: dark ? const Color(0xFF9EB0C6) : AppColors.textDim)),
-      ]),
+      Flexible(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('ERAS',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: compact ? 22 : 26,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                  color: dark ? Colors.white : AppColors.text)),
+          const SizedBox(height: 4),
+          Text('Emergency Resource Allocation System',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: compact ? 9 : 10.5,
+                  color: dark ? const Color(0xFF9EB0C6) : AppColors.textDim)),
+        ]),
+      ),
     ]);
   }
 }

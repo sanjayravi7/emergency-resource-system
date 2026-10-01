@@ -546,12 +546,16 @@ class NavButton extends StatelessWidget {
               color: active ? AppColors.teal : AppColors.textDim,
             ),
             const SizedBox(width: 10),
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                color: active ? AppColors.teal : AppColors.textDim,
+            Expanded(
+              child: Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  color: active ? AppColors.teal : AppColors.textDim,
+                ),
               ),
             ),
           ],

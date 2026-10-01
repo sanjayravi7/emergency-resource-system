@@ -23,7 +23,12 @@ void main() {
     await tester.pumpWidget(const DispatchConsoleApp());
     await tester.pump();
 
-    await tester.tap(find.text('Sign in'));
+    // The auth card scrolls on short surfaces, so bring the button into view
+    // before tapping it.
+    final signIn = find.text('Sign in');
+    await tester.ensureVisible(signIn);
+    await tester.pump();
+    await tester.tap(signIn);
     await tester.pump();
 
     expect(find.text('Please enter email and password'), findsOneWidget);

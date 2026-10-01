@@ -70,7 +70,12 @@ Future<void> _signInThroughUi(WidgetTester tester) async {
     'Test123456',
   );
   await tester.pump();
-  await tester.tap(find.text('Sign in'));
+  // The auth card scrolls on short surfaces, so bring the button into view
+  // before tapping it.
+  final signIn = find.text('Sign in');
+  await tester.ensureVisible(signIn);
+  await tester.pump();
+  await tester.tap(signIn);
   await tester.pump();
   // Mocked login resolves, navigation transition completes, and the
   // destination page finishes its initial data load.
