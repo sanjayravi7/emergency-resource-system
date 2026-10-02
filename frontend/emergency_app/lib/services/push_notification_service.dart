@@ -80,7 +80,7 @@ class PushNotificationService {
     _initialized = true;
 
     try {
-      await Firebase.initializeApp();
+      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
 
       final messaging = FirebaseMessaging.instance;
       final permission = await messaging.requestPermission(

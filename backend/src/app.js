@@ -58,6 +58,11 @@ app.use('/api', apiLimiter);
 // Strict limiter for credential endpoints only.
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/google', authLimiter);
+app.use('/api/auth/verify-email', authLimiter);
+app.use('/api/auth/verification/resend', authLimiter);
+app.use('/api/auth/password-reset/request', authLimiter);
+app.use('/api/auth/password-reset/confirm', authLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/requests', requestRoutes);

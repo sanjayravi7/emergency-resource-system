@@ -1,9 +1,20 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
+
+import 'firebase_options.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await ErasFirebaseOptions.initialize();
+  } catch (_) {
+    // Firebase is needed only for Google sign-in and optional FCM. Keep the
+    // existing email/password ERAS API usable when a local build has no
+    // Firebase configuration; the auth controls show a clear setup message.
+    debugPrint('Firebase is not configured for this build.');
+  }
   await ThemeController.load();
   runApp(const DispatchConsoleApp());
 }

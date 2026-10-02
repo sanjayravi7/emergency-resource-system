@@ -21,7 +21,9 @@ dependencies:
   # currently maintaining a Socket.IO connection. Runs as a silent no-op when
   # no Firebase configuration is present (see lib/services/push_notification_service.dart).
   firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
   firebase_messaging: ^15.1.0
+  google_sign_in: ^6.2.2
 
 dev_dependencies:
   flutter_test:

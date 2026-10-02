@@ -86,6 +86,29 @@ const env = {
   JWT_SECRET: process.env.JWT_SECRET,
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
 
+  // Local-account email codes are HMACed with a dedicated secret when set;
+  // otherwise the existing JWT secret is used (no new mandatory secret for
+  // older deployments). Codes are delivered by the Resend HTTPS API.
+  AUTH_OTP_SECRET: process.env.AUTH_OTP_SECRET || process.env.JWT_SECRET,
+  AUTH_OTP_TTL_MINUTES: integerFromEnv('AUTH_OTP_TTL_MINUTES', 10, { min: 1 }),
+  AUTH_OTP_MAX_ATTEMPTS: integerFromEnv('AUTH_OTP_MAX_ATTEMPTS', 5, { min: 1 }),
+  AUTH_OTP_MAX_ISSUES_PER_HOUR: integerFromEnv('AUTH_OTP_MAX_ISSUES_PER_HOUR', 5, { min: 1 }),
+  AUTH_EMAIL_SEND_TIMEOUT_MS: integerFromEnv('AUTH_EMAIL_SEND_TIMEOUT_MS', 10000, { min: 500 }),
+  RESEND_API_KEY: process.env.RESEND_API_KEY || null,
+  EMAIL_FROM: process.env.EMAIL_FROM || null,
+
+  // Firebase Admin verifies Google/Firebase ID tokens before the backend
+  // creates or resolves an ERAS PostgreSQL account. Reuse existing FCM service
+  // account settings when a deployment already provides those credentials.
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || null,
+  FIREBASE_SERVICE_ACCOUNT:
+    process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FCM_SERVICE_ACCOUNT || null,
+  FIREBASE_SERVICE_ACCOUNT_FILE:
+    process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
+    process.env.FCM_SERVICE_ACCOUNT_FILE ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    null,
+
   // HTTP hardening knobs.
   TRUST_PROXY: trustProxyFromEnv(),
   CORS_ORIGIN: corsOriginFromEnv(),
@@ -175,6 +198,12 @@ if (isWeakSecret(env.JWT_SECRET)) {
   }
   // eslint-disable-next-line no-console
   console.warn(`[config] WARNING: ${detail}`);
+}
+
+if (IS_PRODUCTION && isWeakSecret(env.AUTH_OTP_SECRET)) {
+  throw new Error(
+    `AUTH_OTP_SECRET is weak or a known default. Use at least ${MIN_PRODUCTION_SECRET_LENGTH} random characters.`
+  );
 }
 
 module.exports = env;

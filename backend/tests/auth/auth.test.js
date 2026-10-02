@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const app = require("../../src/app");
 const prisma = require("../../src/config/prisma");
 const env = require("../../src/config/env");
+const authEmailService = require("../../src/services/authEmailService");
 
 describe("Authentication", () => {
   const email = `test_${Date.now()}@example.com`;
@@ -61,7 +62,13 @@ describe("Authentication", () => {
     expect(response.body.success).toBe(true);
     expect(response.body.data.user.email)
       .toBe(registerEmail);
-    expect(response.body.data.token).toBeDefined();
+    expect(response.body.data.user.emailVerified).toBe(false);
+    expect(response.body.data.verificationRequired).toBe(true);
+    expect(response.body.data.token).toBeUndefined();
+    expect(authEmailService.getTestCodeForTests(
+      registerEmail,
+      "EMAIL_VERIFICATION"
+    )).toMatch(/^\d{6}$/);
 
     await prisma.user.delete({
       where: {

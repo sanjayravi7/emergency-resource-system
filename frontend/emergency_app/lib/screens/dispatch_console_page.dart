@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/live_location_store.dart';
+import '../services/google_auth_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/socket_service.dart';
 import '../models/eras_models.dart';
@@ -1385,6 +1386,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       unawaited(PushNotificationService.instance.stop());
     }
     await ApiService.logout();
+    await GoogleAuthService.clearProviderSession();
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(

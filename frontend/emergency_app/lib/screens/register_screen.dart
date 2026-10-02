@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
+import '../services/google_auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
+import 'auth_navigation.dart';
+import 'email_verification_screen.dart';
 import 'login_screen.dart';
 
 /// The two roles PUBLIC registration may choose between. ADMIN is
@@ -98,33 +101,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: selectedRole!.wireName,
       );
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Account created successfully.'),
-          content: const Text(
-            'Your ERAS account is ready. Sign in to continue.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Continue'),
-            ),
-          ],
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => EmailVerificationScreen(email: email.text.trim()),
         ),
       );
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
-      }
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '');
       if (mounted) {
         setState(() {
           error = message.contains('Email already registered')
               ? 'An account with this email already exists.'
+              : message;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> googleRegister() async {
+    if (loading) return;
+    if (selectedRole == null) {
+      setState(() => roleError = 'Choose how you want to use ERAS.');
+      return;
+    }
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final firebaseIdToken =
+          await GoogleAuthService.signInAndGetFirebaseIdToken();
+      if (firebaseIdToken == null) return;
+      await ApiService.googleAuth(
+        firebaseIdToken,
+        intent: 'register',
+        role: selectedRole!.wireName,
+      );
+      if (!mounted) return;
+      routeAuthenticatedUser(context);
+    } catch (e) {
+      await GoogleAuthService.clearProviderSession();
+      if (e is GoogleSignInCancelled) return;
+      final message = e.toString().replaceFirst('Exception: ', '');
+      if (mounted) {
+        setState(() {
+          error = message.contains('Email already registered')
+              ? 'An account with this email already exists. Sign in instead.'
               : message;
         });
       }
@@ -202,6 +227,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(roleError!,
                       style: TextStyle(fontSize: 12, color: skin.red))),
+            if (selectedRole != null) ...[
+              const SizedBox(height: 14),
+              const AuthDividerLabel(label: 'OR'),
+              const SizedBox(height: 12),
+              AuthGoogleButton(
+                onPressed: loading ? null : googleRegister,
+              ),
+              const SizedBox(height: 12),
+            ],
             const SizedBox(height: 16),
             FocusGlow(
                 glowColor: skin.blue,

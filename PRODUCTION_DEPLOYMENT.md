@@ -48,6 +48,11 @@ Configure the prompted values in the Render dashboard:
 | `JWT_SECRET` | Blueprint-generated random value, or a random value of at least 32 characters |
 | `JWT_EXPIRES_IN` | `7d` |
 | `CORS_ORIGINS` | comma-separated exact Firebase origins |
+| `FIREBASE_PROJECT_ID` | exact project shared by Web, Android, and service account |
+| `FIREBASE_SERVICE_ACCOUNT` | Firebase Admin JSON secret (or existing `FCM_SERVICE_ACCOUNT`) |
+| `RESEND_API_KEY` | verified transactional email provider key |
+| `EMAIL_FROM` | sender address on the verified domain |
+| `AUTH_OTP_SECRET` | separate random secret of at least 32 characters |
 | `TRUST_PROXY` | `1` |
 | `RATE_LIMIT_ENABLED` | `true` |
 
@@ -79,8 +84,9 @@ location stream are unchanged.
 ## 3. Safe production accounts
 
 Create REQUESTER and RESPONDER test accounts through `POST /api/auth/register`
-or the Flutter registration UI. Public registration allows only those roles.
-A new responder starts `OFFLINE` and receives no fabricated capabilities.
+or the Flutter registration UI. Email/password accounts must complete the
+six-digit email verification before login. Public registration allows only
+those roles. A new responder starts `OFFLINE` and receives no fabricated capabilities.
 
 Never run the development seed on Neon. If the first production ADMIN is
 needed, run the explicit one-time script from a trusted workstation with an
@@ -106,11 +112,11 @@ user, hashes the password, and does not print the password or database URL.
 After bootstrap, use the existing authenticated administrator role-management
 workflow. Never expose an ADMIN registration route.
 
-## 4. Firebase Hosting and Google Maps Web
+## 4. Firebase Hosting, Firebase Auth, and Google Maps Web
 
 `frontend/emergency_app/firebase.json` serves `build/web` and uses an SPA
-fallback. No Firebase project ID is committed. Select the project explicitly at
-deploy time rather than committing a personal `.firebaserc`:
+fallback. No Firebase project ID is committed. Select the verified project
+explicitly at deploy time rather than committing a personal `.firebaserc`:
 
 ```bash
 cd frontend/emergency_app
@@ -118,23 +124,31 @@ firebase login
 firebase projects:list
 ```
 
-Create a Google Maps browser key with **HTTP referrer** restrictions for the
-actual `web.app` and, if used, `firebaseapp.com` origins. Restrict the key to
-Maps JavaScript API and Places API (New). Browser keys are visible to browser
-users by design; referrer/API restrictions are the security boundary.
+Firebase Auth Google provider, OAuth Web client IDs, exact authorized
+JavaScript origins/redirect URIs, Android package/SHA fingerprints,
+`google-services.json`, backend secrets, build and real-device acceptance
+steps are detailed in [`FIREBASE_GOOGLE_SIGNIN_SETUP.md`](FIREBASE_GOOGLE_SIGNIN_SETUP.md).
+The Flutter Web build now requires same-project Firebase Web config values and
+the Google OAuth Web client ID as Dart defines.
 
-Build without writing the key to source control or logs:
+Create a separate Google Maps browser key with **HTTP referrer** restrictions
+for the actual deployed origins. Restrict it to Maps JavaScript API and Places
+API (New). Browser keys are visible to browser users by design; referrer/API
+restrictions are the security boundary.
+
+Run `./tool/build_production_web.sh` with the production `ERAS_API_BASE_URL`,
+`ERAS_GOOGLE_MAPS_API_KEY`, `ERAS_FIREBASE_API_KEY`,
+`ERAS_FIREBASE_APP_ID`, `ERAS_FIREBASE_MESSAGING_SENDER_ID`,
+`ERAS_FIREBASE_PROJECT_ID`, `ERAS_FIREBASE_AUTH_DOMAIN`, and
+`ERAS_GOOGLE_WEB_CLIENT_ID` available in the local environment. Optional Web
+config values are `ERAS_FIREBASE_STORAGE_BUCKET` and
+`ERAS_FIREBASE_MEASUREMENT_ID`. Then deploy only to the project you verified:
 
 ```bash
-cd frontend/emergency_app
-read -r -p 'Render API URL ending in /api: ' ERAS_API_BASE_URL; export ERAS_API_BASE_URL
-read -r -s -p 'Restricted Google Maps browser key: ' ERAS_GOOGLE_MAPS_API_KEY; echo; export ERAS_GOOGLE_MAPS_API_KEY
-./tool/build_production_web.sh
-firebase deploy --only hosting --project <firebase-project-id>
-unset ERAS_API_BASE_URL ERAS_GOOGLE_MAPS_API_KEY
+firebase deploy --only hosting --project "$ERAS_FIREBASE_PROJECT_ID"
 ```
 
-The script temporarily creates the already-ignored
+The web build script temporarily creates the already-ignored
 `web/google_maps_config.js`, builds it into `build/web`, and restores/removes
 the source config on exit. Do not upload the template placeholder as the
 production config. Add the deployed Firebase origins to Render's
@@ -142,19 +156,19 @@ production config. Add the deployed Firebase origins to Render's
 
 ## 5. Android release
 
-The release uses the same Render origin and does not hardcode it in Dart:
+Register the exact package `io.github.sanjayravi7.eras`, add the actual debug
+and production release SHA-1/SHA-256 fingerprints to Firebase, download
+`android/app/google-services.json`, and configure the Android Maps key and
+production release keystore as described in
+[`FIREBASE_GOOGLE_SIGNIN_SETUP.md`](FIREBASE_GOOGLE_SIGNIN_SETUP.md).
 
-```bash
-cd frontend/emergency_app
-flutter build apk --release \
-  --dart-define=ERAS_API_BASE_URL=https://<render-service>.onrender.com/api
-```
-
-The Android manifest already has Internet and location permissions. Android's
-existing Maps key setup remains separate. Use only HTTPS; never use localhost,
-`127.0.0.1`, or `10.0.2.2` in a release build. Install the APK on a real phone
-and verify GPS permissions and realtime behavior before recording Android as
-passed.
+Run `./tool/build_release_apk.sh` with the production Render HTTPS URL,
+`ERAS_FIREBASE_PROJECT_ID`, `ERAS_GOOGLE_WEB_CLIENT_ID`, Android `MAPS_API_KEY`,
+and release keystore variables available locally. The helper validates the
+Firebase project/package/OAuth client values and refuses debug signing. Use
+only HTTPS; never use localhost, `127.0.0.1`, or `10.0.2.2` in a release
+build. Install the resulting APK on a real phone and verify Google Sign-In,
+GPS permissions, and realtime behavior before recording Android as passed.
 
 ## 6. Ordered smoke test
 
@@ -164,19 +178,24 @@ locations, without fake coordinates.
 1. **Neon:** confirm the database exists, all checked-in migrations are
    applied, no reset occurred, and expected tables exist.
 2. **Render:** confirm `GET /health` returns HTTP 200 and exactly
-   `{"success":true,"status":"ok"}`. Then test register, login, and
-   authenticated `GET /api/auth/me`.
-3. **REQUESTER:** register with `role=REQUESTER`; verify the stored and returned
-   role and login.
-4. **RESPONDER:** register with `role=RESPONDER`; verify the stored role,
-   initial `OFFLINE` status, zero fake capabilities, and login response.
-5. **Flutter Web:** verify both registration choices, role-based login routing,
-   REST, Maps/location selection, request/responder flows, and Socket.IO from
-   browser developer tools. Confirm CORS allows only the deployed origins.
-6. **Android:** install the release APK on a real phone. Verify registration,
-   login, both dashboards, readiness, real GPS permissions, request creation,
-   Socket.IO, live responder location, PostgreSQL updates, and the complete
-   allocation lifecycle.
+   `{"success":true,"status":"ok"}`. Confirm Firebase project ID/service
+   account match; test email delivery and authenticated `GET /api/auth/me`.
+3. **Email/password:** register a new REQUESTER, receive and submit the actual
+   six-digit verification email, then complete the existing email/password
+   login. Verify a pre-existing verified account can still log in.
+4. **Password reset:** request the actual six-digit code, set a new password,
+   confirm the old password is rejected and the new password succeeds.
+5. **Web Google:** on the production Firebase Hosting origin in a real browser,
+   perform one Google registration and a separate Google login with the same
+   verified account. Confirm selected role, returned ERAS JWT, route, and
+   allowed CORS origin.
+6. **Android Google:** install the production-signed release APK on a physical
+   phone and complete native Google login. Confirm Firebase project, package,
+   release SHA-1/SHA-256, and ERAS role/session match the console values.
+7. **Operational app:** verify both registration roles, role-based routing,
+   REST, Maps/location selection, request/responder flows, Socket.IO,
+   PostgreSQL updates, GPS permissions, and the complete allocation lifecycle
+   on deployed Web and Android clients.
 
 Before sign-off, also confirm the Render service uses HTTPS/WSS, production
 JWT and database secrets are not exposed, rate controls remain enabled,

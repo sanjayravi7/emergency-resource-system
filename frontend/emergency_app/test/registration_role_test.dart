@@ -10,6 +10,7 @@ library;
 import 'dart:convert';
 import 'dart:ui' show Tristate;
 
+import 'package:dispatch_console_flutter/screens/email_verification_screen.dart';
 import 'package:dispatch_console_flutter/screens/login_screen.dart';
 import 'package:dispatch_console_flutter/screens/register_screen.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ http.Response _jsonResponse(Object body, [int status = 200]) =>
     http.Response(jsonEncode(body), status);
 
 /// Records the registration payload and replies like the real backend
-/// (201 + token + user, matching POST /api/auth/register).
+/// (201 + unverified user + verificationRequired, matching POST /api/auth/register).
 class _RecordingApi {
   Map<String, dynamic>? registerBody;
   int registerStatus = 201;
@@ -62,9 +63,10 @@ class _RecordingApi {
                 'name': registerBody!['name'],
                 'email': registerBody!['email'],
                 'role': registerBody!['role'],
+                'emailVerified': false,
                 'responderStatus': 'OFFLINE',
               },
-              'token': 'test-registration-token',
+              'verificationRequired': true,
             },
           }, 201);
         }
@@ -306,7 +308,7 @@ void main() {
   });
 
   testWidgets(
-      'REQUESTER registration sends role=REQUESTER and navigates to login',
+      'REQUESTER registration sends role=REQUESTER and opens email verification',
       (tester) async {
     final api = _RecordingApi();
 
@@ -319,24 +321,14 @@ void main() {
         await tester.pump();
         await _fillForm(tester);
         await _submit(tester);
+        await tester.pumpAndSettle();
 
-        // Backend responds 201; the confirmation dialog appears.
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(find.text('Account created successfully.'), findsOneWidget);
+        expect(find.byType(EmailVerificationScreen), findsOneWidget);
+        expect(find.byType(RegisterScreen), findsNothing);
         expect(api.registerBody, isNotNull);
         expect(api.registerBody!['role'], 'REQUESTER');
         expect(api.registerBody!['name'], 'Role Test User');
         expect(api.registerBody!['email'], 'role.user@example.com');
-
-        await tester.tap(find.text('Continue'));
-        // Two animations run back to back here: the dialog dismissal, and
-        // then - once the awaited showDialog future resolves - the route
-        // replacement that opens the login screen. Settle both instead of
-        // guessing a frame count.
-        await tester.pumpAndSettle();
-
-        expect(find.byType(LoginScreen), findsOneWidget);
-        expect(find.byType(RegisterScreen), findsNothing);
 
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       },
@@ -356,9 +348,9 @@ void main() {
         await tester.pump();
         await _fillForm(tester);
         await _submit(tester);
-        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
 
-        expect(find.text('Account created successfully.'), findsOneWidget);
+        expect(find.byType(EmailVerificationScreen), findsOneWidget);
         expect(api.registerBody, isNotNull);
         expect(api.registerBody!['role'], 'RESPONDER');
 

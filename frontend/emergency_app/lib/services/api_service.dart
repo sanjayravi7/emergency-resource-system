@@ -49,6 +49,18 @@ class ApiService {
     throw Exception(body['message']?.toString() ?? fallback);
   }
 
+  static void _acceptSession(Map<String, dynamic> body) {
+    final data = body['data'];
+    if (data is! Map || data['user'] is! Map || data['token'] is! String) {
+      throw Exception('The sign-in service returned an invalid session.');
+    }
+    final user = Map<String, dynamic>.from(data['user'] as Map);
+    token = data['token'] as String;
+    currentUserId = (user['id'] as num).toInt();
+    currentRole = user['role']?.toString();
+    currentUserName = user['name']?.toString();
+  }
+
   // ---------------------------------------------------------------------
   // AUTH
   // ---------------------------------------------------------------------
@@ -103,12 +115,86 @@ class ApiService {
       _fail(body, 'Login failed');
     }
 
-    token = body['data']['token'];
-    currentUserId = (body['data']['user']['id'] as num).toInt();
-    currentRole = body['data']['user']['role'];
-    currentUserName = body['data']['user']['name']?.toString();
-
+    _acceptSession(body);
     return body;
+  }
+
+  /// Exchange a Firebase Auth ID token for an ERAS API/JWT session. The
+  /// backend decides whether this is a public registration or an existing
+  /// account login and always returns the normal ERAS token shape.
+  static Future<Map<String, dynamic>> googleAuth(
+    String firebaseIdToken, {
+    required String intent,
+    String? role,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/google'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'idToken': firebaseIdToken,
+        'intent': intent,
+        if (role != null) 'role': role,
+      }),
+    );
+    final body = _decode(response);
+    final expectedStatus = intent == 'register' ? 201 : 200;
+    if (response.statusCode != expectedStatus) {
+      _fail(body, 'Google sign-in failed');
+    }
+    _acceptSession(body);
+    return body;
+  }
+
+  static Future<void> verifyEmail(String email, String code) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/verify-email'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim(), 'code': code.trim()}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) _fail(body, 'Email verification failed');
+  }
+
+  static Future<void> resendEmailVerification(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/verification/resend'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim()}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not send a new verification code');
+    }
+  }
+
+  static Future<void> requestPasswordReset(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password-reset/request'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim()}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not request a reset code');
+    }
+  }
+
+  static Future<void> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password-reset/confirm'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim(),
+        'code': code.trim(),
+        'password': newPassword,
+      }),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) _fail(body, 'Password reset failed');
   }
 
   /// Mark a responder offline before clearing the local session. A failed

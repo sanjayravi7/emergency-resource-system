@@ -17,6 +17,11 @@ enum UserRole {
   ADMIN
 }
 
+enum AuthChallengePurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 enum ResponderStatus {
   AVAILABLE
   BUSY
@@ -91,6 +96,13 @@ model User {
   password String
   phone    String?
 
+  // Existing rows default to verified during migration so current accounts
+  // retain their established email/password login behavior. New local
+  // registrations explicitly begin unverified; Google accounts are verified
+  // by Firebase's signed ID token before they are persisted.
+  emailVerified Boolean @default(true)
+  firebaseUid   String? @unique
+
   role UserRole @default(REQUESTER)
 
   isActive     Boolean   @default(true)
@@ -120,6 +132,25 @@ model User {
   // stays the single source of truth and no notification state is derived
   // from them.
   deviceTokens PushDeviceToken[]
+  authChallenges AuthChallenge[]
+}
+
+// One-time email verification and password reset codes. Only an HMAC digest
+// is stored; the six-digit value is sent once by the configured mail provider.
+model AuthChallenge {
+  id        Int                  @id @default(autoincrement())
+  userId    Int
+  purpose   AuthChallengePurpose
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int                  @default(0)
+  consumedAt DateTime?
+  createdAt DateTime             @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, createdAt])
+  @@index([expiresAt])
 }
 
 // ======================================================

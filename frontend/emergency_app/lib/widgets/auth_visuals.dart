@@ -626,13 +626,14 @@ class _AuthPrimaryButtonState extends State<AuthPrimaryButton> {
 class AuthGoogleButton extends StatelessWidget {
   const AuthGoogleButton({super.key, required this.onPressed});
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
     return Semantics(
       button: true,
+      enabled: onPressed != null,
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(12),
