@@ -50,6 +50,16 @@ Configure the prompted values in the Render dashboard:
 | `CORS_ORIGINS` | comma-separated exact Firebase origins |
 | `TRUST_PROXY` | `1` |
 | `RATE_LIMIT_ENABLED` | `true` |
+| `FIREBASE_PROJECT_ID` | Firebase project id (Google sign-in token verification) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client id(s), comma separated (web + Android) |
+
+`FIREBASE_PROJECT_ID` and `GOOGLE_CLIENT_ID` are optional but required for
+Google sign-in: without them `POST /api/auth/google` answers
+`503 Google sign-in is not configured on this server` and the client reports
+that honestly. Email/password login and every emergency workflow keep working.
+Both values are public identifiers, not secrets; the Firebase **web** config is
+supplied to Flutter at build time with `--dart-define`. See
+`frontend/emergency_app/FIREBASE_GOOGLE_SIGNIN_SETUP.md`.
 
 For example, after the Firebase project is known, `CORS_ORIGINS` may contain
 both of its real origins:

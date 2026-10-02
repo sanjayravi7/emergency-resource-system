@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
 import 'common_widgets.dart';
@@ -34,7 +35,7 @@ class ResourceCatalogPanel extends StatelessWidget {
 
     return Panel(
       title: 'RESOURCE CATALOG',
-      hint: 'Live resources from PostgreSQL',
+      hint: 'Live resources',
       trailing: isAdmin && onCreate != null
           ? TextButton.icon(
               onPressed: onCreate,
@@ -45,7 +46,7 @@ class ResourceCatalogPanel extends StatelessWidget {
             )
           : null,
       child: resources.isEmpty
-          ? const EmptyState('No resources found in the database.')
+          ? const EmptyState('No resources found.')
           : Column(
               children: [
                 if (lowStock > 0 || outOfStock > 0)
@@ -361,32 +362,23 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
                 p,
                 hint: 'AMBULANCE, OXYGEN, FIRE…',
               ),
-              Row(
-                children: [
-                  Expanded(child: _field('Total quantity', totalController, p)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _field(
-                      'Available quantity',
-                      availableController,
-                      p,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _field(
-                      'Unit',
-                      unitController,
-                      p,
-                      hint: 'vehicle, unit, cylinder…',
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: _field('Location', locationController, p)),
-                ],
+              // This content is 460px wide, but AlertDialog clamps to the
+              // viewport, and two half-width fields per row collide on a
+              // phone. The decision therefore comes from the VIEWPORT, not
+              // from a LayoutBuilder: AlertDialog measures its content with
+              // IntrinsicWidth, and LayoutBuilder cannot report intrinsic
+              // dimensions (it throws during performLayout).
+              ..._pairedFields(
+                wide: MediaQuery.sizeOf(context).width >= 500,
+                first: _field('Total quantity', totalController, p),
+                second: _field('Available quantity', availableController, p),
+                third: _field(
+                  'Unit',
+                  unitController,
+                  p,
+                  hint: 'vehicle, unit, cylinder…',
+                ),
+                fourth: _field('Location', locationController, p),
               ),
               _field('Low stock threshold', thresholdController, p),
               if (error != null) ...[
@@ -420,6 +412,46 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
     );
   }
 
+  /// Two label/field pairs, side by side on wide viewports and stacked on
+  /// narrow ones. `IntrinsicWidth`-safe: it is pure composition, no layout
+  /// measurement.
+  List<Widget> _pairedFields({
+    required bool wide,
+    required Widget first,
+    required Widget second,
+    required Widget third,
+    required Widget fourth,
+  }) {
+    if (wide) {
+      return <Widget>[
+        Row(
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 10),
+            Expanded(child: second),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: third),
+            const SizedBox(width: 10),
+            Expanded(child: fourth),
+          ],
+        ),
+      ];
+    }
+    return <Widget>[
+      first,
+      const SizedBox(height: 8),
+      second,
+      const SizedBox(height: 8),
+      third,
+      const SizedBox(height: 8),
+      fourth,
+    ];
+  }
+
   Widget _field(
     String label,
     TextEditingController controller,
@@ -434,6 +466,7 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
           FieldLabel(label),
           const SizedBox(height: 5),
           FocusGlow(
+            glowColor: p.teal,
             borderRadius: 8,
             child: TextField(
               controller: controller,
@@ -570,7 +603,7 @@ class ResponderResourcesPanel extends StatelessWidget {
 
     return Panel(
       title: title,
-      hint: 'ResponderResource rows from PostgreSQL',
+      hint: 'Responder resource rows',
       trailing: onEditInventory == null
           ? null
           : TextButton.icon(
@@ -720,9 +753,9 @@ class BackendRespondersPanel extends StatelessWidget {
 
     return Panel(
       title: 'LIVE RESPONDERS',
-      hint: 'Responders loaded from PostgreSQL',
+      hint: 'Responders data',
       child: responders.isEmpty
-          ? const EmptyState('No responders found in the database.')
+          ? const EmptyState('No responders found.')
           : Column(
               children: [
                 for (var i = 0; i < responders.length; i++)
@@ -763,11 +796,15 @@ class BackendRespondersPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  r.email,
-                  style: TextStyle(fontSize: 11.5, color: p.textFaint),
-                ),
-                if (r.phone != null) ...[
+                // RESPONDER CONTACT PRIVACY: the responder directory is shared
+                // by every role, so email/phone render for ADMIN only. The
+                // backend omits both fields for any other viewer.
+                if (ApiService.isAdmin && r.email.isNotEmpty)
+                  Text(
+                    r.email,
+                    style: TextStyle(fontSize: 11.5, color: p.textFaint),
+                  ),
+                if (ApiService.isAdmin && (r.phone ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     r.phone!,

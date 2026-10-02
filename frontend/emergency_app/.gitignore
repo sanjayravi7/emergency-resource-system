@@ -11,6 +11,13 @@ errors_lib.txt
 # Local Google Maps API key config for Flutter Web.
 /web/google_maps_config.js
 
+# Firebase project configuration (Google sign-in + FCM). Per-deployment, never
+# committed: android/app/google-services.json, ios GoogleService-Info.plist or
+# a web config passed with --dart-define.
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+/google-services.json
+
 # Firebase CLI state, logs, and local credential files.
 /.firebase/
 /firebase-debug.log

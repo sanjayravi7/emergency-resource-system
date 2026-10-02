@@ -2,6 +2,13 @@ const VALID_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const MAX_QUANTITY_PER_RESOURCE = 1000;
 
+// Text bounds. These are generous for a real emergency description and small
+// enough that a single request can never be used to store megabytes of data.
+const MAX_EMERGENCY_TYPE_LENGTH = 80;
+const MAX_LOCATION_LENGTH = 300;
+const MAX_DESCRIPTION_LENGTH = 2000;
+const MIN_VALIDATION_YEAR = 2000;
+
 function isPositiveInteger(value) {
   return Number.isInteger(value) && value > 0;
 }
@@ -15,18 +22,37 @@ function validateEmergencyRequestInput(data) {
     return "Request body is required";
   }
 
-  const { emergencyType, location, priority, latitude, longitude } = data;
+  const { emergencyType, location, description, priority, latitude, longitude } = data;
 
-  if (!emergencyType || !String(emergencyType).trim()) {
+  if (emergencyType === undefined || emergencyType === null || typeof emergencyType !== "string" || !emergencyType.trim()) {
     return "Emergency type is required";
   }
 
-  if (!location || !String(location).trim()) {
+  if (emergencyType.trim().length > MAX_EMERGENCY_TYPE_LENGTH) {
+    return "Emergency type is too long";
+  }
+
+  if (location === undefined || location === null || typeof location !== "string" || !location.trim()) {
     return "Location is required";
   }
 
+  if (location.trim().length > MAX_LOCATION_LENGTH) {
+    return "Location text is too long";
+  }
+
+  if (description !== undefined && description !== null) {
+    if (typeof description !== "string") {
+      return "Description must be text";
+    }
+    if (description.length > MAX_DESCRIPTION_LENGTH) {
+      return "Description is too long";
+    }
+  }
+
+  // Priority must be one of the enum values (no case folding, no unknown
+  // values) so a client can never write an arbitrary string into the column.
   if (priority !== undefined && priority !== null) {
-    if (!VALID_PRIORITIES.includes(String(priority))) {
+    if (typeof priority !== "string" || !VALID_PRIORITIES.includes(priority)) {
       return "Invalid priority";
     }
   }
@@ -138,6 +164,9 @@ function normalizeRequiredResources(requiredResources) {
 module.exports = {
   VALID_PRIORITIES,
   MAX_QUANTITY_PER_RESOURCE,
+  MAX_EMERGENCY_TYPE_LENGTH,
+  MAX_LOCATION_LENGTH,
+  MAX_DESCRIPTION_LENGTH,
   validateEmergencyRequestInput,
   normalizeRequiredResources,
 };

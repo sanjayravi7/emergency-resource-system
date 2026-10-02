@@ -10,8 +10,10 @@ library;
 import 'dart:convert';
 import 'dart:ui' show Tristate;
 
+import 'package:dispatch_console_flutter/screens/email_verification_screen.dart';
 import 'package:dispatch_console_flutter/screens/login_screen.dart';
 import 'package:dispatch_console_flutter/screens/register_screen.dart';
+import 'package:dispatch_console_flutter/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,7 +65,11 @@ class _RecordingApi {
                 'email': registerBody!['email'],
                 'role': registerBody!['role'],
                 'responderStatus': 'OFFLINE',
+                // A fresh email/password account is unverified: the backend
+                // also returns `verificationRequired: true`.
+                'emailVerified': false,
               },
+              'verificationRequired': true,
               'token': 'test-registration-token',
             },
           }, 201);
@@ -115,6 +121,25 @@ Future<void> _submit(WidgetTester tester) async {
 }
 
 void main() {
+  setUp(() {
+    // Each test starts without a session; registration is what creates one.
+    ApiService.token = null;
+    ApiService.currentRole = null;
+    ApiService.currentUserId = null;
+    ApiService.currentUserName = null;
+    ApiService.currentUserEmail = null;
+    ApiService.emailVerified = null;
+  });
+
+  tearDown(() {
+    ApiService.token = null;
+    ApiService.currentRole = null;
+    ApiService.currentUserId = null;
+    ApiService.currentUserName = null;
+    ApiService.currentUserEmail = null;
+    ApiService.emailVerified = null;
+  });
+
   testWidgets('registration page renders with ERAS identity', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pump();
@@ -306,8 +331,8 @@ void main() {
   });
 
   testWidgets(
-      'REQUESTER registration sends role=REQUESTER and navigates to login',
-      (tester) async {
+      'REQUESTER registration sends role=REQUESTER and opens the ERAS email '
+      'verification step', (tester) async {
     final api = _RecordingApi();
 
     await http.runWithClient<Future<void>>(
@@ -320,25 +345,22 @@ void main() {
         await _fillForm(tester);
         await _submit(tester);
 
-        // Backend responds 201; the confirmation dialog appears.
+        // Backend responds 201 with the ERAS session; first-login email
+        // verification is the next step for a password account.
         await tester.pump(const Duration(milliseconds: 300));
-        expect(find.text('Account created successfully.'), findsOneWidget);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(EmailVerificationScreen), findsOneWidget);
+        expect(find.byType(RegisterScreen), findsNothing);
         expect(api.registerBody, isNotNull);
         expect(api.registerBody!['role'], 'REQUESTER');
         expect(api.registerBody!['name'], 'Role Test User');
         expect(api.registerBody!['email'], 'role.user@example.com');
-
-        await tester.tap(find.text('Continue'));
-        // Two animations run back to back here: the dialog dismissal, and
-        // then - once the awaited showDialog future resolves - the route
-        // replacement that opens the login screen. Settle both instead of
-        // guessing a frame count.
-        await tester.pumpAndSettle();
-
-        expect(find.byType(LoginScreen), findsOneWidget);
-        expect(find.byType(RegisterScreen), findsNothing);
+        // The session issued by registration is what verification uses.
+        expect(ApiService.token, 'test-registration-token');
 
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+        await tester.pump(const Duration(milliseconds: 100));
       },
       () => api.client,
     );
@@ -357,12 +379,15 @@ void main() {
         await _fillForm(tester);
         await _submit(tester);
         await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
 
-        expect(find.text('Account created successfully.'), findsOneWidget);
         expect(api.registerBody, isNotNull);
         expect(api.registerBody!['role'], 'RESPONDER');
+        // A responder verifies the mailbox before the readiness experience.
+        expect(find.byType(EmailVerificationScreen), findsOneWidget);
 
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+        await tester.pump(const Duration(milliseconds: 100));
       },
       () => api.client,
     );

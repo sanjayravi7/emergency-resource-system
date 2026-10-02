@@ -29,8 +29,20 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>dispatch_console_flutter</title>
+  <title>ERAS · Emergency Response & Dispatch</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Google Identity Services client library.
+
+    Required by google_sign_in on the web (the plugin drives
+    google.accounts.id / google.accounts.oauth2). It is served by Google, is
+    versioned by Google, and contains no project secret. Loading it here means
+    "Continue with Google" works on the web build without any extra setup; if
+    the CDN is unreachable the button reports that Google sign-in is
+    unavailable while email/password login keeps working.
+  -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <!--
@@ -54,6 +66,57 @@
         flutterScript.src = 'flutter_bootstrap.js';
         flutterScript.async = true;
         document.body.appendChild(flutterScript);
+      }
+
+      // ------------------------------------------------------------------
+      // Firebase JS SDK (compat build).
+      //
+      // FlutterFire's web plugins (firebase_core / firebase_auth /
+      // firebase_messaging) talk to the global `firebase` namespace, so the
+      // SDK must be present before Flutter starts. Google sign-in and web push
+      // therefore needs NO secrets here: the project configuration is supplied
+      // at build time with --dart-define (see lib/services/firebase_bootstrap.dart)
+      // and the Google *web* client id is a public OAuth client id.
+      //
+      // Loading is best-effort: if the CDN is unreachable, email/password
+      // login and every emergency workflow keep working and Google sign-in
+      // reports "not configured" instead of failing the app.
+      // ------------------------------------------------------------------
+      var FIREBASE_JS_VERSION = '9.23.0';
+      var FIREBASE_JS_FILES = [
+        'firebase-app-compat.js',
+        'firebase-auth-compat.js',
+        'firebase-messaging-compat.js'
+      ];
+
+      function loadFirebaseSdk(done) {
+        // Sequential on purpose: the compat builds must be evaluated in order
+        // (auth/messaging extend the app namespace registered by
+        // firebase-app-compat.js). Loading is still asynchronous, so the page
+        // stays responsive.
+        var index = 0;
+
+        function next() {
+          if (index >= FIREBASE_JS_FILES.length) {
+            done();
+            return;
+          }
+
+          var file = FIREBASE_JS_FILES[index++];
+          var script = document.createElement('script');
+          script.src =
+            'https://www.gstatic.com/firebasejs/' +
+            FIREBASE_JS_VERSION + '/' + file;
+          script.onload = next;
+          script.onerror = function () {
+            console.warn('[ERAS] ' + file + ' failed to load; the matching ' +
+              'Firebase feature stays disabled until it is reachable.');
+            next();
+          };
+          document.head.appendChild(script);
+        }
+
+        next();
       }
 
       function loadLocationBridge(done) {
@@ -153,8 +216,8 @@
 
       var configScript = document.createElement('script');
       configScript.src = 'google_maps_config.js';
-      configScript.onload = configureGoogleMaps;
-      configScript.onerror = configureGoogleMaps;
+      configScript.onload = loadFirebaseSdk(configureGoogleMaps);
+      configScript.onerror = loadFirebaseSdk(configureGoogleMaps);
       document.head.appendChild(configScript);
     })();
   </script>

@@ -3,6 +3,9 @@ const jwt = require("jsonwebtoken");
 
 const prisma = require("../config/prisma");
 const env = require("../config/env");
+const logger = require("../config/logger");
+const { validateAndNormalizeEmail } = require("../domain/emailValidation");
+const emailVerificationService = require("./emailVerificationService");
 
 const SALT_ROUNDS = 10;
 
@@ -53,7 +56,20 @@ async function registerUser({
   location,
   role,
 }) {
-  const normalizedEmail = email.trim().toLowerCase();
+  // The server never trusts client validation: the address is normalized and
+  // syntax-checked again here before any account is created.
+  const { email: normalizedEmail, valid: emailIsValid } = validateAndNormalizeEmail(email);
+  if (!emailIsValid) {
+    throw new Error("INVALID_EMAIL");
+  }
+
+  const safeName = typeof name === "string" ? name.trim() : "";
+  if (!safeName) throw new Error("NAME_REQUIRED");
+  if (safeName.length > 120) throw new Error("INVALID_NAME");
+
+  const safePhone =
+    typeof phone === "string" && phone.trim() ? phone.trim() : null;
+  if (safePhone && safePhone.length > 20) throw new Error("INVALID_PHONE");
 
   const userRole = resolvePublicRegistrationRole(role);
 
@@ -79,14 +95,24 @@ async function registerUser({
   // registration never fabricates capabilities or availability.
   const user = await prisma.user.create({
     data: {
-      name: name.trim(),
+      name: safeName,
       email: normalizedEmail,
       password: hashedPassword,
-      phone: phone || null,
-      location: location || null,
+      phone: safePhone,
+      location: typeof location === "string" && location.trim() ? location.trim() : null,
       role: userRole,
+      // Email/password accounts start unverified and receive the ERAS
+      // verification email below. Google accounts are verified by Google.
+      emailVerified: false,
+      authProvider: "PASSWORD",
     },
   });
+
+  // Verification email is BEST EFFORT: a mail outage must never roll back a
+  // successfully created account, and the code is never logged.
+  await emailVerificationService
+    .issueVerificationForUser(user)
+    .catch((error) => logger.warn("auth.verification_email_failed", { userId: user.id, message: error?.message }));
 
   const token = createToken(user);
 
@@ -104,13 +130,20 @@ async function registerUser({
       lastActiveAt: user.lastActiveAt,
       responderStatus: user.responderStatus,
       createdAt: user.createdAt,
+      emailVerified: user.emailVerified,
+      authProvider: user.authProvider,
     },
+    // The client shows "Check your email" and can resend while this is true.
+    verificationRequired: !user.emailVerified,
     token,
   };
 }
 
 async function loginUser({ email, password }) {
-  const normalizedEmail = email.trim().toLowerCase();
+  const { email: normalizedEmail, valid: emailIsValid } = validateAndNormalizeEmail(email);
+  // A malformed address can never match an account and is reported with the
+  // same generic credential error (no account enumeration).
+  if (!emailIsValid) throw new Error("INVALID_CREDENTIALS");
 
   const user = await prisma.user.findUnique({
     where: {
@@ -124,6 +157,12 @@ async function loginUser({ email, password }) {
 
   if (!user.isActive) {
     throw new Error("ACCOUNT_INACTIVE");
+  }
+
+  // Google-only accounts hold an unguessable random hash; a password login can
+  // never succeed for them, and bcrypt errors are never surfaced.
+  if (!user.password) {
+    throw new Error("INVALID_CREDENTIALS");
   }
 
   const passwordValid = await bcrypt.compare(
@@ -159,7 +198,10 @@ async function loginUser({ email, password }) {
       isActive: updatedUser.isActive,
       lastActiveAt: updatedUser.lastActiveAt,
       responderStatus: updatedUser.responderStatus,
+      emailVerified: updatedUser.emailVerified,
+      authProvider: updatedUser.authProvider,
     },
+    verificationRequired: !updatedUser.emailVerified,
     token,
   };
 }
@@ -183,6 +225,9 @@ async function getCurrentUser(userId) {
       responderStatus: true,
       createdAt: true,
       updatedAt: true,
+      emailVerified: true,
+      emailVerifiedAt: true,
+      authProvider: true,
     },
   });
 }
@@ -191,4 +236,8 @@ module.exports = {
   registerUser,
   loginUser,
   getCurrentUser,
+  // Same signer/claims/expiry as password login - Google sign-in must not
+  // introduce a second session mechanism.
+  createTokenForUser: createToken,
+  PUBLIC_REGISTRATION_ROLES,
 };

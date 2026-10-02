@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/email_validation.dart';
+import '../services/google_auth_service.dart';
 import '../services/socket_service.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
 import 'dispatch_console_page.dart';
-import 'responder_readiness_page.dart';
+import 'email_verification_screen.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
+import 'responder_readiness_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,6 +34,10 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => errorMessage = 'Please enter email and password');
       return;
     }
+    if (!isValidEmail(emailController.text)) {
+      setState(() => errorMessage = 'Enter a valid email address');
+      return;
+    }
     setState(() {
       loading = true;
       errorMessage = null;
@@ -37,28 +45,24 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await ApiService.login(
           emailController.text.trim(), passwordController.text);
-      SocketService.instance.connect();
       if (!mounted) return;
       // Purely visual confirmation: the check stays visible on the button
       // while the route transition plays. Navigation is not delayed.
       setState(() => success = true);
-      if (ApiService.isResponder) {
-        Navigator.pushReplacement(
+
+      // FIRST-LOGIN EMAIL VERIFICATION: only an explicit `false` gates the
+      // console. Google accounts (and older/partial payloads) report true or
+      // null and go straight through.
+      if (ApiService.emailVerified == false) {
+        await Navigator.pushReplacement(
             context,
             MaterialPageRoute<void>(
-                builder: (readinessContext) =>
-                    ResponderReadinessPage(onSaved: () {
-                      Navigator.of(readinessContext).pushReplacement(
-                          MaterialPageRoute<void>(
-                              builder: (_) => const DispatchConsolePage(
-                                  readinessSuccess: true)));
-                    })));
-      } else {
-        Navigator.pushReplacement(
-            context,
-            MaterialPageRoute<void>(
-                builder: (_) => const DispatchConsolePage()));
+                builder: (_) => EmailVerificationScreen(
+                    email: ApiService.currentUserEmail)));
+        return;
       }
+
+      _openAuthenticatedArea();
     } catch (error) {
       if (mounted) {
         setState(() =>
@@ -69,12 +73,66 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Honest feedback for reference-design controls that need server-side
-  /// features this deployment does not expose yet.
-  void _notifyUnavailable(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
-    );
+  /// Shared post-authentication routing (password and Google paths).
+  ///
+  /// The realtime connection is opened here, i.e. only once the session is
+  /// actually entering the authenticated area, so a session that is still
+  /// waiting on email verification never holds a live socket.
+  void _openAuthenticatedArea() {
+    SocketService.instance.connect();
+    if (ApiService.isResponder) {
+      Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+              builder: (readinessContext) =>
+                  ResponderReadinessPage(onSaved: () {
+                    Navigator.of(readinessContext).pushReplacement(
+                        MaterialPageRoute<void>(
+                            builder: (_) => const DispatchConsolePage(
+                                readinessSuccess: true)));
+                  })));
+    } else {
+      Navigator.pushReplacement(context,
+          MaterialPageRoute<void>(builder: (_) => const DispatchConsolePage()));
+    }
+  }
+
+  /// Google sign-in through the existing Firebase project.
+  ///
+  /// The client only obtains the Firebase ID token; the ERAS backend verifies
+  /// it, links or creates the account with a REQUESTER/RESPONDER role and
+  /// returns the normal ERAS JWT. Google accounts are verified by Google, so
+  /// they skip the email-verification screen.
+  Future<void> signInWithGoogle() async {
+    if (loading) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+
+    try {
+      final idToken = await GoogleAuthService.instance.signInAndGetIdToken();
+      if (idToken == null) {
+        // The user dismissed the Google account sheet: nothing happened and no
+        // session changed.
+        return;
+      }
+
+      await ApiService.googleSignIn(idToken: idToken);
+      if (!mounted) return;
+      setState(() => success = true);
+      _openAuthenticatedArea();
+    } on GoogleAuthException catch (error) {
+      if (mounted) setState(() => errorMessage = error.message);
+    } catch (error) {
+      if (mounted) {
+        setState(() =>
+            errorMessage = error.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override
@@ -179,10 +237,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontSize: 12.5, color: skin.textDim)),
                         ]),
                         InkWell(
-                            onTap: () => _notifyUnavailable(
-                                  'Password reset is managed by '
-                                  'your ERAS administrator.',
-                                ),
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const ForgotPasswordScreen())),
                             borderRadius: BorderRadius.circular(8),
                             child: Padding(
                                 padding:
@@ -224,10 +283,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 20),
                   AuthDividerLabel(),
                   const SizedBox(height: 14),
-                  AuthGoogleButton(
-                      onPressed: () => _notifyUnavailable(
-                          'Google sign-in is not configured for this '
-                          'ERAS deployment.')),
+                  AuthGoogleButton(onPressed: signInWithGoogle),
                 ])));
   }
 }

@@ -1089,42 +1089,132 @@ class NavigationInfoCard extends StatelessWidget {
     );
   }
 
-  Widget _directionsButton(ErasPalette p, {required bool expanded}) {
-    if (!expanded) {
-      return TextButton.icon(
-        onPressed: onGetDirections,
-        icon: const Icon(Icons.directions_rounded, size: 16),
-        label: const Text('Get directions'),
-        style: TextButton.styleFrom(
-          foregroundColor: p.teal,
-          textStyle: const TextStyle(fontSize: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      );
+  /// GET DIRECTIONS delegates to the shared [DirectionsButton], which owns the
+  /// ERAS primary-accent highlight and the hover/press/disabled states.
+  Widget _directionsButton(ErasPalette p, {required bool expanded}) =>
+      DirectionsButton(expanded: expanded, onPressed: onGetDirections);
+}
+
+/// GET DIRECTIONS, highlighted with the ERAS primary accent (teal).
+///
+/// The button is a small public widget (not a private method) so the highlight
+/// and its hover / press / disabled states are directly testable and reusable.
+/// Every color comes from [ErasPalette], so it keeps the accent in both the
+/// light theme and the completed dark theme.
+class DirectionsButton extends StatelessWidget {
+  const DirectionsButton({
+    super.key,
+    required this.onPressed,
+    this.expanded = true,
+    this.label = 'Get directions',
+  });
+
+  /// Null renders the disabled state.
+  final VoidCallback? onPressed;
+
+  /// Filled accent variant (map card) vs. compact tinted variant (marker popup).
+  final bool expanded;
+
+  final String label;
+
+  static const Color _onAccentLight = Colors.white;
+  static const Color _onAccentDark = Color(0xFF06231F);
+
+  /// Resolves the accent color for the current pointer state.
+  ///
+  /// Exposed for tests: the states are exactly Material's `hovered`,
+  /// `focused`, `pressed` and `disabled`.
+  static Color backgroundColorFor(
+    ErasPalette p,
+    Set<WidgetState> states, {
+    required bool expanded,
+  }) {
+    if (expanded) {
+      if (states.contains(WidgetState.disabled)) {
+        return p.dark ? p.surface2 : p.tealDim;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return Color.lerp(p.teal, p.bg, .34)!;
+      }
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return Color.lerp(p.teal, p.bg, .18)!;
+      }
+      return p.teal;
     }
 
+    if (states.contains(WidgetState.disabled)) return Colors.transparent;
+    if (states.contains(WidgetState.pressed)) {
+      return Color.lerp(p.tealDim, p.teal, .34)!;
+    }
+    if (states.contains(WidgetState.hovered) ||
+        states.contains(WidgetState.focused)) {
+      return Color.lerp(p.tealDim, p.teal, .16)!;
+    }
+    return p.tealDim;
+  }
+
+  static Color foregroundColorFor(
+    ErasPalette p,
+    Set<WidgetState> states, {
+    required bool expanded,
+  }) {
+    if (states.contains(WidgetState.disabled)) return p.textFaint;
+    if (expanded) return p.dark ? _onAccentDark : _onAccentLight;
+    return p.teal;
+  }
+
+  ButtonStyle styleFor(ErasPalette p) {
+    return ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith(
+        (states) => backgroundColorFor(p, states, expanded: expanded),
+      ),
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) => foregroundColorFor(p, states, expanded: expanded),
+      ),
+      iconColor: WidgetStateProperty.resolveWith(
+        (states) => foregroundColorFor(p, states, expanded: expanded),
+      ),
+      overlayColor: const WidgetStatePropertyAll<Color>(Colors.transparent),
+      elevation: WidgetStatePropertyAll<double>(expanded ? 1 : 0),
+      shadowColor: WidgetStatePropertyAll<Color>(p.teal.withValues(alpha: .35)),
+      textStyle: WidgetStatePropertyAll<TextStyle>(
+        TextStyle(
+          fontSize: expanded ? 13 : 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: expanded ? .5 : .2,
+        ),
+      ),
+      padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
+        expanded
+            ? const EdgeInsets.symmetric(horizontal: 14, vertical: 12)
+            : const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      ),
+      minimumSize: WidgetStatePropertyAll<Size>(
+        expanded ? const Size.fromHeight(46) : Size.zero,
+      ),
+      tapTargetSize: expanded
+          ? MaterialTapTargetSize.padded
+          : MaterialTapTargetSize.shrinkWrap,
+      shape: WidgetStatePropertyAll<OutlinedBorder>(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+
     return TextButton.icon(
-      onPressed: onGetDirections,
-      icon: const Icon(Icons.directions_rounded, size: 18),
-      label: const Text(
-        'Get directions',
+      onPressed: onPressed,
+      icon: Icon(Icons.directions_rounded, size: expanded ? 18 : 16),
+      label: Text(
+        label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      style: TextButton.styleFrom(
-        backgroundColor: p.tealDim,
-        foregroundColor: p.teal,
-        textStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        minimumSize: const Size.fromHeight(46),
-        tapTargetSize: MaterialTapTargetSize.padded,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      ),
+      style: styleFor(p),
     );
   }
 }

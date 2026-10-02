@@ -367,7 +367,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       title: widget.panelTitle ??
           (widget.initialRequest == null ? 'NEW EMERGENCY' : 'EDIT REQUEST'),
       hint: widget.initialRequest == null
-          ? 'Resources load live from PostgreSQL'
+          ? 'Resources load live'
           : 'Only PENDING requests can be changed',
       trailing: RefreshSpinButton(
         tooltip: 'Reload resources',
@@ -459,7 +459,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
                   child: HoverLift(
                     enabled: !widget.submitting,
                     lift: 1.2,
-                    child: PressableScale(
+                    builder: (context, hovered) => PressableScale(
                       enabled: !widget.submitting,
                       child: FilledButton(
                         onPressed: widget.submitting ? null : submit,
@@ -532,6 +532,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         if (emergencyType == 'Other') ...[
           const SizedBox(height: 8),
           FocusGlow(
+            glowColor: p.teal,
             borderRadius: 8,
             child: TextField(
               key: const Key('custom-emergency-type-field'),
@@ -590,6 +591,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
         const FieldLabel('Description (optional)'),
         const SizedBox(height: 6),
         FocusGlow(
+          glowColor: p.teal,
           borderRadius: 8,
           child: TextField(
             key: const Key('request-description-field'),

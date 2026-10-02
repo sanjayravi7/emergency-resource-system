@@ -5,6 +5,14 @@ plugins {
     id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
 }
 
+// Firebase (Google sign-in + FCM) needs google-services.json, which is NOT
+// committed: it carries project identifiers and is installed per deployment.
+// Applying the plugin only when the file is present keeps plain builds (and CI)
+// working while making the release APK pick the real configuration up.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 secrets {
     defaultPropertiesFileName = "local.defaults.properties"
     propertiesFileName = "secrets.properties"

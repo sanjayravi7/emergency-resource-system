@@ -31,6 +31,10 @@ plugins {
     id("com.android.application") version "9.1.0" apply false
     id("org.jetbrains.kotlin.android") version "2.4.0" apply false
     id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin") version "2.0.1" apply false
+    // Reads android/app/google-services.json for Firebase (Google sign-in +
+    // FCM). Applied only when that file exists (see android/app/build.gradle.kts),
+    // so a checkout without Firebase configuration still builds.
+    id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
 include(":app")

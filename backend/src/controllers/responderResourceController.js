@@ -9,11 +9,19 @@ exports.getMyResources = async (req, res, next) => {
   }
 };
 
+// Inventory input errors are client errors (400). Infrastructure failures keep
+// the existing error-middleware path (never a 400 with a Prisma message).
+const isInventoryInputError = (message) =>
+  /must be|invalid status|quantity|boolean|resourceId|isEnabled/i.test(message || '');
+
 exports.addResource = async (req, res, next) => {
   try {
     const resource = await responderResourceService.addResource(req.user, req.body);
     res.status(201).json({ success: true, resource });
   } catch (error) {
+    if (isInventoryInputError(error.message)) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
@@ -29,6 +37,9 @@ exports.updateResource = async (req, res, next) => {
     );
     res.json({ success: true, resource });
   } catch (error) {
+    if (isInventoryInputError(error.message)) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
@@ -44,7 +55,7 @@ exports.deleteResource = async (req, res, next) => {
 
 exports.getAllResources = async (req, res, next) => {
   try {
-    const resources = await responderResourceService.getAllResources();
+    const resources = await responderResourceService.getAllResources(req.user.role);
     res.json({ success: true, resources });
   } catch (error) {
     next(error);

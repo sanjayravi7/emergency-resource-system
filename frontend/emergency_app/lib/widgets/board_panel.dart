@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
+import '../services/api_service.dart';
 import '../services/socket_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
@@ -1020,7 +1021,10 @@ class _RespondersCell extends StatelessWidget {
                     : 'HISTORICAL LEAD · ENDED',
             style: TextStyle(fontSize: 10.5, color: p.textFaint),
           ),
-          if ((lead.phone ?? '').isNotEmpty)
+          // RESPONDER CONTACT PRIVACY: the backend already omits responder
+          // email/phone for non-admin viewers; this gate keeps a direct widget
+          // test or a future payload change from rendering them either.
+          if (ApiService.isAdmin && (lead.phone ?? '').isNotEmpty)
             Text(
               lead.phone!,
               style: TextStyle(fontSize: 10.5, color: p.textFaint),
@@ -1054,7 +1058,8 @@ class _RespondersCell extends StatelessWidget {
               'STATUS · ${assignment.responder!.responderStatus}',
               style: TextStyle(fontSize: 10.5, color: p.textFaint),
             ),
-          if ((assignment.responder?.phone ?? '').isNotEmpty)
+          if (ApiService.isAdmin &&
+              (assignment.responder?.phone ?? '').isNotEmpty)
             Text(
               assignment.responder!.phone!,
               style: TextStyle(fontSize: 10.5, color: p.textFaint),

@@ -620,13 +620,23 @@ class RequiredResourceLine {
     final resource = _asMap(json['resource']);
     final resourceId = _asInt(json['resourceId']);
 
+    // The server ships the joined resource row (`resource: {name, type,
+    // unit}`). Older or hand-built payloads carry the same values flat
+    // (`resourceName` / `resourceType`), so both are accepted instead of
+    // silently degrading the label to "Resource #id".
     return RequiredResourceLine(
       resourceId: resourceId,
       quantity: _asInt(json['quantity'], fallback: 1),
-      resourceName:
-          _asTrimmedString(resource['name']) ?? 'Resource #$resourceId',
-      resourceType: _asTrimmedString(resource['type']) ?? '',
-      unit: _asTrimmedString(resource['unit']),
+      resourceName: _asTrimmedString(resource['name']) ??
+          _asTrimmedString(json['resourceName']) ??
+          _asTrimmedString(json['name']) ??
+          'Resource #$resourceId',
+      resourceType: _asTrimmedString(resource['type']) ??
+          _asTrimmedString(json['resourceType']) ??
+          _asTrimmedString(json['type']) ??
+          '',
+      unit:
+          _asTrimmedString(resource['unit']) ?? _asTrimmedString(json['unit']),
     );
   }
 }

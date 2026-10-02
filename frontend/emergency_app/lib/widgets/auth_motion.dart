@@ -51,6 +51,27 @@ abstract final class AuthMotion {
   static Duration scaled(BuildContext context, Duration duration) =>
       reducedMotionOf(context) ? Duration.zero : duration;
 
+  /// Convenience form of [reducedMotionOf] for widgets that only need the
+  /// boolean.
+  static bool reducedMotion(BuildContext context) => reducedMotionOf(context);
+
+  // ---------------------------------------------------------------------------
+  // Shared motion tokens.
+  //
+  // The console uses two speeds and one easing curve for nearly every
+  // transition. They live here so the theme/motion system stays the single
+  // source of truth and no widget invents its own timing.
+  // ---------------------------------------------------------------------------
+
+  /// Small state changes: chips, badges, inline value swaps.
+  static const Duration fast = Duration(milliseconds: 160);
+
+  /// Panel and container transitions.
+  static const Duration normal = Duration(milliseconds: 240);
+
+  /// Standard easing for content that enters or moves.
+  static const Curve outCurve = Curves.easeOutCubic;
+
   /// Creates a repeating controller for ambient motion, or null when
   /// ambient motion must not run (tests or reduced motion).
   static AnimationController? maybeAmbientController({
@@ -357,10 +378,16 @@ class AnimatedSwap extends StatelessWidget {
   const AnimatedSwap({
     super.key,
     this.duration = const Duration(milliseconds: 180),
+    this.offset = Offset.zero,
     required this.child,
   });
 
   final Duration duration;
+
+  /// Logical-pixel distance the incoming child travels while it fades in.
+  /// [Offset.zero] keeps the original fade + scale behaviour.
+  final Offset offset;
+
   final Widget child;
 
   @override
@@ -369,13 +396,35 @@ class AnimatedSwap extends StatelessWidget {
       duration: AuthMotion.scaled(context, duration),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: .85, end: 1).animate(animation),
-          child: child,
-        ),
-      ),
+      transitionBuilder: (child, animation) {
+        Widget transition = FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: .85, end: 1).animate(animation),
+            child: child,
+          ),
+        );
+
+        if (offset == Offset.zero) return transition;
+
+        // Slide by an absolute pixel distance: translate by the remaining
+        // fraction of [offset] as the animation runs from 0 to 1.
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0, .7, curve: Curves.easeOutCubic),
+        );
+        return AnimatedBuilder(
+          animation: curved,
+          child: transition,
+          builder: (context, inner) => Transform.translate(
+            offset: Offset(
+              offset.dx * (1 - curved.value),
+              offset.dy * (1 - curved.value),
+            ),
+            child: inner,
+          ),
+        );
+      },
       child: child,
     );
   }
