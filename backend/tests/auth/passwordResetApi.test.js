@@ -39,9 +39,28 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
   const newPassword = 'BrandNewPassword2';
 
   let user;
-  let userToken;
 
   const codeFor = (kind) => sentEmails.filter((mail) => mail.kind === kind).pop()?.code;
+
+  /**
+   * Request a reset code the way a user does, after clearing this account's
+   * previous code rows.
+   *
+   * The resend cooldown and the rolling request budget are deliberately per
+   * account and are NOT disabled for tests; clearing the rows simply models an
+   * account that has not asked recently, which keeps each test deterministic
+   * instead of dependent on the order in which its neighbours ran. The
+   * cooldown itself is asserted separately (see the allowance tests in
+   * tests/auth/authCodeService.test.js).
+   */
+  async function requestFreshCode() {
+    await prisma.authCode.deleteMany({ where: { userId: user.id } });
+    const response = await request(app)
+      .post('/api/auth/password/forgot')
+      .send({ email });
+    expect(response.statusCode).toBe(200);
+    return codeFor('reset');
+  }
 
   beforeAll(async () => {
     user = await prisma.user.create({
@@ -54,7 +73,6 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
         emailVerified: true,
       },
     });
-    userToken = jwt.sign({ userId: user.id, role: user.role }, env.JWT_SECRET, { expiresIn: '1h' });
   });
 
   afterAll(async () => {
@@ -99,10 +117,11 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
 
     const code = codeFor('reset');
     expect(code).toMatch(/^\d{6}$/);
+    expect(code).toHaveLength(6);
   });
 
   test('the code is stored hashed, never in plaintext', async () => {
-    const code = codeFor('reset');
+    const code = await requestFreshCode();
     const row = await prisma.authCode.findFirst({
       where: { userId: user.id, purpose: 'PASSWORD_RESET' },
       orderBy: { id: 'desc' },
@@ -113,7 +132,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
   });
 
   test('a wrong code is rejected', async () => {
-    const code = codeFor('reset');
+    const code = await requestFreshCode();
     const wrong = code === '000000' ? '111111' : '000000';
     const response = await request(app)
       .post('/api/auth/password/verify-code')
@@ -122,7 +141,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
   });
 
   test('the correct code verifies, and the reset sets the new password', async () => {
-    const code = codeFor('reset');
+    const code = await requestFreshCode();
 
     const verified = await request(app)
       .post('/api/auth/password/verify-code')
@@ -146,17 +165,39 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
   });
 
   test('a reused code is refused', async () => {
-    const code = codeFor('reset');
-    const response = await request(app)
+    const code = await requestFreshCode();
+
+    const first = await request(app)
       .post('/api/auth/password/reset')
       .send({ email, code, password: newPassword, confirmPassword: newPassword });
-    expect(response.statusCode).toBe(400);
+    expect(first.statusCode).toBe(200);
+
+    const replay = await request(app)
+      .post('/api/auth/password/reset')
+      .send({ email, code, password: newPassword, confirmPassword: newPassword });
+    expect(replay.statusCode).toBe(400);
   });
 
   test('sessions issued before the reset are no longer accepted', async () => {
+    const staleToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    // `iat` has one-second granularity, so a token minted in the same second as
+    // the password change is legitimately still valid. Wait one tick to model a
+    // session that was genuinely established before the reset.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    const code = await requestFreshCode();
+    const reset = await request(app)
+      .post('/api/auth/password/reset')
+      .send({ email, code, password: newPassword, confirmPassword: newPassword });
+    expect(reset.statusCode).toBe(200);
+
     const response = await request(app)
       .get('/api/auth/me')
-      .set('Authorization', `Bearer ${userToken}`);
+      .set('Authorization', `Bearer ${staleToken}`);
     expect(response.statusCode).toBe(401);
   });
 
@@ -174,9 +215,7 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
   });
 
   test('the attempt limit blocks brute forcing of a 6-digit code', async () => {
-    // Fresh code for the current moment.
-    await request(app).post('/api/auth/password/forgot').send({ email });
-    const code = codeFor('reset');
+    const code = await requestFreshCode();
     const wrong = code === '000000' ? '111111' : '000000';
 
     for (let attempt = 0; attempt < env.AUTH_CODE_MAX_ATTEMPTS; attempt += 1) {

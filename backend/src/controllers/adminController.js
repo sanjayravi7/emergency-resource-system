@@ -252,10 +252,16 @@ exports.deleteLogEntry = async (req, res, next) => {
 
     res.json({ success: true, logId: requestId, archivedAt: archived.archivedAt });
   } catch (error) {
-    if (/not found/i.test(error.message || '')) {
+    // The service states the rule AND the status code, so a business rejection
+    // can never be reported as an unexpected 500. The message checks remain as
+    // a defensive fallback for older call paths.
+    if (error.statusCode === 404 || /not found/i.test(error.message || '')) {
       return res.status(404).json({ success: false, message: error.message });
     }
-    if (/active|already/i.test(error.message || '')) {
+    if (
+      error.statusCode === 400 ||
+      /active|already|closed|completed or cancelled/i.test(error.message || '')
+    ) {
       return res.status(400).json({ success: false, message: error.message });
     }
     next(error);

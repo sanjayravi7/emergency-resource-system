@@ -562,10 +562,21 @@ exports.projectRequestForViewer = forViewer;
  * The security audit trail is written by the caller (adminController) as an
  * ADMIN_DELETED_LOG event; this function only performs the archival.
  */
+/**
+ * Build an error the controller can translate into a specific HTTP status.
+ * Matching on message text alone is brittle (and produced a 500 for the
+ * "only closed requests" rule), so the rule travels with the error.
+ */
+function archiveError(message, statusCode) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
 exports.archiveRequestForAdmin = async (requestId, adminUserId) => {
   const numericRequestId = Number(requestId);
   if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
-    throw new Error('Log entry not found');
+    throw archiveError('Log entry not found', 404);
   }
 
   return runSerializableTransaction(async (tx) => {
@@ -576,10 +587,15 @@ exports.archiveRequestForAdmin = async (requestId, adminUserId) => {
       FOR UPDATE
     `;
     const request = locked[0];
-    if (!request) throw new Error('Log entry not found');
-    if (request.archivedAt) throw new Error('Log entry has already been deleted');
+    if (!request) throw archiveError('Log entry not found', 404);
+    if (request.archivedAt) {
+      throw archiveError('Log entry has already been deleted', 400);
+    }
     if (!['COMPLETED', 'CANCELLED'].includes(request.status)) {
-      throw new Error('Only closed requests can be deleted from the log');
+      throw archiveError(
+        'Only completed or cancelled requests can be deleted from the log',
+        400
+      );
     }
 
     return tx.emergencyRequest.update({
