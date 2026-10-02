@@ -24,6 +24,7 @@ import 'package:dispatch_console_flutter/screens/responder_readiness_page.dart';
 import 'package:dispatch_console_flutter/services/api_service.dart';
 import 'package:dispatch_console_flutter/services/google_auth_service.dart';
 import 'package:dispatch_console_flutter/services/socket_service.dart';
+import 'package:dispatch_console_flutter/widgets/auth_visuals.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -212,7 +213,34 @@ void main() {
         await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
         await tester.pump();
         await _tapGoogle(tester);
+        final loginPageState = tester.state(find.byType(LoginScreen));
 
+        expect(ApiService.token, isNull);
+        expect(find.byType(LoginScreen), findsOneWidget);
+        expect(find.byType(DispatchConsolePage), findsNothing);
+        expect(
+          find.textContaining(
+              'Google sign-in is not configured on this server'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey<String>('login-error-region')),
+          findsOneWidget,
+        );
+        expect(
+          tester.widget<AuthGoogleButton>(find.byType(AuthGoogleButton))
+              .onPressed,
+          isNotNull,
+        );
+
+        // A backend 503 is honest and non-terminal: the user remains on the
+        // login page, can read the message, and can retry the Google action.
+        await _tapGoogle(tester);
+        expect(
+          recorder.requests.where((request) =>
+              request.url.path == '/api/auth/google'),
+          hasLength(2),
+        );
         expect(ApiService.token, isNull);
         expect(find.byType(LoginScreen), findsOneWidget);
         expect(
@@ -221,6 +249,23 @@ void main() {
           findsOneWidget,
         );
 
+        // The persistent error region survives the viewport/keyboard change;
+        // no route replacement or page-state reset is triggered by insets.
+        tester.view.viewInsets = FakeViewPadding(bottom: 250);
+        await tester.pump();
+        await tester.pumpAndSettle();
+        expect(identical(tester.state(find.byType(LoginScreen)),
+            loginPageState), isTrue);
+        expect(
+          find.textContaining(
+              'Google sign-in is not configured on this server'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+
+        tester.view.viewInsets = FakeViewPadding();
+        await tester.pump();
+        await tester.pumpAndSettle();
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       },
       () => _googleBackend(recorder, role: 'REQUESTER', status: 503),

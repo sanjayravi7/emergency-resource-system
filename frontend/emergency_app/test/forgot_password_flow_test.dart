@@ -236,6 +236,68 @@ void main() {
     );
   });
 
+  testWidgets('reset code focus and value survive a mobile keyboard inset',
+      (tester) async {
+    final recorder = _Recorder();
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewPadding = FakeViewPadding(top: 24, bottom: 24);
+    tester.view.viewInsets = FakeViewPadding();
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(() {
+      tester.view.viewPadding = FakeViewPadding();
+      tester.view.viewInsets = FakeViewPadding();
+    });
+
+    await http.runWithClient(
+      () async {
+        await tester
+            .pumpWidget(const MaterialApp(home: ForgotPasswordScreen()));
+        await tester.pumpAndSettle();
+        final pageState = tester.state(find.byType(ForgotPasswordScreen));
+
+        await tester.enterText(
+          find.byKey(const ValueKey('reset-email')),
+          'asha@example.com',
+        );
+        await tester.tap(find.text('Email me a code'));
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        final codeFinder = find.byKey(const ValueKey('reset-code'));
+        final before = tester.widget<TextFormField>(codeFinder);
+        final controller = before.controller!;
+        final focusNode = before.focusNode!;
+        await tester.tap(codeFinder);
+        await tester.pump();
+        await tester.enterText(codeFinder, '135790');
+
+        tester.view.viewInsets = FakeViewPadding(bottom: 320);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(identical(tester.state(find.byType(ForgotPasswordScreen)),
+            pageState), isTrue);
+        expect(identical(tester.widget<TextFormField>(codeFinder).controller,
+            controller), isTrue);
+        expect(identical(tester.widget<TextFormField>(codeFinder).focusNode,
+            focusNode), isTrue);
+        expect(controller.text, '135790');
+        expect(focusNode.hasFocus, isTrue);
+        expect(tester.takeException(), isNull);
+
+        tester.view.viewInsets = FakeViewPadding();
+        await tester.pump();
+        await tester.pumpAndSettle();
+        expect(controller.text, '135790');
+        expect(focusNode.hasFocus, isTrue);
+        expect(tester.takeException(), isNull);
+      },
+      () => _resetBackend(recorder),
+    );
+  });
+
   testWidgets('the code step only accepts six digits', (tester) async {
     final recorder = _Recorder();
 

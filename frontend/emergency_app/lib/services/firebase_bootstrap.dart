@@ -79,12 +79,20 @@ class ErasFirebaseConfig {
     );
   }
 
-  /// Initializes (or reuses) the default Firebase app.
+  /// The shared Future also closes the small race where Google sign-in and
+  /// push registration could both observe no Firebase app before either
+  /// finishes `Firebase.initializeApp()`.
+  static Future<bool>? _initialization;
+
+  /// Initializes (or reuses) the default Firebase app once per app lifecycle.
   ///
   /// Returns false instead of throwing: an unconfigured build must degrade to
   /// "Google sign-in is unavailable" while email/password login, Socket.IO and
   /// every emergency workflow keep working unchanged.
-  static Future<bool> ensureInitialized() async {
+  static Future<bool> ensureInitialized() =>
+      _initialization ??= _initializeOnce();
+
+  static Future<bool> _initializeOnce() async {
     try {
       if (Firebase.apps.isNotEmpty) return true;
       final explicit = options;

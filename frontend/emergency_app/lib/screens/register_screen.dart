@@ -51,6 +51,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email = TextEditingController(),
       phone = TextEditingController();
   final password = TextEditingController(), confirm = TextEditingController();
+  final FocusNode nameFocusNode = FocusNode(debugLabel: 'register-name');
+  final FocusNode emailFocusNode = FocusNode(debugLabel: 'register-email');
+  final FocusNode phoneFocusNode = FocusNode(debugLabel: 'register-phone');
+  final FocusNode passwordFocusNode =
+      FocusNode(debugLabel: 'register-password');
+  final FocusNode confirmFocusNode = FocusNode(debugLabel: 'register-confirm');
   final form = GlobalKey<FormState>();
   bool loading = false, hidePassword = true, hideConfirm = true;
   String? error;
@@ -144,6 +150,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     for (final c in [name, email, phone, password, confirm]) {
       c.dispose();
     }
+    for (final node in [
+      nameFocusNode,
+      emailFocusNode,
+      phoneFocusNode,
+      passwordFocusNode,
+      confirmFocusNode,
+    ]) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -152,12 +167,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final skin = AuthSkin.of(context);
     return AuthShell(
         child: AuthPanel(
+      key: const ValueKey('auth-register-card'),
       hoverLift: true,
       child: Form(
           key: form,
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             AuthTabs(
+                key: const ValueKey('register-auth-tabs'),
                 registerSelected: true,
                 onLoginTap: () => Navigator.pushReplacement(context,
                     MaterialPageRoute(builder: (_) => const LoginScreen())),
@@ -210,40 +227,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style: TextStyle(fontSize: 12, color: skin.red))),
             const SizedBox(height: 16),
             FocusGlow(
+                key: const ValueKey('register-name-glow'),
                 glowColor: skin.blue,
                 child: TextFormField(
+                    key: const ValueKey('register-name'),
                     controller: name,
+                    focusNode: nameFocusNode,
                     textInputAction: TextInputAction.next,
+                    onEditingComplete: () => emailFocusNode.requestFocus(),
                     decoration: authFieldDecoration(context,
                         label: 'Full name', icon: Icons.person_outline),
                     validator: (v) => requiredField(v, 'Name'))),
             const SizedBox(height: 12),
             FocusGlow(
+                key: const ValueKey('register-email-glow'),
                 glowColor: skin.blue,
                 child: TextFormField(
+                    key: const ValueKey('register-email'),
                     controller: email,
+                    focusNode: emailFocusNode,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
+                    onEditingComplete: () => phoneFocusNode.requestFocus(),
                     decoration: authFieldDecoration(context,
                         label: 'Email', icon: Icons.mail_outline),
                     validator: validEmail)),
             const SizedBox(height: 12),
             FocusGlow(
+                key: const ValueKey('register-phone-glow'),
                 glowColor: skin.blue,
                 child: TextFormField(
+                    key: const ValueKey('register-phone'),
                     controller: phone,
+                    focusNode: phoneFocusNode,
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.next,
+                    onEditingComplete: () => passwordFocusNode.requestFocus(),
                     decoration: authFieldDecoration(context,
                         label: 'Phone number (optional)',
                         icon: Icons.phone_outlined))),
             const SizedBox(height: 12),
             FocusGlow(
+                key: const ValueKey('register-password-glow'),
                 glowColor: skin.blue,
                 child: TextFormField(
+                    key: const ValueKey('register-password'),
                     controller: password,
+                    focusNode: passwordFocusNode,
                     obscureText: hidePassword,
                     textInputAction: TextInputAction.next,
+                    onEditingComplete: () => confirmFocusNode.requestFocus(),
                     decoration: authFieldDecoration(context,
                         label: 'Password',
                         icon: Icons.lock_outline,
@@ -263,10 +296,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         (v!.length < 6 ? 'Use at least 6 characters' : null))),
             const SizedBox(height: 12),
             FocusGlow(
+                key: const ValueKey('register-confirm-glow'),
                 glowColor: skin.blue,
                 child: TextFormField(
+                    key: const ValueKey('register-confirm'),
                     controller: confirm,
+                    focusNode: confirmFocusNode,
                     obscureText: hideConfirm,
+                    textInputAction: TextInputAction.done,
                     decoration: authFieldDecoration(context,
                         label: 'Confirm password',
                         icon: Icons.lock_reset_outlined,
@@ -280,12 +317,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ? Icons.visibility_outlined
                                         : Icons.visibility_off_outlined,
                                     key: ValueKey(hideConfirm))))),
+                    onFieldSubmitted: (_) {
+                      if (!loading) submit();
+                    },
                     validator: (v) =>
                         v != password.text ? 'Passwords do not match' : null)),
-            if (error != null)
-              Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(error!, style: TextStyle(color: skin.red))),
+            AuthInlineMessage(
+                key: const ValueKey<String>('register-error-region'),
+                message: error,
+                color: skin.red),
             const SizedBox(height: 18),
             AuthPrimaryButton(
                 label: 'Create account',

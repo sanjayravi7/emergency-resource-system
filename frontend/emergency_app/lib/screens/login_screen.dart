@@ -22,6 +22,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController(),
       passwordController = TextEditingController();
+  final FocusNode emailFocusNode = FocusNode(debugLabel: 'login-email');
+  final FocusNode passwordFocusNode = FocusNode(debugLabel: 'login-password');
   bool loading = false,
       success = false,
       obscurePassword = true,
@@ -141,6 +143,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    emailFocusNode.dispose();
+    passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -155,6 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   AuthTabs(
+                      key: const ValueKey('login-auth-tabs'),
                       registerSelected: false,
                       onLoginTap: () {},
                       onRegisterTap: () => Navigator.push(
@@ -189,8 +194,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: TextField(
                           key: const ValueKey('login-email'),
                           controller: emailController,
+                          focusNode: emailFocusNode,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
+                          onEditingComplete: () =>
+                              passwordFocusNode.requestFocus(),
                           decoration: authFieldDecoration(context,
                               label: 'Email',
                               icon: Icons.mail_outline_rounded))),
@@ -201,7 +209,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: TextField(
                           key: const ValueKey('login-password'),
                           controller: passwordController,
+                          focusNode: passwordFocusNode,
                           obscureText: obscurePassword,
+                          textInputAction: TextInputAction.done,
                           decoration: authFieldDecoration(context,
                               label: 'Password',
                               icon: Icons.lock_outline_rounded,
@@ -254,27 +264,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                         fontWeight: FontWeight.w700,
                                         color: skin.blue)))),
                       ]),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                        padding: const EdgeInsets.all(11),
-                        decoration: BoxDecoration(
-                            color: skin.red.withValues(alpha: .1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: skin.red.withValues(alpha: .2))),
-                        child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(Icons.error_outline,
-                                  size: 18, color: skin.red),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  child: Text(errorMessage!,
-                                      style: TextStyle(
-                                          fontSize: 12.5, color: skin.red)))
-                            ]))
-                  ],
+                  AuthInlineMessage(
+                    key: const ValueKey<String>('login-error-region'),
+                    message: errorMessage,
+                    color: skin.red,
+                  ),
                   const SizedBox(height: 16),
                   AuthPrimaryButton(
                       label: 'Sign in',
