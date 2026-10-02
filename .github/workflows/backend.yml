@@ -63,16 +63,4 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
       - name: Run tests
-        run: |
-          set -o pipefail
-          npm test -- --runInBand 2>&1 | tee /tmp/jest.log && status=0 || status=$?
-          set +e
-          block=$(grep -a -A 18 '^  ● ' /tmp/jest.log | sed -n '1,400p')
-          if [ -n "$block" ]; then
-            escaped=$(printf '%s' "$block" | sed -e 's/%/%25/g' | tr '\n' '\001' | sed -e 's/\001/%0A/g')
-            echo "::error title=jest-details::$escaped"
-          fi
-          grep -a -E '^(FAIL|Tests:|Test Suites:)' /tmp/jest.log | while IFS= read -r line; do
-            echo "::error title=jest-summary::$line"
-          done
-          exit "$status"
+        run: npm test -- --runInBand
