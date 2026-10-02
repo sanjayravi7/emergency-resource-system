@@ -45,7 +45,13 @@ const {
 const NOT_ARCHIVED = { archivedAt: null };
 
 function activeRequestWhere(where = {}, now = new Date()) {
-  return withActiveExpiryFilter({ ...where, ...NOT_ARCHIVED }, now);
+  // `expiredAt` marks a request the backend already expired. The row stays in
+  // PostgreSQL as after-action history, but it must never reappear in an
+  // ACTIVE list just because the sweep has already moved it to CANCELLED.
+  return withActiveExpiryFilter(
+    { ...where, expiredAt: null, ...NOT_ARCHIVED },
+    now
+  );
 }
 
 /**

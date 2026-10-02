@@ -70,11 +70,16 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
     return row;
   }
 
+  let admin;
+
   beforeAll(async () => {
     requester = await createUser('REQUESTER', 'requester');
     responder = await createUser('RESPONDER', 'responder', { responderStatus: 'AVAILABLE' });
+    // A token cannot assert a role the account does not hold: the ADMIN view
+    // needs a real ADMIN row in PostgreSQL.
+    admin = await createUser('ADMIN', 'admin');
     requesterToken = tokenFor(requester);
-    adminToken = tokenFor(requester, 'ADMIN');
+    adminToken = tokenFor(admin);
   });
 
   afterAll(async () => {
