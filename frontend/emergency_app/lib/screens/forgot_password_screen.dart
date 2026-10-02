@@ -33,6 +33,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final TextEditingController code = TextEditingController();
   final TextEditingController password = TextEditingController();
   final TextEditingController confirm = TextEditingController();
+  final FocusNode emailFocusNode = FocusNode(debugLabel: 'reset-email');
+  final FocusNode codeFocusNode = FocusNode(debugLabel: 'reset-code');
+  final FocusNode passwordFocusNode = FocusNode(debugLabel: 'reset-password');
+  final FocusNode confirmFocusNode = FocusNode(debugLabel: 'reset-confirm');
 
   _ResetStep step = _ResetStep.requestCode;
   bool loading = false;
@@ -46,6 +50,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     code.dispose();
     password.dispose();
     confirm.dispose();
+    emailFocusNode.dispose();
+    codeFocusNode.dispose();
+    passwordFocusNode.dispose();
+    confirmFocusNode.dispose();
     super.dispose();
   }
 
@@ -198,8 +206,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             if (step == _ResetStep.requestCode) ..._emailStep(skin),
             if (step == _ResetStep.verifyCode) ..._codeStep(skin),
             if (step == _ResetStep.newPassword) ..._passwordStep(skin),
-            if (notice != null) ..._message(skin.teal, notice!),
-            if (error != null) ..._message(skin.red, error!),
+            AuthInlineMessage(
+              key: const ValueKey<String>('reset-notice-region'),
+              message: notice,
+              color: skin.teal,
+              icon: Icons.check_circle_outline_rounded,
+            ),
+            AuthInlineMessage(
+              key: const ValueKey<String>('reset-error-region'),
+              message: error,
+              color: skin.red,
+            ),
             const SizedBox(height: 14),
             const AuthDividerLabel(),
             const SizedBox(height: 10),
@@ -240,6 +257,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: TextFormField(
             key: const ValueKey('reset-email'),
             controller: email,
+            focusNode: emailFocusNode,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.done,
             decoration: authFieldDecoration(
@@ -265,7 +283,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: TextFormField(
             key: const ValueKey('reset-code'),
             controller: code,
+            focusNode: codeFocusNode,
             keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
             inputFormatters: <TextInputFormatter>[
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(6),
@@ -308,8 +328,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: TextFormField(
             key: const ValueKey('reset-password'),
             controller: password,
+            focusNode: passwordFocusNode,
             obscureText: obscurePassword,
             textInputAction: TextInputAction.next,
+            onEditingComplete: () => confirmFocusNode.requestFocus(),
             decoration: authFieldDecoration(
               context,
               label: 'New password',
@@ -334,6 +356,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: TextFormField(
             key: const ValueKey('reset-password-confirm'),
             controller: confirm,
+            focusNode: confirmFocusNode,
             obscureText: obscurePassword,
             textInputAction: TextInputAction.done,
             decoration: authFieldDecoration(
@@ -350,19 +373,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           onPressed: loading ? null : resetPassword,
           loading: loading,
           arrow: true,
-        ),
-      ];
-
-  List<Widget> _message(Color color, String text) => <Widget>[
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: .2)),
-          ),
-          child: Text(text, style: TextStyle(fontSize: 12.5, color: color)),
         ),
       ];
 }

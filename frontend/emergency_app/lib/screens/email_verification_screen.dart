@@ -34,6 +34,7 @@ class EmailVerificationScreen extends StatefulWidget {
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   final TextEditingController code = TextEditingController();
+  final FocusNode codeFocusNode = FocusNode(debugLabel: 'verification-code');
 
   bool verifying = false;
   bool refreshing = false;
@@ -44,6 +45,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   @override
   void dispose() {
     code.dispose();
+    codeFocusNode.dispose();
     super.dispose();
   }
 
@@ -179,11 +181,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             ),
             const SizedBox(height: 18),
             FocusGlow(
+              key: const ValueKey('verification-code-glow'),
               glowColor: skin.blue,
               child: TextFormField(
                 key: const ValueKey('verification-code'),
                 controller: code,
+                focusNode: codeFocusNode,
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
                 inputFormatters: <TextInputFormatter>[
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(6),
@@ -231,8 +236,17 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 style: TextStyle(fontSize: 12.5, color: skin.blue),
               ),
             ),
-            if (notice != null) ..._message(skin.teal, notice!),
-            if (error != null) ..._message(skin.red, error!),
+            AuthInlineMessage(
+              key: const ValueKey<String>('verification-notice-region'),
+              message: notice,
+              color: skin.teal,
+              icon: Icons.check_circle_outline_rounded,
+            ),
+            AuthInlineMessage(
+              key: const ValueKey<String>('verification-error-region'),
+              message: error,
+              color: skin.red,
+            ),
             const SizedBox(height: 6),
             const AuthDividerLabel(),
             const SizedBox(height: 12),
@@ -264,20 +278,4 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       ),
     );
   }
-
-  List<Widget> _message(Color color, String text) => <Widget>[
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: .2)),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 12.5, color: color),
-          ),
-        ),
-      ];
 }

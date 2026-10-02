@@ -376,6 +376,64 @@ class AuthPanel extends StatelessWidget {
   }
 }
 
+/// Inline auth status region that expands and collapses without abruptly
+/// shifting the rest of a form. It takes no space while empty, so a page with
+/// no message does not keep a large blank reservation.
+class AuthInlineMessage extends StatelessWidget {
+  const AuthInlineMessage({
+    super.key,
+    required this.message,
+    required this.color,
+    this.icon = Icons.error_outline_rounded,
+  });
+
+  final String? message;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => AnimatedSize(
+        duration: AuthMotion.scaled(
+          context,
+          const Duration(milliseconds: 200),
+        ),
+        curve: AuthMotion.outCurve,
+        alignment: Alignment.topCenter,
+        child: message == null || message!.isEmpty
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  key: const ValueKey<String>('auth-inline-message'),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: color.withValues(alpha: .2)),
+                  ),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(icon, size: 18, color: color),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            message!,
+                            softWrap: true,
+                            style: TextStyle(fontSize: 12.5, color: color),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+      );
+}
+
 /// Login | Register tab pair used at the top of the auth cards.
 ///
 /// The selected tab keeps the reference treatment: a subtle light-blue

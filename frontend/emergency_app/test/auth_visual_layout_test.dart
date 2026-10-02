@@ -87,15 +87,18 @@ void main() {
     expect(colorOf('Right Time.'), const Color(0xFF12B99D));
   });
 
-  testWidgets('mobile stacks brand, hero, login, features then status',
+  testWidgets('phone brings the login card directly below the brand',
       (tester) async {
     await _pumpLogin(tester, const Size(390, 844));
     expect(tester.takeException(), isNull);
 
+    // The large marketing hero is retained on tablet/desktop, but not placed
+    // above the sign-in form on a phone where it pushes the card too far down.
+    expect(find.text('Right Resource.'), findsNothing);
+
     double top(Finder finder) => tester.getRect(finder).top;
     final order = <Finder>[
       find.byKey(const ValueKey('eras-brand-shield')),
-      find.text('Right Resource.'),
       find.byKey(const ValueKey('auth-login-card')),
       find.byKey(const ValueKey('auth-why-eras')),
       find.byKey(const ValueKey('auth-trust-card')),
@@ -105,8 +108,8 @@ void main() {
       expect(top(order[i]), greaterThan(top(order[i - 1])));
     }
 
-    // The card never overflows the phone viewport horizontally.
     final login = tester.getRect(find.byKey(const ValueKey('auth-login-card')));
+    expect(login.top, lessThan(130));
     expect(login.left, greaterThanOrEqualTo(16));
     expect(login.right, lessThanOrEqualTo(390));
   });

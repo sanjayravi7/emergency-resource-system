@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -169,34 +170,52 @@ class AuthShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final viewportSize = MediaQuery.sizeOf(context);
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final safeSize = Size(
+      math.max(0.0, viewportSize.width - viewPadding.horizontal).toDouble(),
+      math.max(0.0, viewportSize.height - viewPadding.vertical).toDouble(),
+    );
+    final desktop = safeSize.width >= desktopBreakpoint;
+    final scale = desktop
+        ? (safeSize.width / referenceWidth).clamp(.68, 1.0).toDouble()
+        : (safeSize.width / desktopBreakpoint).clamp(.56, .8).toDouble();
+
     return Scaffold(
-        body: AnimatedContainer(
-            duration: const Duration(milliseconds: 350),
-            decoration: BoxDecoration(
-                gradient: dark
-                    ? const RadialGradient(
-                        center: Alignment(-.35, -.25),
-                        radius: 1.25,
-                        colors: [
-                            Color(0xFF102B42),
-                            Color(0xFF071321),
-                            Color(0xFF050E19)
-                          ])
-                    : const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                            Color(0xFFFFFFFF),
-                            Color(0xFFF4F8FC),
-                            Color(0xFFEDF4F9)
-                          ])),
-            child: SafeArea(child: LayoutBuilder(builder: (context, c) {
-              final size = c.biggest;
-              final desktop = size.width >= desktopBreakpoint;
-              final scale = desktop
-                  ? (size.width / referenceWidth).clamp(.68, 1.0).toDouble()
-                  : (size.width / desktopBreakpoint).clamp(.56, .8).toDouble();
-              return Stack(children: [
+      // The auth content owns its keyboard adjustment. Scaffold's default
+      // resize can change the responsive composition with the keyboard. Keep
+      // the viewport stable and animate only the inset inside the safe area.
+      resizeToAvoidBottomInset: false,
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        decoration: BoxDecoration(
+          gradient: dark
+              ? const RadialGradient(
+                  center: Alignment(-.35, -.25),
+                  radius: 1.25,
+                  colors: [
+                    Color(0xFF102B42),
+                    Color(0xFF071321),
+                    Color(0xFF050E19),
+                  ],
+                )
+              : const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFFFFFF),
+                    Color(0xFFF4F8FC),
+                    Color(0xFFEDF4F9),
+                  ],
+                ),
+        ),
+        child: SafeArea(
+          // Keep the navigation/gesture safe edge constant while the keyboard
+          // animates; the keyboard inset is handled by the region below.
+          maintainBottomViewPadding: true,
+          child: _AuthKeyboardInsetRegion(
+            child: Stack(
+              children: [
                 if (dark)
                   Positioned.fill(child: CustomPaint(painter: _GridPainter()))
                 else
@@ -204,10 +223,40 @@ class AuthShell extends StatelessWidget {
                 if (desktop)
                   _DesktopComposition(scale: scale, child: child)
                 else
-                  _NarrowComposition(scale: scale, child: child),
-              ]);
-            }))));
+                  _NarrowComposition(
+                    scale: scale,
+                    viewportSize: safeSize,
+                    child: child,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
+}
+
+/// Animates just the auth viewport's bottom inset instead of resizing the
+/// entire Scaffold when Android reports the soft keyboard. The child (and its
+/// stateful entrance animations, forms and scroll position) remains mounted.
+class _AuthKeyboardInsetRegion extends StatelessWidget {
+  const _AuthKeyboardInsetRegion({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedPadding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        duration: AuthMotion.scaled(
+          context,
+          const Duration(milliseconds: 220),
+        ),
+        curve: AuthMotion.outCurve,
+        child: child,
+      );
 }
 
 /// Desktop: the reference three-column composition.
@@ -228,6 +277,7 @@ class _DesktopComposition extends StatelessWidget {
           Row(
             children: [
               EntranceReveal(
+                key: const ValueKey('auth-desktop-brand-entrance'),
                 duration: const Duration(milliseconds: 600),
                 offset: const Offset(0, 10),
                 beginScale: .96,
@@ -247,6 +297,7 @@ class _DesktopComposition extends StatelessWidget {
                 SizedBox(
                   width: 400 * s,
                   child: EntranceReveal(
+                    key: const ValueKey('auth-desktop-card-entrance'),
                     delay: const Duration(milliseconds: 200),
                     duration: const Duration(milliseconds: 650),
                     offset: const Offset(0, 18),
@@ -499,19 +550,33 @@ class _SideColumn extends StatelessWidget {
       );
 }
 
-/// Tablet/mobile: the three columns stack vertically, preserving the visual
-/// hierarchy (brand, hero, login/register, feature cards, status cards)
-/// without ever overflowing horizontally.
+/// Narrow and tablet viewports: the desktop columns stack vertically. Phones
+/// keep the brand and auth card near the top; wider tablet layouts retain the
+/// hero and illustration before the form. All content scrolls naturally.
 class _NarrowComposition extends StatelessWidget {
-  const _NarrowComposition({required this.scale, required this.child});
+  const _NarrowComposition({
+    required this.scale,
+    required this.viewportSize,
+    required this.child,
+  });
 
   final double scale;
+  final Size viewportSize;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
+    final compactPhone = viewportSize.width < 600;
+    final showHero = !compactPhone && viewportSize.height >= 700;
+    final showHeroVisuals =
+        viewportSize.width >= 760 && viewportSize.height >= 720;
+    final horizontalPadding = compactPhone ? 16.0 : 24.0;
+    final verticalPadding = compactPhone ? 12.0 : 24.0;
+    final cardTopGap = compactPhone ? 16.0 : 26.0;
     final s = scale;
+    final scrollStorageKey =
+        child.key ?? const ValueKey<String>('auth-shell-narrow-scroll');
     final markScale = math.max(s, .62);
     final headingSize = 46 * markScale;
     final cardScale = math.max(s, .78);
@@ -522,144 +587,255 @@ class _NarrowComposition extends StatelessWidget {
       fontWeight: FontWeight.w900,
       color: skin.text,
     );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // The reference's mobile order is brand, hero, login/register,
-        // feature cards, status cards. The illustration and flow strip are
-        // only kept when the viewport is large enough for them to coexist
-        // with the card hierarchy (tablet and up); they are dropped on
-        // phones so the auth card stays near the top of the page.
-        final showHero = constraints.maxHeight >= 700;
-        final showHeroVisuals =
-            constraints.maxWidth >= 760 && constraints.maxHeight >= 720;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: math.min(700, constraints.maxWidth - 48),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+    final contentMaxWidth = math.min(
+      700.0,
+      math.max(0.0, viewportSize.width - horizontalPadding * 2),
+    ).toDouble();
+
+    return _AuthScrollRegion(
+      key: const ValueKey('auth-narrow-scroll-region'),
+      storageKey: scrollStorageKey,
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        verticalPadding,
+        horizontalPadding,
+        compactPhone ? 24 : 36,
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: contentMaxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      EntranceReveal(
-                        duration: const Duration(milliseconds: 600),
-                        offset: const Offset(0, 10),
-                        beginScale: .96,
-                        child: ErasMark(scale: markScale),
-                      ),
-                      const Spacer(),
-                      const ThemeSwitch(),
-                    ],
-                  ),
-                  if (showHero) ...[
-                    SizedBox(height: 26),
-                    EntranceReveal(
-                      delay: const Duration(milliseconds: 80),
-                      duration: const Duration(milliseconds: 550),
-                      offset: const Offset(0, 12),
-                      child: Text('Right Resource.', style: navy),
-                    ),
-                    EntranceReveal(
-                      delay: const Duration(milliseconds: 180),
-                      duration: const Duration(milliseconds: 550),
-                      offset: const Offset(0, 12),
-                      child: Text('Right Place.', style: navy),
-                    ),
-                    EntranceReveal(
-                      delay: const Duration(milliseconds: 280),
-                      duration: const Duration(milliseconds: 550),
-                      offset: const Offset(0, 12),
-                      child: Text(
-                        'Right Time.',
-                        style: TextStyle(
-                          fontSize: headingSize,
-                          height: 1.14,
-                          letterSpacing: -1.3,
-                          fontWeight: FontWeight.w900,
-                          color: skin.tealBright,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 14),
-                    EntranceReveal(
-                      delay: const Duration(milliseconds: 380),
-                      duration: const Duration(milliseconds: 550),
-                      offset: const Offset(0, 10),
-                      child: Text(
-                        'Smarter coordination. Faster response.\n'
-                        'Better outcomes for every emergency.',
-                        style: TextStyle(
-                          fontSize: 15,
-                          height: 1.5,
-                          color: skin.textDim,
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (showHeroVisuals) ...[
-                    SizedBox(height: 18),
-                    EntranceReveal(
-                      delay: const Duration(milliseconds: 260),
-                      duration: const Duration(milliseconds: 600),
-                      offset: Offset.zero,
-                      beginScale: .98,
-                      child: SizedBox(
-                        height: 210,
-                        child: AuthNetworkDiagram(
-                          key: const ValueKey('auth-network'),
-                          scale: s,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    EntranceReveal(
-                      delay: const Duration(milliseconds: 340),
-                      duration: const Duration(milliseconds: 550),
-                      offset: const Offset(0, 8),
-                      child: AuthFlowStrip(
-                        key: const ValueKey('auth-flow'),
-                        scale: math.max(s, .66),
-                      ),
-                    ),
-                  ],
-                  SizedBox(height: 26),
                   EntranceReveal(
-                    delay: const Duration(milliseconds: 120),
-                    duration: const Duration(milliseconds: 650),
-                    offset: const Offset(0, 18),
-                    beginScale: .985,
-                    child: child,
-                  ),
-                  SizedBox(height: 20),
-                  EntranceReveal(
-                    delay: const Duration(milliseconds: 220),
-                    duration: const Duration(milliseconds: 600),
-                    child: WhyErasCard(scale: cardScale),
-                  ),
-                  SizedBox(height: 16),
-                  EntranceReveal(
-                    delay: const Duration(milliseconds: 300),
+                    key: const ValueKey('auth-narrow-brand-entrance'),
                     duration: const Duration(milliseconds: 600),
                     offset: const Offset(0, 10),
-                    child: TrustCard(scale: cardScale),
+                    beginScale: .96,
+                    child: ErasMark(scale: markScale),
                   ),
-                  SizedBox(height: 16),
-                  AuthStatusCards(
-                    key: const ValueKey('auth-status-cards'),
-                    scale: cardScale,
-                    entranceDelay: const Duration(milliseconds: 360),
-                  ),
+                  const Spacer(),
+                  const ThemeSwitch(),
                 ],
               ),
-            ),
+              if (showHero) ...[
+                SizedBox(height: 26),
+                EntranceReveal(
+                  delay: const Duration(milliseconds: 80),
+                  duration: const Duration(milliseconds: 550),
+                  offset: const Offset(0, 12),
+                  child: Text('Right Resource.', style: navy),
+                ),
+                EntranceReveal(
+                  delay: const Duration(milliseconds: 180),
+                  duration: const Duration(milliseconds: 550),
+                  offset: const Offset(0, 12),
+                  child: Text('Right Place.', style: navy),
+                ),
+                EntranceReveal(
+                  delay: const Duration(milliseconds: 280),
+                  duration: const Duration(milliseconds: 550),
+                  offset: const Offset(0, 12),
+                  child: Text(
+                    'Right Time.',
+                    style: TextStyle(
+                      fontSize: headingSize,
+                      height: 1.14,
+                      letterSpacing: -1.3,
+                      fontWeight: FontWeight.w900,
+                      color: skin.tealBright,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 14),
+                EntranceReveal(
+                  delay: const Duration(milliseconds: 380),
+                  duration: const Duration(milliseconds: 550),
+                  offset: const Offset(0, 10),
+                  child: Text(
+                    'Smarter coordination. Faster response.\n'
+                    'Better outcomes for every emergency.',
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.5,
+                      color: skin.textDim,
+                    ),
+                  ),
+                ),
+              ],
+              if (showHeroVisuals) ...[
+                SizedBox(height: 18),
+                EntranceReveal(
+                  delay: const Duration(milliseconds: 260),
+                  duration: const Duration(milliseconds: 600),
+                  offset: Offset.zero,
+                  beginScale: .98,
+                  child: SizedBox(
+                    height: 210,
+                    child: AuthNetworkDiagram(
+                      key: const ValueKey('auth-network'),
+                      scale: s,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                EntranceReveal(
+                  delay: const Duration(milliseconds: 340),
+                  duration: const Duration(milliseconds: 550),
+                  offset: const Offset(0, 8),
+                  child: AuthFlowStrip(
+                    key: const ValueKey('auth-flow'),
+                    scale: math.max(s, .66),
+                  ),
+                ),
+              ],
+              SizedBox(height: cardTopGap),
+              EntranceReveal(
+                key: const ValueKey('auth-card-entrance'),
+                delay: const Duration(milliseconds: 120),
+                duration: const Duration(milliseconds: 650),
+                offset: const Offset(0, 18),
+                beginScale: .985,
+                child: child,
+              ),
+              SizedBox(height: 20),
+              EntranceReveal(
+                key: const ValueKey('auth-narrow-why-entrance'),
+                delay: const Duration(milliseconds: 220),
+                duration: const Duration(milliseconds: 600),
+                child: WhyErasCard(scale: cardScale),
+              ),
+              SizedBox(height: 16),
+              EntranceReveal(
+                key: const ValueKey('auth-narrow-trust-entrance'),
+                delay: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 600),
+                offset: const Offset(0, 10),
+                child: TrustCard(scale: cardScale),
+              ),
+              SizedBox(height: 16),
+              AuthStatusCards(
+                key: const ValueKey('auth-status-cards'),
+                scale: cardScale,
+                entranceDelay: const Duration(milliseconds: 360),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
+}
+
+/// Keeps only the scroll viewport subscribed to keyboard inset changes. The
+/// auth form, brand and entrance animations remain mounted and unchanged.
+class _AuthScrollRegion extends StatefulWidget {
+  const _AuthScrollRegion({
+    super.key,
+    required this.storageKey,
+    required this.padding,
+    required this.child,
+  });
+
+  final Key storageKey;
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+
+  @override
+  State<_AuthScrollRegion> createState() => _AuthScrollRegionState();
+}
+
+class _AuthScrollRegionState extends State<_AuthScrollRegion> {
+  late final ScrollController _scrollController = ScrollController();
+  double _lastKeyboardInset = 0;
+  double? _scrollOffsetBeforeKeyboard;
+  bool _userScrolledWhileKeyboardWasOpen = false;
+  bool _restorePending = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextInset = MediaQuery.viewInsetsOf(context).bottom;
+    if (_lastKeyboardInset == 0 && nextInset > 0) {
+      // Cancel any restoration still running from a just-dismissed keyboard,
+      // then save the normal page position before the focused field scrolls.
+      if (_restorePending && _scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.offset);
+      }
+      _restorePending = false;
+      _scrollOffsetBeforeKeyboard =
+          _scrollController.hasClients ? _scrollController.offset : 0;
+      _userScrolledWhileKeyboardWasOpen = false;
+    } else if (_lastKeyboardInset > 0 && nextInset == 0) {
+      final previousOffset = _scrollOffsetBeforeKeyboard;
+      _scrollOffsetBeforeKeyboard = null;
+      if (previousOffset != null && !_userScrolledWhileKeyboardWasOpen) {
+        _restorePending = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_restorePending) return;
+          unawaited(_restoreScrollOffset(previousOffset));
+        });
+      }
+    }
+    _lastKeyboardInset = nextInset;
+  }
+
+  Future<void> _restoreScrollOffset(double previousOffset) async {
+    if (!mounted ||
+        _lastKeyboardInset > 0 ||
+        _userScrolledWhileKeyboardWasOpen ||
+        !_restorePending ||
+        !_scrollController.hasClients) {
+      _restorePending = false;
+      return;
+    }
+
+    // Animate the scroll restoration alongside AnimatedPadding so the page
+    // returns to its previous position without a delayed jump after dismissal.
+    try {
+      await _scrollController.animateTo(
+        previousOffset,
+        duration: AuthMotion.scaled(
+          context,
+          const Duration(milliseconds: 220),
+        ),
+        curve: AuthMotion.outCurve,
+      );
+    } finally {
+      if (mounted) _restorePending = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if ((_lastKeyboardInset > 0 || _restorePending) &&
+              notification is ScrollStartNotification &&
+              notification.dragDetails != null) {
+            // If the user scrolls intentionally while the keyboard is open or
+            // as it closes, keep that new position instead of restoring the old.
+            _userScrolledWhileKeyboardWasOpen = true;
+            _restorePending = false;
+          }
+          return false;
+        },
+        child: SingleChildScrollView(
+          key: PageStorageKey<Key>(widget.storageKey),
+          controller: _scrollController,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: widget.padding,
+          child: widget.child,
+        ),
+      );
 }
 
 /// Barely perceptible light drift for the light theme: one soft teal/blue
