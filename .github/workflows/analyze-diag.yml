@@ -71,36 +71,35 @@ jobs:
       - name: Test (annotated)
         run: |
           set +e
-          flutter test --reporter expanded 2>&1 | tee /tmp/test.log >/dev/null
+          flutter test --reporter json > /tmp/test.json 2>/tmp/test.err
           python3 - <<'PY'
-          import re
+          import json
 
-          def publish(path, prefix, limit_lines=6000, chunk=2800, max_chunks=26):
+          names = {}
+          failures = []
+          for line in open('/tmp/test.json', encoding='utf-8', errors='replace'):
+              line = line.strip()
+              if not line.startswith('{'):
+                  continue
               try:
-                  text = open(path, encoding='utf-8', errors='replace').read()
-              except OSError:
-                  return
-              text = '\n'.join(text.splitlines()[:limit_lines])
-              if not text.strip():
-                  return
-              print(f'--- {prefix}: {len(text)} chars')
-              for i in range(0, len(text), chunk):
-                  part = text[i:i + chunk].replace('%', '%25').replace('\n', '%0A')
-                  print(f'::error title={prefix}-{i // chunk + 1}::{part}')
+                  event = json.loads(line)
+              except ValueError:
+                  continue
+              if event.get('type') == 'testStart':
+                  names[event['test']['id']] = event['test'].get('name')
+              elif event.get('type') == 'error':
+                  failures.append((names.get(event.get('testID'), '?'), event.get('error', '')))
 
-          lines = open('/tmp/test.log', encoding='utf-8', errors='replace').read().splitlines()
-          keep = []
-          for index, line in enumerate(lines):
-              if '[E]' in line or 'Failed to load' in line:
-                  # Keep the reporter line plus the compiler/test detail that
-                  # follows it, which is where the actionable information is.
-                  for extra in lines[index:index + 26]:
-                      if extra is not line and re.match(r'^\d\d:\d\d ', extra):
-                          break
-                      keep.append(extra)
-              elif re.search(r'^\s+(Expected|Actual|Which|The following)', line):
-                  keep.append(line)
-          open('/tmp/test.findings', 'w').write('\n'.join(keep))
-          publish('/tmp/test.findings', 'flutter-test')
+          blocks = []
+          for name, error in failures:
+              lines = [l.rstrip() for l in error.splitlines() if l.strip()][:7]
+              blocks.append('● ' + str(name) + '\n' + '\n'.join('   ' + l[:200] for l in lines))
+          text = '\n'.join(blocks)
+          if not text:
+              text = 'no failure events. stderr tail:\n' + open('/tmp/test.err', encoding='utf-8', errors='replace').read()[-1200:]
+          print(f'--- {len(failures)} failure events')
+          for i in range(0, len(text), 2800):
+              part = text[i:i + 2800].replace('%', '%25').replace('\n', '%0A')
+              print(f'::error title=test-{i // 2800 + 1}::{part}')
           PY
           exit 0
