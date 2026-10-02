@@ -68,7 +68,6 @@ jobs:
           npm test -- --runInBand 2>&1 | tee /tmp/jest.log && status=0 || status=$?
           set +e
           block=$(awk 'f || /^  ● /{f=1} f' /tmp/jest.log | sed -n '1,300p')
-        # The block above is everything from the first failing test onward
           if [ -n "$block" ]; then
             escaped=$(printf '%s' "$block" | sed -e 's/%/%25/g' | tr '\n' '\001' | sed -e 's/\001/%0A/g')
             echo "::error title=jest-details::$escaped"
