@@ -237,8 +237,7 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 200));
 
-        final state =
-            tester.state(find.byType(DispatchConsolePage)) as dynamic;
+        final state = tester.state(find.byType(DispatchConsolePage)) as dynamic;
 
         // Manual: a PENDING request the responder does not participate in gets
         // an explanation.
