@@ -1,0 +1,60 @@
+# TEMPORARY DIAGNOSTIC WORKFLOW - not part of the ERAS delivery.
+#
+# The Flutter job's log archive is unreachable from this environment, so this
+# workflow re-runs the same two commands as `.github/workflows/dart.yml`
+# (`flutter analyze` and `flutter test`) and republishes their output as check
+# annotations, which ARE reachable. It never fails the build, and it is deleted
+# once the analyzer/test output has been read.
+name: Analyze diagnostics (temporary)
+
+on:
+  push:
+    branches: ["arena/01a0f9c9-emergency-resource-system"]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze (annotated)
+        run: |
+          set +e
+          flutter analyze 2>&1 | tee /tmp/analyze.log >/dev/null
+          block=$(sed -n '1,200p' /tmp/analyze.log)
+          if [ -n "$block" ]; then
+            escaped=$(printf '%s' "$block" | sed -e 's/%/%25/g' | tr '\n' '\001' | sed -e 's/\001/%0A/g')
+            echo "::error title=analyze-details::$escaped"
+          fi
+          exit 0
+
+      - name: Test (annotated)
+        run: |
+          set +e
+          flutter test --reporter expanded 2>&1 | tee /tmp/test.log >/dev/null
+          summary=$(grep -a -E 'All tests passed|Some tests failed|^[0-9]+:[0-9]+ \+[0-9]+' /tmp/test.log | tail -6)
+          block=$(grep -a -E '\[E\]|Expected:|Actual:|Which:|EXCEPTION' /tmp/test.log | sed -n '1,160p')
+          combined=$(printf '%s\n%s' "$summary" "$block")
+          if [ -n "$combined" ]; then
+            escaped=$(printf '%s' "$combined" | sed -e 's/%/%25/g' | tr '\n' '\001' | sed -e 's/\001/%0A/g')
+            echo "::error title=flutter-test-details::$escaped"
+          fi
+          exit 0
