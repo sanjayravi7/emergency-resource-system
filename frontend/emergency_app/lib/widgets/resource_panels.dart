@@ -362,56 +362,23 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
                 p,
                 hint: 'AMBULANCE, OXYGEN, FIRE…',
               ),
-              // The dialog is 460px wide on desktop but the same dialog is
-              // rendered on a phone (AlertDialog clamps to the viewport). Two
-              // half-width fields per row collide there, so the pairs stack
-              // once the real available width drops below the breakpoint.
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final wide = constraints.maxWidth >= 420;
-                  final total = _field('Total quantity', totalController, p);
-                  final available =
-                      _field('Available quantity', availableController, p);
-                  final unit = _field(
-                    'Unit',
-                    unitController,
-                    p,
-                    hint: 'vehicle, unit, cylinder…',
-                  );
-                  final location = _field('Location', locationController, p);
-
-                  return Column(
-                    children: [
-                      if (wide)
-                        Row(
-                          children: [
-                            Expanded(child: total),
-                            const SizedBox(width: 10),
-                            Expanded(child: available),
-                          ],
-                        )
-                      else ...[
-                        total,
-                        const SizedBox(height: 8),
-                        available,
-                      ],
-                      const SizedBox(height: 8),
-                      if (wide)
-                        Row(
-                          children: [
-                            Expanded(child: unit),
-                            const SizedBox(width: 10),
-                            Expanded(child: location),
-                          ],
-                        )
-                      else ...[
-                        unit,
-                        const SizedBox(height: 8),
-                        location,
-                      ],
-                    ],
-                  );
-                },
+              // This content is 460px wide, but AlertDialog clamps to the
+              // viewport, and two half-width fields per row collide on a
+              // phone. The decision therefore comes from the VIEWPORT, not
+              // from a LayoutBuilder: AlertDialog measures its content with
+              // IntrinsicWidth, and LayoutBuilder cannot report intrinsic
+              // dimensions (it throws during performLayout).
+              ..._pairedFields(
+                wide: MediaQuery.sizeOf(context).width >= 500,
+                first: _field('Total quantity', totalController, p),
+                second: _field('Available quantity', availableController, p),
+                third: _field(
+                  'Unit',
+                  unitController,
+                  p,
+                  hint: 'vehicle, unit, cylinder…',
+                ),
+                fourth: _field('Location', locationController, p),
               ),
               _field('Low stock threshold', thresholdController, p),
               if (error != null) ...[
@@ -443,6 +410,46 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
         ),
       ],
     );
+  }
+
+  /// Two label/field pairs, side by side on wide viewports and stacked on
+  /// narrow ones. `IntrinsicWidth`-safe: it is pure composition, no layout
+  /// measurement.
+  List<Widget> _pairedFields({
+    required bool wide,
+    required Widget first,
+    required Widget second,
+    required Widget third,
+    required Widget fourth,
+  }) {
+    if (wide) {
+      return <Widget>[
+        Row(
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 10),
+            Expanded(child: second),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: third),
+            const SizedBox(width: 10),
+            Expanded(child: fourth),
+          ],
+        ),
+      ];
+    }
+    return <Widget>[
+      first,
+      const SizedBox(height: 8),
+      second,
+      const SizedBox(height: 8),
+      third,
+      const SizedBox(height: 8),
+      fourth,
+    ];
   }
 
   Widget _field(

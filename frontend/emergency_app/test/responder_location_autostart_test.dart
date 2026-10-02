@@ -221,38 +221,47 @@ void main() {
 
   testWidgets('the automatic path is silent, the manual one guides',
       (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: DispatchConsolePage(
-          checkLocationPermission: () async => grantedPermission,
-          requestLocationPermission: () async => grantedPermission,
-        ),
-      ),
+    // A quiet backend: the console's bootstrap loads all succeed, so the only
+    // snack bar in play is the one this test is about (SnackBars queue, and a
+    // startup failure toast would hide it).
+    await http.runWithClient(
+      () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: DispatchConsolePage(
+              checkLocationPermission: () async => grantedPermission,
+              requestLocationPermission: () async => grantedPermission,
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 200));
+
+        final state =
+            tester.state(find.byType(DispatchConsolePage)) as dynamic;
+
+        // Manual: a PENDING request the responder does not participate in gets
+        // an explanation.
+        await state.startLocationSharing(_request());
+        await tester.pump();
+        expect(
+          find.textContaining('Live location is available after'),
+          findsOneWidget,
+        );
+
+        // Automatic (right after ACCEPT): same ineligible request, no nagging -
+        // the acceptance already stands and must not be framed as an error.
+        await state.startLocationSharing(_request(), automatic: true);
+        await tester.pump();
+        expect(
+          find.textContaining('Live location is available after'),
+          findsOneWidget,
+        ); // still only the toast from the manual call above
+
+        await _disposePage(tester);
+      },
+      () => MockClient((request) async => _json({'success': true})),
     );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
-
-    final state = tester.state(find.byType(DispatchConsolePage)) as dynamic;
-
-    // Manual: a PENDING request the responder does not participate in gets an
-    // explanation.
-    await state.startLocationSharing(_request());
-    await tester.pump();
-    expect(
-      find.textContaining('Live location is available after'),
-      findsOneWidget,
-    );
-
-    // Automatic (right after ACCEPT): same ineligible request, no nagging -
-    // the acceptance already stands and must not be framed as an error.
-    await state.startLocationSharing(_request(), automatic: true);
-    await tester.pump();
-    expect(
-      find.textContaining('Live location is available after'),
-      findsOneWidget,
-    ); // still only the toast from the manual call above
-
-    await _disposePage(tester);
   });
 
   testWidgets('an ACCEPTED participation passes the eligibility gate',

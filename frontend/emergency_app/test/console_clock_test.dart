@@ -82,7 +82,10 @@ void main() {
         await tester.pumpWidget(
           _host(ErasClock(now: () => fixed), brightness: brightness),
         );
-        await tester.pump();
+        // AnimatedTheme lerps between palettes, so the first frame after the
+        // switch still reports the PREVIOUS palette. Let the transition play
+        // out before reading the colour.
+        await tester.pump(const Duration(milliseconds: 400));
 
         final text = tester.widget<Text>(find.text('21:07:06'));
         expect(
