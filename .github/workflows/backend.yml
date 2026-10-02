@@ -66,10 +66,12 @@ jobs:
         run: |
           set -o pipefail
           npm test -- --runInBand 2>&1 | tee /tmp/jest.log && status=0 || status=$?
-          grep -a -E '^(FAIL|Tests:|Test Suites:)' /tmp/jest.log | head -40 | while IFS= read -r line; do
-            echo "::error title=jest::$line"
-          done
-          grep -a '^  ● ' /tmp/jest.log | head -40 | while IFS= read -r line; do
-            echo "::error title=jest-case::$line"
+          block=$(awk 'f || /^  ● /{f=1} f' /tmp/jest.log | head -300)
+          if [ -n "$block" ]; then
+            escaped=$(printf '%s' "$block" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '\001' | sed -e 's/\001/%0A/g')
+            echo "::error title=jest-details::$escaped"
+          fi
+          grep -a -E '^(FAIL|Tests:|Test Suites:)' /tmp/jest.log | head -20 | while IFS= read -r line; do
+            echo "::error title=jest-summary::$line"
           done
           exit "$status"
