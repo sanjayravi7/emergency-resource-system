@@ -108,6 +108,9 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
   });
 
   test('a reset code is emailed as exactly 6 digits and never returned by the API', async () => {
+    // Same reasoning as requestFreshCode(): the previous test already used this
+    // account's request, and the per-account cooldown must stay in force.
+    await prisma.authCode.deleteMany({ where: { userId: user.id } });
     const response = await request(app)
       .post('/api/auth/password/forgot')
       .send({ email });
