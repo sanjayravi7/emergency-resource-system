@@ -4,7 +4,7 @@
 # workflow re-runs the same two commands as `.github/workflows/dart.yml`
 # (`flutter analyze` and `flutter test`) and republishes their output as check
 # annotations, which ARE reachable. It never fails the build, and it is deleted
-# once the analyzer/test output has been read.
+# once the output has been read.
 name: Analyze diagnostics (temporary)
 
 on:
@@ -39,22 +39,69 @@ jobs:
         run: |
           set +e
           flutter analyze 2>&1 | tee /tmp/analyze.log >/dev/null
-          block=$(sed -n '1,200p' /tmp/analyze.log)
-          if [ -n "$block" ]; then
-            escaped=$(printf '%s' "$block" | sed -e 's/%/%25/g' | tr '\n' '\001' | sed -e 's/\001/%0A/g')
-            echo "::error title=analyze-details::$escaped"
-          fi
+          python3 - <<'PY'
+          import os, re, subprocess
+
+          def publish(path, prefix, limit_lines=4000, chunk=2800, max_chunks=24):
+              try:
+                  text = open(path, encoding='utf-8', errors='replace').read()
+              except OSError:
+                  return
+              lines = text.splitlines()[:limit_lines]
+              text = '\n'.join(lines)
+              if not text.strip():
+                  return
+              print(f'--- {prefix}: {len(lines)} lines, {len(text)} chars')
+              for i in range(0, len(text), chunk):
+                  part = text[i:i + chunk].replace('%', '%25').replace('\n', '%0A')
+                  n = i // chunk + 1
+                  print(f'::error title={prefix}-{n}::{part}')
+
+          # Keep only the analyzer lines so the annotation budget is spent on
+          # findings, not on progress output.
+          keep = []
+          for line in open('/tmp/analyze.log', encoding='utf-8', errors='replace'):
+              if re.search(r'\b(error|warning|info)\b\s+•', line) or 'issues found' in line or 'No issues' in line:
+                  keep.append(line.rstrip())
+          open('/tmp/analyze.findings', 'w').write('\n'.join(keep))
+          publish('/tmp/analyze.findings', 'analyze')
+          PY
           exit 0
 
       - name: Test (annotated)
         run: |
           set +e
           flutter test --reporter expanded 2>&1 | tee /tmp/test.log >/dev/null
-          summary=$(grep -a -E 'All tests passed|Some tests failed|^[0-9]+:[0-9]+ \+[0-9]+' /tmp/test.log | tail -6)
-          block=$(grep -a -E '\[E\]|Expected:|Actual:|Which:|EXCEPTION' /tmp/test.log | sed -n '1,160p')
-          combined=$(printf '%s\n%s' "$summary" "$block")
-          if [ -n "$combined" ]; then
-            escaped=$(printf '%s' "$combined" | sed -e 's/%/%25/g' | tr '\n' '\001' | sed -e 's/\001/%0A/g')
-            echo "::error title=flutter-test-details::$escaped"
-          fi
+          python3 - <<'PY'
+          import re
+
+          def publish(path, prefix, limit_lines=6000, chunk=2800, max_chunks=26):
+              try:
+                  text = open(path, encoding='utf-8', errors='replace').read()
+              except OSError:
+                  return
+              text = '\n'.join(text.splitlines()[:limit_lines])
+              if not text.strip():
+                  return
+              print(f'--- {prefix}: {len(text)} chars')
+              for i in range(0, len(text), chunk):
+                  part = text[i:i + chunk].replace('%', '%25').replace('\n', '%0A')
+                  print(f'::error title={prefix}-{i // chunk + 1}::{part}')
+
+          lines = open('/tmp/test.log', encoding='utf-8', errors='replace').read().splitlines()
+          keep = []
+          for index, line in enumerate(lines):
+              if re.match(r'^\d\d:\d\d \+\d+', line):
+                  keep.append(line)
+                  if '[E]' in line or re.search(r'-\d+:', line):
+                      # Pull in the indented failure detail that follows.
+                      for extra in lines[index + 1:index + 16]:
+                          if re.match(r'^\d\d:\d\d ', extra):
+                              break
+                          keep.append(extra)
+              elif re.search(r'^\s+(Expected|Actual|Which|The following|Failed to load)', line):
+                  keep.append(line)
+          open('/tmp/test.findings', 'w').write('\n'.join(keep))
+          publish('/tmp/test.findings', 'flutter-test')
+          PY
           exit 0

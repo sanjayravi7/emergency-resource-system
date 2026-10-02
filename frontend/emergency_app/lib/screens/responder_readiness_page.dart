@@ -297,7 +297,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
                       HoverLift(
                         enabled: !_saving,
                         lift: 1.2,
-                        child: PressableScale(
+                        builder: (context, hovered) => PressableScale(
                           enabled: !_saving,
                           child: FilledButton(
                             onPressed: _saving ? null : _saveAndContinue,
@@ -513,6 +513,7 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     ErasPalette p,
   ) {
     return FocusGlow(
+      glowColor: p.teal,
       borderRadius: 8,
       child: TextFormField(
         key: Key('${label.toLowerCase().replaceAll(' ', '-')}-${resource.id}'),

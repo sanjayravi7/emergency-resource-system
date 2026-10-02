@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'firebase_bootstrap.dart';
@@ -111,9 +112,12 @@ class GoogleAuthService {
     } on FirebaseAuthException catch (error) {
       debugPrint('google sign-in failed: ${error.code}');
       throw GoogleAuthException(_messageForCode(error.code));
-    } on GoogleSignInException catch (error) {
+    } on PlatformException catch (error) {
+      // google_sign_in reports a dismissed account sheet as
+      // `sign_in_canceled`. That is a normal user choice - no error, no
+      // session change - so it must not be shown as a failure.
       debugPrint('google sign-in cancelled/failed: ${error.code}');
-      if (error.code == GoogleSignInExceptionCode.canceled) return null;
+      if (error.code == 'sign_in_canceled') return null;
       throw const GoogleAuthException(
         'Google sign-in could not be completed on this device. '
         'You can still sign in with your email and password.',
