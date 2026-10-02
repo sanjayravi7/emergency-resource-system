@@ -1,21 +1,23 @@
 # Firebase / Google Sign-In status
 
-**Status as of 2026-10-02: implementation prepared; production configuration and real-device verification are NOT complete. Google Sign-In is NOT fully verified.**
+**Status as of 2026-10-02: implementation and hosted CI checks pass, but production configuration, deployment, release APK, and real-device acceptance are NOT complete. Google Sign-In is NOT fully verified.**
 
 ## Implemented in this checkout
 
 - Flutter Web uses Firebase Auth's Google popup; Android uses Google Sign-In and
   exchanges the Google credential with Firebase Auth.
-- The backend verifies Firebase ID tokens, resolves known Firebase UIDs,
-  links a matching verified Google email to an existing active ERAS user without
-  changing that user's role, or creates a new Google user. It issues the
-  existing ERAS JWT; the current REST/Socket.IO bearer-token architecture
+- The backend verifies Firebase ID tokens, resolves known Firebase UIDs, links a
+  matching verified Google email to an existing active ERAS user without
+  changing that user's role/password, or creates a new Google user. It issues
+  the existing ERAS JWT; the current REST/Socket.IO bearer-token architecture
   remains in place.
 - New email/password accounts require a six-digit email verification code;
   password recovery requests and consumes a one-time six-digit code.
-- Added a non-destructive Prisma migration, provider/API handlers, rate limits,
-  build-time Firebase Web configuration, Android Google Services Gradle setup,
-  release signing checks, deployment helpers, and the setup runbook.
+- The PR preserves the implementation already merged in PR #68 and adds
+  production Firebase Web/Android configuration validation, Render env
+  declarations, deployment/build helpers, release-signing checks, and setup /
+  deployment runbooks. It does not add a second auth system or duplicate
+  migrations.
 
 ## External production facts not verified
 
@@ -37,25 +39,31 @@ them in chat; configure them in the corresponding provider secret stores.
 
 ## Tests and device flows
 
-- `npm ci --ignore-scripts`: passed; npm reported **0 vulnerabilities** for the
-  restored main dependency lockfile.
-- Targeted backend Jest suites: **105 passed across 12 suites**, including
-  Firebase token verification, auth-code rules, the new Google account
-  resolver tests (known UID login, verified-email link preserving role, new
-  public-role account),
-  security source audits, and unit tests. A synthetic fixture also passed the
-  Android `google-services.json` verifier; it proves only the script's fixture
-  checks, not any production Firebase value. Tests ran with a dummy database
-  URL; no database-backed behavior was exercised.
-- Full database-backed Jest suite: **not run**; this workspace has no local
-  PostgreSQL/test database. Prisma Client generation is also unavailable here:
-  downloading its engine from `binaries.prisma.sh` previously failed during TLS
-  connection setup, and the ignored-scripts dependency install intentionally
-  did not generate Prisma Client.
-- `passwordResetApi`, Prisma-backed security API tests, and the full auth/API
-  suites could not run without a generated client and test database.
-- Flutter analyze/widget tests and release APK build: **not run**; Flutter/Dart,
-  JDK, and Android SDK tooling are absent.
+- GitHub Actions on merge commit `743f4088a9927a0f4408965140eafeea14215935`:
+  - [Backend workflow](https://github.com/sanjayravi7/emergency-resource-system/actions/runs/36995703861)
+    **passed**, including Prisma Client generation, migrations/schema checks,
+    the production dependency audit, and the full Jest suite against its
+    PostgreSQL 16 service.
+  - [Flutter workflow](https://github.com/sanjayravi7/emergency-resource-system/actions/runs/36995703877)
+    **passed**: dependency install, `dart format`, `flutter analyze`, and
+    `flutter test`. This workflow does not build a release APK.
+- Local `npm ci --ignore-scripts`: passed; npm reported **0 vulnerabilities**
+  for the restored main dependency lockfile.
+- Local targeted backend Jest suites: **105 passed across 12 suites**, including
+  Firebase token verification, auth-code rules, Google resolver tests (known
+  UID login, verified-email link preserving role/password, new public-role
+  account), security source audits, and unit tests. These tests used a dummy
+  database URL; no database-backed behavior was exercised locally.
+- A synthetic fixture passed the Android `google-services.json` verifier. This
+  validates only the script's fixture checks, not any production Firebase
+  value.
+- The full database-backed Jest suite and Prisma-backed API suites were not run
+  **locally** because this workspace has no test PostgreSQL and local Prisma
+  engine download previously failed during TLS setup. The hosted Backend job
+  above did run and pass those checks.
+- Flutter tooling is absent locally. Hosted Flutter analysis/tests passed, but
+  **no production release APK was built**. JDK/Android SDK, Firebase CLI,
+  production configuration, and release signing key are not available here.
 - Real browser Google registration/login: **not run**.
 - Real Android Google login: **not run**; no Android device is attached.
 - Real first-time email verification and six-digit password reset: **not run**;
