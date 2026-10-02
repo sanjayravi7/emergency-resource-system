@@ -152,8 +152,8 @@ class GoogleAuthService {
   String _messageForCode(String code) {
     switch (code) {
       case 'account-exists-with-different-credential':
-        return 'An ERAS account with this email already uses a password. '
-            'Sign in with that password and Google will be linked.';
+        return 'An account with this email already uses a different sign-in '
+            'method. Sign in with that method to continue.';
       case 'network-request-failed':
         return 'Google sign-in needs a network connection. Please try again.';
       case 'user-disabled':

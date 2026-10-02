@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/live_location_store.dart';
+import '../services/google_auth_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/socket_service.dart';
 import '../models/eras_models.dart';
@@ -1485,7 +1486,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (isResponder) {
       unawaited(PushNotificationService.instance.stop());
     }
-    await ApiService.logout();
+    try {
+      await ApiService.logout();
+    } catch (_) {
+      // ApiService clears the local ERAS token in its finally block. A network
+      // outage must not prevent provider sign-out or leave this console open.
+      debugPrint('Backend logout was unavailable; local session was cleared.');
+    }
+    await GoogleAuthService.instance.signOut();
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(

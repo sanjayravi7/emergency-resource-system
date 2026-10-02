@@ -100,9 +100,11 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Google sign-in through the existing Firebase project.
   ///
   /// The client only obtains the Firebase ID token; the ERAS backend verifies
-  /// it, links or creates the account with a REQUESTER/RESPONDER role and
-  /// returns the normal ERAS JWT. Google accounts are verified by Google, so
-  /// they skip the email-verification screen.
+  /// it, logs in a known Firebase UID or links an existing user with the same
+  /// verified email while preserving the ERAS role, then returns the normal
+  /// ERAS JWT. A new Google account needs a public registration role, so new
+  /// users start on the register screen. Google accounts are verified by
+  /// Google and skip the email-verification screen.
   Future<void> signInWithGoogle() async {
     if (loading) return;
     FocusScope.of(context).unfocus();

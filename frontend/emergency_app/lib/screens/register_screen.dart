@@ -302,8 +302,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   /// Google registration through the existing Firebase project.
   ///
   /// The selected role is only a *request* for a brand-new ERAS account; the
-  /// server ignores it for an existing account and never lets a client create
-  /// an ADMIN. An existing account is simply linked by verified email.
+  /// server ignores it for an existing Firebase UID or a verified-email match,
+  /// preserving the existing ERAS role. Public Google registration can never
+  /// create an ADMIN.
   Future<void> signUpWithGoogle() async {
     if (loading) return;
     FocusScope.of(context).unfocus();

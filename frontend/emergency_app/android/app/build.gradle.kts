@@ -1,6 +1,6 @@
 plugins {
     id("com.android.application")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
 }
@@ -18,6 +18,29 @@ secrets {
     propertiesFileName = "secrets.properties"
 }
 
+// A release build is signed only with the production keystore supplied through
+// the local build environment. Debug signing is never silently accepted for a
+// release APK because Google Sign-In fingerprints depend on this certificate.
+val releaseKeystorePath = System.getenv("ERAS_ANDROID_KEYSTORE_PATH")
+val releaseKeystoreAlias = System.getenv("ERAS_ANDROID_KEY_ALIAS")
+val releaseKeystorePassword = System.getenv("ERAS_ANDROID_STORE_PASSWORD")
+val releaseKeyPassword = System.getenv("ERAS_ANDROID_KEY_PASSWORD")
+val releaseSigningConfigured =
+    !releaseKeystorePath.isNullOrBlank() &&
+        !releaseKeystoreAlias.isNullOrBlank() &&
+        !releaseKeystorePassword.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank() &&
+        file(releaseKeystorePath).isFile
+val releaseTaskRequested = gradle.startParameter.taskNames.any {
+    it.contains("release", ignoreCase = true)
+}
+if (releaseTaskRequested && !releaseSigningConfigured) {
+    throw GradleException(
+        "A production-signed release requires ERAS_ANDROID_KEYSTORE_PATH, " +
+            "ERAS_ANDROID_KEY_ALIAS, ERAS_ANDROID_STORE_PASSWORD and ERAS_ANDROID_KEY_PASSWORD."
+    )
+}
+
 android {
     namespace = "io.github.sanjayravi7.eras"
     compileSdk = flutter.compileSdkVersion
@@ -30,23 +53,28 @@ android {
 
     defaultConfig {
         applicationId = "io.github.sanjayravi7.eras"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
-        // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
-        // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeystoreAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }

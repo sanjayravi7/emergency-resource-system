@@ -18,6 +18,14 @@ services:
         value: 7d
       - key: CORS_ORIGINS
         sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: ERAS_MAIL_FROM
+        sync: false
       - key: TRUST_PROXY
         value: "1"
       - key: RATE_LIMIT_ENABLED

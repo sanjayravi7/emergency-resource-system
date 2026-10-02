@@ -77,10 +77,11 @@ the existing “already cancelled” business error.
 * `POST /api/auth/google` verifies a Firebase ID token against Google’s
   published certificates (RS256, `kid` rotation, 1-hour cache, injectable
   `fetch` for tests), then: known `firebaseUid` → login; verified email →
-  link (role untouched); otherwise create with a random bcrypt password and
-  `authProvider: GOOGLE`. Public registration accepts only `REQUESTER` and
-  `RESPONDER` (`PUBLIC_REGISTRATION_ROLES`); ADMIN can never be created from a
-  client payload.
+  link to the existing active ERAS account without changing its role; otherwise
+  create with a random bcrypt password and `authProvider: GOOGLE`. Public
+  registration accepts only `REQUESTER` and `RESPONDER`
+  (`PUBLIC_REGISTRATION_ROLES`); ADMIN can never be created from a client
+  payload.
 * While unconfigured the endpoint answers
   `503 Google sign-in is not configured on this server`, and the client shows
   that message verbatim instead of pretending to have signed in.

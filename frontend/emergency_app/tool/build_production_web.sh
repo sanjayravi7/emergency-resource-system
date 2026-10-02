@@ -3,6 +3,12 @@ set -euo pipefail
 
 : "${ERAS_API_BASE_URL:?Set ERAS_API_BASE_URL to the public Render URL ending in /api}"
 : "${ERAS_GOOGLE_MAPS_API_KEY:?Set ERAS_GOOGLE_MAPS_API_KEY to the referrer-restricted browser key}"
+: "${ERAS_FIREBASE_API_KEY:?Set the Firebase Web app API key}"
+: "${ERAS_FIREBASE_APP_ID:?Set the Firebase Web app ID}"
+: "${ERAS_FIREBASE_MESSAGING_SENDER_ID:?Set the Firebase project number/sender ID}"
+: "${ERAS_FIREBASE_PROJECT_ID:?Set the actual Firebase project ID}"
+: "${ERAS_FIREBASE_AUTH_DOMAIN:?Set the Firebase Auth domain, usually <project-id>.firebaseapp.com}"
+: "${ERAS_GOOGLE_WEB_CLIENT_ID:?Set the OAuth 2.0 Web client ID for Android ID-token exchange}"
 
 if [[ ! "$ERAS_API_BASE_URL" =~ ^https://[^/]+/api/?$ ]]; then
   echo "ERAS_API_BASE_URL must be an HTTPS origin followed by /api" >&2
@@ -10,6 +16,14 @@ if [[ ! "$ERAS_API_BASE_URL" =~ ^https://[^/]+/api/?$ ]]; then
 fi
 if [[ ! "$ERAS_GOOGLE_MAPS_API_KEY" =~ ^[A-Za-z0-9_-]+$ ]]; then
   echo "ERAS_GOOGLE_MAPS_API_KEY contains unexpected characters" >&2
+  exit 1
+fi
+if [[ ! "$ERAS_FIREBASE_AUTH_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]]; then
+  echo "ERAS_FIREBASE_AUTH_DOMAIN contains unexpected characters" >&2
+  exit 1
+fi
+if [[ ! "$ERAS_GOOGLE_WEB_CLIENT_ID" =~ ^[A-Za-z0-9._-]+\.apps\.googleusercontent\.com$ ]]; then
+  echo "ERAS_GOOGLE_WEB_CLIENT_ID is not a Google OAuth Web client ID" >&2
   exit 1
 fi
 
@@ -48,7 +62,23 @@ else
   echo "ERAS_FCM_VAPID_KEY not set: web builds skip FCM push registration."
 fi
 
-echo "Building Flutter Web for the configured Render API (Maps key not displayed)."
+firebase_args=(
+  --dart-define="ERAS_FIREBASE_API_KEY=${ERAS_FIREBASE_API_KEY}"
+  --dart-define="ERAS_FIREBASE_APP_ID=${ERAS_FIREBASE_APP_ID}"
+  --dart-define="ERAS_FIREBASE_MESSAGING_SENDER_ID=${ERAS_FIREBASE_MESSAGING_SENDER_ID}"
+  --dart-define="ERAS_FIREBASE_PROJECT_ID=${ERAS_FIREBASE_PROJECT_ID}"
+  --dart-define="ERAS_FIREBASE_AUTH_DOMAIN=${ERAS_FIREBASE_AUTH_DOMAIN}"
+  --dart-define="ERAS_GOOGLE_WEB_CLIENT_ID=${ERAS_GOOGLE_WEB_CLIENT_ID}"
+)
+if [[ -n "${ERAS_FIREBASE_STORAGE_BUCKET:-}" ]]; then
+  firebase_args+=(--dart-define="ERAS_FIREBASE_STORAGE_BUCKET=${ERAS_FIREBASE_STORAGE_BUCKET}")
+fi
+if [[ -n "${ERAS_FIREBASE_MEASUREMENT_ID:-}" ]]; then
+  firebase_args+=(--dart-define="ERAS_FIREBASE_MEASUREMENT_ID=${ERAS_FIREBASE_MEASUREMENT_ID}")
+fi
+
+echo "Building Flutter Web for the configured Render/Firebase project (config keys not displayed)."
 flutter build web --release \
   --dart-define="ERAS_API_BASE_URL=${ERAS_API_BASE_URL%/}" \
-  "${vapid_arg[@]}"
+  "${vapid_arg[@]}" \
+  "${firebase_args[@]}"

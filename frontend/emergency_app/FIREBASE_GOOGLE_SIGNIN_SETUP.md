@@ -25,7 +25,17 @@ Firebase console → Project settings → General, and Google Cloud → Credenti
 
 Without them `POST /api/auth/google` answers `503 Google sign-in is not
 configured on this server` and the button reports that honestly — email/password
-login, Socket.IO and every emergency workflow keep working.
+login, Socket.IO and every emergency workflow keep working. The backend
+verifies tokens against Google's published certificates; **Firebase Admin
+service-account credentials are not required for Google authentication**.
+
+Configure transactional mail on Render as well so real verification and reset
+codes can be delivered. Set `RESEND_API_KEY` and a verified bare sender address
+in `ERAS_MAIL_FROM`; ERAS adds its sender display name automatically. The code
+has an optional SMTP fallback, but it requires `nodemailer`, which is not in the
+current backend dependency set. See the repo-root `FIREBASE_GOOGLE_SIGNIN_SETUP.md`
+and `backend/.env.example` for details. Without a configured mail transport,
+the application cannot complete real email-delivery acceptance.
 
 Verification notes:
 
@@ -74,34 +84,41 @@ Verification notes:
 Both are best-effort: if they cannot be loaded, Google sign-in reports
 "not configured" instead of breaking the app.
 
-Pass the Firebase web config at build time:
+Build with the production helper so it validates the required values and
+passes the complete Firebase config through Dart defines. `ERAS_API_BASE_URL`
+must be the HTTPS Render URL **ending in `/api`**:
 
 ```bash
 cd frontend/emergency_app
-flutter build web --release \
-  --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com \
-  --dart-define=ERAS_FIREBASE_API_KEY=... \
-  --dart-define=ERAS_FIREBASE_APP_ID=... \
-  --dart-define=ERAS_FIREBASE_MESSAGING_SENDER_ID=... \
-  --dart-define=ERAS_FIREBASE_PROJECT_ID=... \
-  --dart-define=ERAS_FIREBASE_AUTH_DOMAIN=<project>.firebaseapp.com \
-  --dart-define=ERAS_GOOGLE_WEB_CLIENT_ID=<...>.apps.googleusercontent.com
+./tool/build_production_web.sh
 ```
 
-`--dart-define=ERAS_FCM_VAPID_KEY=...` stays optional (web push only).
+Set `ERAS_API_BASE_URL`, `ERAS_GOOGLE_MAPS_API_KEY`,
+`ERAS_FIREBASE_API_KEY`, `ERAS_FIREBASE_APP_ID`,
+`ERAS_FIREBASE_MESSAGING_SENDER_ID`, `ERAS_FIREBASE_PROJECT_ID`,
+`ERAS_FIREBASE_AUTH_DOMAIN`, and `ERAS_GOOGLE_WEB_CLIENT_ID` in the local
+build environment. Optional `ERAS_FIREBASE_STORAGE_BUCKET`,
+`ERAS_FIREBASE_MEASUREMENT_ID`, and `ERAS_FCM_VAPID_KEY` are described in the
+root release checklist; FCM VAPID is only for web push.
 
 ## 5. Android release APK
 
 ```bash
 cd frontend/emergency_app
-flutter build apk --release \
-  --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com \
-  --dart-define=ERAS_GOOGLE_WEB_CLIENT_ID=<...>.apps.googleusercontent.com
+./tool/build_release_apk.sh
 ```
 
+The helper requires the HTTPS Render API base ending in `/api`, the verified
+Firebase project and Web OAuth client, `google-services.json`, an Android
+Maps key, and the production release keystore variables documented in the
+root release checklist. It validates the Firebase package/client/fingerprint
+configuration and refuses to produce a release without the configured key.
+
+
 * `google-services.json` must be present in `android/app/` for Firebase to
-  initialise; the build works without it and simply reports Google sign-in as
-  unavailable.
+  initialise. A plain checkout/build without it degrades gracefully and reports
+  Google sign-in unavailable; the production release helper requires the real
+  file and validates it before building.
 * `ERAS_GOOGLE_WEB_CLIENT_ID` is the **web** client id: Firebase uses it as the
   ID-token audience on Android (`serverClientId`), which is why the backend
   accepts it in `GOOGLE_CLIENT_ID`.
@@ -113,11 +130,14 @@ flutter build apk --release \
 | --- | --- | --- |
 | Google account picker | Google/Firebase SDK | — |
 | ID token | obtained, sent once to `/api/auth/google` | signature, issuer, audience, expiry, `email_verified` all re-checked |
-| Account resolution | none | uid → login, verified email → link (role untouched), otherwise create with `REQUESTER`/`RESPONDER` only |
+| Account resolution | none | known Firebase UID → login; a matching verified email on an existing active ERAS account → link its Firebase UID while preserving its role; otherwise create with `REQUESTER`/`RESPONDER` only |
 | Session | stores the returned ERAS JWT | issues it; role/`isActive` always read from PostgreSQL |
 | Email verification | skipped for Google | Google already verified the address |
 
-The client never sends a password for Google sign-in and never asks the server
-for a role. A `role` is only ever sent as a *registration intent* for a brand-new
-account, is validated against the public allow-list, and is ignored for an
-existing account.
+The client never sends an ERAS password for Google sign-in. It may send a
+`role` only as registration intent; the backend validates it against the public
+allow-list and uses it only when creating a brand-new account. The requested
+role is ignored for an already-known Firebase UID or a matching verified-email
+account. For the latter, the backend links the verified Firebase UID to that
+existing ERAS user and preserves its stored role and password. Existing
+email/password login remains available.

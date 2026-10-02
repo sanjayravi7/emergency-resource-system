@@ -139,9 +139,11 @@ class ApiService {
   /// Google sign-in through the EXISTING Firebase project.
   ///
   /// The Flutter side only obtains the Firebase ID token; the backend verifies
-  /// it against Google's published certificates, resolves/links the ERAS user
-  /// and returns the normal ERAS JWT. A client can therefore never grant
-  /// itself ADMIN: the role always comes from PostgreSQL.
+  /// it against Google's published certificates, resolves a known Firebase UID
+  /// or links an existing ERAS user with the same verified email (preserving
+  /// its role), and creates a new user only when neither exists. It returns the
+  /// normal ERAS JWT. A client can therefore never grant itself ADMIN: the role
+  /// always comes from PostgreSQL.
   static Future<Map<String, dynamic>> googleSignIn({
     required String idToken,
     String? role,
