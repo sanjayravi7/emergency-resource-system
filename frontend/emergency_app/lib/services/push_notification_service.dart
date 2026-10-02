@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, defaultTargetPlatform, kIsWeb, visibleForTesting;
 
 import 'api_service.dart';
+import 'firebase_bootstrap.dart';
 
 /// Firebase Cloud Messaging registration for responders.
 ///
@@ -80,7 +80,11 @@ class PushNotificationService {
     _initialized = true;
 
     try {
-      await Firebase.initializeApp();
+      // ONE initialization path for the whole app: native builds read their
+      // platform configuration file, web builds use the --dart-define config
+      // (see firebase_bootstrap.dart). A build without configuration returns
+      // false and push stays disabled.
+      if (!await ErasFirebaseConfig.ensureInitialized()) return;
 
       final messaging = FirebaseMessaging.instance;
       final permission = await messaging.requestPermission(

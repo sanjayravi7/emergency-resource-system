@@ -22,6 +22,17 @@ dependencies:
   # no Firebase configuration is present (see lib/services/push_notification_service.dart).
   firebase_core: ^3.6.0
   firebase_messaging: ^15.1.0
+  # Google registration/login through the EXISTING Firebase project. The
+  # Flutter side only obtains a Firebase ID token; the ERAS backend verifies it
+  # server-side and issues the normal ERAS JWT (see
+  # lib/services/google_auth_service.dart and POST /api/auth/google).
+  #
+  # Web needs the Firebase JS SDK, which web/index.html loads (no secrets).
+  # Native needs google-services.json / GoogleService-Info.plist, which stay
+  # out of the repository.
+  firebase_auth: ^5.5.4
+  # Android/Web Google account picker. firebase_auth still owns the token.
+  google_sign_in: ^6.2.2
 
 dev_dependencies:
   flutter_test:

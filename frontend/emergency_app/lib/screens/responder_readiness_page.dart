@@ -529,6 +529,14 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
     );
   }
 
+  /// One resource row of the responder inventory editor.
+  ///
+  /// Layout is responsive on purpose: the "Total quantity" / "Available
+  /// quantity" fields sit side by side on wide surfaces and stack vertically on
+  /// narrow ones, and the trailing availability chip is only rendered when
+  /// there is room for it. That removes the collision between the two fields
+  /// (and between the availability chip and the "No responder inventory
+  /// assigned" caption) on small Android viewports.
   Widget _resourceRow(BackendResource resource, ErasPalette p) {
     final row = _inventoryByResourceId[resource.id];
     final selected = _inventoryEnabled[resource.id] ?? false;
@@ -537,99 +545,157 @@ class _ResponderReadinessPageState extends State<ResponderReadinessPage> {
         ? 'unit'
         : resource.unit!;
     final isService = resource.isService;
+    final statusText = isService
+        ? 'Reusable resource · no quantity to track'
+        : row == null
+            ? 'No responder inventory assigned'
+            : '$available / ${row.totalQuantity} $unit · ${row.status}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: p.border)),
       ),
-      child: Column(
-        children: <Widget>[
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Below this width the two quantity fields and the availability chip
+          // no longer fit next to the resource name without colliding.
+          final wide = constraints.maxWidth >= 460;
+
+          return Column(
             children: <Widget>[
-              Checkbox(
-                value: selected,
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(
-                        () => _inventoryEnabled[resource.id] = value ?? false),
-                activeColor: p.teal,
-                checkColor: Colors.white,
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      resource.name,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: p.text,
-                      ),
-                    ),
-                    Text(
-                      isService
-                          ? 'Reusable resource · no quantity to track'
-                          : row == null
-                              ? 'No responder inventory assigned'
-                              : '$available / ${row.totalQuantity} $unit · ${row.status}',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: p.textFaint,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isService)
-                Text(
-                  '$available $unit',
-                  style: TextStyle(fontSize: 12.5, color: p.textDim),
-                ),
-            ],
-          ),
-          if (!isService)
-            Padding(
-              padding: const EdgeInsets.only(left: 48, right: 6, bottom: 6),
-              child: Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  Checkbox(
+                    value: selected,
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(
+                              () => _inventoryEnabled[resource.id] =
+                                  value ?? false,
+                            ),
+                    activeColor: p.teal,
+                    checkColor: Colors.white,
+                  ),
                   Expanded(
-                    child: _quantityField(
-                      resource,
-                      'Total quantity',
-                      _total[resource.id] ?? 0,
-                      (value) {
-                        final next = int.tryParse(value) ?? 0;
-                        setState(() {
-                          _total[resource.id] = next;
-                          if (!(_availableEdited[resource.id] ?? false)) {
-                            _available[resource.id] = next;
-                          }
-                        });
-                      },
-                      p,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          resource.name,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: p.text,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: p.textFaint,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _quantityField(
-                      resource,
-                      'Available quantity',
-                      available,
-                      (value) {
-                        setState(() {
-                          _available[resource.id] = int.tryParse(value) ?? 0;
-                          _availableEdited[resource.id] = true;
-                        });
-                      },
-                      p,
+                  // Only reserve space for the chip when the row is wide
+                  // enough that it cannot collide with the caption above.
+                  if (!isService && wide)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(
+                        '$available $unit',
+                        style: TextStyle(fontSize: 12.5, color: p.textDim),
+                      ),
                     ),
-                  ),
                 ],
               ),
-            ),
-        ],
+              if (!isService)
+                Padding(
+                  padding: const EdgeInsets.only(left: 48, right: 6, bottom: 6),
+                  child: wide
+                      ? Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: _quantityField(
+                                resource,
+                                'Total quantity',
+                                _total[resource.id] ?? 0,
+                                (value) {
+                                  final next = int.tryParse(value) ?? 0;
+                                  setState(() {
+                                    _total[resource.id] = next;
+                                    if (!(_availableEdited[resource.id] ??
+                                        false)) {
+                                      _available[resource.id] = next;
+                                    }
+                                  });
+                                },
+                                p,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _quantityField(
+                                resource,
+                                'Available quantity',
+                                available,
+                                (value) {
+                                  setState(() {
+                                    _available[resource.id] =
+                                        int.tryParse(value) ?? 0;
+                                    _availableEdited[resource.id] = true;
+                                  });
+                                },
+                                p,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          children: <Widget>[
+                            _quantityField(
+                              resource,
+                              'Total quantity',
+                              _total[resource.id] ?? 0,
+                              (value) {
+                                final next = int.tryParse(value) ?? 0;
+                                setState(() {
+                                  _total[resource.id] = next;
+                                  if (!(_availableEdited[resource.id] ??
+                                      false)) {
+                                    _available[resource.id] = next;
+                                  }
+                                });
+                              },
+                              p,
+                            ),
+                            const SizedBox(height: 8),
+                            _quantityField(
+                              resource,
+                              'Available quantity',
+                              available,
+                              (value) {
+                                setState(() {
+                                  _available[resource.id] =
+                                      int.tryParse(value) ?? 0;
+                                  _availableEdited[resource.id] = true;
+                                });
+                              },
+                              p,
+                            ),
+                          ],
+                        ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

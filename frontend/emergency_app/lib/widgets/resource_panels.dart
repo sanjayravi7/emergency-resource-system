@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
 import 'common_widgets.dart';
@@ -34,7 +35,7 @@ class ResourceCatalogPanel extends StatelessWidget {
 
     return Panel(
       title: 'RESOURCE CATALOG',
-      hint: 'Live resources from PostgreSQL',
+      hint: 'Live resources',
       trailing: isAdmin && onCreate != null
           ? TextButton.icon(
               onPressed: onCreate,
@@ -45,7 +46,7 @@ class ResourceCatalogPanel extends StatelessWidget {
             )
           : null,
       child: resources.isEmpty
-          ? const EmptyState('No resources found in the database.')
+          ? const EmptyState('No resources found.')
           : Column(
               children: [
                 if (lowStock > 0 || outOfStock > 0)
@@ -361,32 +362,56 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
                 p,
                 hint: 'AMBULANCE, OXYGEN, FIRE…',
               ),
-              Row(
-                children: [
-                  Expanded(child: _field('Total quantity', totalController, p)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _field(
-                      'Available quantity',
-                      availableController,
-                      p,
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: _field(
-                      'Unit',
-                      unitController,
-                      p,
-                      hint: 'vehicle, unit, cylinder…',
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: _field('Location', locationController, p)),
-                ],
+              // The dialog is 460px wide on desktop but the same dialog is
+              // rendered on a phone (AlertDialog clamps to the viewport). Two
+              // half-width fields per row collide there, so the pairs stack
+              // once the real available width drops below the breakpoint.
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final wide = constraints.maxWidth >= 420;
+                  final total = _field('Total quantity', totalController, p);
+                  final available =
+                      _field('Available quantity', availableController, p);
+                  final unit = _field(
+                    'Unit',
+                    unitController,
+                    p,
+                    hint: 'vehicle, unit, cylinder…',
+                  );
+                  final location = _field('Location', locationController, p);
+
+                  return Column(
+                    children: [
+                      if (wide)
+                        Row(
+                          children: [
+                            Expanded(child: total),
+                            const SizedBox(width: 10),
+                            Expanded(child: available),
+                          ],
+                        )
+                      else ...[
+                        total,
+                        const SizedBox(height: 8),
+                        available,
+                      ],
+                      const SizedBox(height: 8),
+                      if (wide)
+                        Row(
+                          children: [
+                            Expanded(child: unit),
+                            const SizedBox(width: 10),
+                            Expanded(child: location),
+                          ],
+                        )
+                      else ...[
+                        unit,
+                        const SizedBox(height: 8),
+                        location,
+                      ],
+                    ],
+                  );
+                },
               ),
               _field('Low stock threshold', thresholdController, p),
               if (error != null) ...[
@@ -570,7 +595,7 @@ class ResponderResourcesPanel extends StatelessWidget {
 
     return Panel(
       title: title,
-      hint: 'ResponderResource rows from PostgreSQL',
+      hint: 'Responder resource rows',
       trailing: onEditInventory == null
           ? null
           : TextButton.icon(
@@ -720,9 +745,9 @@ class BackendRespondersPanel extends StatelessWidget {
 
     return Panel(
       title: 'LIVE RESPONDERS',
-      hint: 'Responders loaded from PostgreSQL',
+      hint: 'Responders data',
       child: responders.isEmpty
-          ? const EmptyState('No responders found in the database.')
+          ? const EmptyState('No responders found.')
           : Column(
               children: [
                 for (var i = 0; i < responders.length; i++)
@@ -763,11 +788,15 @@ class BackendRespondersPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  r.email,
-                  style: TextStyle(fontSize: 11.5, color: p.textFaint),
-                ),
-                if (r.phone != null) ...[
+                // RESPONDER CONTACT PRIVACY: the responder directory is shared
+                // by every role, so email/phone render for ADMIN only. The
+                // backend omits both fields for any other viewer.
+                if (ApiService.isAdmin && r.email.isNotEmpty)
+                  Text(
+                    r.email,
+                    style: TextStyle(fontSize: 11.5, color: p.textFaint),
+                  ),
+                if (ApiService.isAdmin && (r.phone ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     r.phone!,

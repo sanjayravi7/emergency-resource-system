@@ -367,7 +367,7 @@ class _NewRequestPanelState extends State<NewRequestPanel> {
       title: widget.panelTitle ??
           (widget.initialRequest == null ? 'NEW EMERGENCY' : 'EDIT REQUEST'),
       hint: widget.initialRequest == null
-          ? 'Resources load live from PostgreSQL'
+          ? 'Resources load live'
           : 'Only PENDING requests can be changed',
       trailing: RefreshSpinButton(
         tooltip: 'Reload resources',

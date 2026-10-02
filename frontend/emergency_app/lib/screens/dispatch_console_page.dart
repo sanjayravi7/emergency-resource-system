@@ -66,9 +66,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   ConsoleView activeView = ConsoleView.board;
   bool loading = false;
   bool submitting = false;
-  DateTime now = DateTime.now();
 
-  Timer? clockTimer;
   Timer? refreshTimer;
   Timer? heartbeatTimer;
   StreamSubscription<RealtimeEvent>? realtimeEventsSubscription;
@@ -108,13 +106,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     unawaited(_initializeLocationPermission());
     refreshAll();
 
-    clockTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (!mounted) return;
-        setState(() => now = DateTime.now());
-      },
-    );
+    // The rail / app-bar clock is a self-contained [ErasClock] widget, so the
+    // console page no longer rebuilds once per second just to tick the timer.
 
     // Reliable polling refresh. Replaceable by Socket.IO later without
     // touching the widgets.
@@ -147,7 +140,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   @override
   void dispose() {
-    clockTimer?.cancel();
     refreshTimer?.cancel();
     heartbeatTimer?.cancel();
     realtimeEventsSubscription?.cancel();
@@ -952,8 +944,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
   }
 
   Future<void> acceptRequest(EmergencyRequest request) async {
+    var accepted = false;
     try {
       await ApiService.acceptEmergencyRequest(request.id);
+      accepted = true;
       showToast('${request.displayId} accepted');
     } catch (error) {
       showToast('Accept failed: ${_clean(error)}');
@@ -963,6 +957,30 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadResponders();
     await loadMyInventory();
     await loadMyHelpTypes();
+
+    // AUTOMATIC LIVE LOCATION SHARING: the acceptance is already persisted, so
+    // this is deliberately best-effort. A denied permission, a reconnecting
+    // socket or a slow GPS fix can never roll the acceptance back; the
+    // permission banner, its retry button and the manual START LOCATION button
+    // all remain available.
+    if (accepted) {
+      await _autoStartLiveLocationSharing(request.id);
+    }
+  }
+
+  /// Starts live location sharing right after this responder accepted an
+  /// emergency. No-ops when this device is already sharing the same request,
+  /// so a second accept or a rebuilt widget can never open a second watcher.
+  Future<void> _autoStartLiveLocationSharing(int requestId) async {
+    if (!isResponder) return;
+    if (locationStore.localSharingRequestId == requestId) return;
+    if (_locationStartInProgress) return;
+
+    final refreshed = findRequest(requestId);
+    if (refreshed == null) return;
+    if (!refreshed.participatesAsResponder(ApiService.currentUserId)) return;
+
+    await startLocationSharing(refreshed, automatic: true);
   }
 
   Future<void> startResponse(EmergencyRequest request) async {
@@ -1073,6 +1091,69 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadRequests();
     await loadResources();
     if (isAdmin) await loadResponders();
+  }
+
+  /// ADMIN-only removal of a closed after-action entry.
+  ///
+  /// The confirmation states plainly that the action is irreversible, and that
+  /// the security audit record of the deletion itself is KEPT - the operational
+  /// history and the security trail are separate by design. The server re-checks
+  /// the ADMIN role and requires `confirm: true`, so this dialog is a
+  /// convenience, never the security boundary.
+  Future<void> deleteLogEntry(EmergencyRequest request) async {
+    if (!isAdmin) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final p = ErasPalette.of(context);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            'Delete this log entry?',
+            style: TextStyle(color: p.text, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'Delete the after-action log entry for ${request.displayId}?\n\n'
+            'This is irreversible: the entry disappears from the closed log '
+            'immediately and cannot be restored from this console.\n\n'
+            'The deletion itself is recorded in the security audit trail '
+            '(ADMIN_DELETED_LOG) with your admin account, so the history of the '
+            'action is preserved even though the log entry is removed.',
+            style: TextStyle(fontSize: 13, height: 1.4, color: p.textDim),
+          ),
+          actions: [
+            TextButton(
+              key: const Key('cancel-delete-log-button'),
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(foregroundColor: p.textDim),
+              child: const Text('Keep entry'),
+            ),
+            FilledButton(
+              key: const Key('confirm-delete-log-button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: p.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete entry'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ApiService.deleteAdminLog(request.id);
+      showToast('${request.displayId} log entry deleted');
+    } catch (error) {
+      showToast('Delete failed: ${_clean(error)}');
+    }
+
+    await loadRequests();
   }
 
   // ---------------------------------------------------------------------
@@ -1221,22 +1302,35 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadResponders();
   }
 
-  Future<void> startLocationSharing(EmergencyRequest request) async {
+  /// Starts (or retries) live location sharing for [request].
+  ///
+  /// [automatic] is true when the call comes from a successful ACCEPT. In that
+  /// case every failure is reported as guidance instead of an error, because
+  /// the acceptance itself already stands and is never rolled back here.
+  Future<void> startLocationSharing(
+    EmergencyRequest request, {
+    bool automatic = false,
+  }) async {
     if (!isResponder ||
         !request.participatesAsResponder(ApiService.currentUserId) ||
-        request.status != RequestStatus.inProgress) {
-      showToast(
-        'Live location is available after an assigned responder starts the response.',
-      );
+        (request.status != RequestStatus.accepted &&
+            request.status != RequestStatus.inProgress)) {
+      if (!automatic) {
+        showToast(
+          'Live location is available after an assigned responder starts the response.',
+        );
+      }
       return;
     }
     if (connectionStatus != RealtimeConnectionStatus.connected ||
         !SocketService.instance.isConnected) {
-      showToast('Live location requires a connected realtime service.');
+      if (!automatic) {
+        showToast('Live location requires a connected realtime service.');
+      }
       return;
     }
     if (_locationStartInProgress) {
-      showToast('Live location is already starting.');
+      if (!automatic) showToast('Live location is already starting.');
       return;
     }
     _locationStartInProgress = true;
@@ -1250,7 +1344,14 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         });
       }
       if (!permission.isGranted) {
-        showToast(permission.message);
+        // A denied permission never undoes the acceptance. The responder sees
+        // exactly what is off and how to turn it on.
+        showToast(
+          automatic
+              ? 'Accepted. Turn on location permission to share your live '
+                  'location with the requester.'
+              : permission.message,
+        );
         return;
       }
 
@@ -1418,11 +1519,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     );
   }
 
-  String get clockLabel {
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${two(now.hour)}:${two(now.minute)}:${two(now.second)}';
-  }
-
   int get pendingCount => isResponder
       ? pendingCompatible.length
       : openRequests.where((r) => r.status == RequestStatus.pending).length;
@@ -1457,12 +1553,12 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       };
 
   String get viewSubtitle => switch (activeView) {
-        ConsoleView.board => 'Live request state from PostgreSQL',
+        ConsoleView.board => 'Live request state',
         ConsoleView.newRequest => 'Request any active resource in the catalog',
         ConsoleView.resources => isResponder
             ? 'Help types and optional resource inventory'
             : 'Resource catalog and inventory',
-        ConsoleView.responders => 'Responders registered in the database',
+        ConsoleView.responders => 'Responders registered',
         ConsoleView.log => 'Completed and cancelled requests',
       };
 
@@ -1493,7 +1589,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       return Scaffold(
         backgroundColor: p.bg,
         appBar: MobileAppBar(
-          clock: clockLabel,
           pending: pendingCount,
           active: activeCount,
           completed: closedCount,
@@ -1531,7 +1626,6 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               items: items,
               activeView: activeView,
               onViewChanged: setView,
-              clock: clockLabel,
               roleLabel: roleLabel,
               onRefresh: refreshAll,
               onLogout: logout,
@@ -1629,6 +1723,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         LogPanel(
           logEntries: logEntries,
           onViewRequest: viewRequest,
+          // Destructive after-action removal is ADMIN-only. Every other role
+          // gets no callback at all, so the control is never rendered.
+          onDeleteEntry: isAdmin ? deleteLogEntry : null,
           isMobile: isMobile,
         ),
       );
@@ -1720,7 +1817,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           currentUserId: ApiService.currentUserId,
           emptyMessage: isRequester
               ? 'No active requests. Submit one from "New Emergency".'
-              : 'No active requests in the database.',
+              : 'No active request is available.',
           onViewRequest: viewRequest,
           onEditRequest: isRequester ? editRequest : null,
           onAssignRequest: isAdmin ? assignRequest : null,

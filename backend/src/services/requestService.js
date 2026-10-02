@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const logger = require('../config/logger');
 const {
   validateEmergencyRequestInput,
   normalizeRequiredResources,
@@ -24,6 +25,38 @@ const {
 const { getIO, rooms } = require('../realtime/socketEvents');
 const pushNotificationService = require('./pushNotificationService');
 const { categoryForEmergencyType } = require('../domain/emergencyCategories');
+const { resolveExpiresAt } = require('../domain/expiryPolicy');
+const {
+  enforceExpiryOnRetrieval,
+  withActiveExpiryFilter,
+} = require('./emergencyExpiryService');
+const {
+  sanitizeRequestForViewer,
+  sanitizeRequestsForViewer,
+} = require('../domain/privacy');
+
+// ---------------------------------------------------------------------------
+// Backend-authoritative expiry + after-action archival + role-based responder
+// privacy are applied at this single boundary, so every REST consumer of these
+// helpers gets identical semantics.
+// ---------------------------------------------------------------------------
+
+/** Archived (after-action log deleted) requests are hidden from listings. */
+const NOT_ARCHIVED = { archivedAt: null };
+
+function activeRequestWhere(where = {}, now = new Date()) {
+  return withActiveExpiryFilter({ ...where, ...NOT_ARCHIVED }, now);
+}
+
+/**
+ * Responder/acceptedBy contact fields are omitted for every non-admin viewer.
+ * ADMIN keeps the full operational payload.
+ */
+function forViewer(requests, viewerRole) {
+  return Array.isArray(requests)
+    ? sanitizeRequestsForViewer(requests, viewerRole)
+    : sanitizeRequestForViewer(requests, viewerRole);
+}
 
 async function emitAfterCommit(callback) {
   try {
@@ -197,6 +230,14 @@ exports.createEmergencyRequest = async (userId, data) => {
     }
   }
 
+  // Expiry is derived by the SERVER from the single central policy, never from
+  // client input, and is stored so it survives restarts/sleeps.
+  const { expiresAt, expiryClass, minutes } = resolveExpiresAt({
+    emergencyType: data.emergencyType,
+    description: data.description,
+    priority: data.priority,
+  });
+
   const created = await prisma.emergencyRequest.create({
     data: {
       emergencyType: String(data.emergencyType).trim(),
@@ -206,6 +247,7 @@ exports.createEmergencyRequest = async (userId, data) => {
       longitude: typeof data.longitude === 'number' ? data.longitude : null,
       priority: data.priority ? String(data.priority) : 'MEDIUM',
       requesterId: userId,
+      expiresAt,
       requiredResources: {
         create: requiredResources.map((resource) => ({
           resourceId: resource.resourceId,
@@ -214,6 +256,12 @@ exports.createEmergencyRequest = async (userId, data) => {
       },
     },
     include: requestInclude,
+  });
+
+  logger.info('request.expiry_scheduled', {
+    requestId: created.id,
+    expiryClass,
+    minutes,
   });
 
   // Matching is evaluated only after PostgreSQL has committed the request.
@@ -272,12 +320,15 @@ exports.createEmergencyRequest = async (userId, data) => {
   return created;
 };
 
-exports.getRequestsByUser = async (userId) =>
-  prisma.emergencyRequest.findMany({
-    where: { requesterId: Number(userId) },
+exports.getRequestsByUser = async (userId, viewerRole = 'ADMIN') => {
+  await enforceExpiryOnRetrieval();
+  const requests = await prisma.emergencyRequest.findMany({
+    where: activeRequestWhere({ requesterId: Number(userId) }),
     include: requestInclude,
     orderBy: { createdAt: 'desc' },
   });
+  return forViewer(requests, viewerRole);
+};
 
 exports.updateOwnRequest = async (userId, id, data) => {
   const requestId = Number(id);
@@ -285,6 +336,18 @@ exports.updateOwnRequest = async (userId, id, data) => {
   if (!existing) throw new Error('Request not found');
   if (existing.requesterId !== Number(userId)) throw new Error('Unauthorized: You can only edit your own requests');
   if (existing.status !== 'PENDING') throw new Error('Only pending requests can be edited');
+  // An unattended request past its deadline is expired by the backend. Editing
+  // must never silently resurrect it.
+  if (existing.expiresAt && existing.expiresAt.getTime() <= Date.now()) {
+    await enforceExpiryOnRetrieval();
+    const refreshed = await prisma.emergencyRequest.findUnique({
+      where: { id: requestId },
+      select: { status: true },
+    });
+    if (!refreshed || refreshed.status !== 'PENDING') {
+      throw new Error('Request is no longer available');
+    }
+  }
   const allowed = ['emergencyType','description','location','latitude','longitude','priority','requiredResources'];
   const invalid = Object.keys(data).filter(k => !allowed.includes(k));
   if (invalid.length) throw new Error('Invalid request fields');
@@ -308,18 +371,26 @@ exports.updateOwnRequest = async (userId, id, data) => {
       ...(data.latitude !== undefined && { latitude: data.latitude }),
       ...(data.longitude !== undefined && { longitude: data.longitude }),
       ...(data.priority !== undefined && { priority: data.priority }),
+      // Editing an unattended emergency restarts its expiry window from the
+      // central policy (and the server decides, not the client).
+      expiresAt: resolveExpiresAt({
+        emergencyType: merged.emergencyType,
+        description: merged.description,
+        priority: merged.priority,
+      }).expiresAt,
       ...(data.requiredResources !== undefined && { requiredResources: { create: required.map(r => ({ resourceId: r.resourceId, quantity: r.quantity })) } }),
     }, include: requestInclude });
   });
 };
 
-exports.getRequestById = async (id) => {
+exports.getRequestById = async (id, viewerRole = 'ADMIN') => {
+  await enforceExpiryOnRetrieval();
   const request = await prisma.emergencyRequest.findUnique({
     where: { id: Number(id) },
     include: requestInclude,
   });
   if (!request) throw new Error('Request not found');
-  return request;
+  return forViewer(request, viewerRole);
 };
 
 async function cancelUnfinishedAllocations(tx, requestId) {
@@ -469,11 +540,63 @@ exports.cancelEmergencyRequest = async (userId, id) => {
   return cancelled;
 };
 
-exports.getAllRequests = async () =>
-  prisma.emergencyRequest.findMany({
+/** Public serialization helper (role-based responder privacy). */
+exports.projectRequestForViewer = forViewer;
+
+/**
+ * ADMIN-only after-action log removal.
+ *
+ * The visible log entry is archived rather than destroyed:
+ * EmergencyRequest.archivedAt is stamped together with the acting admin, the
+ * row is immediately excluded from normal listings, and every operational /
+ * audit relationship (assignments, allocations, resources) is preserved.
+ * Only terminal requests may be archived - an active emergency is never
+ * removed from the log view.
+ *
+ * The security audit trail is written by the caller (adminController) as an
+ * ADMIN_DELETED_LOG event; this function only performs the archival.
+ */
+exports.archiveRequestForAdmin = async (requestId, adminUserId) => {
+  const numericRequestId = Number(requestId);
+  if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
+    throw new Error('Log entry not found');
+  }
+
+  return runSerializableTransaction(async (tx) => {
+    const locked = await tx.$queryRaw`
+      SELECT id, status, "archivedAt"
+      FROM "EmergencyRequest"
+      WHERE id = ${numericRequestId}
+      FOR UPDATE
+    `;
+    const request = locked[0];
+    if (!request) throw new Error('Log entry not found');
+    if (request.archivedAt) throw new Error('Log entry has already been deleted');
+    if (!['COMPLETED', 'CANCELLED'].includes(request.status)) {
+      throw new Error('Only closed requests can be deleted from the log');
+    }
+
+    return tx.emergencyRequest.update({
+      where: { id: numericRequestId },
+      data: {
+        archivedAt: new Date(),
+        archivedById: Number(adminUserId) > 0 ? Number(adminUserId) : null,
+      },
+      select: { id: true, status: true, archivedAt: true },
+    });
+  });
+};
+
+exports.getAllRequests = async (viewerRole = 'ADMIN', { includeArchived = false } = {}) => {
+  await enforceExpiryOnRetrieval();
+  const where = includeArchived ? {} : NOT_ARCHIVED;
+  const requests = await prisma.emergencyRequest.findMany({
+    where: withActiveExpiryFilter(where),
     include: requestInclude,
     orderBy: { createdAt: 'desc' },
   });
+  return forViewer(requests, viewerRole);
+};
 
 /**
  * Safe responder overview used by the legacy GET /api/requests route.
@@ -481,10 +604,11 @@ exports.getAllRequests = async () =>
  * compatibility contract currently allows them to discover. The old
  * unfiltered implementation exposed every requester's private emergency.
  */
-exports.getVisibleRequestsForResponder = async (responderId) => {
+exports.getVisibleRequestsForResponder = async (responderId, viewerRole = 'RESPONDER') => {
+  await enforceExpiryOnRetrieval();
   const [assigned, compatible] = await Promise.all([
-    exports.getAssignedRequestsForResponder(responderId),
-    exports.getCompatibleRequestsForResponder(responderId),
+    exports.getAssignedRequestsForResponder(responderId, viewerRole),
+    exports.getCompatibleRequestsForResponder(responderId, viewerRole),
   ]);
   const byId = new Map();
   for (const request of [...assigned, ...compatible]) byId.set(request.id, request);
@@ -497,10 +621,12 @@ exports.getVisibleRequestsForResponder = async (responderId) => {
 // the "allocated without accepting" flow are deliberately still returned so
 // no existing workload disappears from the responder board. findMany already
 // yields each request exactly once.
-exports.getAssignedRequestsForResponder = async (responderId) => {
+exports.getAssignedRequestsForResponder = async (responderId, viewerRole = 'RESPONDER') => {
+  await enforceExpiryOnRetrieval();
   const numericResponderId = Number(responderId);
-  return prisma.emergencyRequest.findMany({
+  const requests = await prisma.emergencyRequest.findMany({
     where: {
+      ...NOT_ARCHIVED,
       OR: [
         {
           assignments: {
@@ -525,9 +651,11 @@ exports.getAssignedRequestsForResponder = async (responderId) => {
     include: requestInclude,
     orderBy: { createdAt: 'desc' },
   });
+  return forViewer(requests, viewerRole);
 };
 
-exports.getCompatibleRequestsForResponder = async (responderId) => {
+exports.getCompatibleRequestsForResponder = async (responderId, viewerRole = 'RESPONDER') => {
+  await enforceExpiryOnRetrieval();
   const numericResponderId = Number(responderId);
   const responder = await prisma.user.findUnique({
     where: { id: numericResponderId },
@@ -607,8 +735,11 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
   // NULL branch: Prisma's `not` alone would drop unaccepted (NULL lead)
   // emergencies entirely under SQL three-valued logic.
   const requests = await prisma.emergencyRequest.findMany({
-    where: {
+    where: withActiveExpiryFilter({
+      // Unattended requests past their deadline never appear as active work,
+      // and archived after-action rows are not dispatchable.
       status: { in: JOINABLE_REQUEST_STATUSES },
+      ...NOT_ARCHIVED,
       // acceptedById is historical lead metadata and must not block a
       // responder whose prior assignment is ENDED from rejoining. Active
       // membership (and legacy pairs with no assignment row) are handled
@@ -619,12 +750,12 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
           status: 'ACTIVE',
         },
       },
-    },
+    }),
     include: requestInclude,
     orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
   });
 
-  return requests.filter((request) => {
+  return forViewer(requests.filter((request) => {
     if (helpTypes.length > 0) {
       return enabledCategories.has(
         categoryForEmergencyType(request.emergencyType)
@@ -643,10 +774,10 @@ exports.getCompatibleRequestsForResponder = async (responderId) => {
       outstandingByResource,
       legacyResponderResources
     ).length > 0;
-  });
+  }), viewerRole);
 };
 
-exports.acceptEmergencyRequest = async (responderId, requestId) => {
+exports.acceptEmergencyRequest = async (responderId, requestId, viewerRole = 'RESPONDER') => {
   const numericResponderId = Number(responderId);
   const numericRequestId = Number(requestId);
   if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
@@ -861,6 +992,14 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
       });
     }
 
+    // Any acceptance makes the emergency ATTENDED. The unattended expiry
+    // deadline is cleared inside the same transaction as the assignment, so an
+    // accepted request can never be expired afterwards.
+    await tx.emergencyRequest.update({
+      where: { id: numericRequestId },
+      data: { expiresAt: null },
+    });
+
     await tx.user.update({
       where: { id: numericResponderId },
       data: { lastActiveAt: new Date() },
@@ -890,11 +1029,11 @@ exports.acceptEmergencyRequest = async (responderId, requestId) => {
     await emitResponderAvailability(numericResponderId);
   });
 
-  return acceptedRequest;
+  return forViewer(acceptedRequest, viewerRole);
 };
 
 /** End one assignment, with ownership enforced inside the locked transaction. */
-exports.endResponderAssignment = async (actor, requestId, responderId = actor.id) => {
+exports.endResponderAssignment = async (actor, requestId, responderId = actor.id, viewerRole = actor.role) => {
   const numericRequestId = Number(requestId);
   const numericResponderId = Number(responderId);
   if (actor.role !== 'ADMIN' && actor.role !== 'RESPONDER') {
@@ -941,7 +1080,7 @@ exports.endResponderAssignment = async (actor, requestId, responderId = actor.id
     }
     for (const id of result.syncedResponderIds) await emitResponderAvailability(id);
   });
-  return result.request;
+  return forViewer(result.request, viewerRole);
 };
 
 exports.updateRequestStatus = async (requestId, status) => {
@@ -1004,7 +1143,7 @@ exports.updateRequestStatus = async (requestId, status) => {
   return result.updated;
 };
 
-exports.startEmergencyResponse = async (responderId, requestId) => {
+exports.startEmergencyResponse = async (responderId, requestId, viewerRole = 'RESPONDER') => {
   const numericResponderId = Number(responderId);
   const numericRequestId = Number(requestId);
   if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
@@ -1094,10 +1233,10 @@ exports.startEmergencyResponse = async (responderId, requestId) => {
     await emitResponderAvailability(numericResponderId);
   });
 
-  return updatedRequest;
+  return forViewer(updatedRequest, viewerRole);
 };
 
-exports.completeEmergencyResponse = async (responderId, requestId) => {
+exports.completeEmergencyResponse = async (responderId, requestId, viewerRole = 'RESPONDER') => {
   const numericResponderId = Number(responderId);
   const numericRequestId = Number(requestId);
   if (!Number.isInteger(numericRequestId) || numericRequestId <= 0) {
@@ -1223,5 +1362,5 @@ exports.completeEmergencyResponse = async (responderId, requestId) => {
     }
   });
 
-  return updated;
+  return forViewer(updated, viewerRole);
 };

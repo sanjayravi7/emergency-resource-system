@@ -19,8 +19,16 @@ class ApiService {
   static String? token;
   static String? currentRole;
   static String? currentUserName;
+  static String? currentUserEmail;
 
   static int? currentUserId;
+
+  /// Server-reported email verification state for the signed-in account.
+  ///
+  /// `null` means "not reported by this endpoint" (older backend or a session
+  /// restored without a payload); Google accounts are always verified by
+  /// Google, so `null` is treated as "no verification gate" by the UI.
+  static bool? emailVerified;
 
   static bool get isRequester => currentRole == 'REQUESTER';
   static bool get isResponder => currentRole == 'RESPONDER';
@@ -103,11 +111,173 @@ class ApiService {
       _fail(body, 'Login failed');
     }
 
-    token = body['data']['token'];
-    currentUserId = (body['data']['user']['id'] as num).toInt();
-    currentRole = body['data']['user']['role'];
-    currentUserName = body['data']['user']['name']?.toString();
+    applySession(body);
+    return body;
+  }
 
+  /// Stores the ERAS session carried by an auth response.
+  ///
+  /// Shared by password login and Google sign-in so both paths always populate
+  /// exactly the same fields (token, role, name, id and the verification
+  /// state). The server remains the role authority; this only mirrors it.
+  static void applySession(Map<String, dynamic> body) {
+    final data = body['data'];
+    if (data is! Map) return;
+
+    final user = data['user'];
+    if (user is! Map) return;
+
+    token = data['token']?.toString() ?? token;
+    currentUserId = user['id'] is num ? (user['id'] as num).toInt() : null;
+    currentRole = user['role']?.toString();
+    currentUserName = user['name']?.toString();
+    currentUserEmail = user['email']?.toString();
+    emailVerified =
+        user['emailVerified'] is bool ? user['emailVerified'] as bool : null;
+  }
+
+  /// Google sign-in through the EXISTING Firebase project.
+  ///
+  /// The Flutter side only obtains the Firebase ID token; the backend verifies
+  /// it against Google's published certificates, resolves/links the ERAS user
+  /// and returns the normal ERAS JWT. A client can therefore never grant
+  /// itself ADMIN: the role always comes from PostgreSQL.
+  static Future<Map<String, dynamic>> googleSignIn({
+    required String idToken,
+    String? role,
+    String? name,
+    String? phone,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/google'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'idToken': idToken,
+        if (role != null && role.isNotEmpty) 'role': role,
+        if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      }),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Google sign-in failed');
+    }
+    applySession(body);
+    return body;
+  }
+
+  /// Re-reads the authoritative session record (used to refresh the email
+  /// verification state without signing the user out).
+  static Future<Map<String, dynamic>> fetchMe() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/auth/me'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not refresh the account state');
+    }
+    final user = body['data'];
+    if (user is Map) {
+      if (user['emailVerified'] is bool) {
+        emailVerified = user['emailVerified'] as bool;
+      }
+      if (user['email'] != null) currentUserEmail = user['email'].toString();
+    }
+    return body;
+  }
+
+  /// Confirms the 6-digit code sent to the signed-in account's email.
+  static Future<Map<String, dynamic>> verifyEmail(String code) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/verify-email'),
+      headers: _headers,
+      body: jsonEncode({'code': code.trim()}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Verification failed');
+    }
+    emailVerified = true;
+    return body;
+  }
+
+  /// Requests a fresh verification code. Public (works before signing in) and
+  /// answers generically, so it can never be used to discover which addresses
+  /// have ERAS accounts.
+  static Future<Map<String, dynamic>> resendVerification({
+    String? email,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/resend-verification'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+        if (token != null) 'token': token,
+      }),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not send a verification email');
+    }
+    return body;
+  }
+
+  /// Step 1 of the forgot-password flow: request a 6-digit code by email.
+  static Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password/forgot'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim()}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not start the password reset');
+    }
+    return body;
+  }
+
+  /// Step 2: verify the 6-digit code WITHOUT consuming it, so the user can go
+  /// on to choose a new password. A wrong or expired code never reveals
+  /// whether the address exists.
+  static Future<Map<String, dynamic>> verifyPasswordResetCode({
+    required String email,
+    required String code,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password/verify-code'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim(), 'code': code.trim()}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Invalid or expired code');
+    }
+    return body;
+  }
+
+  /// Step 3: set the new password. The backend consumes the code, hashes the
+  /// password with the existing bcrypt policy and invalidates old sessions.
+  static Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+    required String confirmPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/password/reset'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email.trim(),
+        'code': code.trim(),
+        'password': password,
+        'confirmPassword': confirmPassword,
+      }),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not reset the password');
+    }
     return body;
   }
 
@@ -127,7 +297,28 @@ class ApiService {
       currentRole = null;
       currentUserId = null;
       currentUserName = null;
+      currentUserEmail = null;
+      emailVerified = null;
     }
+  }
+
+  /// ADMIN-only removal of an after-action log entry.
+  ///
+  /// The server archives the operational row (it is never destroyed) and writes
+  /// a separate `ADMIN_DELETED_LOG` security audit record. The explicit
+  /// `confirm: true` body is required by the endpoint, so an accidental call
+  /// without a user confirmation cannot delete anything.
+  static Future<Map<String, dynamic>> deleteAdminLog(int requestId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/admin/logs/$requestId'),
+      headers: _headers,
+      body: jsonEncode(<String, dynamic>{'confirm': true}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to delete the log entry');
+    }
+    return body;
   }
 
   // ---------------------------------------------------------------------

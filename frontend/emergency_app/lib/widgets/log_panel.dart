@@ -13,11 +13,17 @@ class LogPanel extends StatelessWidget {
     super.key,
     required this.logEntries,
     this.onViewRequest,
+    this.onDeleteEntry,
     this.isMobile = false,
   });
 
   final List<EmergencyRequest> logEntries;
   final void Function(EmergencyRequest request)? onViewRequest;
+
+  /// ADMIN-only after-action removal. Null for every other role, which is why
+  /// the button simply does not exist for REQUESTER/RESPONDER users; the server
+  /// enforces the same rule regardless of the UI.
+  final void Function(EmergencyRequest request)? onDeleteEntry;
   final bool isMobile;
 
   @override
@@ -42,6 +48,7 @@ class LogPanel extends StatelessWidget {
                         child: _LogCard(
                           request: entries[i],
                           onView: onViewRequest,
+                          onDelete: onDeleteEntry,
                         ),
                       ),
                   ],
@@ -132,20 +139,49 @@ class LogPanel extends StatelessWidget {
                           ),
                         ),
                         DataCell(
-                          PressableScale(
-                            child: OutlinedButton(
-                              key: Key('view-log-request-${entry.id}'),
-                              onPressed: onViewRequest == null
-                                  ? null
-                                  : () => onViewRequest!(entry),
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor:
-                                    p.dark ? p.surface2 : Colors.transparent,
-                                foregroundColor: p.textDim,
-                                side: BorderSide(color: p.border),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              PressableScale(
+                                child: OutlinedButton(
+                                  key: Key('view-log-request-${entry.id}'),
+                                  onPressed: onViewRequest == null
+                                      ? null
+                                      : () => onViewRequest!(entry),
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: p.dark
+                                        ? p.surface2
+                                        : Colors.transparent,
+                                    foregroundColor: p.textDim,
+                                    side: BorderSide(color: p.border),
+                                  ),
+                                  child: const Text('VIEW'),
+                                ),
                               ),
-                              child: const Text('VIEW'),
-                            ),
+                              // Only an ADMIN session receives a delete
+                              // callback, so the destructive control is absent
+                              // - not merely disabled - for everyone else.
+                              if (onDeleteEntry != null) ...[
+                                const SizedBox(height: 6),
+                                PressableScale(
+                                  child: OutlinedButton(
+                                    key: Key('delete-log-request-${entry.id}'),
+                                    onPressed: () => onDeleteEntry!(entry),
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: p.dark
+                                          ? p.redDim
+                                          : Colors.transparent,
+                                      foregroundColor: p.red,
+                                      side: BorderSide(
+                                        color: p.red.withValues(alpha: .45),
+                                      ),
+                                    ),
+                                    child: const Text('DELETE'),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ]);
@@ -157,9 +193,10 @@ class LogPanel extends StatelessWidget {
 }
 
 class _LogCard extends StatelessWidget {
-  const _LogCard({required this.request, this.onView});
+  const _LogCard({required this.request, this.onView, this.onDelete});
   final EmergencyRequest request;
   final void Function(EmergencyRequest request)? onView;
+  final void Function(EmergencyRequest request)? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -221,6 +258,21 @@ class _LogCard extends StatelessWidget {
                       side: BorderSide(color: p.border),
                     ),
                     child: const Text('VIEW'),
+                  ),
+                ),
+              ],
+              if (onDelete != null) ...[
+                const SizedBox(height: 8),
+                PressableScale(
+                  child: OutlinedButton(
+                    key: Key('delete-log-request-${request.id}'),
+                    onPressed: () => onDelete!(request),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: p.dark ? p.redDim : Colors.transparent,
+                      foregroundColor: p.red,
+                      side: BorderSide(color: p.red.withValues(alpha: .45)),
+                    ),
+                    child: const Text('DELETE'),
                   ),
                 ),
               ],

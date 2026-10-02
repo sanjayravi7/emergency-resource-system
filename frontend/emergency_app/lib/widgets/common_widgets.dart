@@ -1,9 +1,87 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
 import '../services/socket_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
+
+/// Formats a wall-clock time as a true 24-hour `HH:MM:SS` value.
+///
+/// Zero padded, no AM/PM marker, hours 00-23:
+///   00:02:17, 08:45:03, 19:32:41, 23:59:59
+///
+/// Kept as a pure top-level function so the format is unit testable and so the
+/// clock widget stays trivially small.
+String formatErasClock(DateTime time) {
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
+}
+
+/// Self-contained 24-hour clock.
+///
+/// The sidebar/app-bar timer is isolated in this widget: only this subtree
+/// rebuilds every second, instead of the whole dispatch console (an
+/// application-wide rebuild per tick was pure overhead). The stream used by
+/// tests can be replaced through [now] to keep widget tests deterministic.
+class ErasClock extends StatefulWidget {
+  const ErasClock({
+    super.key,
+    this.tick = const Duration(seconds: 1),
+    this.now,
+    this.style,
+  });
+
+  /// How often the displayed second is refreshed.
+  final Duration tick;
+
+  /// Injectable clock (tests). Defaults to [DateTime.now].
+  final DateTime Function()? now;
+
+  final TextStyle? style;
+
+  @override
+  State<ErasClock> createState() => _ErasClockState();
+}
+
+class _ErasClockState extends State<ErasClock> {
+  Timer? _timer;
+  late String _label;
+
+  DateTime get _now => widget.now?.call() ?? DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _label = formatErasClock(_now);
+    if (widget.tick > Duration.zero) {
+      _timer = Timer.periodic(widget.tick, (_) {
+        if (!mounted) return;
+        final next = formatErasClock(_now);
+        // setState only when the rendered text actually changes.
+        if (next != _label) setState(() => _label = next);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+    return Text(
+      _label,
+      style: widget.style ?? monoStyle(size: 12.5, color: p.textDim),
+      // Rebuild isolation is meaningful only for this label.
+      semanticsLabel: _label,
+    );
+  }
+}
 
 // ── Panel shell ────────────────────────────────────────────────────────────
 
@@ -714,7 +792,7 @@ class Rail extends StatelessWidget {
     required this.items,
     required this.activeView,
     required this.onViewChanged,
-    required this.clock,
+    this.clock,
     required this.roleLabel,
     required this.onRefresh,
     required this.onLogout,
@@ -723,7 +801,10 @@ class Rail extends StatelessWidget {
   final List<NavItem> items;
   final ConsoleView activeView;
   final ValueChanged<ConsoleView> onViewChanged;
-  final String clock;
+
+  /// Fixed clock text (tests / previews). When null the live [ErasClock] is
+  /// rendered instead, so only the clock subtree rebuilds every second.
+  final String? clock;
   final String roleLabel;
   final VoidCallback onRefresh;
   final VoidCallback onLogout;
@@ -768,10 +849,12 @@ class Rail extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    clock,
-                    style: monoStyle(size: 12.5, color: p.textDim),
-                  ),
+                  child: clock == null
+                      ? const ErasClock()
+                      : Text(
+                          clock!,
+                          style: monoStyle(size: 12.5, color: p.textDim),
+                        ),
                 ),
                 IconButton(
                   tooltip:
@@ -956,7 +1039,7 @@ class DesktopTopBar extends StatelessWidget {
 class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
   const MobileAppBar({
     super.key,
-    required this.clock,
+    this.clock,
     required this.pending,
     required this.active,
     required this.completed,
@@ -967,7 +1050,9 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.topInset = 0,
   });
 
-  final String clock;
+  /// Fixed clock text (tests / previews). When null the live [ErasClock] is
+  /// rendered, so the whole app bar does not rebuild every second.
+  final String? clock;
   final int pending, active, completed;
   final String title;
   final RealtimeConnectionStatus connectionStatus;
@@ -1006,7 +1091,11 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
                   compact: true,
                 ),
                 const SizedBox(width: 7),
-                Text(clock, style: monoStyle(size: 12, color: p.textFaint)),
+                if (clock == null)
+                  // Same 24-hour clock as the rail, at the compact app-bar size.
+                  ErasClock(style: monoStyle(size: 12, color: p.textFaint))
+                else
+                  Text(clock!, style: monoStyle(size: 12, color: p.textFaint)),
                 RefreshSpinButton(onPressed: onRefresh),
                 IconButton(
                   onPressed: onLogout,

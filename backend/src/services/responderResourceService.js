@@ -2,6 +2,7 @@ const prisma = require('../config/prisma');
 const { runSerializableTransaction } = require('./transactionService');
 const { syncResponderAvailability } = require('./lifecycleService');
 const { emitResponderAvailability } = require('../realtime/eventEmitters');
+const { canViewResponderContact } = require('../domain/privacy');
 
 async function emitAfterCommit(callback) {
   try {
@@ -13,28 +14,34 @@ async function emitAfterCommit(callback) {
 
 const VALID_RESOURCE_STATUSES = ['AVAILABLE', 'BUSY', 'UNAVAILABLE'];
 
-const responderResourceInclude = {
-  responder: {
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      responderStatus: true,
+// RESPONDER CONTACT PRIVACY: the responder's email/phone are selected ONLY for
+// ADMIN viewers. Every other role receives operational identity (id/name/status)
+// so the shared responder-resource listing cannot leak contact details.
+function responderResourceIncludeFor(viewerRole) {
+  return {
+    responder: {
+      select: {
+        id: true,
+        name: true,
+        ...(canViewResponderContact(viewerRole) ? { email: true, phone: true } : {}),
+        responderStatus: true,
+      },
     },
-  },
-  resource: {
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      mode: true,
-      unit: true,
-      location: true,
-      isActive: true,
+    resource: {
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        mode: true,
+        unit: true,
+        location: true,
+        isActive: true,
+      },
     },
-  },
-};
+  };
+}
+
+const responderResourceInclude = responderResourceIncludeFor('RESPONDER');
 
 function toInteger(value, field) {
   const number = Number(value);
@@ -57,12 +64,19 @@ function validateBoolean(value, field) {
   }
 }
 
+// Upper bound: a single responder inventory line can never legitimately hold
+// more than this, and it keeps absurd client values out of the database.
+const MAX_INVENTORY_QUANTITY = 1000000;
+
 function validateQuantities(total, available) {
   if (!Number.isInteger(total) || total < 0) {
     throw new Error('Total quantity must be a non-negative integer');
   }
   if (!Number.isInteger(available) || available < 0) {
     throw new Error('Available quantity must be a non-negative integer');
+  }
+  if (total > MAX_INVENTORY_QUANTITY || available > MAX_INVENTORY_QUANTITY) {
+    throw new Error('Quantity is unrealistically large');
   }
   if (available > total) {
     throw new Error('Available quantity cannot exceed total quantity');
@@ -269,8 +283,8 @@ exports.deleteResource = async (actorInput, id) => {
   return deletedResource;
 };
 
-exports.getAllResources = async () =>
+exports.getAllResources = async (viewerRole = 'RESPONDER') =>
   prisma.responderResource.findMany({
-    include: responderResourceInclude,
+    include: responderResourceIncludeFor(viewerRole),
     orderBy: { id: 'asc' },
   });
