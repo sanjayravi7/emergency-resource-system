@@ -307,9 +307,12 @@ void main() {
       final acceptEnd = source.indexOf('\n  Future<void>', autoStart);
       expect(acceptEnd, greaterThan(autoStart));
       // The call sits inside the guard that only runs after a SUCCESSFUL
-      // accept, never on a failed one.
-      final region = source.substring(autoStart, acceptEnd);
-      expect(region, contains('if (accepted)'));
+      // accept, never on a failed one. The guard opens BEFORE the call, so the
+      // check starts at the guard itself.
+      final guard = source.lastIndexOf('if (accepted)', autoStart);
+      expect(guard, greaterThan(acceptStart));
+      final region = source.substring(guard, acceptEnd);
+      expect(region, contains('_autoStartLiveLocationSharing(request.id)'));
     });
 
     test('the automatic start is de-duplicated per request', () {
