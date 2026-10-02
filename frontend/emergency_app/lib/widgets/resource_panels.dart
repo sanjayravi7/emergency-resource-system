@@ -459,6 +459,7 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
           FieldLabel(label),
           const SizedBox(height: 5),
           FocusGlow(
+            glowColor: p.teal,
             borderRadius: 8,
             child: TextField(
               controller: controller,

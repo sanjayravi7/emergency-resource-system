@@ -91,15 +91,14 @@ jobs:
           lines = open('/tmp/test.log', encoding='utf-8', errors='replace').read().splitlines()
           keep = []
           for index, line in enumerate(lines):
-              if re.match(r'^\d\d:\d\d \+\d+', line):
-                  keep.append(line)
-                  if '[E]' in line or re.search(r'-\d+:', line):
-                      # Pull in the indented failure detail that follows.
-                      for extra in lines[index + 1:index + 16]:
-                          if re.match(r'^\d\d:\d\d ', extra):
-                              break
-                          keep.append(extra)
-              elif re.search(r'^\s+(Expected|Actual|Which|The following|Failed to load)', line):
+              if '[E]' in line or 'Failed to load' in line:
+                  # Keep the reporter line plus the compiler/test detail that
+                  # follows it, which is where the actionable information is.
+                  for extra in lines[index:index + 26]:
+                      if extra is not line and re.match(r'^\d\d:\d\d ', extra):
+                          break
+                      keep.append(extra)
+              elif re.search(r'^\s+(Expected|Actual|Which|The following)', line):
                   keep.append(line)
           open('/tmp/test.findings', 'w').write('\n'.join(keep))
           publish('/tmp/test.findings', 'flutter-test')

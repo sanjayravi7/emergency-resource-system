@@ -53,8 +53,7 @@ abstract final class AuthMotion {
 
   /// Convenience form of [reducedMotionOf] for widgets that only need the
   /// boolean.
-  static bool reducedMotion(BuildContext context) =>
-      reducedMotionOf(context);
+  static bool reducedMotion(BuildContext context) => reducedMotionOf(context);
 
   // ---------------------------------------------------------------------------
   // Shared motion tokens.

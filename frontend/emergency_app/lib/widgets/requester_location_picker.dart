@@ -473,6 +473,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         const FieldLabel('Place / location'),
         const SizedBox(height: 6),
         FocusGlow(
+          glowColor: p.teal,
           borderRadius: 8,
           child: TextField(
             key: const Key('location-search-field'),
@@ -567,6 +568,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         const FieldLabel('Place'),
         const SizedBox(height: 6),
         FocusGlow(
+          glowColor: p.teal,
           borderRadius: 8,
           child: TextField(
             key: const Key('location-place-field'),

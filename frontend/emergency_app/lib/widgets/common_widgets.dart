@@ -690,7 +690,7 @@ class _NavButtonState extends State<NavButton> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: PressableScale(
-        scale: 0.99,
+        pressedScale: 0.99,
         child: InkWell(
           onTap: widget.onTap,
           child: AnimatedContainer(
