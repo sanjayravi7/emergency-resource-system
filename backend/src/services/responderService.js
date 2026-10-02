@@ -2,6 +2,10 @@ const prisma = require('../config/prisma');
 const { runSerializableTransaction } = require('./transactionService');
 const { syncResponderAvailability } = require('./lifecycleService');
 const {
+  canViewResponderContact,
+  sanitizeResponder,
+} = require('../domain/privacy');
+const {
   emitResponderAvailability,
   emitRequestUpdated,
 } = require('../realtime/eventEmitters');
@@ -39,13 +43,57 @@ exports.updateResponderStatus = async (userId, status) => {
   return user;
 };
 
+const MAX_LOCATION_TEXT_LENGTH = 300;
+
+/**
+ * Server-side allow-list validation for responder location pings. The client
+ * is never trusted: coordinates must be finite numbers in valid ranges and the
+ * human readable location is bounded, trimmed text.
+ */
+function normalizeLocationInput(location, latitude, longitude) {
+  const normalized = {
+    location: null,
+    latitude: null,
+    longitude: null,
+  };
+
+  if (location !== undefined && location !== null) {
+    if (typeof location !== 'string') throw new Error('Invalid location text');
+    const text = location.trim();
+    if (text.length > MAX_LOCATION_TEXT_LENGTH) throw new Error('Invalid location text');
+    normalized.location = text.length ? text : null;
+  }
+
+  for (const [label, value, min, max] of [
+    ['latitude', latitude, -90, 90],
+    ['longitude', longitude, -180, 180],
+  ]) {
+    if (value === undefined || value === null) continue;
+    const number = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(number) || number < min || number > max) {
+      throw new Error(`Invalid ${label}`);
+    }
+    normalized[label] = number;
+  }
+
+  if ((normalized.latitude === null) !== (normalized.longitude === null)) {
+    throw new Error('Latitude and longitude must be provided together');
+  }
+
+  return normalized;
+}
+
+exports.normalizeLocationInput = normalizeLocationInput;
+
 exports.updateResponderLocation = async (userId, location, latitude, longitude) => {
+  const input = normalizeLocationInput(location, latitude, longitude);
   const user = await prisma.user.update({
     where: { id: Number(userId) },
     data: {
-      location,
-      latitude,
-      longitude,
+      // Only the allow-listed, validated fields are ever written.
+      ...(input.location !== null ? { location: input.location } : {}),
+      ...(input.latitude !== null ? { latitude: input.latitude } : {}),
+      ...(input.longitude !== null ? { longitude: input.longitude } : {}),
       lastActiveAt: new Date(),
     },
   });
@@ -110,8 +158,14 @@ exports.logoutResponder = async (userId) => {
   return result;
 };
 
-exports.getResponders = async () =>
-  prisma.user.findMany({
+// RESPONDER CONTACT PRIVACY: email/phone are selected from PostgreSQL only
+// for ADMIN viewers. REQUESTER and RESPONDER callers receive operational
+// identity fields exclusively - the sensitive columns are never even loaded
+// for them, so no serializer mistake can leak them.
+exports.getResponders = async (viewerRole = 'RESPONDER') => {
+  const canSeeContact = canViewResponderContact(viewerRole);
+
+  const responders = await prisma.user.findMany({
     where: {
       role: 'RESPONDER',
       isActive: true,
@@ -119,8 +173,7 @@ exports.getResponders = async () =>
     select: {
       id: true,
       name: true,
-      email: true,
-      phone: true,
+      ...(canSeeContact ? { email: true, phone: true } : {}),
       location: true,
       latitude: true,
       longitude: true,
@@ -130,6 +183,9 @@ exports.getResponders = async () =>
     },
     orderBy: { id: 'asc' },
   });
+
+  return responders;
+};
 
 // ---------------------------------------------------------------------------
 // FCM DEVICE TOKENS

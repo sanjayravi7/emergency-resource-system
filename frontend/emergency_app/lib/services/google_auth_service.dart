@@ -1,73 +1,172 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_sign_in/google_sign_in.dart';
 
-import '../firebase_options.dart';
+import 'firebase_bootstrap.dart';
 
-class GoogleSignInCancelled implements Exception {
-  const GoogleSignInCancelled();
+/// Raised when Google sign-in cannot complete. The message is safe to show.
+class GoogleAuthException implements Exception {
+  const GoogleAuthException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
-/// Obtains a Firebase-signed ID token from Google's provider. ERAS still sends
-/// that proof to its existing backend, which verifies it and issues the normal
-/// ERAS JWT used by REST and Socket.IO.
+/// Google identity provider for ERAS.
+///
+/// Design (mirrors the division of labour on the server):
+///
+///   1. Firebase Auth (existing Firebase project) performs the Google
+///      authentication and returns an ID token. No password and no refresh
+///      token ever reaches ERAS.
+///   2. This service returns ONLY that ID token.
+///   3. `POST /api/auth/google` verifies the token cryptographically against
+///      Google's published certificates and then issues the normal ERAS JWT.
+///      The client never decides its own role or admin status.
+///
+/// The service is intentionally thin and testable: it exposes an injectable
+/// token provider so widget/unit tests never need a real Google account.
 class GoogleAuthService {
   GoogleAuthService._();
 
-  static Future<String?> signInAndGetFirebaseIdToken() async {
-    if (Firebase.apps.isEmpty) {
-      throw Exception('Google sign-in is not configured for this build.');
+  static final GoogleAuthService instance = GoogleAuthService._();
+
+  /// Test seam: replaces the real Firebase/Google round-trip.
+  @visibleForTesting
+  static Future<String?> Function()? debugTokenProvider;
+
+  /// True when this build can attempt Google sign-in.
+  bool get isConfigured =>
+      debugTokenProvider != null || ErasFirebaseConfig.isConfigured;
+
+  GoogleSignIn get _googleSignIn => GoogleSignIn(
+        // Web needs the Google *web* client id; an empty value keeps the
+        // platform default (which is exactly what unconfigured builds get).
+        clientId: kIsWeb && ErasFirebaseConfig.googleWebClientId.isNotEmpty
+            ? ErasFirebaseConfig.googleWebClientId
+            : null,
+        // Native platforms return an ID token whose audience is this client.
+        serverClientId: ErasFirebaseConfig.googleWebClientId.isEmpty
+            ? null
+            : ErasFirebaseConfig.googleWebClientId,
+        scopes: const <String>['email', 'profile'],
+      );
+
+  /// Runs the Google flow and returns the Firebase **ID token**.
+  ///
+  /// Returns null when the user dismissed the Google sheet without choosing an
+  /// account (not an error: nothing is created and no session changes).
+  ///
+  /// Throws [GoogleAuthException] with a user-safe message on any real
+  /// failure, so the UI can show one honest, non-technical string.
+  Future<String?> signInAndGetIdToken() async {
+    final injected = debugTokenProvider;
+    if (injected != null) return injected();
+
+    if (!ErasFirebaseConfig.isConfigured) {
+      throw const GoogleAuthException(
+        'Google sign-in is not configured for this ERAS deployment.',
+      );
     }
 
-    UserCredential result;
-    if (kIsWeb) {
-      final provider = GoogleAuthProvider();
-      result = await FirebaseAuth.instance.signInWithPopup(provider);
-    } else {
-      if (ErasFirebaseOptions.googleWebClientId.isEmpty) {
-        throw Exception(
-          'Google Sign-In Web client ID is missing from this Android build.',
+    final ready = await ErasFirebaseConfig.ensureInitialized();
+    if (!ready) {
+      throw const GoogleAuthException(
+        'Google sign-in is not configured for this ERAS deployment.',
+      );
+    }
+
+    try {
+      final account = await _googleSignIn.signIn();
+      if (account == null) return null;
+
+      final authentication = await account.authentication;
+      if (authentication.idToken == null &&
+          authentication.accessToken == null) {
+        throw const GoogleAuthException(
+          'Google did not return an identity token for this account.',
         );
       }
 
-      final googleSignIn = GoogleSignIn(
-        scopes: const ['email'],
-        serverClientId: ErasFirebaseOptions.googleWebClientId,
+      final credential = GoogleAuthProvider.credential(
+        idToken: authentication.idToken,
+        accessToken: authentication.accessToken,
       );
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) throw const GoogleSignInCancelled();
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
 
-      final googleAuthentication = await googleUser.authentication;
-      final googleCredential = GoogleAuthProvider.credential(
-        accessToken: googleAuthentication.accessToken,
-        idToken: googleAuthentication.idToken,
+      // Always read the token from Firebase Auth, so the value sent to ERAS is
+      // a fresh Firebase ID token (never a raw Google token from the sheet).
+      final idToken = await userCredential.user?.getIdToken();
+      if (idToken == null || idToken.isEmpty) {
+        throw const GoogleAuthException(
+          'Google sign-in did not return a usable token. Please try again.',
+        );
+      }
+      return idToken;
+    } on GoogleAuthException {
+      rethrow;
+    } on FirebaseAuthException catch (error) {
+      debugPrint('google sign-in failed: ${error.code}');
+      throw GoogleAuthException(_messageForCode(error.code));
+    } on PlatformException catch (error) {
+      // google_sign_in reports a dismissed account sheet as
+      // `sign_in_canceled`. That is a normal user choice - no error, no
+      // session change - so it must not be shown as a failure.
+      debugPrint('google sign-in cancelled/failed: ${error.code}');
+      if (error.code == 'sign_in_canceled') return null;
+      throw const GoogleAuthException(
+        'Google sign-in could not be completed on this device. '
+        'You can still sign in with your email and password.',
       );
-      result = await FirebaseAuth.instance
-          .signInWithCredential(googleCredential);
+    } catch (error) {
+      debugPrint('google sign-in failed: $error');
+      throw const GoogleAuthException(
+        'Google sign-in could not be completed. '
+        'You can still sign in with your email and password.',
+      );
     }
-
-    final user = result.user;
-    if (user == null) {
-      throw Exception('Google did not return an ERAS sign-in account.');
-    }
-    final firebaseIdToken = await user.getIdToken(true);
-    if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
-      throw Exception('Firebase did not return a sign-in token. Try again.');
-    }
-    return firebaseIdToken;
   }
 
-  static Future<void> clearProviderSession() async {
-    if (Firebase.apps.isNotEmpty) {
-      try {
+  /// Best-effort local sign-out of the Google/Firebase session.
+  ///
+  /// ERAS session teardown is owned by `ApiService.logout`; this only clears
+  /// the upstream provider so the next attempt shows the account picker.
+  Future<void> signOut() async {
+    try {
+      if (FirebaseAuth.instance.currentUser != null) {
         await FirebaseAuth.instance.signOut();
-      } catch (_) {}
+      }
+      if (ErasFirebaseConfig.isConfigured) {
+        await _googleSignIn.signOut();
+      }
+    } catch (error) {
+      debugPrint('google sign-out failed: $error');
     }
-    if (!kIsWeb) {
-      try {
-        await GoogleSignIn().signOut();
-      } catch (_) {}
+  }
+
+  /// Never surfaces raw Firebase codes; the user gets one actionable sentence.
+  String _messageForCode(String code) {
+    switch (code) {
+      case 'account-exists-with-different-credential':
+        return 'An account with this email already uses a different sign-in '
+            'method. Sign in with that method to continue.';
+      case 'network-request-failed':
+        return 'Google sign-in needs a network connection. Please try again.';
+      case 'user-disabled':
+        return 'This account is disabled. Please contact your ERAS '
+            'administrator.';
+      case 'operation-not-allowed':
+        return 'Google sign-in is not enabled for this Firebase project.';
+      case 'user-mismatch':
+      case 'invalid-credential':
+        return 'Google sign-in could not verify this account. Please try again.';
+      default:
+        return 'Google sign-in could not be completed. '
+            'You can still sign in with your email and password.';
     }
   }
 }

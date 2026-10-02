@@ -248,7 +248,7 @@ void main() {
                     children: [
                       DesktopTopBar(
                         title: 'Dispatch Board',
-                        subtitle: 'Live request state from PostgreSQL',
+                        subtitle: 'Live request state',
                         pending: 2,
                         active: 1,
                         completed: 4,

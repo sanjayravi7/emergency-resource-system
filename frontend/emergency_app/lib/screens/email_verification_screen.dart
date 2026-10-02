@@ -2,13 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
+import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
+import 'login_screen.dart';
 
+/// First-login email verification (email/password accounts only).
+///
+/// Flow: register -> 6-digit code sent to the ERAS mailbox -> this screen ->
+/// code confirmed -> console. Google accounts never reach it: Google already
+/// verified the mailbox.
+///
+/// Copy rules honoured here:
+///   * ERAS-branded, never presented as Google/Firebase mail,
+///   * the resend action is rate limited by the backend and always answers
+///     generically, so it cannot be used to discover registered addresses,
+///   * "Refresh status" re-reads the account from the server instead of
+///     trusting local state,
+///   * the user is never locked out of looking at their own account: signing
+///     out is always one tap away and no password is ever asked for again.
 class EmailVerificationScreen extends StatefulWidget {
-  const EmailVerificationScreen({super.key, required this.email});
+  const EmailVerificationScreen({super.key, this.email});
 
-  final String email;
+  /// Optional pre-fill (the address the account was created with).
+  final String? email;
 
   @override
   State<EmailVerificationScreen> createState() =>
@@ -16,32 +33,47 @@ class EmailVerificationScreen extends StatefulWidget {
 }
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
-  final code = TextEditingController();
-  bool loading = false;
+  final TextEditingController code = TextEditingController();
+
+  bool verifying = false;
+  bool refreshing = false;
   bool resending = false;
-  bool verified = false;
   String? error;
   String? notice;
 
+  @override
+  void dispose() {
+    code.dispose();
+    super.dispose();
+  }
+
+  String get emailLabel =>
+      widget.email ?? ApiService.currentUserEmail ?? 'your ERAS email';
+
   Future<void> verify() async {
-    if (!RegExp(r'^\d{6}$').hasMatch(code.text.trim())) {
-      setState(() => error = 'Enter the 6-digit code from your email.');
+    final value = code.text.trim();
+    if (value.length != 6 || int.tryParse(value) == null) {
+      setState(() => error = 'Enter the 6-digit code from the email.');
       return;
     }
+
     setState(() {
-      loading = true;
+      verifying = true;
       error = null;
       notice = null;
     });
+
     try {
-      await ApiService.verifyEmail(widget.email, code.text);
-      if (mounted) setState(() => verified = true);
+      await ApiService.verifyEmail(value);
+      if (!mounted) return;
+      setState(() => notice = 'Email verified. Welcome to ERAS.');
+      _showToast('Email verified');
     } catch (e) {
       if (mounted) {
-        setState(() => error = e.toString().replaceFirst('Exception: ', ''));
+        setState(() => error = _clean(e));
       }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) setState(() => verifying = false);
     }
   }
 
@@ -51,105 +83,201 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       error = null;
       notice = null;
     });
+
     try {
-      await ApiService.resendEmailVerification(widget.email);
-      if (mounted) {
-        setState(() {
-          notice =
-              'If your account needs verification, a new code has been sent.';
-        });
-      }
+      final response = await ApiService.resendVerification(email: widget.email);
+      if (!mounted) return;
+      setState(() {
+        notice = response['message']?.toString() ??
+            'If the address belongs to an ERAS account, a new code is on the '
+                'way.';
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() => error = e.toString().replaceFirst('Exception: ', ''));
-      }
+      if (mounted) setState(() => error = _clean(e));
     } finally {
       if (mounted) setState(() => resending = false);
     }
   }
 
-  @override
-  void dispose() {
-    code.dispose();
-    super.dispose();
+  Future<void> refreshStatus() async {
+    setState(() {
+      refreshing = true;
+      error = null;
+    });
+
+    try {
+      await ApiService.fetchMe();
+      if (!mounted) return;
+      if (ApiService.emailVerified == true) {
+        setState(() => notice = 'Your email is verified.');
+        _showToast('Email verified');
+      } else {
+        setState(() =>
+            error = 'This email is not verified yet. Check your inbox for the '
+                'ERAS code.');
+      }
+    } catch (e) {
+      if (mounted) setState(() => error = _clean(e));
+    } finally {
+      if (mounted) setState(() => refreshing = false);
+    }
+  }
+
+  String _clean(Object e) =>
+      e.toString().replaceFirst('Exception: ', '').trim();
+
+  void _showToast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
+
     return AuthShell(
       child: AuthPanel(
+        key: const ValueKey('auth-verification-card'),
+        hoverLift: true,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const AuthShield(size: 48, outlined: true),
-            const SizedBox(height: 18),
+            Center(
+              child: Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: skin.tealDim,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: AuthShield(size: 30, outlined: true),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
-              verified ? 'Email verified' : 'Verify your email',
+              'VERIFY YOUR EMAIL',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 22,
+                height: 1.2,
                 fontWeight: FontWeight.w800,
+                letterSpacing: .4,
                 color: skin.text,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
-              verified
-                  ? 'Your ERAS account is ready. Return to sign in.'
-                  : 'Enter the 6-digit code sent to ${widget.email}.',
+              'ERAS sent a 6-digit verification code to $emailLabel. '
+              'Enter it below to finish setting up your account.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: skin.textDim),
+              style:
+                  TextStyle(fontSize: 12.5, height: 1.45, color: skin.textDim),
             ),
-            if (!verified) ...[
-              const SizedBox(height: 24),
-              TextField(
+            const SizedBox(height: 18),
+            FocusGlow(
+              glowColor: skin.blue,
+              child: TextFormField(
+                key: const ValueKey('verification-code'),
                 controller: code,
                 keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                maxLength: 6,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 8,
+                ),
                 decoration: authFieldDecoration(
                   context,
                   label: '6-digit code',
-                  icon: Icons.mark_email_read_outlined,
+                  icon: Icons.password_outlined,
                 ),
-                onSubmitted: (_) {
-                  if (!loading) verify();
-                },
+                onFieldSubmitted: (_) => verify(),
               ),
-              if (error != null) ...[
-                const SizedBox(height: 8),
-                Text(error!, style: TextStyle(color: skin.red, fontSize: 13)),
-              ],
-              if (notice != null) ...[
-                const SizedBox(height: 8),
-                Text(notice!, style: TextStyle(color: skin.teal, fontSize: 13)),
-              ],
-              const SizedBox(height: 12),
-              AuthPrimaryButton(
-                label: 'Verify email',
-                onPressed: loading || resending ? null : verify,
-                loading: loading,
+            ),
+            const SizedBox(height: 16),
+            AuthPrimaryButton(
+              label: 'Verify email',
+              onPressed: verifying ? null : verify,
+              loading: verifying,
+              arrow: true,
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const ValueKey('refresh-verification'),
+              onPressed: refreshing ? null : refreshStatus,
+              icon: refreshing
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh, size: 16),
+              label: const Text('Refresh verification status'),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              key: const ValueKey('resend-verification'),
+              onPressed: resending ? null : resend,
+              child: Text(
+                resending ? 'Sending…' : 'Resend the code',
+                style: TextStyle(fontSize: 12.5, color: skin.blue),
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: resending || loading ? null : resend,
-                child: Text(resending ? 'Sending…' : 'Resend code'),
+            ),
+            if (notice != null) ..._message(skin.teal, notice!),
+            if (error != null) ..._message(skin.red, error!),
+            const SizedBox(height: 6),
+            const AuthDividerLabel(),
+            const SizedBox(height: 12),
+            Text(
+              'ERAS only asks for this once per account. Google sign-in '
+              'accounts are verified by Google and skip this step.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, height: 1.4, color: skin.textDim),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              key: const ValueKey('verification-sign-out'),
+              onPressed: () async {
+                await ApiService.logout();
+                if (!context.mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              },
+              child: Text(
+                'Sign out',
+                style: TextStyle(fontSize: 12.5, color: skin.textDim),
               ),
-            ] else ...[
-              const SizedBox(height: 24),
-              AuthPrimaryButton(
-                label: 'Back to sign in',
-                onPressed: () {
-                  Navigator.of(context).maybePop();
-                },
-              ),
-            ],
+            ),
           ],
         ),
       ),
     );
   }
+
+  List<Widget> _message(Color color, String text) => <Widget>[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: .2)),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 12.5, color: color),
+          ),
+        ),
+      ];
 }

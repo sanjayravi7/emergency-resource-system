@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../services/api_service.dart';
+import '../services/email_validation.dart';
 import '../services/google_auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
-import 'auth_navigation.dart';
+import 'dispatch_console_page.dart';
 import 'email_verification_screen.dart';
 import 'login_screen.dart';
+import 'responder_readiness_page.dart';
 
 /// The two roles PUBLIC registration may choose between. ADMIN is
 /// intentionally absent: it stays a database role provisioned through the
@@ -70,11 +72,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? requiredField(String? v, String label) =>
       v == null || v.trim().isEmpty ? '$label is required' : null;
 
+  /// Server-parity email validation (see lib/services/email_validation.dart):
+  /// syntax and length only, never a mailbox existence probe.
   String? validEmail(String? v) =>
       requiredField(v, 'Email') ??
-      (RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v!.trim())
-          ? null
-          : 'Enter a valid email address');
+      (isValidEmail(v) ? null : 'Enter a valid email address');
 
   Future<void> submit() async {
     FocusScope.of(context).unfocus();
@@ -93,7 +95,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      await ApiService.register(
+      final response = await ApiService.register(
         name: name.text.trim(),
         email: email.text.trim(),
         password: password.text,
@@ -101,11 +103,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
         role: selectedRole!.wireName,
       );
       if (!mounted) return;
+
+      // The backend issues the ERAS session on registration. Email/password
+      // accounts start unverified, so the next step is the ERAS verification
+      // code; Google accounts are verified by Google and skip it.
+      ApiService.applySession(response);
+
+      if (ApiService.emailVerified == false) {
+        await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => EmailVerificationScreen(
+              email: ApiService.currentUserEmail ?? email.text.trim(),
+            ),
+          ),
+        );
+        return;
+      }
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute<void>(
-          builder: (_) => EmailVerificationScreen(email: email.text.trim()),
-        ),
+        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
       );
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '');
@@ -113,43 +131,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         setState(() {
           error = message.contains('Email already registered')
               ? 'An account with this email already exists.'
-              : message;
-        });
-      }
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
-
-  Future<void> googleRegister() async {
-    if (loading) return;
-    if (selectedRole == null) {
-      setState(() => roleError = 'Choose how you want to use ERAS.');
-      return;
-    }
-    setState(() {
-      loading = true;
-      error = null;
-    });
-    try {
-      final firebaseIdToken =
-          await GoogleAuthService.signInAndGetFirebaseIdToken();
-      if (firebaseIdToken == null) return;
-      await ApiService.googleAuth(
-        firebaseIdToken,
-        intent: 'register',
-        role: selectedRole!.wireName,
-      );
-      if (!mounted) return;
-      routeAuthenticatedUser(context);
-    } catch (e) {
-      await GoogleAuthService.clearProviderSession();
-      if (e is GoogleSignInCancelled) return;
-      final message = e.toString().replaceFirst('Exception: ', '');
-      if (mounted) {
-        setState(() {
-          error = message.contains('Email already registered')
-              ? 'An account with this email already exists. Sign in instead.'
               : message;
         });
       }
@@ -227,15 +208,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(roleError!,
                       style: TextStyle(fontSize: 12, color: skin.red))),
-            if (selectedRole != null) ...[
-              const SizedBox(height: 14),
-              const AuthDividerLabel(label: 'OR'),
-              const SizedBox(height: 12),
-              AuthGoogleButton(
-                onPressed: loading ? null : googleRegister,
-              ),
-              const SizedBox(height: 12),
-            ],
             const SizedBox(height: 16),
             FocusGlow(
                 glowColor: skin.blue,
@@ -319,8 +291,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 label: 'Create account',
                 onPressed: loading ? null : submit,
                 loading: loading),
+            const SizedBox(height: 18),
+            const AuthDividerLabel(),
+            const SizedBox(height: 12),
+            AuthGoogleButton(onPressed: signUpWithGoogle),
           ])),
     ));
+  }
+
+  /// Google registration through the existing Firebase project.
+  ///
+  /// The selected role is only a *request* for a brand-new ERAS account; the
+  /// server ignores it for an existing Firebase UID or a verified-email match,
+  /// preserving the existing ERAS role. Public Google registration can never
+  /// create an ADMIN.
+  Future<void> signUpWithGoogle() async {
+    if (loading) return;
+    FocusScope.of(context).unfocus();
+
+    if (selectedRole == null) {
+      setState(() => roleError = 'Choose how you want to use ERAS.');
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      error = null;
+    });
+
+    try {
+      final idToken = await GoogleAuthService.instance.signInAndGetIdToken();
+      if (idToken == null) return; // dismissed the account sheet
+
+      await ApiService.googleSignIn(
+        idToken: idToken,
+        role: selectedRole!.wireName,
+        name: name.text.trim(),
+        phone: phone.text.trim(),
+      );
+      if (!mounted) return;
+      _openAuthenticatedArea();
+    } on GoogleAuthException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '');
+      if (mounted) setState(() => error = message);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  void _openAuthenticatedArea() {
+    if (ApiService.isResponder) {
+      Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+              builder: (readinessContext) =>
+                  ResponderReadinessPage(onSaved: () {
+                    Navigator.of(readinessContext).pushReplacement(
+                        MaterialPageRoute<void>(
+                            builder: (_) => const DispatchConsolePage(
+                                readinessSuccess: true)));
+                  })));
+    } else {
+      Navigator.pushReplacement(context,
+          MaterialPageRoute<void>(builder: (_) => const DispatchConsolePage()));
+    }
   }
 
   /// Two selectable role cards. They sit side by side when there is room and

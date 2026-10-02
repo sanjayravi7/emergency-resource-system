@@ -1,4 +1,5 @@
 const requestService = require('../services/requestService');
+const auditLogService = require('../services/auditLogService');
 
 // A Prisma/infrastructure failure is never a client validation error. Prisma
 // phrases every failed query as "Invalid `prisma.x.y()` invocation", which the
@@ -23,6 +24,12 @@ const isValidationError = (message) =>
 exports.createRequest = async (req, res, next) => {
   try {
     const request = await requestService.createEmergencyRequest(req.user.id, req.body);
+    // Audit trail: who filed which emergency (no personal content beyond ids).
+    await auditLogService.recordForRequest(req, 'REQUEST_CREATED', {
+      targetType: 'EmergencyRequest',
+      targetId: request.id,
+      metadata: { emergencyType: request.emergencyType, priority: request.priority },
+    });
     res.status(201).json({ success: true, request });
   } catch (error) {
     if (!isInfrastructureError(error) && isValidationError(error.message)) {
@@ -39,6 +46,10 @@ exports.createRequest = async (req, res, next) => {
 exports.updateOwnRequest = async (req, res, next) => {
   try {
     const request = await requestService.updateOwnRequest(req.user.id, req.params.id, req.body);
+    await auditLogService.recordForRequest(req, 'REQUEST_UPDATED', {
+      targetType: 'EmergencyRequest',
+      targetId: request.id,
+    });
     res.json({ success: true, request });
   } catch (error) {
     if (/unauthorized/i.test(error.message)) return res.status(403).json({ success: false, message: error.message });
@@ -49,7 +60,10 @@ exports.updateOwnRequest = async (req, res, next) => {
 
 exports.getMyRequests = async (req, res, next) => {
   try {
-    const requests = await requestService.getRequestsByUser(req.user.id);
+    const requests = await requestService.getRequestsByUser(
+      req.user.id,
+      req.user.role
+    );
     res.json({ success: true, requests });
   } catch (error) {
     next(error);
@@ -58,7 +72,7 @@ exports.getMyRequests = async (req, res, next) => {
 
 exports.getRequestById = async (req, res, next) => {
   try {
-    const request = await requestService.getRequestById(req.params.id);
+    const request = await requestService.getRequestById(req.params.id, req.user.role);
     // Role check mapping goes here logically but simplified for brief
     res.json({ success: true, request });
   } catch (error) {
@@ -69,6 +83,10 @@ exports.getRequestById = async (req, res, next) => {
 exports.cancelMyRequest = async (req, res, next) => {
   try {
     const request = await requestService.cancelEmergencyRequest(req.user.id, req.params.id);
+    await auditLogService.recordForRequest(req, 'REQUEST_CANCELLED', {
+      targetType: 'EmergencyRequest',
+      targetId: req.params.id,
+    });
     res.json({ success: true, request });
   } catch (error) {
     next(error);
@@ -80,7 +98,8 @@ exports.getAllRequests = async (req, res, next) => {
     // This legacy responder endpoint is intentionally scoped. Admins use the
     // separately protected /api/admin/requests endpoint for global oversight.
     const requests = await requestService.getVisibleRequestsForResponder(
-      req.user.id
+      req.user.id,
+      req.user.role
     );
     res.json({ success: true, requests });
   } catch (error) {
@@ -114,8 +133,14 @@ exports.acceptRequest = async (req, res, next) => {
   try {
     const request = await requestService.acceptEmergencyRequest(
       req.user.id,
-      req.params.id
+      req.params.id,
+      req.user.role
     );
+
+    await auditLogService.recordForRequest(req, 'REQUEST_ACCEPTED', {
+      targetType: 'EmergencyRequest',
+      targetId: req.params.id,
+    });
 
     res.json({ success: true, request });
   } catch (error) {
@@ -148,8 +173,14 @@ exports.startResponse = async (req, res, next) => {
   try {
     const request = await requestService.startEmergencyResponse(
       req.user.id,
-      req.params.id
+      req.params.id,
+      req.user.role
     );
+
+    await auditLogService.recordForRequest(req, 'RESPONSE_STARTED', {
+      targetType: 'EmergencyRequest',
+      targetId: req.params.id,
+    });
 
     res.json({ success: true, request });
   } catch (error) {
@@ -186,8 +217,14 @@ exports.completeResponse = async (req, res, next) => {
   try {
     const request = await requestService.completeEmergencyResponse(
       req.user.id,
-      req.params.id
+      req.params.id,
+      req.user.role
     );
+
+    await auditLogService.recordForRequest(req, 'RESPONSE_COMPLETED', {
+      targetType: 'EmergencyRequest',
+      targetId: req.params.id,
+    });
 
     res.json({ success: true, request });
   } catch (error) {
@@ -232,8 +269,12 @@ exports.updateRequestStatus = async (req, res, next) => {
 exports.endAssignment = async (req, res, next) => {
   try {
     const request = await requestService.endResponderAssignment(
-      req.user, req.params.id, req.user.id
+      req.user, req.params.id, req.user.id, req.user.role
     );
+    await auditLogService.recordForRequest(req, 'ASSIGNMENT_ENDED', {
+      targetType: 'EmergencyRequest',
+      targetId: req.params.id,
+    });
     res.json({ success: true, request });
   } catch (error) {
     next(error);
@@ -242,7 +283,10 @@ exports.endAssignment = async (req, res, next) => {
 exports.getAssignedRequests = async (req, res, next) => {
   try {
     const requests =
-      await requestService.getAssignedRequestsForResponder(req.user.id);
+      await requestService.getAssignedRequestsForResponder(
+        req.user.id,
+        req.user.role
+      );
 
     res.json({
       success: true,
@@ -256,7 +300,8 @@ exports.getCompatibleRequests = async (req, res, next) => {
   try {
     const requests =
       await requestService.getCompatibleRequestsForResponder(
-        req.user.id
+        req.user.id,
+        req.user.role
       );
 
     res.json({

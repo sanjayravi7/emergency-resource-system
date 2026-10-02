@@ -48,13 +48,25 @@ Configure the prompted values in the Render dashboard:
 | `JWT_SECRET` | Blueprint-generated random value, or a random value of at least 32 characters |
 | `JWT_EXPIRES_IN` | `7d` |
 | `CORS_ORIGINS` | comma-separated exact Firebase origins |
-| `FIREBASE_PROJECT_ID` | exact project shared by Web, Android, and service account |
-| `FIREBASE_SERVICE_ACCOUNT` | Firebase Admin JSON secret (or existing `FCM_SERVICE_ACCOUNT`) |
-| `RESEND_API_KEY` | verified transactional email provider key |
-| `EMAIL_FROM` | sender address on the verified domain |
-| `AUTH_OTP_SECRET` | separate random secret of at least 32 characters |
+| `FIREBASE_PROJECT_ID` | exact Firebase project shared by Web and Android |
+| `GOOGLE_CLIENT_ID` | comma-separated Google OAuth client IDs; include the production Web client ID |
+| `RESEND_API_KEY` | Resend key for real verification/reset email delivery |
+| `ERAS_MAIL_FROM` | bare sender address on the verified domain (ERAS adds the display name) |
 | `TRUST_PROXY` | `1` |
 | `RATE_LIMIT_ENABLED` | `true` |
+
+Configure `FIREBASE_PROJECT_ID` for Firebase ID tokens and `GOOGLE_CLIENT_ID`
+for Google OAuth ID tokens. Use the same project/client configuration as the
+Firebase Web and Android apps. The values are public identifiers, not secrets;
+the backend verifies token signatures using Google's published certificates
+and does not need a Firebase Admin service-account key for Google sign-in. The
+Flutter Google client also needs the Web OAuth client ID at build time. See
+`frontend/emergency_app/FIREBASE_GOOGLE_SIGNIN_SETUP.md`.
+
+Configure Resend and `ERAS_MAIL_FROM` before relying on email verification or
+password reset. The optional SMTP fallback requires `nodemailer`, which is not
+included in the current backend dependency set. Without a real transport and
+sender, code delivery is not complete and real email acceptance cannot pass.
 
 For example, after the Firebase project is known, `CORS_ORIGINS` may contain
 both of its real origins:
@@ -178,8 +190,9 @@ locations, without fake coordinates.
 1. **Neon:** confirm the database exists, all checked-in migrations are
    applied, no reset occurred, and expected tables exist.
 2. **Render:** confirm `GET /health` returns HTTP 200 and exactly
-   `{"success":true,"status":"ok"}`. Confirm Firebase project ID/service
-   account match; test email delivery and authenticated `GET /api/auth/me`.
+   `{"success":true,"status":"ok"}`. Confirm Firebase project/client IDs
+   match the Web and Android apps; test email delivery and authenticated
+   `GET /api/auth/me`.
 3. **Email/password:** register a new REQUESTER, receive and submit the actual
    six-digit verification email, then complete the existing email/password
    login. Verify a pre-existing verified account can still log in.

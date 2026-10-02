@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const userRoutes = require('./routes/userRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const errorMiddleware = require('./middleware/errorMiddleware');
+const { securityHeaders } = require('./middleware/securityHeaders');
 const { authLimiter, apiLimiter } = require('./middleware/rateLimiters');
 
 const app = express();
@@ -25,11 +26,15 @@ app.set('trust proxy', env.TRUST_PROXY);
 // Never advertise the framework. Helmet also removes this, kept explicit.
 app.disable('x-powered-by');
 
-// Security headers (CSP is intentionally left at helmet defaults; the Flutter
-// web bundle is served separately). helmet is attached to the Express app only
-// and does not affect the Socket.IO handshake, which is served by the raw HTTP
-// server.
+// Security headers. helmet provides the standard set; securityHeaders adds the
+// explicit CSP/HSTS/nosniff/frame/referrer/permissions contract that ERAS
+// depends on (see middleware/securityHeaders.js for the exact policy and the
+// Google/Firebase/Maps sources it deliberately permits). Strict by default for
+// an API: this app returns JSON, while the Flutter web bundle is served by
+// Firebase Hosting. helmet is attached to the Express app only and does not
+// affect the Socket.IO handshake, which is served by the raw HTTP server.
 app.use(helmet());
+app.use(securityHeaders);
 
 // CORS. Default reflects any origin (historical Flutter web + native client
 // behaviour); a CORS_ORIGINS allowlist locks it down in production.
@@ -58,11 +63,6 @@ app.use('/api', apiLimiter);
 // Strict limiter for credential endpoints only.
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
-app.use('/api/auth/google', authLimiter);
-app.use('/api/auth/verify-email', authLimiter);
-app.use('/api/auth/verification/resend', authLimiter);
-app.use('/api/auth/password-reset/request', authLimiter);
-app.use('/api/auth/password-reset/confirm', authLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/requests', requestRoutes);

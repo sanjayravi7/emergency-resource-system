@@ -41,6 +41,7 @@ async function authMiddleware(req, res, next) {
         id: true,
         role: true,
         isActive: true,
+        passwordChangedAt: true,
       },
     });
 
@@ -57,6 +58,22 @@ async function authMiddleware(req, res, next) {
         success: false,
         message: "User is inactive",
       });
+    }
+
+    // SESSION EPOCH: a password reset/change stamps passwordChangedAt. Every
+    // token issued before that instant is rejected here, so a stolen or
+    // already-open session cannot survive a credential rotation. The check is
+    // one extra comparison on data that is already loaded.
+    if (user.passwordChangedAt) {
+      const issuedAtSeconds = Number(decoded.iat);
+      const changedAtSeconds = Math.floor(new Date(user.passwordChangedAt).getTime() / 1000);
+      if (!Number.isFinite(issuedAtSeconds) || issuedAtSeconds < changedAtSeconds) {
+        logger.warn('auth.stale_session_rejected', { userId: user.id });
+        return res.status(401).json({
+          success: false,
+          message: 'Session expired, please sign in again',
+        });
+      }
     }
 
     // Role and identity are sourced from the CURRENT database record, never

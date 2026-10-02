@@ -16,7 +16,7 @@ exports.updateStatus = async (req, res, next) => {
 
 exports.updateLocation = async (req, res, next) => {
   try {
-    const { location, latitude, longitude } = req.body;
+    const { location, latitude, longitude } = req.body || {};
     const user = await responderService.updateResponderLocation(
       req.user.id,
       location,
@@ -25,6 +25,9 @@ exports.updateLocation = async (req, res, next) => {
     );
     res.json({ success: true, user });
   } catch (error) {
+    if (/invalid location|latitude|longitude/i.test(error.message || '')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     next(error);
   }
 };
@@ -49,7 +52,7 @@ exports.logout = async (req, res, next) => {
 
 exports.getResponders = async (req, res, next) => {
   try {
-    const responders = await responderService.getResponders();
+    const responders = await responderService.getResponders(req.user.role);
     res.json({ success: true, responders });
   } catch (error) {
     next(error);

@@ -16,7 +16,6 @@ const requesterSelect = {
 const acceptedBySelect = {
   id: true,
   name: true,
-  phone: true,
   responderStatus: true,
   location: true,
   latitude: true,
@@ -48,7 +47,7 @@ const requestInclude = {
       resource: {
         select: { id: true, name: true, type: true, mode: true, unit: true },
       },
-      responder: { select: { id: true, name: true, phone: true } },
+      responder: { select: { id: true, name: true } },
     },
   },
 };
@@ -101,7 +100,6 @@ function requestPayload(request) {
         ? {
             id: assignment.responder.id,
             name: assignment.responder.name,
-            phone: assignment.responder.phone,
             responderStatus: assignment.responder.responderStatus,
             location: assignment.responder.location,
             latitude: assignment.responder.latitude,
@@ -177,7 +175,7 @@ async function loadAllocation(allocationId) {
       resource: {
         select: { id: true, name: true, type: true, mode: true, unit: true },
       },
-      responder: { select: { id: true, name: true, phone: true } },
+      responder: { select: { id: true, name: true } },
     },
   });
 }
@@ -442,7 +440,6 @@ async function emitResponderAssigned(requestId, responderId) {
         ? {
             id: assignment.responder.id,
             name: assignment.responder.name,
-            phone: assignment.responder.phone,
             responderStatus: assignment.responder.responderStatus,
             location: assignment.responder.location,
             latitude: assignment.responder.latitude,
@@ -462,7 +459,6 @@ async function emitResponderAssigned(requestId, responderId) {
         ? {
             id: row.responder.id,
             name: row.responder.name,
-            phone: row.responder.phone,
             responderStatus: row.responder.responderStatus,
           }
         : null,

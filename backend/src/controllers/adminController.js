@@ -1,5 +1,13 @@
 const prisma = require('../config/prisma');
 const requestService = require('../services/requestService');
+const auditLogService = require('../services/auditLogService');
+
+// ADMIN-only identifiers are validated before touching the database so invalid
+// or hostile ids cannot reach Prisma as raw input.
+function positiveInteger(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
 
 exports.createRequest = async (req, res, next) => {
   try {
@@ -10,24 +18,55 @@ exports.createRequest = async (req, res, next) => {
 
 exports.assignRequest = async (req, res, next) => {
   try {
-    const request = await requestService.acceptEmergencyRequest(req.params.responderId, req.params.id);
+    const requestId = positiveInteger(req.params.id);
+    const responderId = positiveInteger(req.params.responderId);
+    if (!requestId || !responderId) {
+      return res.status(400).json({ success: false, message: 'Invalid request or responder id' });
+    }
+
+    const request = await requestService.acceptEmergencyRequest(responderId, requestId, 'ADMIN');
+    await auditLogService.recordForRequest(req, 'ADMIN_ASSIGNED_REQUEST', {
+      targetType: 'EmergencyRequest',
+      targetId: requestId,
+      metadata: { responderId },
+    });
     res.json({ success: true, request });
   } catch (error) { res.status(400).json({ success: false, message: error.message }); }
 };
 
 exports.cancelRequest = async (req, res, next) => {
   try {
-    const existing = await requestService.getRequestById(req.params.id);
-    const request = await requestService.cancelEmergencyRequest(existing.requesterId, req.params.id);
-    res.json({ success: true, request });
+    const requestId = positiveInteger(req.params.id);
+    if (!requestId) {
+      return res.status(400).json({ success: false, message: 'Invalid request id' });
+    }
+
+    const existing = await requestService.getRequestById(requestId, 'ADMIN');
+    const request = await requestService.cancelEmergencyRequest(existing.requesterId, requestId);
+    await auditLogService.recordForRequest(req, 'ADMIN_CANCELLED_REQUEST', {
+      targetType: 'EmergencyRequest',
+      targetId: requestId,
+    });
+    res.json({ success: true, request: requestService.projectRequestForViewer(request, 'ADMIN') });
   } catch (error) { next(error); }
 };
 
 exports.endAssignment = async (req, res, next) => {
   try {
+    const requestId = positiveInteger(req.params.id);
+    const responderId = positiveInteger(req.params.responderId);
+    if (!requestId || !responderId) {
+      return res.status(400).json({ success: false, message: 'Invalid request or responder id' });
+    }
+
     const request = await requestService.endResponderAssignment(
-      req.user, req.params.id, req.params.responderId
+      req.user, requestId, responderId, 'ADMIN'
     );
+    await auditLogService.recordForRequest(req, 'ADMIN_ENDED_ASSIGNMENT', {
+      targetType: 'EmergencyRequest',
+      targetId: requestId,
+      metadata: { responderId },
+    });
     res.json({ success: true, request });
   } catch (error) {
     next(error);
@@ -36,8 +75,19 @@ exports.endAssignment = async (req, res, next) => {
 
 exports.updateRequestStatus = async (req, res, next) => {
   try {
-    const request = await requestService.updateRequestStatus(req.params.id, req.body.status);
-    res.json({ success: true, request });
+    const requestId = positiveInteger(req.params.id);
+    if (!requestId) {
+      return res.status(400).json({ success: false, message: 'Invalid request id' });
+    }
+    // Status is an allow-listed enum value; unknown values are rejected by the
+    // service before any write happens.
+    const request = await requestService.updateRequestStatus(requestId, req.body && req.body.status);
+    await auditLogService.recordForRequest(req, 'ADMIN_UPDATED_REQUEST_STATUS', {
+      targetType: 'EmergencyRequest',
+      targetId: requestId,
+      metadata: { status: req.body && req.body.status },
+    });
+    res.json({ success: true, request: requestService.projectRequestForViewer(request, 'ADMIN') });
   } catch (error) {
     next(error);
   }
@@ -49,6 +99,7 @@ exports.getAllUsers = async (req, res, next) => {
       select: { id: true, name: true, email: true, phone: true, role: true,
         isActive: true, lastActiveAt: true, responderStatus: true, createdAt: true,
         updatedAt: true },
+      orderBy: { id: 'asc' },
     });
     res.json({ success: true, users });
   } catch (error) {
@@ -58,16 +109,28 @@ exports.getAllUsers = async (req, res, next) => {
 
 exports.updateUserRole = async (req, res, next) => {
   try {
+    const userId = positiveInteger(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+
     const allowedRoles = ['REQUESTER', 'RESPONDER', 'ADMIN'];
-    if (!allowedRoles.includes(req.body.role)) {
+    if (!allowedRoles.includes(req.body && req.body.role)) {
       return res.status(400).json({ success: false, message: 'Invalid role' });
     }
-    if (Number(req.params.id) === req.user.userId && req.body.role !== 'ADMIN') {
+    if (userId === req.user.userId && req.body.role !== 'ADMIN') {
       return res.status(400).json({ success: false, message: 'You cannot demote your own admin account' });
     }
+    // Only the role column is written - never a spread of the request body.
     const user = await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: { role: req.body.role }
+      where: { id: userId },
+      data: { role: req.body.role },
+      select: { id: true, name: true, email: true, role: true, isActive: true },
+    });
+    await auditLogService.recordForRequest(req, 'ADMIN_CHANGED_USER_ROLE', {
+      targetType: 'User',
+      targetId: userId,
+      metadata: { role: req.body.role },
     });
     res.json({ success: true, user });
   } catch (error) {
@@ -77,9 +140,18 @@ exports.updateUserRole = async (req, res, next) => {
 
 exports.activateUser = async (req, res, next) => {
   try {
+    const userId = positiveInteger(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
     const user = await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: { isActive: true }
+      where: { id: userId },
+      data: { isActive: true },
+      select: { id: true, name: true, email: true, role: true, isActive: true },
+    });
+    await auditLogService.recordForRequest(req, 'ADMIN_ACTIVATED_USER', {
+      targetType: 'User',
+      targetId: userId,
     });
     res.json({ success: true, user });
   } catch (error) {
@@ -89,9 +161,21 @@ exports.activateUser = async (req, res, next) => {
 
 exports.deactivateUser = async (req, res, next) => {
   try {
+    const userId = positiveInteger(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+    if (userId === req.user.userId) {
+      return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
+    }
     const user = await prisma.user.update({
-      where: { id: Number(req.params.id) },
-      data: { isActive: false }
+      where: { id: userId },
+      data: { isActive: false, responderStatus: 'OFFLINE' },
+      select: { id: true, name: true, email: true, role: true, isActive: true },
+    });
+    await auditLogService.recordForRequest(req, 'ADMIN_DEACTIVATED_USER', {
+      targetType: 'User',
+      targetId: userId,
     });
     res.json({ success: true, user });
   } catch (error) {
@@ -105,7 +189,11 @@ exports.getAllRequests = async (req, res, next) => {
     // incomplete admin payload. This includes assignments, allocations,
     // required resources, responder locations, and lead metadata exactly as
     // requester/responder REST reconciliation receives them.
-    const requests = await requestService.getAllRequests();
+    //
+    // Archived after-action logs stay in PostgreSQL for history but are hidden
+    // from normal listings; ADMIN may explicitly request them.
+    const includeArchived = String(req.query.includeArchived || '') === 'true';
+    const requests = await requestService.getAllRequests('ADMIN', { includeArchived });
     res.json({ success: true, requests });
   } catch (error) {
     next(error);
@@ -114,8 +202,94 @@ exports.getAllRequests = async (req, res, next) => {
 
 exports.getAllAllocations = async (req, res, next) => {
   try {
-    const allocations = await prisma.allocation.findMany();
+    const allocations = await prisma.allocation.findMany({
+      orderBy: { id: 'asc' },
+    });
     res.json({ success: true, allocations });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * ADMIN-only removal of one after-action/application log entry.
+ *
+ * The visible log entry is ARCHIVED (archivedAt/archivedById), not destroyed:
+ * operational/audit history stays in PostgreSQL and can still be inspected by
+ * an administrator explicitly asking for archived rows. The security audit
+ * trail is never touched - instead this action appends an ADMIN_DELETED_LOG
+ * event, so the deletion itself remains auditable.
+ *
+ * Guard rails: ADMIN role (route level), valid id, terminal request only
+ * (never an active emergency), explicit confirmation flag from the client, and
+ * a dedicated rate limiter so bulk deletion cannot be scripted casually.
+ */
+exports.deleteLogEntry = async (req, res, next) => {
+  try {
+    const requestId = positiveInteger(req.params.id);
+    if (!requestId) {
+      return res.status(400).json({ success: false, message: 'Invalid log id' });
+    }
+    if (req.body && req.body.confirm !== true) {
+      return res.status(400).json({
+        success: false,
+        message: 'Confirmation is required to delete a log entry',
+      });
+    }
+
+    const archived = await requestService.archiveRequestForAdmin(requestId, req.user.id);
+
+    await auditLogService.recordForRequest(req, 'ADMIN_DELETED_LOG', {
+      targetType: 'EmergencyRequest',
+      targetId: requestId,
+      metadata: {
+        status: archived.status,
+        archivedAt: archived.archivedAt,
+        // Explicitly documents that no security record was destroyed.
+        preservedSecurityAudit: true,
+      },
+    });
+
+    res.json({ success: true, logId: requestId, archivedAt: archived.archivedAt });
+  } catch (error) {
+    // The service states the rule AND the status code, so a business rejection
+    // can never be reported as an unexpected 500. The message checks remain as
+    // a defensive fallback for older call paths.
+    if (error.statusCode === 404 || /not found/i.test(error.message || '')) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+    if (
+      error.statusCode === 400 ||
+      /active|already|closed|completed or cancelled/i.test(error.message || '')
+    ) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
+  }
+};
+
+/**
+ * ADMIN-only, read-only view of the append-only security audit trail. There is
+ * deliberately NO endpoint that deletes audit rows.
+ */
+exports.getAuditLogs = async (req, res, next) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+    const logs = await prisma.auditLog.findMany({
+      orderBy: { id: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        event: true,
+        actorId: true,
+        actorRole: true,
+        targetType: true,
+        targetId: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+    res.json({ success: true, logs });
   } catch (error) {
     next(error);
   }
@@ -128,6 +302,8 @@ exports.getAllResponders = async (req, res, next) => {
     // particular, never expose password hashes). `compatibleRequestIds` is
     // computed by the existing compatibility service, so Flutter only offers
     // responders the backend would currently allow to accept.
+    //
+    // This endpoint is ADMIN-only, so responder contact details are included.
     const rows = await prisma.user.findMany({
       where: { role: 'RESPONDER' },
       select: {
@@ -177,7 +353,7 @@ exports.getAllResponders = async (req, res, next) => {
     const responders = await Promise.all(
       rows.map(async (row) => {
         const compatibleRequests = row.isActive
-          ? await requestService.getCompatibleRequestsForResponder(row.id)
+          ? await requestService.getCompatibleRequestsForResponder(row.id, 'ADMIN')
           : [];
         return {
           ...row,

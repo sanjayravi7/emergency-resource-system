@@ -17,11 +17,6 @@ enum UserRole {
   ADMIN
 }
 
-enum AuthChallengePurpose {
-  EMAIL_VERIFICATION
-  PASSWORD_RESET
-}
-
 enum ResponderStatus {
   AVAILABLE
   BUSY
@@ -48,6 +43,23 @@ enum ResourceStatus {
   AVAILABLE
   BUSY
   UNAVAILABLE
+}
+
+// How an ERAS account was originally created. PASSWORD keeps the historical
+// email/password flow; GOOGLE marks accounts provisioned through a verified
+// Google/Firebase identity. The column is informational: authorization always
+// comes from UserRole + isActive, never from the provider.
+enum AuthProvider {
+  PASSWORD
+  GOOGLE
+}
+
+// Purpose of a one-time, hashed, short-lived code (never stored in plaintext).
+// EMAIL_VERIFICATION confirms ownership of an email address after public
+// registration; PASSWORD_RESET drives the 6-digit password reset flow.
+enum AuthCodePurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }
 
 // SERVICE resources (e.g. Ambulance, Volunteer, Fire Resource, Rescue Boat)
@@ -96,17 +108,27 @@ model User {
   password String
   phone    String?
 
-  // Existing rows default to verified during migration so current accounts
-  // retain their established email/password login behavior. New local
-  // registrations explicitly begin unverified; Google accounts are verified
-  // by Firebase's signed ID token before they are persisted.
-  emailVerified Boolean @default(true)
-  firebaseUid   String? @unique
-
   role UserRole @default(REQUESTER)
 
   isActive     Boolean   @default(true)
   lastActiveAt DateTime?
+
+  // Email verification state. Google/Firebase identities are already verified
+  // by the provider and are stored as verified; email/password registrations
+  // start unverified until the ERAS verification code is confirmed.
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+
+  // Account origin (informational only - never an authorization input).
+  authProvider AuthProvider @default(PASSWORD)
+
+  // Stable Google/Firebase subject identifier. Unique so one Google identity
+  // can only ever map to one ERAS account; NULL for password-only accounts.
+  firebaseUid String? @unique
+
+  // Sessions issued before this instant are rejected. Set on password
+  // reset/change so previously issued JWTs cannot be reused.
+  passwordChangedAt DateTime?
 
   location  String?
   latitude  Float?
@@ -118,6 +140,9 @@ model User {
   updatedAt DateTime @updatedAt
 
   requests EmergencyRequest[]
+
+  authCodes AuthCode[]
+  auditLogs AuditLog[] @relation("AuditActor")
 
   allocations Allocation[] @relation("ResponderAllocations")
 
@@ -132,25 +157,6 @@ model User {
   // stays the single source of truth and no notification state is derived
   // from them.
   deviceTokens PushDeviceToken[]
-  authChallenges AuthChallenge[]
-}
-
-// One-time email verification and password reset codes. Only an HMAC digest
-// is stored; the six-digit value is sent once by the configured mail provider.
-model AuthChallenge {
-  id        Int                  @id @default(autoincrement())
-  userId    Int
-  purpose   AuthChallengePurpose
-  codeHash  String
-  expiresAt DateTime
-  attempts  Int                  @default(0)
-  consumedAt DateTime?
-  createdAt DateTime             @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, purpose, createdAt])
-  @@index([expiresAt])
 }
 
 // ======================================================
@@ -184,6 +190,76 @@ model PushDeviceToken {
 }
 
 // ======================================================
+// AUTH CODE (one-time, hashed, short-lived)
+//
+// Drives email verification and the 6-digit password reset code. The plaintext
+// code exists only in memory/the outgoing ERAS email; PostgreSQL stores a
+// bcrypt hash. Rows are single use (consumedAt), expire quickly (expiresAt),
+// are attempt limited (attempts/maxAttempts) and are invalidated when a newer
+// code for the same (user, purpose) is issued.
+// ======================================================
+
+model AuthCode {
+  id Int @id @default(autoincrement())
+
+  userId  Int
+  purpose AuthCodePurpose
+
+  codeHash String
+
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  consumedAt  DateTime?
+
+  // Throttling bookkeeping: when this code was (re)issued. Enforces the
+  // resend cooldown without needing an extra table.
+  lastSentAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+// ======================================================
+// AUDIT LOG
+//
+// Append-only security/operational audit trail. Rows are written by
+// auditLogService only and are NEVER removed by the after-action log deletion
+// feature (that feature archives the request row and records a new
+// ADMIN_DELETED_LOG event here). Deliberately stores no secrets: no
+// passwords, no reset codes, no tokens.
+// ======================================================
+
+model AuditLog {
+  id Int @id @default(autoincrement())
+
+  event String
+
+  actorId   Int?
+  actorRole String?
+
+  targetType String?
+  targetId   String?
+
+  ip String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([event])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+// ======================================================
 // EMERGENCY REQUEST
 // ======================================================
 
@@ -207,6 +283,23 @@ model EmergencyRequest {
   acceptedById Int?
   acceptedAt   DateTime?
 
+  // Backend-authoritative expiry for UNATTENDED emergencies. expiresAt is
+  // generated by the server from the central expiry policy when the request is
+  // created, so expiry survives restarts/sleeps and never depends on a
+  // frontend timer. Attended/lifecycle-progressed requests are protected: the
+  // expiry service only cancels requests that are still PENDING with no active
+  // assignment/allocation, and any responder activity clears expiresAt.
+  expiresAt DateTime?
+
+  // Set when the request was actually expired by the expiry service (audit);
+  // the row keeps its status CANCELLED, which is the existing terminal state.
+  expiredAt DateTime?
+
+  // After-action log archival. Archived requests are hidden from the visible
+  // ERAS log but preserved for history/audit (no data is destroyed).
+  archivedAt   DateTime?
+  archivedById Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -224,6 +317,8 @@ model EmergencyRequest {
   @@index([priority])
   @@index([location])
   @@index([acceptedById])
+  @@index([status, expiresAt])
+  @@index([archivedAt])
 }
 
 // ======================================================

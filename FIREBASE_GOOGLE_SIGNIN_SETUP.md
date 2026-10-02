@@ -1,80 +1,74 @@
-# Firebase / Google Sign-In release configuration
+# Firebase / Google Sign-In production checklist
 
-This repository keeps ERAS's existing authentication authority: PostgreSQL users,
-ERAS-issued JWTs, and the existing `/api/auth/*` routes. Firebase Auth is used
-only to obtain a Google identity proof. The backend verifies the Firebase ID
-token, resolves a Google-created PostgreSQL user or creates one during Google
-registration, and returns the normal ERAS JWT consumed by REST and Socket.IO.
-It does not silently attach a Google identity to an existing password account
-with the same email. Local email/password passwords remain ERAS-managed. New local registrations must verify a six-digit email code before
-login; password recovery uses a one-time six-digit code.
+**Current state: implementation and deployment helpers are prepared, but no
+production Firebase/Render configuration, deployment, release APK, or real
+browser/device acceptance has been completed. Google Sign-In is not yet fully
+verified.**
 
-No production Firebase project or OAuth values are committed. The project ID,
-OAuth clients, domains, Android signing fingerprints, Firebase service account,
-Resend sender, and Render secrets must be supplied from the real owner consoles.
-The checked-in package name is `io.github.sanjayravi7.eras`.
+This work preserves ERAS's existing auth architecture: Firebase Auth supplies a
+Google identity proof, the backend verifies the ID token and resolves a
+PostgreSQL user, then issues the existing ERAS JWT used by REST and Socket.IO.
+The ERAS database remains authoritative for account status and role. Existing
+email/password authentication stays in place. Account resolution first
+checks for a known Firebase UID; otherwise, when a verified Google email
+matches an active ERAS account, it attaches that Firebase UID to the existing
+user without changing the existing role or password. This avoids duplicate
+ERAS users while keeping all later authorization and sessions in the existing
+ERAS backend.
 
-## 1. Firebase project and Google provider
+The backend validates ID tokens against Google's published certificates, so
+Firebase Admin service-account credentials are **not** required for Google
+authentication. Optional Firebase service-account credentials used by FCM push
+notifications are a separate feature. Never commit service-account keys,
+OAuth secrets, email-provider credentials, database URLs, or release-keystore
+passwords.
 
-1. Select the production project in Firebase Console and record its exact
-   **Project ID**. Use the same project for the Firebase Web app, Android app,
-   Firebase Admin service account, and production backend `FIREBASE_PROJECT_ID`.
-2. In **Authentication → Sign-in method**, enable **Google** and select the
-   intended support email. Confirm the OAuth consent screen is configured and
-   published for the intended audience; add test users if the consent screen
-   is still in testing.
-3. In **Authentication → Settings → Authorized domains**, add every deployed
-   Firebase Hosting/custom domain used by the app. Do not add broad wildcard
-   domains.
-4. Create/register one Firebase Web app. Record its Web config values:
-   `apiKey`, `appId`, `messagingSenderId`, `projectId`, `authDomain`, and, if
-   supplied, `storageBucket` and `measurementId`. These Firebase Web values
-   are public client configuration, not backend service-account secrets.
+The Android application/package ID in the repository is
+`io.github.sanjayravi7.eras`.
 
-## 2. Google OAuth Web client, origins, and redirect URI
+## 1. Firebase project and apps
 
-In Google Cloud Console, select the same project and open **APIs & Services →
-Credentials**. Verify the Web OAuth 2.0 client that Firebase uses. Do not guess
-these values from a different project.
+1. Select the actual production Firebase project and record its exact Project
+   ID. Do not guess or substitute a personal/preview project.
+2. In **Authentication → Sign-in method**, enable **Google** and configure the
+   support email and consent screen for the intended audience.
+3. In **Authentication → Settings → Authorized domains**, add the exact
+   Firebase Hosting/custom domains that will serve ERAS.
+4. Register a Firebase **Web app** and record its `apiKey`, `appId`,
+   `messagingSenderId`, `projectId`, and `authDomain` values. These are public
+   browser configuration, supplied at build time; they are not backend
+   service-account secrets.
+5. Register the Android app with package ID
+   `io.github.sanjayravi7.eras`. Download its `google-services.json` to
+   `frontend/emergency_app/android/app/google-services.json`. That file is
+   intentionally git-ignored.
 
-- The exact deployed JavaScript origins must be present, for example
-  `https://<project-id>.web.app` and `https://<project-id>.firebaseapp.com`,
-  plus each actually used custom domain. Add `http://localhost:<port>` only to
-  a development client if local testing needs it.
-- The authorized redirect URI must match the Firebase `authDomain` handler:
+## 2. Google OAuth Web client and browser origins
+
+In Google Cloud Console, select the same project and inspect the OAuth 2.0 Web
+client used by Firebase:
+
+- Add each exact production JavaScript origin, for example
+  `https://<project-id>.web.app`, `https://<project-id>.firebaseapp.com`, and
+  any actually used custom domain. Only add local origins to a development
+  client when needed.
+- Confirm the authorized redirect URI matches the Firebase `authDomain` handler:
   `https://<authDomain>/__/auth/handler` (commonly
-  `https://<project-id>.firebaseapp.com/__/auth/handler`). Confirm the exact URI
-  shown by the actual OAuth client/Firebase console. Do not substitute the
-  Hosting `web.app` URL unless that is explicitly the configured auth domain.
+  `https://<project-id>.firebaseapp.com/__/auth/handler`). Verify the value in
+  the actual Firebase/Google consoles; do not infer it from a Hosting URL.
 - Record the complete Web client ID ending in
-  `.apps.googleusercontent.com`. `google-services.json` must contain the same
-  ID as an OAuth `client_type: 3` entry. Supply it to Flutter builds as
-  `ERAS_GOOGLE_WEB_CLIENT_ID`.
-- Confirm the Firebase `authDomain` and origins above are from the production
-  project, not a preview project.
+  `.apps.googleusercontent.com`. It is used by the Web build and as Android's
+  `serverClientId`.
+- Verify all origins and clients belong to the selected production project.
 
-The Web app uses Firebase Auth's Google popup flow. The browser never sends a
-Google OAuth access token directly to ERAS; it sends a Firebase-signed ID token
-that the backend verifies.
+## 3. Android signing fingerprints
 
-## 3. Android app, OAuth client, and fingerprints
-
-1. Register an Android app in the selected Firebase project with the exact
-   package/application ID `io.github.sanjayravi7.eras`.
-2. Obtain SHA-1 and SHA-256 from the actual certificate that will sign each
-   installed build. For the release key, use `keytool` on the release keystore
-   or the Gradle signing report. Keep passwords out of shell arguments/history.
-   The current production APK build uses the release keystore supplied through
-   `ERAS_ANDROID_KEYSTORE_PATH`, `ERAS_ANDROID_KEY_ALIAS`,
-   `ERAS_ANDROID_STORE_PASSWORD`, and `ERAS_ANDROID_KEY_PASSWORD`.
-3. Add the SHA-1 and SHA-256 fingerprints to the Android app in Firebase
-   **Project settings → Your apps**. Make sure the Google Cloud Android OAuth
-   client has the matching package name and SHA-1. Register both debug and
-   release certificates only if both build types are actually used.
-4. Download the refreshed `google-services.json` for that app to
-   `frontend/emergency_app/android/app/google-services.json`. This file is
-   git-ignored. Check the project/app/client IDs and Android OAuth certificate
-   hashes with:
+1. Obtain SHA-1 and SHA-256 from the actual debug and production release
+   signing certificates. Register the fingerprints on the Firebase Android app
+   and confirm the matching Google Cloud Android OAuth client has package
+   `io.github.sanjayravi7.eras` and the correct SHA-1.
+2. Download a fresh `google-services.json` after updating Firebase. The helper
+   verifies project/package/client IDs and the registered release SHA-1:
 
    ```bash
    cd frontend/emergency_app
@@ -84,126 +78,122 @@ that the backend verifies.
      --web-client-id "$ERAS_GOOGLE_WEB_CLIENT_ID"
    ```
 
-   The verifier checks the project ID, package name, Android OAuth client,
-   matching Web client ID, and (when supplied) release SHA-1. The release APK
-   script reads and prints the actual keystore SHA-1/SHA-256, then requires that
-   the release SHA-1 be present in `google-services.json`. Compare SHA-256 in
-   Firebase Console yourself; the JSON does not prove SHA-256, authorized
-   JavaScript origins, or redirect URIs. Inspect those separately in Firebase
-   and Google Cloud Console.
-5. Keep Google Play Services available on the real test phone. A successful
-   Gradle build alone does not prove native Google Sign-In works.
+3. The release helper prints the keystore's SHA-1/SHA-256 and requires the
+   release SHA-1 to appear in the downloaded file. Compare SHA-256 separately
+   in Firebase Console; the JSON does not attest it, nor does it validate Web
+   origins/redirect URIs.
+4. Google Play Services must be available on the physical test phone. A
+   successful Gradle build alone is not proof that native sign-in works.
 
-## 4. Backend and email environment
+## 4. Backend and email configuration (Render)
 
-Set these in the production Render service's secret/environment settings. Never
-paste a service-account key, API credential, email-provider key, or signing
-password into Git, an issue, or chat.
+Use the existing Render service and Neon database. Configure these values in
+Render's environment/secret settings; do not put them in Git or chat.
 
-| Variable | Required production value |
+| Variable | Production configuration |
 | --- | --- |
-| `FIREBASE_PROJECT_ID` | Exact Firebase Project ID used by the web and Android clients |
-| `FIREBASE_SERVICE_ACCOUNT` | Firebase Admin service-account JSON as a Render secret, or set `FIREBASE_SERVICE_ACCOUNT_FILE` to a protected secret-file path |
-| `AUTH_OTP_SECRET` | Independent random secret, at least 32 characters; fallback is the already-strong `JWT_SECRET` |
-| `RESEND_API_KEY` | Resend API key from the approved production email account |
-| `EMAIL_FROM` | Verified sender, e.g. `ERAS <auth@your-verified-domain.example>` |
-| `CORS_ORIGINS` | Exact comma-separated production Firebase Hosting/custom origins |
-| `DATABASE_URL` | Existing production Neon PostgreSQL URL |
-| `JWT_SECRET` | Existing strong production ERAS JWT secret |
-| `NODE_ENV` | `production` |
-| `TRUST_PROXY` | `1` on Render |
-| `RATE_LIMIT_ENABLED` | `true` |
+| `FIREBASE_PROJECT_ID` | Exact Firebase Project ID used by the Web and Android apps. Required to verify Firebase ID tokens. |
+| `GOOGLE_CLIENT_ID` | Comma-separated Google OAuth client ID(s), at minimum the Web client ID when Google OAuth ID tokens for that audience are accepted. |
+| `CORS_ORIGINS` | Exact comma-separated Firebase Hosting/custom origins; never `*` in production. |
+| `RESEND_API_KEY` | Resend credential for real verification/reset email delivery; configure a verified sender domain. |
+| `ERAS_MAIL_FROM` | Bare address on the verified domain, e.g. `auth@example.com`; ERAS adds its display name. |
+| `DATABASE_URL` | Existing production Neon PostgreSQL connection string. |
+| `JWT_SECRET` | Existing strong production ERAS JWT secret. |
+| `NODE_ENV` | `production`. |
+| `TRUST_PROXY` | `1` for Render. |
+| `RATE_LIMIT_ENABLED` | `true`. |
 
-`FIREBASE_SERVICE_ACCOUNT` may reuse the existing `FCM_SERVICE_ACCOUNT` secret;
-the backend accepts either name. The Firebase service account's project ID
-must match `FIREBASE_PROJECT_ID`. Do not grant project Owner merely to verify
-ID tokens. Use the narrowest Firebase Authentication permission approved for
-this service. Deploy a secret only after reviewing the account's scope.
+`FIREBASE_PROJECT_ID` and `GOOGLE_CLIENT_ID` are identifiers, not secrets. The
+Google token verifier fetches and caches Google's public signing certificates;
+no private Firebase key is needed. Configure Resend and `ERAS_MAIL_FROM` before accepting real
+email-verification/password-reset flows. The optional SMTP fallback is usable
+only if `nodemailer` is intentionally added to the backend deployment. Code
+expiry, attempt limits, and resend limits have defaults documented
+in `backend/.env.example`; change them only after operational review.
 
-Email code delivery requires the sender domain to be verified with Resend. The
-backend stores an HMAC digest of each code, limits attempts and sends, expires
-codes, and does not return or log a live code. Email verification is required
-for new email/password accounts. Existing migrated accounts keep their current
-login behavior; Google identities are accepted only when Firebase marks the
-Google provider email verified.
+## 5. Deploy backend and Web
 
-## 5. Build and deploy
+### Backend
 
-### Web build
+Use the existing Render Blueprint/deployment process. It installs the checked-in
+lockfile, generates Prisma Client, and deploys migrations. Review
+[`PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md) before applying schema
+changes. Use `prisma migrate deploy`, never `migrate reset` or `db push` against
+production. Confirm the backend `/health` check succeeds and that the Firebase
+project/client IDs, `CORS_ORIGINS`, email transport, and sender are configured.
 
-Run from `frontend/emergency_app` with the real Firebase Web config, OAuth Web
-client ID, restricted Maps browser key, and Render API URL available as local
-environment variables. The build helper passes Firebase config through Dart
-defines and restores/removes the temporary Maps config on exit:
+### Firebase Web
+
+From `frontend/emergency_app`, configure the production Web values locally and
+build with the helper. It validates required inputs, supplies Firebase values
+as Dart defines, temporarily writes the ignored Maps config, and restores it on
+exit. The API URL must be HTTPS and end in `/api`:
 
 ```bash
+cd frontend/emergency_app
 ./tool/build_production_web.sh
-```
-
-The `ERAS_FIREBASE_*` values must all come from the same selected Firebase Web
-app. Set `ERAS_FIREBASE_STORAGE_BUCKET` and `ERAS_FIREBASE_MEASUREMENT_ID` only
-when those values are present in that app's config. Deploy explicitly to the
-project you verified:
-
-```bash
 firebase projects:list
 firebase deploy --only hosting --project "$ERAS_FIREBASE_PROJECT_ID"
 ```
 
-Or use `./tool/deploy_firebase_web.sh`, which builds and deploys to the
-explicit project ID. Do not commit a personal `.firebaserc` or deploy with an
-implicit Firebase CLI default project.
-
-### Backend
-
-Apply the checked-in Prisma migration with the existing production deployment
-procedure (`prisma migrate deploy`, never `migrate reset` or `db push`). Add the
-variables above to Render before exposing the new Google/OTP endpoints. The
-Render Blueprint contains `sync: false` declarations for values that must be
-provided securely. Verify `/health`, Firebase token verification, email code
-delivery, CORS, and rate limiting after deployment.
+`./tool/deploy_firebase_web.sh` is an optional shortcut that runs the build and
+then deploys non-interactively to that explicit project ID. Required local build
+values are `ERAS_API_BASE_URL`,
+`ERAS_GOOGLE_MAPS_API_KEY`, `ERAS_FIREBASE_API_KEY`, `ERAS_FIREBASE_APP_ID`,
+`ERAS_FIREBASE_MESSAGING_SENDER_ID`, `ERAS_FIREBASE_PROJECT_ID`,
+`ERAS_FIREBASE_AUTH_DOMAIN`, and `ERAS_GOOGLE_WEB_CLIENT_ID`. Optional values
+are `ERAS_FIREBASE_STORAGE_BUCKET`, `ERAS_FIREBASE_MEASUREMENT_ID`, and
+`ERAS_FCM_VAPID_KEY` (Web push only). Restrict the Maps browser key by exact
+HTTP referrers and required APIs. After deployment, add the Firebase origin to
+Render's `CORS_ORIGINS` and restart/redeploy the API if it changed.
 
 ### Android release APK
 
-Build only after `google-services.json`, Maps Android key, production signing
-keystore, Firebase project, Google Web client ID, and HTTPS API URL have been
-verified. The helper refuses a debug-signed release and validates Android
-package/OAuth client IDs before invoking Flutter:
+Provide the production `google-services.json`, Android-restricted Maps key,
+Firebase project/Web client IDs, HTTPS Render API URL ending in `/api`, and
+production keystore settings locally. Then run:
 
 ```bash
+cd frontend/emergency_app
 ./tool/build_release_apk.sh
 ```
 
-The output is `build/app/outputs/flutter-apk/app-release.apk`. Install that exact
-APK on a real Android device; verify its signing certificate with Android
-build tools and confirm its SHA-1/SHA-256 are the values registered in Firebase
-and Google Cloud. Do not distribute an APK built with a debug key.
+The helper validates Firebase project/package/OAuth/SHA-1 values and refuses a
+release without production signing variables. The expected output is
+`build/app/outputs/flutter-apk/app-release.apk`. Do not distribute an APK
+signed with a debug key. Install this exact production-signed build on a real
+Android device before recording Android acceptance as passed.
 
 ## 6. Required real acceptance flows
 
-Use a dedicated non-admin test account and a real browser/Android device. The
-following are separate acceptance cases; unit/widget tests do not count as
-real provider verification.
+Use dedicated non-admin test accounts and real provider/email services. Widget
+and backend tests do not replace these real flows.
 
-1. **Web Google registration:** on the deployed Firebase Hosting origin, choose
-   a Google account not yet registered in ERAS, choose REQUESTER or RESPONDER,
-   complete the popup, and confirm exactly one PostgreSQL user is created with
-   the verified Google email and selected role and that an ERAS JWT session is
-   issued.
+1. **Web Google registration:** on the deployed Firebase Hosting origin, use a
+   Google identity not yet registered in ERAS. Choose REQUESTER or RESPONDER;
+   verify the one new PostgreSQL user, role, ERAS JWT, and role-based route.
 2. **Web Google login:** sign out and sign back in with that same Google
-   account; verify the API session and role-based destination.
-3. **Android Google login:** install the production-signed release APK on a
-   physical Android device with Google Play Services; complete the native
-   account chooser and verify the returned ERAS session and role-based route.
-4. **Existing email/password login:** log in with a verified existing ERAS
-   account and confirm the existing ERAS JWT `/api/auth/me` flow still works.
-5. **First-time email verification:** register a new email/password account,
-   receive the actual email, enter its six-digit code, and then log in.
-6. **Forgot password:** request a real six-digit email code, set a new password,
-   verify the old password is rejected and the new one succeeds.
+   identity; verify the existing Firebase UID resolves to the same ERAS user
+   and the returned ERAS JWT/session works.
+3. **Existing-account resolution:** create a pre-existing email/password ERAS
+   account for a test email, then register/sign in with Google using the same
+   verified email for the first time. Confirm the existing database row receives
+   the Firebase UID, is marked verified, keeps its original role/password, and
+   is not duplicated; then confirm the original email/password login still
+   works.
+4. **Android Google login:** install the production-signed APK on a physical
+   Android phone with Google Play Services, complete the native account chooser,
+   and verify the ERAS session and role-based route.
+5. **Existing email/password login:** authenticate a verified existing account
+   and confirm the established ERAS JWT `/api/auth/me` flow still works.
+6. **First-time email verification:** register a new email/password account,
+   receive the actual six-digit email, submit the code, and then log in.
+7. **Six-digit password reset:** request and receive the actual reset code, set
+   a new password, verify the old password is rejected and the new one works.
 
-Do not mark Google Sign-In fully verified until cases 1–3 pass on the real
-production browser and physical Android device. Capture timestamps, app/build
-version, project ID, package ID, test roles, response status, and pass/fail in a
-private release record. Never include tokens, OTPs, service-account contents,
-passwords, API keys, or personal details in the record.
+Do not describe Google Sign-In as fully verified until the real Web registration
+and login and physical Android sign-in above all pass. Keep a private release
+record of project/package/build IDs, timestamps, response statuses, and
+pass/fail outcomes; never record tokens, codes, passwords, service-account
+contents, or personal data. See [`FIREBASE_GOOGLE_SIGNIN_STATUS.md`](FIREBASE_GOOGLE_SIGNIN_STATUS.md)
+for the current workspace verification status.

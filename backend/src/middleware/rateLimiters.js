@@ -35,6 +35,54 @@ const authLimiter = rateLimit({
   limit: env.AUTH_RATE_MAX,
 });
 
+// ---------------------------------------------------------------------------
+// Sensitive-endpoint limiters.
+//
+// These are intentionally permissive enough for a real person (a few clicks),
+// but stop automated abuse. Emergency dispatch traffic (requests, GPS,
+// heartbeat) is never limited by them.
+// ---------------------------------------------------------------------------
+
+/** Google/Firebase identity exchange per IP. */
+const googleAuthLimiter = rateLimit({
+  ...baseOptions,
+  windowMs: env.AUTH_RATE_WINDOW_MS,
+  limit: env.GOOGLE_AUTH_RATE_MAX,
+  keyGenerator: (req) => req.ip,
+});
+
+/**
+ * Password reset request/verify/reset per IP. Combined with the per-account
+ * cooldown and request budget in authCodeService (which cannot be bypassed by
+ * changing IP), this blocks both enumeration and code brute forcing.
+ */
+const passwordResetLimiter = rateLimit({
+  ...baseOptions,
+  windowMs: env.PASSWORD_RESET_RATE_WINDOW_MS,
+  limit: env.PASSWORD_RESET_RATE_MAX,
+  keyGenerator: (req) => req.ip,
+});
+
+/** Verification-email resends per IP (per-account cooldown applies on top). */
+const emailResendLimiter = rateLimit({
+  ...baseOptions,
+  windowMs: env.EMAIL_RESEND_RATE_WINDOW_MS,
+  limit: env.EMAIL_RESEND_RATE_MAX,
+  keyGenerator: (req) => req.ip,
+});
+
+/**
+ * Destructive/sensitive ADMIN operations (log deletion, role changes).
+ * Deliberately generous: an administrator must never be locked out of
+ * emergency administration, but scripted bulk deletion is not possible.
+ */
+const adminSensitiveLimiter = rateLimit({
+  ...baseOptions,
+  windowMs: env.ADMIN_SENSITIVE_RATE_WINDOW_MS,
+  limit: env.ADMIN_SENSITIVE_RATE_MAX,
+  keyGenerator: (req) => (req.user?.id ? `user:${req.user.id}` : req.ip),
+});
+
 /**
  * Generous catch-all limiter for the rest of the API. It exists to blunt
  * blind abusive traffic, NOT to interfere with legitimate emergency dispatch.
@@ -60,5 +108,11 @@ const apiLimiter = rateLimit({
 module.exports = {
   authLimiter,
   apiLimiter,
+  googleAuthLimiter,
+  passwordResetLimiter,
+  emailResendLimiter,
+  adminSensitiveLimiter,
   GPS_SENSITIVE_PATHS,
+  jsonLimitResponse,
+  baseOptions,
 };

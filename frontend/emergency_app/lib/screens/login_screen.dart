@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/email_validation.dart';
 import '../services/google_auth_service.dart';
+import '../services/socket_service.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
-import 'auth_navigation.dart';
+import 'dispatch_console_page.dart';
 import 'email_verification_screen.dart';
-import 'password_recovery_screen.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
+import 'responder_readiness_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,6 +34,10 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => errorMessage = 'Please enter email and password');
       return;
     }
+    if (!isValidEmail(emailController.text)) {
+      setState(() => errorMessage = 'Enter a valid email address');
+      return;
+    }
     setState(() {
       loading = true;
       errorMessage = null;
@@ -42,7 +49,20 @@ class _LoginScreenState extends State<LoginScreen> {
       // Purely visual confirmation: the check stays visible on the button
       // while the route transition plays. Navigation is not delayed.
       setState(() => success = true);
-      routeAuthenticatedUser(context);
+
+      // FIRST-LOGIN EMAIL VERIFICATION: only an explicit `false` gates the
+      // console. Google accounts (and older/partial payloads) report true or
+      // null and go straight through.
+      if (ApiService.emailVerified == false) {
+        await Navigator.pushReplacement(
+            context,
+            MaterialPageRoute<void>(
+                builder: (_) => EmailVerificationScreen(
+                    email: ApiService.currentUserEmail)));
+        return;
+      }
+
+      _openAuthenticatedArea();
     } catch (error) {
       if (mounted) {
         setState(() =>
@@ -53,26 +73,64 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> googleLogin() async {
+  /// Shared post-authentication routing (password and Google paths).
+  ///
+  /// The realtime connection is opened here, i.e. only once the session is
+  /// actually entering the authenticated area, so a session that is still
+  /// waiting on email verification never holds a live socket.
+  void _openAuthenticatedArea() {
+    SocketService.instance.connect();
+    if (ApiService.isResponder) {
+      Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+              builder: (readinessContext) =>
+                  ResponderReadinessPage(onSaved: () {
+                    Navigator.of(readinessContext).pushReplacement(
+                        MaterialPageRoute<void>(
+                            builder: (_) => const DispatchConsolePage(
+                                readinessSuccess: true)));
+                  })));
+    } else {
+      Navigator.pushReplacement(context,
+          MaterialPageRoute<void>(builder: (_) => const DispatchConsolePage()));
+    }
+  }
+
+  /// Google sign-in through the existing Firebase project.
+  ///
+  /// The client only obtains the Firebase ID token; the ERAS backend verifies
+  /// it, logs in a known Firebase UID or links an existing user with the same
+  /// verified email while preserving the ERAS role, then returns the normal
+  /// ERAS JWT. A new Google account needs a public registration role, so new
+  /// users start on the register screen. Google accounts are verified by
+  /// Google and skip the email-verification screen.
+  Future<void> signInWithGoogle() async {
     if (loading) return;
+    FocusScope.of(context).unfocus();
     setState(() {
       loading = true;
       errorMessage = null;
     });
+
     try {
-      final firebaseIdToken =
-          await GoogleAuthService.signInAndGetFirebaseIdToken();
-      if (firebaseIdToken == null) return;
-      await ApiService.googleAuth(firebaseIdToken, intent: 'login');
+      final idToken = await GoogleAuthService.instance.signInAndGetIdToken();
+      if (idToken == null) {
+        // The user dismissed the Google account sheet: nothing happened and no
+        // session changed.
+        return;
+      }
+
+      await ApiService.googleSignIn(idToken: idToken);
       if (!mounted) return;
       setState(() => success = true);
-      routeAuthenticatedUser(context);
+      _openAuthenticatedArea();
+    } on GoogleAuthException catch (error) {
+      if (mounted) setState(() => errorMessage = error.message);
     } catch (error) {
-      await GoogleAuthService.clearProviderSession();
-      if (error is GoogleSignInCancelled) return;
       if (mounted) {
-        setState(() => errorMessage =
-            error.toString().replaceFirst('Exception: ', ''));
+        setState(() =>
+            errorMessage = error.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
       if (mounted) setState(() => loading = false);
@@ -184,9 +242,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute<void>(
-                                    builder: (_) => PasswordRecoveryScreen(
-                                        initialEmail:
-                                            emailController.text.trim()))),
+                                    builder: (_) =>
+                                        const ForgotPasswordScreen())),
                             borderRadius: BorderRadius.circular(8),
                             child: Padding(
                                 padding:
@@ -216,20 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   child: Text(errorMessage!,
                                       style: TextStyle(
                                           fontSize: 12.5, color: skin.red)))
-                            ])),
-                    if (errorMessage ==
-                        'Please verify your email before signing in')
-                      TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => EmailVerificationScreen(
-                              email: emailController.text.trim(),
-                            ),
-                          ),
-                        ),
-                        child: const Text('Enter verification code or resend'),
-                      ),
+                            ]))
                   ],
                   const SizedBox(height: 16),
                   AuthPrimaryButton(
@@ -241,8 +285,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 20),
                   AuthDividerLabel(),
                   const SizedBox(height: 14),
-                  AuthGoogleButton(
-                      onPressed: loading ? null : googleLogin),
+                  AuthGoogleButton(onPressed: signInWithGoogle),
                 ])));
   }
 }

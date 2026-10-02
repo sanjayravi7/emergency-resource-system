@@ -20,16 +20,6 @@ const bcrypt = require("bcrypt");
 
 const app = require("../../src/app");
 const prisma = require("../../src/config/prisma");
-const authEmailService = require("../../src/services/authEmailService");
-
-async function verifyEmailForTest(email) {
-  const code = authEmailService.getTestCodeForTests(email, "EMAIL_VERIFICATION");
-  expect(code).toMatch(/^\d{6}$/);
-  const response = await request(app)
-    .post("/api/auth/verify-email")
-    .send({ email, code });
-  expect(response.statusCode).toBe(200);
-}
 
 describe("Registration role selection", () => {
   const stamp = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -100,9 +90,7 @@ describe("Registration role selection", () => {
     expect(response.statusCode).toBe(201);
     expect(response.body.success).toBe(true);
     expect(response.body.data.user.role).toBe("REQUESTER");
-    expect(response.body.data.user.emailVerified).toBe(false);
-    expect(response.body.data.verificationRequired).toBe(true);
-    expect(response.body.data.token).toBeUndefined();
+    expect(response.body.data.token).toBeDefined();
 
     const dbUser = await prisma.user.findUnique({
       where: { email: requesterEmail },
@@ -111,7 +99,6 @@ describe("Registration role selection", () => {
 
     expect(dbUser.role).toBe("REQUESTER");
     requesterId = response.body.data.user.id;
-    await verifyEmailForTest(requesterEmail);
   });
 
   test("public registration with RESPONDER succeeds and stores role=RESPONDER without fabricating readiness", async () => {
@@ -145,7 +132,6 @@ describe("Registration role selection", () => {
     expect(resources).toHaveLength(0);
 
     responderId = response.body.data.user.id;
-    await verifyEmailForTest(responderEmail);
   });
 
   test("public registration with role=ADMIN is rejected and creates no ADMIN account", async () => {

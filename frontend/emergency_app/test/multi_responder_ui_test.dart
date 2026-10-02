@@ -109,10 +109,13 @@ void main() {
     // Lead is labelled through the preserved acceptedBy semantics.
     expect(find.text('Asha Menon'), findsWidgets);
     expect(find.textContaining('LEAD · ACTIVE'), findsOneWidget);
-    // The additional ACTIVE assignment is visible with contact details.
+    // The additional ACTIVE assignment is visible...
     expect(find.text('Rahul Pillai'), findsOneWidget);
     expect(find.textContaining('ASSIGNED · ACTIVE'), findsOneWidget);
-    expect(find.text('555-0102'), findsOneWidget);
+    // ...but a REQUESTER never receives a responder's phone number: the backend
+    // omits it for non-admin viewers and the widget refuses to render one.
+    expect(find.text('555-0102'), findsNothing);
+    expect(find.text('555-0101'), findsNothing);
     // The ENDED assignment is history and never renders as active work.
     expect(find.text('Former Responder'), findsNothing);
   });

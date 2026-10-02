@@ -5,6 +5,14 @@
 
 const VALID_RESOURCE_MODES = ["SERVICE", "CONSUMABLE"];
 
+// Text/quantity bounds. Generous for real catalog data, small enough that a
+// request cannot be used to store megabytes or absurd numbers.
+const MAX_NAME_LENGTH = 120;
+const MAX_TYPE_LENGTH = 60;
+const MAX_UNIT_LENGTH = 30;
+const MAX_LOCATION_LENGTH = 200;
+const MAX_QUANTITY = 1000000;
+
 function isNonNegativeInteger(value) {
   return Number.isInteger(value) && value >= 0;
 }
@@ -35,14 +43,28 @@ function validateResourceInput(data, options = {}, existing = null) {
   }
 
   if (!partial || data.name !== undefined) {
-    if (!data.name || !String(data.name).trim()) {
+    if (!data.name || typeof data.name !== "string" || !data.name.trim()) {
       return "Resource name is required";
+    }
+    if (data.name.trim().length > MAX_NAME_LENGTH) {
+      return "Resource name is too long";
     }
   }
 
   if (!partial || data.type !== undefined) {
-    if (!data.type || !String(data.type).trim()) {
+    if (!data.type || typeof data.type !== "string" || !data.type.trim()) {
       return "Resource type is required";
+    }
+    if (data.type.trim().length > MAX_TYPE_LENGTH) {
+      return "Resource type is too long";
+    }
+  }
+
+  for (const [field, max] of [["unit", MAX_UNIT_LENGTH], ["location", MAX_LOCATION_LENGTH]]) {
+    const value = data[field];
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string" || value.trim().length > max) {
+      return "Invalid " + field;
     }
   }
 
@@ -67,6 +89,10 @@ function validateResourceInput(data, options = {}, existing = null) {
 
   if (!isNonNegativeInteger(availableQuantity)) {
     return "Available quantity must be a whole number >= 0";
+  }
+
+  if (totalQuantity > MAX_QUANTITY || availableQuantity > MAX_QUANTITY) {
+    return "Quantity is unrealistically large";
   }
 
   if (availableQuantity > totalQuantity) {
@@ -152,6 +178,9 @@ function normalizeResourceInput(data, options = {}) {
 
 module.exports = {
   VALID_RESOURCE_MODES,
+  MAX_NAME_LENGTH,
+  MAX_TYPE_LENGTH,
+  MAX_QUANTITY,
   validateResourceInput,
   normalizeResourceInput,
 };
