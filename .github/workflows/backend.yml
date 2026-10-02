@@ -63,4 +63,13 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
       - name: Run tests
-        run: npm test -- --runInBand
+        run: |
+          set -o pipefail
+          npm test -- --runInBand 2>&1 | tee /tmp/jest.log && status=0 || status=$?
+          grep -a -E '^(FAIL|Tests:|Test Suites:)' /tmp/jest.log | head -40 | while IFS= read -r line; do
+            echo "::error title=jest::$line"
+          done
+          grep -a '^  ● ' /tmp/jest.log | head -40 | while IFS= read -r line; do
+            echo "::error title=jest-case::$line"
+          done
+          exit "$status"
