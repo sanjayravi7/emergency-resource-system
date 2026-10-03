@@ -26,6 +26,8 @@ services:
         sync: false
       - key: ERAS_MAIL_FROM
         sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
       - key: TRUST_PROXY
         value: "1"
       - key: RATE_LIMIT_ENABLED

@@ -273,6 +273,22 @@ ThemeData erasTheme(Brightness brightness) {
       thickness: 1,
       space: 1,
     ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: palette.header,
+      foregroundColor: palette.text,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      systemOverlayStyle: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: palette.sidebar,
+        systemNavigationBarDividerColor: palette.border,
+        systemNavigationBarIconBrightness:
+            dark ? Brightness.light : Brightness.dark,
+        systemNavigationBarContrastEnforced: true,
+      ),
+    ),
     extensions: <ThemeExtension<dynamic>>[palette],
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

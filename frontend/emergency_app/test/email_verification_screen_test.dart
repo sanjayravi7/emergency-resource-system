@@ -207,9 +207,37 @@ void main() {
         );
         expect(ApiService.emailVerified, isTrue);
         expect(find.textContaining('Email verified'), findsWidgets);
+        expect(find.byKey(const ValueKey('verification-welcome-state')), findsOneWidget);
+        expect(find.textContaining('Welcome to ERAS, Asha'), findsOneWidget);
+        expect(find.textContaining('Your account is ready.'), findsOneWidget);
+
+        // Advance the welcome transition timer (1400ms)
+        await tester.pump(const Duration(milliseconds: 1500));
+        await tester.pump();
       },
       () => _verificationBackend(recorder),
     );
+  });
+
+  testWidgets('initial delivery notice explains email delivery issue and offers resend',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EmailVerificationScreen(
+          email: 'asha@example.com',
+          initialNotice:
+              "Your account was created, but we couldn't deliver the verification email. You can resend the code.",
+          initialNoticeIsError: true,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.textContaining("couldn't deliver the verification email"),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('resend-verification')), findsOneWidget);
   });
 
   testWidgets('an invalid code keeps the account unverified and explains why',

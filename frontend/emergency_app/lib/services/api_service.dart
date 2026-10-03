@@ -349,6 +349,89 @@ class ApiService {
     return Map<String, dynamic>.from(data);
   }
 
+  /// Autocomplete place suggestions via the authenticated ERAS backend.
+  static Future<List<Map<String, dynamic>>> autocompletePlaces({
+    required String query,
+    double? latitude,
+    double? longitude,
+    double? radiusMeters,
+  }) async {
+    final params = <String, String>{
+      'query': query,
+      if (latitude != null) 'latitude': latitude.toString(),
+      if (longitude != null) 'longitude': longitude.toString(),
+      if (radiusMeters != null) 'radius': radiusMeters.toString(),
+    };
+    final response = await http.get(
+      Uri.parse('$baseUrl/location/autocomplete')
+          .replace(queryParameters: params),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Place search failed');
+    }
+    final data = body['data'];
+    if (data is! Map) return const <Map<String, dynamic>>[];
+    final predictions = data['predictions'];
+    if (predictions is! List) return const <Map<String, dynamic>>[];
+    return predictions
+        .whereType<Map>()
+        .map((p) => Map<String, dynamic>.from(p))
+        .toList();
+  }
+
+  /// Resolves a placeId to canonical coordinates and label via the backend.
+  static Future<Map<String, dynamic>> resolvePlaceDetails({
+    required String placeId,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/location/details')
+          .replace(queryParameters: {'placeId': placeId}),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Could not resolve coordinates for this place');
+    }
+    final data = body['data'];
+    if (data is! Map) _fail(body, 'Invalid place details response');
+    return Map<String, dynamic>.from(data);
+  }
+
+  /// Searches nearby places around the requester via the authenticated backend.
+  static Future<List<Map<String, dynamic>>> searchNearbyPlaces({
+    required double latitude,
+    required double longitude,
+    required String category,
+    double? radiusMeters,
+    int? maxResults,
+  }) async {
+    final params = <String, String>{
+      'latitude': latitude.toString(),
+      'longitude': longitude.toString(),
+      'category': category,
+      if (radiusMeters != null) 'radius': radiusMeters.toString(),
+      if (maxResults != null) 'maxResults': maxResults.toString(),
+    };
+    final response = await http.get(
+      Uri.parse('$baseUrl/location/nearby').replace(queryParameters: params),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Nearby places search failed');
+    }
+    final data = body['data'];
+    if (data is! Map) return const <Map<String, dynamic>>[];
+    final places = data['places'];
+    if (places is! List) return const <Map<String, dynamic>>[];
+    return places
+        .whereType<Map>()
+        .map((p) => Map<String, dynamic>.from(p))
+        .toList();
+  }
+
   // ---------------------------------------------------------------------
   // EMERGENCY REQUESTS
   // ---------------------------------------------------------------------

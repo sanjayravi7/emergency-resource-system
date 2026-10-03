@@ -41,9 +41,14 @@ async function register(req, res, next) {
       metadata: { authProvider: "PASSWORD" },
     });
 
+    const message =
+      result.emailDelivered === false
+        ? "Your account was created, but we couldn't deliver the verification email. You can resend the code."
+        : "Registration successful. Check your email to verify your account.";
+
     return res.status(201).json({
       success: true,
-      message: "Registration successful. Check your email to verify your account.",
+      message,
       data: result,
     });
   } catch (error) {

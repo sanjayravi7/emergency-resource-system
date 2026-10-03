@@ -138,6 +138,14 @@ const env = {
   PHOTON_TIMEOUT_MS: integerFromEnv('PHOTON_TIMEOUT_MS', 5000, { min: 500 }),
 
   // ---------------------------------------------------------------------------
+  // Google Places API (New) for native mobile place search.
+  // Kept server-side only to protect credentials and quota; never exposed to
+  // Flutter source or APK.
+  // ---------------------------------------------------------------------------
+  GOOGLE_PLACES_API_KEY: (process.env.GOOGLE_PLACES_API_KEY || '').trim() || null,
+  GOOGLE_PLACES_TIMEOUT_MS: integerFromEnv('GOOGLE_PLACES_TIMEOUT_MS', 5000, { min: 500 }),
+
+  // ---------------------------------------------------------------------------
   // Firebase Cloud Messaging (FCM) push notifications for responders.
   //
   // FCM is an OPTIONAL add-on transport: Socket.IO stays the foreground
