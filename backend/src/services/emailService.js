@@ -7,39 +7,62 @@
 // body are clearly ERAS, and the recipient's ERAS action is described
 // explicitly.
 //
-// Transports (first configured one wins):
-//   1. RESEND_API_KEY  -> Resend HTTPS API (no extra dependency; global fetch)
-//   2. SMTP_URL + nodemailer (only when the optional package is installed)
-//   3. unconfigured    -> logged no-op
+// Transports (in order):
+//   1. RESEND_API_KEY -> Resend HTTPS API
+//   2. SMTP_URL       -> SMTP fallback if Resend is absent or rejects the request
+//   3. unconfigured   -> logged safe failure
 //
-// Secrets are never hardcoded and never logged. When no transport is
-// configured, delivery is reported as `{ delivered: false }`; the caller still
-// returns a generic response so no account/email enumeration is possible.
+// ERAS_MAIL_FROM must be a bare syntactically valid sender address. There is no
+// invented default sender: Resend rejects local/example senders, so missing or
+// malformed configuration is surfaced before a provider call. Provider 2xx
+// means request accepted, not confirmed inbox delivery. Secrets, OTPs, sender
+// addresses and recipient addresses are never included in logs.
 // ---------------------------------------------------------------------------
 
 const env = require('../config/env');
 const logger = require('../config/logger');
+const { isValidEmail } = require('../domain/emailValidation');
 
 const FROM_NAME = 'ERAS (Emergency Resource Allocation System)';
-const DEFAULT_FROM_ADDRESS = 'no-reply@eras.local';
+
+function environmentValue(name) {
+  const raw = Object.prototype.hasOwnProperty.call(process.env, name)
+    ? process.env[name]
+    : env[name];
+  if (typeof raw !== 'string') return null;
+  return raw.trim() || null;
+}
 
 function resendApiKey() {
-  const raw = env.RESEND_API_KEY || process.env.RESEND_API_KEY || '';
-  return String(raw).trim() || null;
+  return environmentValue('RESEND_API_KEY');
 }
 
 function smtpUrl() {
-  const raw = env.SMTP_URL || process.env.SMTP_URL || '';
-  return String(raw).trim() || null;
+  return environmentValue('SMTP_URL');
 }
 
 function configuredFromAddress() {
-  const raw = process.env.ERAS_MAIL_FROM || env.ERAS_MAIL_FROM || '';
-  return String(raw).trim() || null;
+  return environmentValue('ERAS_MAIL_FROM');
 }
 
-function fromAddress() {
-  return configuredFromAddress() || DEFAULT_FROM_ADDRESS;
+function senderIsValid(address = configuredFromAddress()) {
+  return Boolean(address && isValidEmail(address));
+}
+
+function safeProviderValue(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 100) return null;
+  if (!/^[A-Za-z0-9_.:-]+$/.test(normalized)) return null;
+  if (/^\d{6}$/.test(normalized) || /@/.test(normalized)) return null;
+  return normalized;
+}
+
+function configuredTransports() {
+  const transports = [];
+  if (resendApiKey()) transports.push({ name: 'Resend', transport: 'resend' });
+  if (smtpUrl()) transports.push({ name: 'SMTP', transport: 'smtp' });
+  return transports;
 }
 
 /**
@@ -47,26 +70,27 @@ function fromAddress() {
  * Never exposes API keys, SMTP credentials, sender addresses, or OTP codes.
  */
 function getTransportDiagnostics() {
-  const hasResend = Boolean(resendApiKey());
-  const hasSmtp = Boolean(smtpUrl());
-  const configured = hasResend || hasSmtp;
-
-  let provider = 'unconfigured';
-  let transport = 'unconfigured';
-  if (hasResend) {
-    provider = 'Resend';
-    transport = 'resend';
-  } else if (hasSmtp) {
-    provider = 'SMTP';
-    transport = 'smtp';
-  }
+  const transports = configuredTransports();
+  const hasResend = transports.some((item) => item.transport === 'resend');
+  const hasSmtp = transports.some((item) => item.transport === 'smtp');
+  const from = configuredFromAddress();
+  const configured = transports.length > 0;
 
   return {
     configured,
     transportConfigured: configured ? 'yes' : 'no',
-    provider,
-    transport,
-    fromConfigured: configuredFromAddress() ? 'yes' : 'no',
+    provider: transports[0]?.name || 'unconfigured',
+    transport: transports[0]?.transport || 'unconfigured',
+    fromConfigured: from ? 'yes' : 'no',
+    senderValid: senderIsValid(from) ? 'yes' : 'no',
+    smtpFallbackConfigured: hasResend && hasSmtp ? 'yes' : 'no',
+    configurationError: !configured
+      ? 'EMAIL_TRANSPORT_UNCONFIGURED'
+      : !from
+        ? 'ERAS_MAIL_FROM_UNCONFIGURED'
+        : !senderIsValid(from)
+          ? 'ERAS_MAIL_FROM_INVALID'
+          : null,
   };
 }
 
@@ -204,17 +228,65 @@ function passwordResetEmail(code) {
   };
 }
 
-function sanitizeDeliveryError(message, { to } = {}) {
-  if (!message || typeof message !== 'string') return 'Unknown delivery error';
+function sanitizeDeliveryError(message) {
+  if (!message || typeof message !== 'string') return null;
   let sanitized = message;
   const key = resendApiKey();
   const smtp = smtpUrl();
-  if (key) sanitized = sanitized.split(key).join('[REDACTED]');
-  if (smtp) sanitized = sanitized.split(smtp).join('[REDACTED]');
-  if (to && typeof to === 'string') sanitized = sanitized.split(to).join('[REDACTED]');
+  if (key) sanitized = sanitized.split(key).join('[REDACTED_PROVIDER_SECRET]');
+  if (smtp) sanitized = sanitized.split(smtp).join('[REDACTED_SMTP_URL]');
   sanitized = sanitized.replace(/smtps?:\/\/[^\s]+/gi, '[REDACTED_SMTP_URL]');
-  sanitized = sanitized.replace(/\bre_[A-Za-z0-9_]+\b/g, '[REDACTED_API_KEY]');
-  return sanitized;
+  sanitized = sanitized.replace(/\bre_[A-Za-z0-9_-]+\b/gi, '[REDACTED_PROVIDER_SECRET]');
+  sanitized = sanitized.replace(/\bBearer\s+\S+/gi, 'Bearer [REDACTED]');
+  sanitized = sanitized.replace(
+    /\b(?:password|passwd|pass|username|user|authorization|api[_-]?key|secret)\s*[:=]\s*[^\s,;]+/gi,
+    '[REDACTED_CREDENTIAL]',
+  );
+  sanitized = sanitized.replace(
+    /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+/gi,
+    '[REDACTED_EMAIL]',
+  );
+  sanitized = sanitized.replace(/\b\d{6}\b/g, '[REDACTED_CODE]');
+  sanitized = sanitized.replace(
+    /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
+    '[REDACTED_TOKEN]',
+  );
+  sanitized = sanitized.replace(/[\x00-\x1F\x7F]/g, ' ').replace(/\s+/g, ' ').trim();
+  return sanitized ? sanitized.slice(0, 300) : null;
+}
+
+function responsePayloadError(payload) {
+  if (!payload || typeof payload !== 'object') return {};
+  const nested = payload.error && typeof payload.error === 'object'
+    ? payload.error
+    : payload;
+  return {
+    providerErrorCode:
+      safeProviderValue(nested.code) ||
+      safeProviderValue(nested.errorCode) ||
+      safeProviderValue(nested.name),
+    providerErrorType: safeProviderValue(nested.type),
+    providerErrorMessage: sanitizeDeliveryError(
+      typeof nested.message === 'string' ? nested.message : null,
+    ),
+  };
+}
+
+function responseMessageId(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  const id = payload.id ?? payload.messageId;
+  // Message identifiers are useful for provider-side support and contain no
+  // recipient address. Reject unexpected formats instead of logging them.
+  if (typeof id !== 'string' || id.length > 128) return null;
+  return /^[A-Za-z0-9_.:-]+$/.test(id) ? id : null;
+}
+
+async function parseResponseJson(response) {
+  try {
+    return typeof response.json === 'function' ? await response.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 async function sendWithResend({ to, subject, text, html }) {
@@ -227,100 +299,228 @@ async function sendWithResend({ to, subject, text, html }) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      from: `${FROM_NAME} <${fromAddress()}>`,
+      from: `${FROM_NAME} <${configuredFromAddress()}>`,
       to: [to],
       subject,
       text,
       html,
     }),
   });
+  const payload = await parseResponseJson(response);
 
   if (!response.ok) {
-    // The provider body can contain the address; keep only the status.
-    throw new Error(`resend responded with ${response.status}`);
+    const providerError = responsePayloadError(payload);
+    const error = new Error('Provider rejected the email request');
+    error.provider = 'Resend';
+    error.transport = 'resend';
+    error.providerResponseStatus = Number(response.status) || null;
+    error.providerErrorCode = providerError.providerErrorCode;
+    error.providerErrorType = providerError.providerErrorType;
+    error.providerErrorMessage = providerError.providerErrorMessage;
+    throw error;
   }
+
   return {
-    delivered: true,
-    deliveryResult: 'success',
+    deliveryAccepted: true,
+    accepted: true,
+    delivered: null,
+    deliveryConfirmed: false,
+    deliveryResult: 'accepted',
     transport: 'resend',
     provider: 'Resend',
     transportConfigured: 'yes',
+    providerResponseStatus: Number(response.status) || null,
+    messageId: responseMessageId(payload),
   };
 }
 
 async function sendWithSmtp({ to, subject, text, html }) {
-  let nodemailer;
-  try {
-    // Optional dependency: ERAS runs unchanged when it is not installed.
-    // eslint-disable-next-line global-require, import/no-unresolved
-    nodemailer = require('nodemailer');
-  } catch {
-    throw new Error('nodemailer is not installed');
-  }
-
+  // Nodemailer is a regular backend dependency so an explicitly configured
+  // SMTP fallback always exists in the deployed build.
+  // eslint-disable-next-line global-require
+  const nodemailer = require('nodemailer');
   const transport = nodemailer.createTransport(smtpUrl());
-  await transport.sendMail({
-    from: `${FROM_NAME} <${fromAddress()}>`,
+  const info = await transport.sendMail({
+    from: `${FROM_NAME} <${configuredFromAddress()}>`,
     to,
     subject,
     text,
     html,
   });
+
+  if (Array.isArray(info?.accepted) && info.accepted.length === 0) {
+    const error = new Error('SMTP did not accept the recipient');
+    error.provider = 'SMTP';
+    error.transport = 'smtp';
+    error.providerErrorCode = 'SMTP_RECIPIENT_REJECTED';
+    error.providerResponseStatus = Number(info?.responseCode) || null;
+    throw error;
+  }
+
+  const responseText = typeof info?.response === 'string' ? info.response : '';
+  const statusMatch = responseText.match(/\b([1-5]\d\d)\b/);
+  const responseStatus = Number(info?.responseCode || statusMatch?.[1]) || null;
+  const rawMessageId = typeof info?.messageId === 'string' ? info.messageId : null;
+
   return {
-    delivered: true,
-    deliveryResult: 'success',
+    deliveryAccepted: true,
+    accepted: true,
+    delivered: null,
+    deliveryConfirmed: false,
+    deliveryResult: 'accepted',
     transport: 'smtp',
     provider: 'SMTP',
     transportConfigured: 'yes',
+    providerResponseStatus: responseStatus,
+    messageId: rawMessageId && /^[A-Za-z0-9_.:-]+$/.test(rawMessageId)
+      ? rawMessageId
+      : null,
+  };
+}
+
+function failedDelivery({
+  provider = 'unconfigured',
+  transport = 'unconfigured',
+  transportConfigured = 'no',
+  deliveryResult = 'failed',
+  providerResponseStatus = null,
+  providerErrorCode = null,
+  providerErrorType = null,
+  fallbackUsed = false,
+} = {}) {
+  return {
+    deliveryAccepted: false,
+    accepted: false,
+    delivered: null,
+    deliveryConfirmed: false,
+    deliveryResult,
+    transport,
+    provider,
+    transportConfigured,
+    providerResponseStatus,
+    providerErrorCode: safeProviderValue(providerErrorCode),
+    providerErrorType: safeProviderValue(providerErrorType),
+    fallbackUsed,
   };
 }
 
 /**
- * Send one transactional ERAS email. Never throws: delivery failures are logged
- * without the address, secret, or code, and reported to the caller as
- * `{ delivered: false, deliveryResult: 'failure', ... }`.
+ * Send one transactional ERAS email. Never throws. `accepted` means the mail
+ * transport accepted the request; final inbox delivery is not knowable from a
+ * synchronous Resend/SMTP response and would require delivery webhooks.
  */
 async function send({ to, subject, text, html }) {
   const diagnostics = getTransportDiagnostics();
-  try {
-    if (resendApiKey()) {
-      return await sendWithResend({ to, subject, text, html });
-    }
-    if (smtpUrl()) {
-      return await sendWithSmtp({ to, subject, text, html });
-    }
+  const transports = configuredTransports();
 
-    // No transport configured. The code is NEVER logged; only the fact that a
-    // message could not be delivered.
+  if (transports.length === 0) {
     logger.warn('email.transport_unconfigured', {
-      subject,
       transportConfigured: 'no',
+      fromConfigured: diagnostics.fromConfigured,
       provider: 'unconfigured',
-      deliveryResult: 'failure',
+      deliveryResult: 'unconfigured',
+      providerErrorCode: 'EMAIL_TRANSPORT_UNCONFIGURED',
     });
-    return {
-      delivered: false,
-      deliveryResult: 'failure',
-      transport: 'unconfigured',
-      provider: 'unconfigured',
-      transportConfigured: 'no',
-    };
-  } catch (error) {
-    logger.error('email.delivery_failed', {
-      subject,
-      transportConfigured: diagnostics.transportConfigured,
-      provider: diagnostics.provider,
-      deliveryResult: 'failure',
-      message: sanitizeDeliveryError(error?.message, { to }),
+    return failedDelivery({
+      deliveryResult: 'unconfigured',
+      providerErrorCode: 'EMAIL_TRANSPORT_UNCONFIGURED',
     });
-    return {
-      delivered: false,
-      deliveryResult: 'failure',
-      transport: 'failed',
-      provider: diagnostics.provider,
-      transportConfigured: diagnostics.transportConfigured,
-    };
   }
+
+  const from = configuredFromAddress();
+  if (!from || !senderIsValid(from)) {
+    const providerErrorCode = from
+      ? 'ERAS_MAIL_FROM_INVALID'
+      : 'ERAS_MAIL_FROM_UNCONFIGURED';
+    logger.error('email.configuration_invalid', {
+      transportConfigured: diagnostics.transportConfigured,
+      fromConfigured: diagnostics.fromConfigured,
+      senderValid: diagnostics.senderValid,
+      provider: diagnostics.provider,
+      deliveryResult: 'failed',
+      providerErrorCode,
+    });
+    return failedDelivery({
+      provider: diagnostics.provider,
+      transport: diagnostics.transport,
+      transportConfigured: diagnostics.transportConfigured,
+      providerErrorCode,
+    });
+  }
+
+  if (typeof to !== 'string' || !isValidEmail(to)) {
+    logger.warn('email.request_rejected', {
+      transportConfigured: diagnostics.transportConfigured,
+      provider: diagnostics.provider,
+      deliveryResult: 'failed',
+      providerErrorCode: 'ERAS_RECIPIENT_INVALID',
+    });
+    return failedDelivery({
+      provider: diagnostics.provider,
+      transport: diagnostics.transport,
+      transportConfigured: diagnostics.transportConfigured,
+      providerErrorCode: 'ERAS_RECIPIENT_INVALID',
+    });
+  }
+
+  let lastError = null;
+  for (let index = 0; index < transports.length; index += 1) {
+    const configured = transports[index];
+    try {
+      const result = configured.transport === 'resend'
+        ? await sendWithResend({ to, subject, text, html })
+        : await sendWithSmtp({ to, subject, text, html });
+      const fallbackUsed = index > 0;
+      const acceptedResult = { ...result, fallbackUsed };
+
+      logger.info('email.delivery_accepted', {
+        provider: acceptedResult.provider,
+        transport: acceptedResult.transport,
+        transportConfigured: 'yes',
+        deliveryResult: 'accepted',
+        providerResponseStatus: acceptedResult.providerResponseStatus,
+        messageId: acceptedResult.messageId,
+        fallbackUsed,
+      });
+      return acceptedResult;
+    } catch (error) {
+      lastError = error;
+      const provider = configured.name;
+      const providerErrorCode = safeProviderValue(error?.providerErrorCode) ||
+        safeProviderValue(error?.code);
+      const providerErrorType = safeProviderValue(error?.providerErrorType) ||
+        safeProviderValue(error?.name);
+      const providerResponseStatus = Number.isInteger(error?.providerResponseStatus) &&
+        error.providerResponseStatus >= 100 && error.providerResponseStatus <= 599
+        ? error.providerResponseStatus
+        : null;
+      const providerErrorMessage = sanitizeDeliveryError(
+        error?.providerErrorMessage || error?.message,
+      );
+
+      logger.warn('email.provider_delivery_failed', {
+        provider,
+        transport: configured.transport,
+        transportConfigured: 'yes',
+        deliveryResult: 'failed',
+        providerResponseStatus,
+        providerErrorCode,
+        providerErrorType,
+        providerErrorMessage,
+        fallbackAvailable: index + 1 < transports.length,
+      });
+    }
+  }
+
+  return failedDelivery({
+    provider: lastError?.provider || transports[transports.length - 1].name,
+    transport: lastError?.transport || transports[transports.length - 1].transport,
+    transportConfigured: 'yes',
+    providerResponseStatus: lastError?.providerResponseStatus,
+    providerErrorCode: lastError?.providerErrorCode || lastError?.code,
+    providerErrorType: lastError?.providerErrorType || lastError?.name,
+    fallbackUsed: transports.length > 1,
+  });
 }
 
 function sendVerificationCode(to, code) {

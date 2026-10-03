@@ -65,6 +65,9 @@ app.get('/health/email', (req, res) => {
           provider: 'unconfigured',
           transport: 'unconfigured',
           fromConfigured: 'no',
+          senderValid: 'no',
+          smtpFallbackConfigured: 'no',
+          configurationError: 'EMAIL_TRANSPORT_UNCONFIGURED',
         };
   res.status(200).json({
     success: true,
@@ -73,6 +76,9 @@ app.get('/health/email', (req, res) => {
       transportConfigured: diagnostics.transportConfigured,
       provider: diagnostics.provider,
       fromConfigured: diagnostics.fromConfigured,
+      senderValid: diagnostics.senderValid,
+      smtpFallbackConfigured: diagnostics.smtpFallbackConfigured,
+      configurationError: diagnostics.configurationError,
     },
   });
 });

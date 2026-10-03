@@ -7,6 +7,7 @@ import '../services/socket_service.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
+import 'auth_welcome_screen.dart';
 import 'dispatch_console_page.dart';
 import 'email_verification_screen.dart';
 import 'forgot_password_screen.dart';
@@ -123,10 +124,25 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      await ApiService.googleSignIn(idToken: idToken);
+      final response = await ApiService.googleSignIn(idToken: idToken);
       if (!mounted) return;
       setState(() => success = true);
-      _openAuthenticatedArea();
+      if (ApiService.isNewGoogleUser(response)) {
+        final data = ApiService.authResponseData(response);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => AuthWelcomeScreen(
+              welcomeEmailDeliveryResult:
+                  data['welcomeEmailDeliveryResult']?.toString(),
+            ),
+          ),
+        );
+      } else {
+        // Existing Google users sign in normally; they never see a first-time
+        // welcome screen or trigger another welcome email.
+        _openAuthenticatedArea();
+      }
     } on GoogleAuthException catch (error) {
       if (mounted) setState(() => errorMessage = error.message);
     } catch (error) {

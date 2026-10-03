@@ -50,8 +50,9 @@ Configure the prompted values in the Render dashboard:
 | `CORS_ORIGINS` | comma-separated exact Firebase origins |
 | `FIREBASE_PROJECT_ID` | exact Firebase project shared by Web and Android |
 | `GOOGLE_CLIENT_ID` | comma-separated Google OAuth client IDs; include the production Web client ID |
-| `RESEND_API_KEY` | Resend key for real verification/reset email delivery |
-| `ERAS_MAIL_FROM` | bare sender address on the verified domain (ERAS adds the display name) |
+| `RESEND_API_KEY` | Resend key for verification, welcome, and reset email requests |
+| `ERAS_MAIL_FROM` | the actual bare sender address verified with the configured provider; do not use a placeholder or invented domain |
+| `SMTP_URL` | optional SMTP fallback (or sole transport) supplied by your provider; keep its credentials secret |
 | `TRUST_PROXY` | `1` |
 | `RATE_LIMIT_ENABLED` | `true` |
 
@@ -63,10 +64,17 @@ and does not need a Firebase Admin service-account key for Google sign-in. The
 Flutter Google client also needs the Web OAuth client ID at build time. See
 `frontend/emergency_app/FIREBASE_GOOGLE_SIGNIN_SETUP.md`.
 
-Configure Resend and `ERAS_MAIL_FROM` before relying on email verification or
-password reset. The optional SMTP fallback requires `nodemailer`, which is not
-included in the current backend dependency set. Without a real transport and
-sender, code delivery is not complete and real email acceptance cannot pass.
+Configure Resend and the actual verified `ERAS_MAIL_FROM` before relying on
+email verification or password reset. SMTP is supported as a fallback (or sole
+transport), and Nodemailer is included in the backend dependencies. Without a
+configured transport and valid sender, code delivery is not complete.
+
+The backend distinguishes provider acceptance from confirmed inbox delivery:
+`emailRequestAccepted` / `welcomeEmailRequestAccepted` and
+`emailDeliveryResult` report the send request state; `emailDelivered` /
+`welcomeEmailDelivered` remain `null` until a provider delivery confirmation
+exists. An accepted provider response is not proof the message reached an inbox.
+`GET /health/email` exposes only safe transport configuration status.
 
 For example, after the Firebase project is known, `CORS_ORIGINS` may contain
 both of its real origins:

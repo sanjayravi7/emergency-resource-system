@@ -29,13 +29,21 @@ login, Socket.IO and every emergency workflow keep working. The backend
 verifies tokens against Google's published certificates; **Firebase Admin
 service-account credentials are not required for Google authentication**.
 
-Configure transactional mail on Render as well so real verification and reset
-codes can be delivered. Set `RESEND_API_KEY` and a verified bare sender address
-in `ERAS_MAIL_FROM`; ERAS adds its sender display name automatically. The code
-has an optional SMTP fallback, but it requires `nodemailer`, which is not in the
-current backend dependency set. See the repo-root `FIREBASE_GOOGLE_SIGNIN_SETUP.md`
-and `backend/.env.example` for details. Without a configured mail transport,
-the application cannot complete real email-delivery acceptance.
+Configure transactional mail on Render as well so real verification, welcome,
+and reset messages can be requested. Set `RESEND_API_KEY` and the actual bare
+sender address verified with that provider in `ERAS_MAIL_FROM`; ERAS adds its
+sender display name automatically. Do not use a sample or invented sender.
+SMTP can be configured as a fallback (or sole transport), and Nodemailer is
+already included in backend dependencies. See the repo-root
+`FIREBASE_GOOGLE_SIGNIN_SETUP.md` and `backend/.env.example` for details.
+Without a configured transport and valid sender, email requests report
+`unconfigured` or `failed` and users can request a new verification code.
+
+ERAS distinguishes provider request acceptance from confirmed inbox delivery:
+`emailRequestAccepted` / `welcomeEmailRequestAccepted` and
+`emailDeliveryResult` describe the synchronous provider response. The
+`*Delivered` field remains `null` unless a provider delivery confirmation is
+available; an accepted response alone does not prove inbox delivery.
 
 Verification notes:
 

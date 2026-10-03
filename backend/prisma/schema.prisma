@@ -119,6 +119,12 @@ model User {
   emailVerified   Boolean   @default(false)
   emailVerifiedAt DateTime?
 
+  // Durable at-most-once claim for the ERAS welcome-email attempt. Set in the
+  // same database operation that verifies a password account, or on creation
+  // of a new Google account, before any external provider request is made.
+  // This prevents duplicate sends across workers, retries and restarts.
+  welcomeEmailDispatchClaimedAt DateTime?
+
   // Account origin (informational only - never an authorization input).
   authProvider AuthProvider @default(PASSWORD)
 

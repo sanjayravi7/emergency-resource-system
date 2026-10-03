@@ -156,22 +156,75 @@ async function resolveUserFromGoogleIdentity(identity, { role, name, phone } = {
   //    normalizePublicRole before any write.
   const userRole = normalizePublicRole(role);
 
-  const created = await prisma.user.create({
-    data: {
-      name: displayName,
-      email,
-      // No plaintext password exists for Google accounts: an unguessable
-      // random hash keeps the credential column NOT NULL without ever
-      // providing a usable password login.
-      password: await randomPasswordHash(),
-      phone: normalizedPhone,
-      role: userRole,
-      authProvider: 'GOOGLE',
-      firebaseUid,
-      emailVerified: true,
-      emailVerifiedAt: new Date(),
-    },
-  });
+  const createdAt = new Date();
+  let created;
+  try {
+    created = await prisma.user.create({
+      data: {
+        name: displayName,
+        email,
+        // No plaintext password exists for Google accounts: an unguessable
+        // random hash keeps the credential column NOT NULL without ever
+        // providing a usable password login.
+        password: await randomPasswordHash(),
+        phone: normalizedPhone,
+        role: userRole,
+        authProvider: 'GOOGLE',
+        firebaseUid,
+        emailVerified: true,
+        emailVerifiedAt: createdAt,
+        // Persist the one-time dispatch claim with the new account itself. A
+        // later Google login (including after a Render restart) sees an existing
+        // user and will never send another welcome email.
+        welcomeEmailDispatchClaimedAt: createdAt,
+      },
+    });
+  } catch (error) {
+    // A parallel first-sign-in may win the unique Firebase UID/email insert.
+    // Resolve its persisted row as an ordinary login/link so only the actual
+    // creator can trigger a first-account welcome email.
+    if (error?.code !== 'P2002') throw error;
+
+    const racedByUid = await prisma.user.findUnique({ where: { firebaseUid } });
+    if (racedByUid) {
+      if (!racedByUid.isActive) {
+        throw new GoogleAuthError('ACCOUNT_INACTIVE', 'Account is inactive', 403);
+      }
+      const user = await prisma.user.update({
+        where: { id: racedByUid.id },
+        data: {
+          lastActiveAt: new Date(),
+          ...(racedByUid.emailVerified
+            ? {}
+            : { emailVerified: true, emailVerifiedAt: new Date() }),
+        },
+      });
+      return { user, created: false, linked: false };
+    }
+
+    const racedByEmail = await prisma.user.findUnique({ where: { email } });
+    if (!racedByEmail) throw error;
+    if (!racedByEmail.isActive) {
+      throw new GoogleAuthError('ACCOUNT_INACTIVE', 'Account is inactive', 403);
+    }
+    if (racedByEmail.firebaseUid && racedByEmail.firebaseUid !== firebaseUid) {
+      throw new GoogleAuthError(
+        'IDENTITY_ALREADY_LINKED',
+        'This ERAS account is already linked to another Google identity',
+        409,
+      );
+    }
+    const user = await prisma.user.update({
+      where: { id: racedByEmail.id },
+      data: {
+        firebaseUid,
+        lastActiveAt: new Date(),
+        emailVerified: true,
+        emailVerifiedAt: racedByEmail.emailVerifiedAt ?? new Date(),
+      },
+    });
+    return { user, created: false, linked: true };
+  }
 
   logger.info('auth.google_registered', { userId: created.id, role: created.role });
   return { user: created, created: true, linked: false };

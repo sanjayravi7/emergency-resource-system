@@ -151,11 +151,7 @@ function validateCodeSubmission(data, { requireEmail = false } = {}) {
   }
 
   const code = data.code ?? data.resetCode ?? data.verificationCode;
-  if (code === undefined || code === null || String(code).trim() === '') {
-    return 'Enter the 6-digit code';
-  }
-
-  if (!CODE_PATTERN.test(String(code).trim())) {
+  if (typeof code !== 'string' || !CODE_PATTERN.test(code)) {
     return 'Enter the 6-digit code';
   }
 

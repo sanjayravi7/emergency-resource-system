@@ -5,6 +5,7 @@ const prisma = require("../config/prisma");
 const env = require("../config/env");
 const logger = require("../config/logger");
 const { validateAndNormalizeEmail } = require("../domain/emailValidation");
+const { summarizeEmailDelivery } = require('../domain/emailDelivery');
 const emailVerificationService = require("./emailVerificationService");
 
 const SALT_ROUNDS = 10;
@@ -109,15 +110,29 @@ async function registerUser({
   });
 
   // Verification email is BEST EFFORT: a mail outage must never roll back a
-  // successfully created account, and the code is never logged.
-  let deliveryResult = null;
+  // successfully created account. The plaintext code never enters this result
+  // or any log.
+  let verificationResult = null;
   try {
-    deliveryResult = await emailVerificationService.issueVerificationForUser(user);
+    verificationResult = await emailVerificationService.issueVerificationForUser(user);
   } catch (error) {
-    logger.warn("auth.verification_email_failed", { userId: user.id, message: error?.message });
+    // Provider details are logged only by emailService after sanitization. This
+    // catch can also cover a code/database exception, so do not log its message.
+    logger.warn('auth.verification_email_failed', {
+      userId: user.id,
+      deliveryResult: 'failed',
+      errorType: error?.name || 'Error',
+    });
+    verificationResult = {
+      deliveryResult: 'failed',
+      transportConfigured: 'yes',
+      provider: 'unknown',
+      providerErrorCode: 'VERIFICATION_CODE_ISSUE_FAILED',
+    };
   }
 
-  const emailDelivered = Boolean(deliveryResult && deliveryResult.delivered);
+  const emailDelivery = summarizeEmailDelivery(verificationResult);
+  const emailDelivered = emailDelivery.delivered;
 
   const token = createToken(user);
 
@@ -136,11 +151,28 @@ async function registerUser({
       responderStatus: user.responderStatus,
       createdAt: user.createdAt,
       emailVerified: user.emailVerified,
+      emailVerifiedAt: user.emailVerifiedAt,
       authProvider: user.authProvider,
     },
-    // The client shows "Check your email" and can resend while this is true.
+    // A provider can accept the request synchronously, but ERAS has no
+    // delivery-webhook confirmation. Keep `emailDelivered` unknown and expose
+    // acceptance and the outcome separately for current clients.
+    emailVerified: Boolean(user.emailVerified),
     verificationRequired: !user.emailVerified,
+    verificationCodeIssued: Boolean(verificationResult?.codeIssued ?? verificationResult?.sent),
     emailDelivered,
+    // Compatibility/convenience flags describe provider acceptance only.
+    emailSent: emailDelivery.accepted,
+    emailRequestAccepted: emailDelivery.accepted,
+    emailDeliveryAccepted: emailDelivery.accepted,
+    emailDeliveryConfirmed: emailDelivery.deliveryConfirmed,
+    emailDeliveryStatus: emailDelivery.deliveryStatus,
+    emailDeliveryResult: emailDelivery.deliveryResult,
+    emailProvider: emailDelivery.provider,
+    emailProviderResponseStatus: emailDelivery.providerResponseStatus,
+    emailProviderErrorCode: emailDelivery.providerErrorCode,
+    emailProviderErrorType: emailDelivery.providerErrorType,
+    emailMessageId: emailDelivery.messageId,
     token,
   };
 }

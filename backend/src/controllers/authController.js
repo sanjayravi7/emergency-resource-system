@@ -17,8 +17,11 @@ const {
 const googleAuthService = require("../services/googleAuthService");
 const firebaseTokenService = require("../services/firebaseTokenService");
 const emailVerificationService = require("../services/emailVerificationService");
+const emailService = require('../services/emailService');
+const { summarizeEmailDelivery } = require('../domain/emailDelivery');
 const passwordResetService = require("../services/passwordResetService");
 const auditLogService = require("../services/auditLogService");
+const logger = require('../config/logger');
 
 async function register(req, res, next) {
   try {
@@ -42,9 +45,11 @@ async function register(req, res, next) {
     });
 
     const message =
-      result.emailDelivered === false
-        ? "Your account was created, but we couldn't deliver the verification email. You can resend the code."
-        : "Registration successful. Check your email to verify your account.";
+      result.emailRequestAccepted === true
+        ? 'Registration successful. The email provider accepted your verification email request. Check your inbox; delivery may take a few minutes.'
+        : result.verificationCodeIssued === false
+          ? 'Your account was created, but ERAS could not prepare the verification request. You can request another code.'
+          : "Your account was created, but the email provider couldn't accept the verification email. You can request another code.";
 
     return res.status(201).json({
       success: true,
@@ -219,6 +224,35 @@ async function googleSignIn(req, res, next) {
       },
     });
 
+    let welcomeDelivery = null;
+    if (resolved.created) {
+      try {
+        // A Google user is created with a durable dispatch claim. Only the
+        // request that inserted that account sends the ERAS welcome message;
+        // every later UID/email resolution skips this path.
+        welcomeDelivery = await emailService.sendWelcomeEmail(
+          resolved.user.email,
+          resolved.user.name,
+        );
+      } catch (error) {
+        // Email is best-effort and must never turn a valid Google session into
+        // an authentication failure. Do not stringify provider errors.
+        logger.warn('auth.google_welcome_email_failed', {
+          userId: resolved.user.id,
+          errorType: error?.name || 'Error',
+          deliveryResult: 'failed',
+        });
+        welcomeDelivery = {
+          deliveryResult: 'failed',
+          transportConfigured: 'yes',
+          provider: 'unknown',
+          providerErrorCode: 'WELCOME_EMAIL_SEND_FAILED',
+        };
+      }
+    }
+
+    const welcome = summarizeEmailDelivery(welcomeDelivery);
+
     return res.status(200).json({
       success: true,
       message: resolved.created ? "Google registration successful" : "Google login successful",
@@ -226,10 +260,32 @@ async function googleSignIn(req, res, next) {
         user,
         token,
         created: resolved.created,
+        isNewUser: resolved.created,
         linked: resolved.linked,
         // Google identities are verified by Google: no ERAS verification email
         // is required for them.
+        emailVerified: user.emailVerified === true,
         verificationRequired: false,
+        // `*Sent`/`*RequestAccepted` mean a provider accepted the send request.
+        // Delivery remains unknown until a provider webhook confirms it.
+        emailDelivered: resolved.created ? welcome.delivered : null,
+        emailSent: resolved.created && welcome.accepted,
+        emailRequestAccepted: resolved.created && welcome.accepted,
+        emailDeliveryAccepted: resolved.created && welcome.accepted,
+        emailDeliveryConfirmed: resolved.created ? welcome.deliveryConfirmed : null,
+        emailDeliveryStatus: resolved.created ? welcome.deliveryStatus : 'not_attempted',
+        emailDeliveryResult: resolved.created ? welcome.deliveryResult : 'not_attempted',
+        welcomeEmailSent: resolved.created && welcome.accepted,
+        welcomeEmailDelivered: resolved.created ? welcome.delivered : null,
+        welcomeEmailRequestAccepted: resolved.created && welcome.accepted,
+        welcomeEmailDeliveryConfirmed: resolved.created ? welcome.deliveryConfirmed : null,
+        welcomeEmailDeliveryStatus: resolved.created ? welcome.deliveryStatus : 'not_attempted',
+        welcomeEmailDeliveryResult: resolved.created ? welcome.deliveryResult : 'not_attempted',
+        welcomeEmailProvider: resolved.created ? welcome.provider : 'not_attempted',
+        welcomeEmailProviderResponseStatus: resolved.created ? welcome.providerResponseStatus : null,
+        welcomeEmailProviderErrorCode: resolved.created ? welcome.providerErrorCode : null,
+        welcomeEmailProviderErrorType: resolved.created ? welcome.providerErrorType : null,
+        welcomeEmailMessageId: resolved.created ? welcome.messageId : null,
       },
     });
   } catch (error) {
@@ -267,7 +323,8 @@ async function verifyEmail(req, res, next) {
       metadata: {
         alreadyVerified: Boolean(result.alreadyVerified),
         welcomeEmailSent: Boolean(result.welcomeEmailSent),
-        welcomeEmailDelivered: Boolean(result.welcomeEmailDelivered),
+        welcomeEmailRequestAccepted: Boolean(result.welcomeEmailRequestAccepted),
+        welcomeEmailDelivered: result.welcomeEmailDelivered ?? null,
       },
     });
 
@@ -276,8 +333,20 @@ async function verifyEmail(req, res, next) {
       success: true,
       data: {
         user,
+        emailVerified: user?.emailVerified === true,
+        alreadyVerified: Boolean(result.alreadyVerified),
         welcomeEmailSent: Boolean(result.welcomeEmailSent),
-        welcomeEmailDelivered: Boolean(result.welcomeEmailDelivered),
+        // Provider acceptance and final inbox delivery remain distinct states.
+        welcomeEmailRequestAccepted: Boolean(result.welcomeEmailRequestAccepted),
+        welcomeEmailDelivered: result.welcomeEmailDelivered ?? null,
+        welcomeEmailDeliveryConfirmed: Boolean(result.welcomeEmailDelivered),
+        welcomeEmailDeliveryStatus: result.welcomeEmailDeliveryStatus ?? 'not_attempted',
+        welcomeEmailDeliveryResult: result.welcomeEmailDeliveryResult ?? 'not_attempted',
+        welcomeEmailProvider: result.welcomeEmailProvider ?? null,
+        welcomeEmailProviderResponseStatus: result.welcomeEmailProviderResponseStatus ?? null,
+        welcomeEmailProviderErrorCode: result.welcomeEmailProviderErrorCode ?? null,
+        welcomeEmailProviderErrorType: result.welcomeEmailProviderErrorType ?? null,
+        welcomeEmailMessageId: result.welcomeEmailMessageId ?? null,
       },
     });
   } catch (error) {
@@ -309,8 +378,10 @@ async function resendVerification(req, res, next) {
       success: true,
       // Generic message: identical for every outcome.
       message:
-        "If an ERAS account exists for that email address, a verification email has been sent.",
-      retryAfterSeconds: result.retryAfterSeconds || null,
+        "If an ERAS account exists for that address, the verification request was processed. Check your inbox or request another code after the cooldown if one does not arrive.",
+      // Deliberately unknown for every outcome so this public endpoint cannot
+      // reveal whether the address belongs to an ERAS account.
+      retryAfterSeconds: null,
     });
   } catch (error) {
     next(error);
