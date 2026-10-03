@@ -110,9 +110,14 @@ async function registerUser({
 
   // Verification email is BEST EFFORT: a mail outage must never roll back a
   // successfully created account, and the code is never logged.
-  await emailVerificationService
-    .issueVerificationForUser(user)
-    .catch((error) => logger.warn("auth.verification_email_failed", { userId: user.id, message: error?.message }));
+  let deliveryResult = null;
+  try {
+    deliveryResult = await emailVerificationService.issueVerificationForUser(user);
+  } catch (error) {
+    logger.warn("auth.verification_email_failed", { userId: user.id, message: error?.message });
+  }
+
+  const emailDelivered = Boolean(deliveryResult && deliveryResult.delivered);
 
   const token = createToken(user);
 
@@ -135,6 +140,7 @@ async function registerUser({
     },
     // The client shows "Check your email" and can resend while this is true.
     verificationRequired: !user.emailVerified,
+    emailDelivered,
     token,
   };
 }

@@ -1,26 +1,53 @@
 import 'package:geolocator/geolocator.dart';
 
 import '../models/eras_models.dart' show isValidCoordinatePair;
+import 'api_service.dart';
 import 'location_service.dart';
 
-/// Non-web place lookup remains unavailable because the Places JavaScript
-/// bridge is a Web-only feature. GPS permission/position access, however, is
-/// implemented here for Android and other IO targets so requester and
-/// responder flows share one permission pipeline.
-class UnavailableLocationService implements LocationService {
-  const UnavailableLocationService();
-
-  static const _message =
-      'Place lookup is only available in the web build, where the Google Maps '
-      'JavaScript API is loaded.';
+/// Real native/mobile place lookup implementation for Android and other IO targets.
+///
+/// Talks to the authenticated ERAS backend endpoints which query Google Places
+/// API (New) REST on the server, keeping Google API credentials and quota
+/// enforcement out of the mobile APK.
+class NativeLocationService implements LocationService {
+  const NativeLocationService();
 
   @override
-  bool get isAvailable => false;
+  bool get isAvailable => true;
 
   @override
   Future<ResolvedPlace> reverseGeocode(
-      double latitude, double longitude) async {
-    throw const LocationServiceException(_message);
+    double latitude,
+    double longitude,
+  ) async {
+    if (!isValidCoordinatePair(latitude, longitude) ||
+        (latitude == 0.0 && longitude == 0.0)) {
+      throw const LocationServiceException(
+        'Invalid coordinates provided for reverse geocoding.',
+      );
+    }
+
+    try {
+      final result = await ApiService.reverseGeocode(
+        latitude: latitude,
+        longitude: longitude,
+      );
+      final label = (result['displayName'] as String?)?.trim() ?? '';
+      if (label.isEmpty) {
+        throw const LocationServiceException(
+          'The reverse geocoding service returned no address.',
+        );
+      }
+      return ResolvedPlace(
+        label: label,
+        latitude: latitude,
+        longitude: longitude,
+      );
+    } on LocationServiceException {
+      rethrow;
+    } catch (error) {
+      throw LocationServiceException('Reverse geocoding failed: $error');
+    }
   }
 
   @override
@@ -29,12 +56,77 @@ class UnavailableLocationService implements LocationService {
     GeoPoint? bias,
     double biasRadiusMeters = 30000,
   }) async {
-    throw const LocationServiceException(_message);
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const <PlacePrediction>[];
+
+    final hasValidBias = bias != null &&
+        isValidCoordinatePair(bias.latitude, bias.longitude) &&
+        !(bias.latitude == 0.0 && bias.longitude == 0.0);
+
+    try {
+      final rawList = await ApiService.autocompletePlaces(
+        query: trimmed,
+        latitude: hasValidBias ? bias.latitude : null,
+        longitude: hasValidBias ? bias.longitude : null,
+        radiusMeters: biasRadiusMeters,
+      );
+
+      return rawList
+          .map(
+            (item) => PlacePrediction(
+              placeId: (item['placeId'] as String?) ?? '',
+              primaryText: (item['primaryText'] as String?) ?? '',
+              secondaryText: (item['secondaryText'] as String?) ?? '',
+            ),
+          )
+          .where((p) => p.placeId.isNotEmpty && p.primaryText.isNotEmpty)
+          .toList(growable: false);
+    } catch (error) {
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      if (isPlacesApiDisabledError(message)) {
+        throw PlacesApiDisabledException(details: message);
+      }
+      throw LocationServiceException('Place search failed: $message');
+    }
   }
 
   @override
   Future<ResolvedPlace> resolvePrediction(PlacePrediction prediction) async {
-    throw const LocationServiceException(_message);
+    if (prediction.placeId.trim().isEmpty) {
+      throw const LocationServiceException('Invalid place prediction.');
+    }
+
+    try {
+      final result = await ApiService.resolvePlaceDetails(
+        placeId: prediction.placeId.trim(),
+      );
+
+      final latitude = (result['latitude'] as num?)?.toDouble();
+      final longitude = (result['longitude'] as num?)?.toDouble();
+
+      if (latitude == null ||
+          longitude == null ||
+          !isValidCoordinatePair(latitude, longitude) ||
+          (latitude == 0.0 && longitude == 0.0)) {
+        throw const LocationServiceException(
+          'Google returned no valid coordinates for the selected place.',
+        );
+      }
+
+      final label = (result['label'] as String?)?.trim();
+
+      return ResolvedPlace(
+        label: (label == null || label.isEmpty) ? prediction.fullText : label,
+        latitude: latitude,
+        longitude: longitude,
+        placeId: prediction.placeId,
+      );
+    } on LocationServiceException {
+      rethrow;
+    } catch (error) {
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      throw LocationServiceException('Could not resolve place: $message');
+    }
   }
 
   @override
@@ -45,9 +137,70 @@ class UnavailableLocationService implements LocationService {
     double radiusMeters = kNearbySearchRadiusMeters,
     int maxResults = kNearbySearchMaxResultCount,
   }) async {
-    // Nearby Search needs the Places API (New), which only the web build can
-    // reach through the Maps JavaScript API bridge. Nothing is fabricated.
-    throw const LocationServiceException(_message);
+    if (!isValidCoordinatePair(latitude, longitude) ||
+        (latitude == 0.0 && longitude == 0.0)) {
+      throw const LocationServiceException(
+        'Invalid coordinates provided for nearby search.',
+      );
+    }
+
+    try {
+      final rawPlaces = await ApiService.searchNearbyPlaces(
+        latitude: latitude,
+        longitude: longitude,
+        category: category.name,
+        radiusMeters: radiusMeters,
+        maxResults: maxResults,
+      );
+
+      final places = rawPlaces
+          .map((item) {
+            final placeLat = (item['latitude'] as num?)?.toDouble();
+            final placeLng = (item['longitude'] as num?)?.toDouble();
+            final placeId = (item['placeId'] as String?) ?? '';
+            final name = (item['name'] as String?) ?? '';
+
+            if (placeLat == null ||
+                placeLng == null ||
+                !isValidCoordinatePair(placeLat, placeLng) ||
+                (placeLat == 0.0 && placeLng == 0.0) ||
+                placeId.isEmpty ||
+                name.isEmpty) {
+              return null;
+            }
+
+            final serverDistance = (item['distanceMeters'] as num?)?.toDouble();
+            final distance = serverDistance ??
+                NearbyPlace.haversineDistanceMeters(
+                  latitude,
+                  longitude,
+                  placeLat,
+                  placeLng,
+                );
+
+            return NearbyPlace(
+              placeId: placeId,
+              name: name,
+              address: (item['address'] as String?) ?? '',
+              latitude: placeLat,
+              longitude: placeLng,
+              distanceMeters: distance,
+            );
+          })
+          .whereType<NearbyPlace>()
+          .toList();
+
+      places.sort(
+        (a, b) => (a.distanceMeters ?? 0).compareTo(b.distanceMeters ?? 0),
+      );
+      return List<NearbyPlace>.unmodifiable(places);
+    } catch (error) {
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      if (isPlacesApiDisabledError(message)) {
+        throw PlacesApiDisabledException(details: message);
+      }
+      throw LocationServiceException('Nearby search failed: $message');
+    }
   }
 }
 
@@ -154,4 +307,4 @@ Future<bool> openDeviceLocationSettings() async {
 }
 
 LocationService createPlatformLocationService() =>
-    const UnavailableLocationService();
+    const NativeLocationService();

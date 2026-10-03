@@ -48,7 +48,6 @@ const googleAuthLimiter = rateLimit({
   ...baseOptions,
   windowMs: env.AUTH_RATE_WINDOW_MS,
   limit: env.GOOGLE_AUTH_RATE_MAX,
-  keyGenerator: (req) => req.ip,
 });
 
 /**
@@ -60,7 +59,6 @@ const passwordResetLimiter = rateLimit({
   ...baseOptions,
   windowMs: env.PASSWORD_RESET_RATE_WINDOW_MS,
   limit: env.PASSWORD_RESET_RATE_MAX,
-  keyGenerator: (req) => req.ip,
 });
 
 /** Verification-email resends per IP (per-account cooldown applies on top). */
@@ -68,7 +66,6 @@ const emailResendLimiter = rateLimit({
   ...baseOptions,
   windowMs: env.EMAIL_RESEND_RATE_WINDOW_MS,
   limit: env.EMAIL_RESEND_RATE_MAX,
-  keyGenerator: (req) => req.ip,
 });
 
 /**
@@ -81,6 +78,7 @@ const adminSensitiveLimiter = rateLimit({
   windowMs: env.ADMIN_SENSITIVE_RATE_WINDOW_MS,
   limit: env.ADMIN_SENSITIVE_RATE_MAX,
   keyGenerator: (req) => (req.user?.id ? `user:${req.user.id}` : req.ip),
+  validate: { keyGeneratorIpFallback: false },
 });
 
 /**

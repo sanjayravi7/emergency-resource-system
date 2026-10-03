@@ -1010,25 +1010,113 @@ class BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = ErasPalette.of(context);
-    var index = items.indexWhere((item) => item.view == activeView);
-    if (index < 0) index = 0;
 
-    return NavigationBar(
-      height: 62,
-      backgroundColor: p.sidebar,
-      surfaceTintColor: Colors.transparent,
-      indicatorColor: p.tealDim,
-      selectedIndex: index,
-      onDestinationSelected: (i) => onViewChanged(items[i].view),
-      destinations: items
-          .map(
-            (item) => NavigationDestination(
-              icon: Icon(item.icon, size: 20, color: p.textDim),
-              selectedIcon: Icon(item.icon, size: 20, color: p.teal),
-              label: item.label,
+    return Material(
+      color: p.sidebar,
+      elevation: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: p.sidebar,
+          border: Border(
+            top: BorderSide(color: p.border, width: 1.0),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          bottom: true,
+          child: SizedBox(
+            height: 64,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final item in items)
+                  Expanded(
+                    child: _BottomNavItem(
+                      item: item,
+                      selected: item.view == activeView,
+                      onTap: () => onViewChanged(item.view),
+                    ),
+                  ),
+              ],
             ),
-          )
-          .toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItem extends StatelessWidget {
+  const _BottomNavItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final NavItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = ErasPalette.of(context);
+
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: item.label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Container(
+                  height: 28,
+                  constraints:
+                      const BoxConstraints(minWidth: 44, maxWidth: 52),
+                  decoration: BoxDecoration(
+                    color: selected ? p.tealDim : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      item.icon,
+                      size: 20,
+                      color: selected ? p.teal : p.textDim,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                SizedBox(
+                  height: 24,
+                  child: Center(
+                    child: Text(
+                      item.label,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        height: 1.1,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w500,
+                        color: selected ? p.teal : p.textDim,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

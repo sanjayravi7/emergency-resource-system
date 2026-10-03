@@ -116,11 +116,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ApiService.applySession(response);
 
       if (ApiService.emailVerified == false) {
+        final data = response['data'] is Map ? response['data'] as Map : null;
+        final emailDelivered = data?['emailDelivered'] != false;
+        final initialNotice = emailDelivered
+            ? null
+            : "Your account was created, but we couldn't deliver the verification email. You can resend the code.";
+
         await Navigator.pushReplacement(
           context,
           MaterialPageRoute<void>(
             builder: (_) => EmailVerificationScreen(
               email: ApiService.currentUserEmail ?? email.text.trim(),
+              initialNotice: initialNotice,
+              initialNoticeIsError: !emailDelivered,
             ),
           ),
         );
