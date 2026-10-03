@@ -31,6 +31,13 @@ Downloading packages...
 Got dependencies!
 28 packages have newer versions incompatible with dependency constraints.
 Try `flutter pub outdated` for more information.
-Analyzing emergency_app...                                      
-No issues found! (ran in 7.4s)
+
+::group::✅ Passing tests
+✅ BottomNav responsive mobile layout all five navigation items visible on narrow phone without overflow
+✅ BottomNav responsive mobile layout all five items have equal visual width on narrow and wide phones
+✅ BottomNav responsive mobile layout selected New Emergency item maintains stable height and triggers change
+✅ BottomNav responsive mobile layout works consistently in dark theme with contrasting borders and icons
+::endgroup::
+
+🎉 4 tests passed.
 exit=0

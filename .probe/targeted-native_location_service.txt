@@ -31,6 +31,19 @@ Downloading packages...
 Got dependencies!
 28 packages have newer versions incompatible with dependency constraints.
 Try `flutter pub outdated` for more information.
-Analyzing emergency_app...                                      
-No issues found! (ran in 7.4s)
+
+::group::✅ Passing tests
+✅ NativeLocationService isAvailable is true on native/Android
+✅ NativeLocationService reverseGeocode maps displayName to ResolvedPlace
+✅ NativeLocationService reverseGeocode rejects (0, 0) coordinates without making request
+✅ NativeLocationService autocomplete maps predictions and passes location bias
+✅ NativeLocationService autocomplete returns empty list for whitespace query without request
+✅ NativeLocationService resolvePrediction maps canonical coordinates from selected place
+✅ NativeLocationService resolvePrediction rejects zero coordinates (0, 0)
+✅ NativeLocationService searchNearbyPlaces returns places ranked by distance
+✅ NativeLocationService searchNearbyPlaces surfaces PlacesApiDisabledException when disabled
+✅ NativeLocationService autocomplete surfaces PlacesApiDisabledException when disabled
+::endgroup::
+
+🎉 10 tests passed.
 exit=0

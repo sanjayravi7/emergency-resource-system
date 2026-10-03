@@ -1,0 +1,8 @@
+Changed lib/main.dart
+Changed lib/widgets/common_widgets.dart
+Changed test/bottom_navigation_responsive_test.dart
+Changed test/email_verification_screen_test.dart
+Changed test/native_location_service_test.dart
+Changed test/nav_button_hover_test.dart
+Formatted 78 files (6 changed) in 0.28 seconds.
+exit=1

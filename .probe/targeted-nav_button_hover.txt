@@ -31,6 +31,24 @@ Downloading packages...
 Got dependencies!
 28 packages have newer versions incompatible with dependency constraints.
 Try `flutter pub outdated` for more information.
-Analyzing emergency_app...                                      
-No issues found! (ran in 7.4s)
+
+::group::✅ Passing tests
+✅ contract: ACTIVE is a strong selection in both themes
+✅ contract: HOVER is subtle and never looks active
+✅ contract: NORMAL is neutral
+✅ contract: hover tint is theme-aware but semantically identical
+✅ 1. light inactive item is transparent when not hovered
+✅ 2. light inactive item gets a subtle hover background
+✅ 3. light hovered inactive item has no active left indicator
+✅ 4. active item shows the active background and teal indicator
+✅ 5. hovering the active item keeps it active (no second layer)
+✅ 6. hover exit returns to the normal inactive state
+✅ 7. hovering one item leaves the other unhovered
+✅ 8. switching light <-> dark yields theme-aware nav colors
+✅ 9. hover does not change row geometry
+✅ 10. navigation callbacks still fire
+✅ Rail marks only the active view as selected (never hover)
+::endgroup::
+
+🎉 15 tests passed.
 exit=0

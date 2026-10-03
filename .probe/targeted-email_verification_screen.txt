@@ -31,6 +31,20 @@ Downloading packages...
 Got dependencies!
 28 packages have newer versions incompatible with dependency constraints.
 Try `flutter pub outdated` for more information.
-Analyzing emergency_app...                                      
-No issues found! (ran in 7.4s)
+
+::group::✅ Passing tests
+✅ renders the ERAS verification step for the signed-in address
+✅ rejects anything that is not a 6-digit code
+✅ a valid code verifies the account through the server
+✅ initial delivery notice explains email delivery issue and offers resend
+✅ an invalid code keeps the account unverified and explains why
+✅ resending asks the server for a new code and stays generic
+✅ refresh status re-reads the server, then reports the result
+✅ refresh status confirms a server-side verification
+✅ a password login for an unverified account opens verification instead of the console
+✅ a verified password login goes straight to the console
+✅ signing out from verification returns to the login screen
+::endgroup::
+
+🎉 11 tests passed.
 exit=0
