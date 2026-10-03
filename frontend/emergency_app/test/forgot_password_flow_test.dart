@@ -293,8 +293,7 @@ void main() {
                 controller),
             isTrue);
         expect(
-            identical(_fieldFocusNode(tester, codeFinder), focusNode),
-            isTrue);
+            identical(_fieldFocusNode(tester, codeFinder), focusNode), isTrue);
         expect(controller.text, '135790');
         expect(focusNode.hasFocus, isTrue);
         expect(tester.takeException(), isNull);
