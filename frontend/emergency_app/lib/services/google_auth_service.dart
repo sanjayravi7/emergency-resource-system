@@ -251,12 +251,15 @@ class GoogleAuthService {
   /// identifiers reach the Google SDK, and [buildSignInClient] is the single
   /// place that turns them into a client.
   @visibleForTesting
-  GoogleSignInClientConfig get clientConfig => resolveGoogleSignInClientConfig(
-        isWeb: kIsWeb,
-        platform: defaultTargetPlatform,
-        googleWebClientId:
-            debugGoogleWebClientId ?? ErasFirebaseConfig.googleWebClientId,
-      );
+  GoogleSignInClientConfig get clientConfig {
+    final webClientId =
+        debugGoogleWebClientId ?? ErasFirebaseConfig.googleWebClientId;
+    return resolveGoogleSignInClientConfig(
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+      googleWebClientId: webClientId,
+    );
+  }
 
   /// Builds the platform Google sign-in client from [clientConfig].
   ///

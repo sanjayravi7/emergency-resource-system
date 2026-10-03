@@ -151,8 +151,8 @@ void main() {
       // `GoogleSignIn` forwards these two fields verbatim to
       // GoogleSignInPlatform.initWithParams, so asserting on the constructed
       // client asserts on what the Android plugin receives.
-      final GoogleSignIn client =
-          GoogleAuthService.instance.buildSignInClient();
+      final client = GoogleAuthService.instance.buildSignInClient();
+      expect(client, isA<GoogleSignIn>());
       expect(client.clientId, isNull);
       expect(client.serverClientId, isNull);
       expect(client.scopes, <String>['email', 'profile']);
