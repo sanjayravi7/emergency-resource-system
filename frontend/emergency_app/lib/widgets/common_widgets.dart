@@ -657,6 +657,90 @@ class Brand extends StatelessWidget {
 
 // ── Navigation ─────────────────────────────────────────────────────────────
 
+/// Resolved visual styling for a single navigation row.
+///
+/// This is the explicit, theme-aware navigation-state contract. There are
+/// exactly three independent states, and the SAME semantic hierarchy exists in
+/// both themes:
+///
+///   * ACTIVE  - the current page. Strong mint/teal selection: the opaque
+///     [ErasPalette.tealDim] background, the teal left accent indicator and
+///     teal text/icon.
+///   * HOVER   - a non-active row under the pointer. A deliberately subtle,
+///     theme-aware teal tint plus a small text/icon emphasis. It NEVER draws
+///     the left indicator, so it can never be mistaken for the active row.
+///   * NORMAL  - the neutral resting state (transparent background, dim text).
+///
+/// ACTIVE always takes precedence: hovering the already-active row returns the
+/// exact same ACTIVE styling, so an active+hovered row never gains a second
+/// (hover) layer. Only background and text/icon emphasis may respond to hover;
+/// the active row alone owns the teal left indicator.
+@immutable
+class NavButtonStyle {
+  const NavButtonStyle({
+    required this.background,
+    required this.leftIndicator,
+    required this.foreground,
+    required this.fontWeight,
+  });
+
+  /// Row background. Transparent for NORMAL, a faint tint for HOVER and the
+  /// opaque mint [ErasPalette.tealDim] for ACTIVE.
+  final Color background;
+
+  /// Colour of the fixed 3px left accent. Teal for ACTIVE only; transparent
+  /// for both HOVER and NORMAL, so only the active row owns the indicator.
+  final Color leftIndicator;
+
+  /// Icon + label colour.
+  final Color foreground;
+
+  /// Label weight: a subtle three-step emphasis (NORMAL < HOVER < ACTIVE).
+  final FontWeight fontWeight;
+
+  /// Maps (active, hovered) onto the palette. Deterministic and theme-aware,
+  /// so tests can reuse it to assert the exact rendered colours.
+  factory NavButtonStyle.resolve({
+    required ErasPalette palette,
+    required bool active,
+    required bool hovered,
+  }) {
+    // ACTIVE wins outright and is identical whether or not the pointer is over
+    // it, so an active+hovered row never shows a second hover layer.
+    if (active) {
+      return NavButtonStyle(
+        background: palette.tealDim,
+        leftIndicator: palette.teal,
+        foreground: palette.teal,
+        fontWeight: FontWeight.w600,
+      );
+    }
+
+    if (hovered) {
+      // HOVER: a very subtle teal tint, always weaker than the opaque ACTIVE
+      // mint and never paired with the left indicator. Strength is
+      // theme-aware (a touch stronger on dark) but the semantic - "a faint
+      // accent wash, not a selection" - is identical in both themes.
+      return NavButtonStyle(
+        background: palette.teal.withValues(
+          alpha: palette.dark ? .12 : .08,
+        ),
+        leftIndicator: Colors.transparent,
+        foreground: palette.text,
+        fontWeight: FontWeight.w500,
+      );
+    }
+
+    // NORMAL: neutral resting state.
+    return NavButtonStyle(
+      background: Colors.transparent,
+      leftIndicator: Colors.transparent,
+      foreground: palette.textDim,
+      fontWeight: FontWeight.w400,
+    );
+  }
+}
+
 class NavButton extends StatefulWidget {
   const NavButton({
     super.key,
@@ -676,19 +760,23 @@ class NavButton extends StatefulWidget {
 class _NavButtonState extends State<NavButton> {
   bool _hovered = false;
 
+  void _setHovered(bool value) {
+    if (_hovered != value && mounted) setState(() => _hovered = value);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final p = ErasPalette.of(context);
-    final active = widget.active;
-    final fg = active ? p.teal : (_hovered ? p.text : p.textDim);
-    final hoverBg = p.surface2.withValues(alpha: p.dark ? .72 : .65);
-    final bg = active ? p.tealDim : (_hovered ? hoverBg : Colors.transparent);
-    final leftColor =
-        active ? p.teal : (_hovered ? p.border : Colors.transparent);
+    // Hover is purely transient UI state; the active row comes only from the
+    // current ConsoleView passed in through [widget.active].
+    final style = NavButtonStyle.resolve(
+      palette: ErasPalette.of(context),
+      active: widget.active,
+      hovered: _hovered,
+    );
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
       child: PressableScale(
         pressedScale: 0.99,
         child: InkWell(
@@ -698,10 +786,10 @@ class _NavButtonState extends State<NavButton> {
             curve: AuthMotion.outCurve,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
-              color: bg,
+              color: style.background,
               border: Border(
                 left: BorderSide(
-                  color: leftColor,
+                  color: style.leftIndicator,
                   width: 3,
                 ),
               ),
@@ -711,7 +799,7 @@ class _NavButtonState extends State<NavButton> {
                 Icon(
                   widget.item.icon,
                   size: 17,
-                  color: fg,
+                  color: style.foreground,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -721,8 +809,8 @@ class _NavButtonState extends State<NavButton> {
                     style: TextStyle(
                       fontFamily: 'Arial',
                       fontSize: 13,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                      color: fg,
+                      fontWeight: style.fontWeight,
+                      color: style.foreground,
                     ),
                     child: Text(
                       widget.item.label,
