@@ -1,6 +1,5 @@
-/// The console timer must be a true 24-hour `HH:MM:SS` value: zero padded to
-/// two digits, no AM/PM marker, hours 00-23 - and it must not force the whole
-/// dispatch console to rebuild once per second.
+/// The console timer displays `h:MM AM/PM`, checks the time once per second,
+/// and only rebuilds the clock label when its displayed minute changes.
 library;
 
 import 'package:dispatch_console_flutter/models/eras_models.dart';
@@ -20,54 +19,60 @@ void _noop() {}
 
 void main() {
   group('formatErasClock', () {
-    test('renders zero padded 24-hour HH:MM:SS', () {
-      expect(formatErasClock(DateTime(2026, 10, 2, 0, 2, 7)), '00:02:07');
-      expect(formatErasClock(DateTime(2026, 10, 2, 8, 45, 3)), '08:45:03');
-      expect(formatErasClock(DateTime(2026, 10, 2, 13, 5, 59)), '13:05:59');
-      expect(formatErasClock(DateTime(2026, 10, 2, 19, 32, 41)), '19:32:41');
-      expect(formatErasClock(DateTime(2026, 10, 2, 23, 59, 59)), '23:59:59');
+    test('formats midnight as 12-hour AM time', () {
+      expect(formatErasClock(DateTime(2026, 10, 2, 0, 5)), '12:05 AM');
     });
 
-    test('never contains an AM/PM marker or a 12-hour rollover', () {
+    test('formats morning without a leading zero on the hour', () {
+      expect(formatErasClock(DateTime(2026, 10, 2, 1, 7)), '1:07 AM');
+      expect(formatErasClock(DateTime(2026, 10, 2, 10, 12)), '10:12 AM');
+    });
+
+    test('formats noon as 12 PM', () {
+      expect(formatErasClock(DateTime(2026, 10, 2, 12)), '12:00 PM');
+    });
+
+    test('formats afternoon as PM time', () {
+      expect(formatErasClock(DateTime(2026, 10, 2, 13, 12)), '1:12 PM');
+    });
+
+    test('formats evening as PM time', () {
+      expect(formatErasClock(DateTime(2026, 10, 2, 22, 12)), '10:12 PM');
+    });
+
+    test('formats 11:59 PM and never displays seconds', () {
+      expect(formatErasClock(DateTime(2026, 10, 2, 23, 59, 59)), '11:59 PM');
+    });
+
+    test('every hour is represented as a valid 12-hour label', () {
       for (var hour = 0; hour < 24; hour++) {
-        final label = formatErasClock(DateTime(2026, 10, 2, hour, 0, 0));
-        expect(label, '${hour.toString().padLeft(2, '0')}:00:00');
-        expect(label.toUpperCase(), isNot(contains('AM')));
-        expect(label.toUpperCase(), isNot(contains('PM')));
-      }
-      // Noon and midnight are distinct values, never confused with each other.
-      expect(formatErasClock(DateTime(2026, 10, 2, 12, 30)), '12:30:00');
-      expect(formatErasClock(DateTime(2026, 10, 2, 0, 30)), '00:30:00');
-    });
-
-    test('is always exactly 8 characters', () {
-      for (var minute = 0; minute < 60; minute++) {
-        expect(
-          formatErasClock(DateTime(2026, 10, 2, 7, minute, 9)).length,
-          8,
-        );
+        final label = formatErasClock(DateTime(2026, 10, 2, hour, 0, 45));
+        expect(label, matches(RegExp(r'^(?:[1-9]|1[0-2]):00 (?:AM|PM)$')));
       }
     });
   });
 
   group('ErasClock widget', () {
-    testWidgets('shows the injected time and ticks to the next second',
+    testWidgets('samples every second but displays only hours and minutes',
         (tester) async {
       var now = DateTime(2026, 10, 2, 9, 5, 58);
 
       await tester.pumpWidget(_host(ErasClock(now: () => now)));
       await tester.pump();
 
-      expect(find.text('09:05:58'), findsOneWidget);
+      expect(find.text('9:05 AM'), findsOneWidget);
+      expect(find.text('9:05:58'), findsNothing);
 
+      // A second passes internally, but the rendered value contains no seconds.
       now = DateTime(2026, 10, 2, 9, 5, 59);
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('09:05:59'), findsOneWidget);
+      expect(find.text('9:05 AM'), findsOneWidget);
 
-      // Crossing midnight keeps the 24-hour zero padding (00:MM:SS).
-      now = DateTime(2026, 10, 3, 0, 0, 0);
+      // The next one-second tick observes the minute change and updates
+      // the label.
+      now = DateTime(2026, 10, 2, 9, 6, 0);
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('00:00:00'), findsOneWidget);
+      expect(find.text('9:06 AM'), findsOneWidget);
 
       // The periodic timer must not outlive the widget.
       await tester.pumpWidget(const SizedBox.shrink());
@@ -87,7 +92,7 @@ void main() {
         // out before reading the colour.
         await tester.pump(const Duration(milliseconds: 400));
 
-        final text = tester.widget<Text>(find.text('21:07:06'));
+        final text = tester.widget<Text>(find.text('9:07 PM'));
         expect(
           text.style?.color,
           ErasPalette.forBrightness(brightness).textDim,
@@ -97,7 +102,7 @@ void main() {
   });
 
   group('console surfaces', () {
-    testWidgets('Rail renders the 24-hour clock text it is given',
+    testWidgets('Rail renders the 12-hour clock text it is given',
         (tester) async {
       await tester.pumpWidget(
         _host(
@@ -107,7 +112,7 @@ void main() {
               items: navItemsForRole('REQUESTER'),
               activeView: ConsoleView.board,
               onViewChanged: (_) {},
-              clock: '07:04:09',
+              clock: '7:04 AM',
               roleLabel: 'Asha · REQUESTER',
               onRefresh: _noop,
               onLogout: _noop,
@@ -117,17 +122,16 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('07:04:09'), findsOneWidget);
-      expect(find.text('7:04 AM'), findsNothing);
+      expect(find.text('7:04 AM'), findsOneWidget);
     });
 
-    testWidgets('MobileAppBar renders the 24-hour clock text it is given',
+    testWidgets('MobileAppBar renders the 12-hour clock text it is given',
         (tester) async {
       await tester.pumpWidget(
         _host(
           const Scaffold(
             appBar: MobileAppBar(
-              clock: '00:01:02',
+              clock: '12:01 AM',
               pending: 1,
               active: 2,
               completed: 3,
@@ -142,8 +146,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('00:01:02'), findsOneWidget);
-      expect(find.text('12:01:02 AM'), findsNothing);
+      expect(find.text('12:01 AM'), findsOneWidget);
     });
   });
 }

@@ -15,6 +15,92 @@ class GoogleAuthException implements Exception {
   String toString() => message;
 }
 
+/// Removes credential-like values before a native diagnostic is written to
+/// logs. The returned message is bounded and contains no raw auth payloads.
+@visibleForTesting
+String sanitizeGoogleAuthDiagnosticMessage(String? message) {
+  if (message == null || message.trim().isEmpty) return '<empty>';
+
+  var sanitized = message;
+  final sensitiveAssignments = RegExp(
+    r'''((?:["']?\b(?:id|access|refresh|firebase|auth)[-_ ]?token\b["']?|'''
+    r'''["']?\b(?:api[_-]?key|key|client[_-]?id|server[_-]?client[_-]?id|'''
+    r'''client[_-]?secret|oauth[_-]?secret|secret|password|authorization|'''
+    r'''server[_-]?auth[_-]?code|auth[_-]?code|oauth[_-]?code|credential|'''
+    r'''credentials|private[_-]?key)\b["']?)\s*[:=]\s*)'''
+    r'''(?:"[^"]*"|'[^']*'|[^,;&}\r\n]+)''',
+    caseSensitive: false,
+  );
+  sanitized = sanitized.replaceAllMapped(
+    sensitiveAssignments,
+    (match) => '${match.group(1)}[REDACTED]',
+  );
+  sanitized = sanitized.replaceAll(
+    RegExp(r'\bBearer\s+\S+', caseSensitive: false),
+    'Bearer [REDACTED]',
+  );
+  sanitized = sanitized.replaceAll(
+    RegExp(r'\bAIza[0-9A-Za-z_-]{20,}\b'),
+    '[REDACTED_API_KEY]',
+  );
+  sanitized = sanitized.replaceAll(
+    RegExp(r'\bGOCSPX-[0-9A-Za-z_-]+\b'),
+    '[REDACTED_OAUTH_SECRET]',
+  );
+  sanitized = sanitized.replaceAll(
+    RegExp(r'\bya29\.[0-9A-Za-z._~-]+\b'),
+    '[REDACTED_ACCESS_TOKEN]',
+  );
+  sanitized = sanitized.replaceAll(
+    RegExp(
+      r'\beyJ[0-9A-Za-z_-]{8,}\.[0-9A-Za-z_-]{8,}\.[0-9A-Za-z_-]{8,}\b',
+    ),
+    '[REDACTED_ID_TOKEN]',
+  );
+  sanitized = sanitized.replaceAll(
+    RegExp(r'\b[A-Za-z0-9_-]{32,}\b'),
+    '[REDACTED_OPAQUE_VALUE]',
+  );
+  sanitized = sanitized
+      .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  const maxLength = 300;
+  if (sanitized.length > maxLength) {
+    sanitized = '${sanitized.substring(0, maxLength)}…';
+  }
+  return sanitized.isEmpty ? '<empty>' : sanitized;
+}
+
+String _safePlatformDetails(Object? details) {
+  if (details is int) return '; detailsCode=$details';
+  if (details is Map) {
+    for (final key in <String>[
+      'statusCode',
+      'status_code',
+      'errorCode',
+      'error_code',
+      'code',
+    ]) {
+      final value = details[key];
+      if (value is int) return '; detailsCode=$value';
+      if (value is String && RegExp(r'^\d{1,6}$').hasMatch(value)) {
+        return '; detailsCode=$value';
+      }
+    }
+  }
+  return '';
+}
+
+void _logPlatformDiagnostic(String operation, PlatformException error) {
+  debugPrint(
+    '$operation: code=${error.code}; '
+    'message=${sanitizeGoogleAuthDiagnosticMessage(error.message)}'
+    '${_safePlatformDetails(error.details)}',
+  );
+}
+
 /// Google identity provider for ERAS.
 ///
 /// Design (mirrors the division of labour on the server):
@@ -113,17 +199,20 @@ class GoogleAuthService {
       debugPrint('google sign-in failed: ${error.code}');
       throw GoogleAuthException(_messageForCode(error.code));
     } on PlatformException catch (error) {
+      // Keep the native code and a redacted one-line message for diagnostics.
       // google_sign_in reports a dismissed account sheet as
       // `sign_in_canceled`. That is a normal user choice - no error, no
       // session change - so it must not be shown as a failure.
-      debugPrint('google sign-in cancelled/failed: ${error.code}');
+      _logPlatformDiagnostic('google sign-in cancelled/failed', error);
       if (error.code == 'sign_in_canceled') return null;
       throw const GoogleAuthException(
         'Google sign-in could not be completed on this device. '
         'You can still sign in with your email and password.',
       );
     } catch (error) {
-      debugPrint('google sign-in failed: $error');
+      // Never stringify unexpected plugin errors: their payload may contain
+      // auth material. The exception type is sufficient for safe diagnostics.
+      debugPrint('google sign-in failed: unexpected=${error.runtimeType}');
       throw const GoogleAuthException(
         'Google sign-in could not be completed. '
         'You can still sign in with your email and password.',
@@ -143,8 +232,12 @@ class GoogleAuthService {
       if (ErasFirebaseConfig.isConfigured) {
         await _googleSignIn.signOut();
       }
+    } on PlatformException catch (error) {
+      _logPlatformDiagnostic('google sign-out failed', error);
+    } on FirebaseAuthException catch (error) {
+      debugPrint('google sign-out failed: ${error.code}');
     } catch (error) {
-      debugPrint('google sign-out failed: $error');
+      debugPrint('google sign-out failed: unexpected=${error.runtimeType}');
     }
   }
 

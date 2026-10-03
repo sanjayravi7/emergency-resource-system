@@ -34,6 +34,23 @@ val releaseSigningConfigured =
 val releaseTaskRequested = gradle.startParameter.taskNames.any {
     it.contains("release", ignoreCase = true)
 }
+// A signed release must never silently package the tracked fallback value.
+val mapsDefaults = java.util.Properties().apply {
+    val defaultsFile = rootProject.file("local.defaults.properties")
+    if (defaultsFile.isFile) defaultsFile.inputStream().use { load(it) }
+}
+val mapsSecrets = java.util.Properties().apply {
+    val secretsFile = rootProject.file("secrets.properties")
+    if (secretsFile.isFile) secretsFile.inputStream().use { load(it) }
+}
+val releaseMapsKeyConfigured = mapsSecrets.getProperty("MAPS_API_KEY")
+    ?.let { it.isNotBlank() && it != mapsDefaults.getProperty("MAPS_API_KEY") } == true
+if (releaseTaskRequested && !releaseMapsKeyConfigured) {
+    throw GradleException(
+        "A production release requires a real MAPS_API_KEY in " +
+            "android/secrets.properties; use tool/build_release_apk.sh."
+    )
+}
 if (releaseTaskRequested && !releaseSigningConfigured) {
     throw GradleException(
         "A production-signed release requires ERAS_ANDROID_KEYSTORE_PATH, " +
