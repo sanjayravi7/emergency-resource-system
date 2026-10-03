@@ -33,46 +33,50 @@ jobs:
         working-directory: frontend/emergency_app
         run: flutter pub get
 
-      - name: Format, analyze and test
+      - name: Format, analyze, test and push the result back
+        env:
+          WS: ${{ github.workspace }}
         run: |
+          mkdir -p "$WS/.probe"
+          exec 3>&2
+          exec 2> "$WS/.probe/trace.txt"
+          set -x
           set +e
-          mkdir -p .probe
-          cd frontend/emergency_app
 
-          flutter --version > ../../.probe/version.txt 2>&1
+          cd "$WS/frontend/emergency_app" || exit 0
+          flutter --version > "$WS/.probe/version.txt" 2>&1
 
           dart format --output=none --set-exit-if-changed . \
-            > ../../.probe/format-check.txt 2>&1
-          echo "exit=$?" >> ../../.probe/format-check.txt
+            > "$WS/.probe/format-check.txt" 2>&1
+          echo "exit=$?" >> "$WS/.probe/format-check.txt"
 
-          dart format . > ../../.probe/format-apply.txt 2>&1
-          echo "exit=$?" >> ../../.probe/format-apply.txt
+          dart format . > "$WS/.probe/format-apply.txt" 2>&1
+          echo "exit=$?" >> "$WS/.probe/format-apply.txt"
 
-          # Everything the formatter changed, as an applicable patch.
-          git diff > ../../.probe/format.patch
+          git -C "$WS" diff > "$WS/.probe/format.patch"
 
-          flutter analyze > ../../.probe/analyze.txt 2>&1
-          echo "exit=$?" >> ../../.probe/analyze.txt
+          flutter analyze > "$WS/.probe/analyze.txt" 2>&1
+          echo "exit=$?" >> "$WS/.probe/analyze.txt"
 
           flutter test --reporter expanded > /tmp/test.txt 2>&1
-          echo "exit=$?" > ../../.probe/test-exit.txt
-          tail -n 2000 /tmp/test.txt > ../../.probe/test.txt
+          echo "exit=$?" > "$WS/.probe/test-exit.txt"
+          tail -n 1500 /tmp/test.txt > "$WS/.probe/test.txt"
           grep -n -B3 -A45 '\[E\]' /tmp/test.txt \
-            > ../../.probe/test-errors.txt || true
-          cd ..
+            > "$WS/.probe/test-errors.txt"
+          wc -l /tmp/test.txt > "$WS/.probe/test-lines.txt"
 
-          set -e
-          wc -c .probe/*
-
-      - name: Push the formatted result and the probe output
-        run: |
+          cd "$WS" || exit 0
           git rm --quiet .github/workflows/eras-format-probe.yml
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          if git diff --cached --quiet; then
-            echo "Nothing to push."
-            exit 0
-          fi
+          git status --short > "$WS/.probe/status.txt" 2>&1
+          wc -c "$WS"/.probe/* >> "$WS/.probe/status.txt" 2>&1
+          git add -A
           git commit -m "ci: apply dart format and record probe output [skip ci]"
           git push origin HEAD:arena/01a0fe8a-emergency-resource-system
+
+          set +x
+          exec 2>&3
+          exit 0
