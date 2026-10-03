@@ -56,11 +56,16 @@ const Key _cardEntranceKey = ValueKey<String>('auth-card-entrance');
 void _useViewport(WidgetTester tester, Size size, {bool safeArea = true}) {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
+  // `SafeArea` reads `padding`, the layout metrics read `viewPadding`; a real
+  // device reports both, so the harness has to set both.
+  tester.view.padding =
+      safeArea ? FakeViewPadding(top: 24, bottom: 24) : FakeViewPadding();
   tester.view.viewPadding =
       safeArea ? FakeViewPadding(top: 24, bottom: 24) : FakeViewPadding();
   tester.view.viewInsets = FakeViewPadding();
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPadding);
   addTearDown(() {
     tester.view.viewPadding = FakeViewPadding();
     tester.view.viewInsets = FakeViewPadding();

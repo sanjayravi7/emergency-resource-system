@@ -248,10 +248,14 @@ void main() {
     final recorder = _Recorder();
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
+    // `SafeArea` reads `padding`, the layout metrics read `viewPadding`; a
+    // real device reports both, so the harness has to set both.
+    tester.view.padding = FakeViewPadding(top: 24, bottom: 24);
     tester.view.viewPadding = FakeViewPadding(top: 24, bottom: 24);
     tester.view.viewInsets = FakeViewPadding();
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
     addTearDown(() {
       tester.view.viewPadding = FakeViewPadding();
       tester.view.viewInsets = FakeViewPadding();
