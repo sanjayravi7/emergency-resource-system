@@ -119,9 +119,16 @@ configuration and refuses to produce a release without the configured key.
   initialise. A plain checkout/build without it degrades gracefully and reports
   Google sign-in unavailable; the production release helper requires the real
   file and validates it before building.
-* `ERAS_GOOGLE_WEB_CLIENT_ID` is the **web** client id: Firebase uses it as the
-  ID-token audience on Android (`serverClientId`), which is why the backend
-  accepts it in `GOOGLE_CLIENT_ID`.
+* `ERAS_GOOGLE_WEB_CLIENT_ID` is the **web** client id. Flutter **Web** uses it
+  as the Google Identity Services `clientId` (and `google_sign_in_web` requires
+  `serverClientId` to stay null). Android does **not** use it at all: the
+  Google Sign-In SDK identifies the app by package name plus signing SHA-1 and
+  takes the ID-token audience from the `default_web_client_id` resource that
+  the google-services Gradle plugin generates from `google-services.json`.
+  Passing the value in from Dart overrides that resource and is what produced
+  `sign_in_failed` / `h2: 10` (`CommonStatusCodes.DEVELOPER_ERROR`) in release
+  APKs. The backend still lists it in `GOOGLE_CLIENT_ID` because it is an
+  accepted audience for raw Google Identity Services ID tokens.
 * Split APK behaviour of the existing Gradle setup is unchanged.
 
 ## 6. What the client does and does not do
