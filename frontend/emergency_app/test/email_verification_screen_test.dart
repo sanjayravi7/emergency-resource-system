@@ -207,7 +207,8 @@ void main() {
         );
         expect(ApiService.emailVerified, isTrue);
         expect(find.textContaining('Email verified'), findsWidgets);
-        expect(find.byKey(const ValueKey('verification-welcome-state')), findsOneWidget);
+        expect(find.byKey(const ValueKey('verification-welcome-state')),
+            findsOneWidget);
         expect(find.textContaining('Welcome to ERAS, Asha'), findsOneWidget);
         expect(find.textContaining('Your account is ready.'), findsOneWidget);
 
@@ -219,7 +220,8 @@ void main() {
     );
   });
 
-  testWidgets('initial delivery notice explains email delivery issue and offers resend',
+  testWidgets(
+      'initial delivery notice explains email delivery issue and offers resend',
       (tester) async {
     await tester.pumpWidget(
       const MaterialApp(

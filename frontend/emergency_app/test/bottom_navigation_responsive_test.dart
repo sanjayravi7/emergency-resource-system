@@ -32,7 +32,8 @@ Widget _buildNavHost({
 
 void main() {
   group('BottomNav responsive mobile layout', () {
-    testWidgets('all five navigation items visible on narrow phone without overflow',
+    testWidgets(
+        'all five navigation items visible on narrow phone without overflow',
         (tester) async {
       tester.view.physicalSize = const Size(360, 740);
       tester.view.devicePixelRatio = 1.0;
@@ -77,7 +78,8 @@ void main() {
       expect(tester.getSize(navContent).height, 64.0);
     });
 
-    testWidgets('all five items have equal visual width on narrow and wide phones',
+    testWidgets(
+        'all five items have equal visual width on narrow and wide phones',
         (tester) async {
       for (final width in [360.0, 412.0, 600.0]) {
         tester.view.physicalSize = Size(width, 800);
@@ -96,10 +98,14 @@ void main() {
         final expectedItemWidth = width / 5.0;
 
         final itemFinders = [
-          find.ancestor(of: find.text('Board'), matching: find.byType(Expanded)),
-          find.ancestor(of: find.text('New Emergency'), matching: find.byType(Expanded)),
-          find.ancestor(of: find.text('Resources'), matching: find.byType(Expanded)),
-          find.ancestor(of: find.text('Responders'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('Board'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('New Emergency'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('Resources'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('Responders'), matching: find.byType(Expanded)),
           find.ancestor(of: find.text('Log'), matching: find.byType(Expanded)),
         ];
 
@@ -115,7 +121,8 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    testWidgets('selected New Emergency item maintains stable height and triggers change',
+    testWidgets(
+        'selected New Emergency item maintains stable height and triggers change',
         (tester) async {
       tester.view.physicalSize = const Size(360, 740);
       tester.view.devicePixelRatio = 1.0;
@@ -150,7 +157,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('works consistently in dark theme with contrasting borders and icons',
+    testWidgets(
+        'works consistently in dark theme with contrasting borders and icons',
         (tester) async {
       tester.view.physicalSize = const Size(360, 740);
       tester.view.devicePixelRatio = 1.0;

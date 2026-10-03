@@ -23,7 +23,10 @@ const NavItem _responders = NavItem(
 const Offset _emptySpot = Offset(400, 500);
 
 // Both palettes, so every contract assertion is checked in light AND dark.
-const List<ErasPalette> _palettes = [ErasPalette.light, ErasPalette.darkPalette];
+const List<ErasPalette> _palettes = [
+  ErasPalette.light,
+  ErasPalette.darkPalette
+];
 
 /// Wraps the navigation rows in a themed app so the palette resolves the same
 /// way it does inside the real dispatch console.
