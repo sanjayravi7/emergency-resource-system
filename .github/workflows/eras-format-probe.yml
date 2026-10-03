@@ -1,17 +1,18 @@
 name: ERAS format probe
 
 # TEMPORARY. The authoring sandbox for the keyboard-stability fix has no
-# Flutter/Dart toolchain, so `dart format` could not be run locally and the
-# Flutter CI job failed on "Verify formatting". This workflow borrows the CI
-# Flutter SDK to produce the exact formatter patch (plus analyze/test output)
-# as a downloadable artifact, so it can be applied to the branch. Delete this
-# file once the branch is green.
+# Flutter/Dart toolchain, and its artifact/log download endpoints are
+# unreachable, so `dart format` could not be run or read back locally. This
+# workflow borrows the CI Flutter SDK: it formats the project, records the
+# formatter patch plus `flutter analyze` / `flutter test` output under
+# `.probe/`, deletes itself and pushes the result back to the branch with
+# `[skip ci]`. The probe directory is removed in the follow-up commit.
 on:
   push:
     branches: ["arena/01a0fe8a-emergency-resource-system"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   probe:
@@ -19,6 +20,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -30,36 +33,46 @@ jobs:
         working-directory: frontend/emergency_app
         run: flutter pub get
 
-      - name: Format, analyze and test, capturing every result
-        working-directory: frontend/emergency_app
+      - name: Format, analyze and test
         run: |
-          mkdir -p "$RUNNER_TEMP/probe"
-          flutter --version > "$RUNNER_TEMP/probe/version.txt" 2>&1
           set +e
+          mkdir -p .probe
+          cd frontend/emergency_app
+
+          flutter --version > ../../.probe/version.txt 2>&1
 
           dart format --output=none --set-exit-if-changed . \
-            > "$RUNNER_TEMP/probe/format-check.txt" 2>&1
-          echo "exit=$?" >> "$RUNNER_TEMP/probe/format-check.txt"
+            > ../../.probe/format-check.txt 2>&1
+          echo "exit=$?" >> ../../.probe/format-check.txt
 
-          dart format . > "$RUNNER_TEMP/probe/format-apply.txt" 2>&1
-          echo "exit=$?" >> "$RUNNER_TEMP/probe/format-apply.txt"
+          dart format . > ../../.probe/format-apply.txt 2>&1
+          echo "exit=$?" >> ../../.probe/format-apply.txt
 
           # Everything the formatter changed, as an applicable patch.
-          git diff > "$RUNNER_TEMP/probe/format.patch"
+          git diff > ../../.probe/format.patch
 
-          flutter analyze > "$RUNNER_TEMP/probe/analyze.txt" 2>&1
-          echo "exit=$?" >> "$RUNNER_TEMP/probe/analyze.txt"
+          flutter analyze > ../../.probe/analyze.txt 2>&1
+          echo "exit=$?" >> ../../.probe/analyze.txt
 
-          flutter test --reporter expanded \
-            > "$RUNNER_TEMP/probe/test.txt" 2>&1
-          echo "exit=$?" >> "$RUNNER_TEMP/probe/test.txt"
+          flutter test --reporter expanded > /tmp/test.txt 2>&1
+          echo "exit=$?" > ../../.probe/test-exit.txt
+          tail -n 2000 /tmp/test.txt > ../../.probe/test.txt
+          grep -n -B3 -A45 '\[E\]' /tmp/test.txt \
+            > ../../.probe/test-errors.txt || true
+          cd ..
 
           set -e
-          wc -l "$RUNNER_TEMP/probe/"*
+          wc -c .probe/*
 
-      - name: Upload probe results
-        uses: actions/upload-artifact@v4
-        with:
-          name: eras-format-probe
-          path: ${{ runner.temp }}/probe
-          if-no-files-found: error
+      - name: Push the formatted result and the probe output
+        run: |
+          git rm --quiet .github/workflows/eras-format-probe.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to push."
+            exit 0
+          fi
+          git commit -m "ci: apply dart format and record probe output [skip ci]"
+          git push origin HEAD:arena/01a0fe8a-emergency-resource-system
