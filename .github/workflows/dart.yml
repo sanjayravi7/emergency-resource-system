@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: ["main"]
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,21 +32,6 @@ jobs:
 
       - name: Analyze project source
         run: flutter analyze
-
-      - name: TEMP capture Flutter test output
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set +e
-          flutter test > "$RUNNER_TEMP/flutter-test.txt" 2>&1
-          test_status=$?
-          {
-            echo "flutter test (exit $test_status):"
-            cat "$RUNNER_TEMP/flutter-test.txt"
-          } | gzip -9 | base64 -w0 > "$RUNNER_TEMP/flutter-test.b64"
-          gh pr comment "$PR_NUMBER" --body "TEMP_FLUTTER_TEST_BEGIN$(cat "$RUNNER_TEMP/flutter-test.b64")"
 
       - name: Run tests
         run: flutter test

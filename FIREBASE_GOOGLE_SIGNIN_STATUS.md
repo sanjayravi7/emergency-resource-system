@@ -67,12 +67,12 @@ them in chat; configure them in the corresponding provider secret stores.
   TLS connection to `binaries.prisma.sh` was unavailable. Migration deployment
   and schema verification therefore did not start; there is also no reachable
   test PostgreSQL/`DATABASE_URL` in this workspace.
-- Flutter/Dart executables are absent locally. Flutter unit tests,
-  `flutter analyze`, and `dart format` could not be run on this branch; manually
-  updated Flutter paths/tests still need the Flutter CI/toolchain validation.
-- Earlier GitHub Actions on merge commit `743f4088a9927a0f4408965140eafeea14215935`
-  passed backend and Flutter checks at that time; those historic checks do not
-  validate this branch's new changes.
+- Flutter/Dart executables are absent locally. The GitHub Actions run for
+  follow-up PR #82 passed the Flutter formatter, `flutter analyze`, and the
+  complete Flutter test suite. The backend CI job also passed, including Prisma
+  generation, migration/schema checks, production dependency audit, and Jest.
+  These CI results validate the checked-in implementation but do not replace
+  production-provider or real-device acceptance.
 - No current Render deployment, Resend request, verified-sender/domain check,
   real email receipt, Google browser sign-in, physical Android sign-in, or
   production migration was performed. No production credentials/configuration

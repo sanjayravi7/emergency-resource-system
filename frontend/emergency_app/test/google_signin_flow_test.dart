@@ -361,7 +361,9 @@ void main() {
         expect(find.byType(DispatchConsolePage), findsNothing);
 
         await tester.pump(const Duration(milliseconds: 1700));
-        await tester.pump();
+        // The timer fires during this frame and starts a route transition;
+        // allow the platform-specific material transition to finish.
+        await tester.pump(const Duration(seconds: 1));
         expect(find.byType(AuthWelcomeScreen), findsNothing);
         expect(find.byType(DispatchConsolePage), findsOneWidget);
 
