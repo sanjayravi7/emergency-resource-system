@@ -1,2 +1,0 @@
-Formatted 75 files (0 changed) in 0.20 seconds.
-exit=0

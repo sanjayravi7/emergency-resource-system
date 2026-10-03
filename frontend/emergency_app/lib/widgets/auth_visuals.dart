@@ -613,7 +613,10 @@ class _AuthPrimaryButtonState extends State<AuthPrimaryButton> {
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(widget.label),
+        // The label is the only part of the row that may give way: on a narrow
+        // card (or at a large text scale) it must shrink instead of pushing the
+        // trailing icon out of the button and overflowing the row.
+        Flexible(child: Text(widget.label, overflow: TextOverflow.ellipsis)),
         if (widget.success) ...[
           const SizedBox(width: 8),
           const Icon(Icons.check_rounded, size: 18),
