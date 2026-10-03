@@ -148,6 +148,188 @@ class ThemeSwitch extends StatelessWidget {
   }
 }
 
+/// The keyboard-free layout metrics every structural auth decision is made
+/// from: desktop versus narrow composition, hero visibility, the responsive
+/// scale and the illustration fallbacks.
+///
+/// # Why this exists
+///
+/// The metrics are derived from exactly two pieces of platform data:
+///
+///   * `MediaQuery.sizeOf` - the logical window size, and
+///   * `MediaQuery.viewPaddingOf` - the *physical* safe area (status bar,
+///     notch, gesture/navigation bar).
+///
+/// They are never derived from `MediaQuery.viewInsetsOf`, i.e. never from the
+/// soft keyboard. The keyboard is a temporary obstruction, not a different
+/// device: opening it must not turn a tablet into a phone, hide the hero,
+/// re-parent the auth card or restart an entrance animation.
+///
+/// Some Android configurations shrink the reported window for the IME instead
+/// of (or as well as) reporting a view inset, which would make even
+/// `MediaQuery.sizeOf` keyboard dependent. [_AuthLayoutScope] therefore also
+/// freezes the height while the keyboard is up, so these metrics are
+/// identical with the keyboard open and closed under either behaviour.
+///
+/// The keyboard is handled entirely separately by [_AuthKeyboardInsetRegion],
+/// which only ever moves a scroll viewport and never a breakpoint.
+@immutable
+class AuthLayoutMetrics {
+  const AuthLayoutMetrics({
+    required this.viewport,
+    required this.desktop,
+    required this.scale,
+    required this.compactPhone,
+    required this.showHero,
+    required this.showHeroVisuals,
+  });
+
+  /// Stable viewport: the window minus the physical safe area. Never reduced
+  /// by `MediaQuery.viewInsets`.
+  final Size viewport;
+
+  /// True when the three reference columns fit side by side.
+  final bool desktop;
+
+  /// Responsive scale derived from [viewport].
+  final double scale;
+
+  /// True on phones, where the marketing hero is dropped so the form sits
+  /// directly below the brand.
+  final bool compactPhone;
+
+  /// True when the hero heading block is part of the composition.
+  final bool showHero;
+
+  /// True when the network illustration and flow strip are part of it.
+  final bool showHeroVisuals;
+
+  /// Resolves every breakpoint from a keyboard-free [viewport].
+  factory AuthLayoutMetrics.forViewport(Size viewport) {
+    final width = viewport.width;
+    final height = viewport.height;
+    final desktop = width >= AuthShell.desktopBreakpoint;
+    final compactPhone = width < AuthShell.phoneBreakpoint;
+    final scale = desktop
+        ? (width / AuthShell.referenceWidth).clamp(.68, 1.0)
+        : (width / AuthShell.desktopBreakpoint).clamp(.56, .8);
+    final heroHeight = height >= AuthShell.heroMinHeight;
+    final visualsWidth = width >= AuthShell.heroVisualsMinWidth;
+    final visualsHeight = height >= AuthShell.heroVisualsMinHeight;
+    return AuthLayoutMetrics(
+      viewport: viewport,
+      desktop: desktop,
+      scale: scale.toDouble(),
+      compactPhone: compactPhone,
+      showHero: !compactPhone && heroHeight,
+      showHeroVisuals: visualsWidth && visualsHeight,
+    );
+  }
+
+  /// The metrics published by the enclosing [AuthShell].
+  static AuthLayoutMetrics of(BuildContext context) {
+    final metrics = _maybeOf(context)?.metrics;
+    assert(metrics != null, 'AuthLayoutMetrics.of() needs an AuthShell.');
+    return metrics!;
+  }
+
+  static _AuthMetrics? _maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_AuthMetrics>();
+
+  @override
+  bool operator ==(Object other) =>
+      other is AuthLayoutMetrics &&
+      other.viewport == viewport &&
+      other.desktop == desktop &&
+      other.scale == scale &&
+      other.compactPhone == compactPhone &&
+      other.showHero == showHero &&
+      other.showHeroVisuals == showHeroVisuals;
+
+  @override
+  int get hashCode => Object.hash(
+        viewport,
+        desktop,
+        scale,
+        compactPhone,
+        showHero,
+        showHeroVisuals,
+      );
+
+  @override
+  String toString() =>
+      'AuthLayoutMetrics($viewport, desktop: $desktop, hero: $showHero)';
+}
+
+/// Publishes [AuthLayoutMetrics] to the auth composition.
+class _AuthMetrics extends InheritedWidget {
+  const _AuthMetrics({required this.metrics, required super.child});
+
+  final AuthLayoutMetrics metrics;
+
+  @override
+  bool updateShouldNotify(_AuthMetrics oldWidget) =>
+      oldWidget.metrics != metrics;
+}
+
+/// Resolves and holds the keyboard-free [AuthLayoutMetrics].
+///
+/// This is the only place in the auth shell that is allowed to look at
+/// `MediaQuery.viewInsets`, and it looks at it purely to *ignore* it: the
+/// height handed to the composition is the height measured while no soft
+/// keyboard is on screen.
+///
+/// Because the composition below is passed in as an already built [child],
+/// a keyboard animation rebuilds this widget only - the composition subtree
+/// keeps its element identity, its state and its entrance animations.
+class _AuthLayoutScope extends StatefulWidget {
+  const _AuthLayoutScope({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AuthLayoutScope> createState() => _AuthLayoutScopeState();
+}
+
+class _AuthLayoutScopeState extends State<_AuthLayoutScope> {
+  AuthLayoutMetrics? _metrics;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = _resolve();
+    if (next == _metrics) return;
+    setState(() => _metrics = next);
+  }
+
+  AuthLayoutMetrics _resolve() {
+    final window = MediaQuery.sizeOf(context);
+    final safeArea = MediaQuery.viewPaddingOf(context);
+    final safeWidth = window.width - safeArea.horizontal;
+    final safeHeight = window.height - safeArea.vertical;
+    final width = math.max(0.0, safeWidth).toDouble();
+    final measured = math.max(0.0, safeHeight).toDouble();
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final previous = _metrics;
+    if (keyboardOpen && previous != null && previous.viewport.width == width) {
+      // The platform shrank the reported window for the IME. Keep the height
+      // measured with the keyboard closed: a soft keyboard is not a viewport
+      // change and must never reach a composition breakpoint.
+      return AuthLayoutMetrics.forViewport(
+        Size(width, previous.viewport.height),
+      );
+    }
+    return AuthLayoutMetrics.forViewport(Size(width, measured));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = _metrics;
+    assert(metrics != null, 'Metrics resolve before the first build.');
+    return _AuthMetrics(metrics: metrics!, child: widget.child);
+  }
+}
+
 /// Layout shell for the authentication experience.
 ///
 /// The light theme reproduces the reference composition on a 1648x926
@@ -155,6 +337,18 @@ class ThemeSwitch extends StatelessWidget {
 /// strip + status cards on the left, the login/register card centre-right,
 /// the "Why ERAS?" column to its right and the trust card bottom-right.
 /// The dark theme keeps the existing ERAS dark design language.
+///
+/// # Keyboard contract
+///
+/// The soft keyboard never reaches this widget's layout decisions:
+///
+///   * `resizeToAvoidBottomInset` is false, so the Scaffold body - and with it
+///     the gradient, the grid and the whole composition - keeps its exact
+///     geometry while the keyboard is up,
+///   * every breakpoint comes from [AuthLayoutMetrics], which is derived from
+///     the window size and the physical safe area only,
+///   * the keyboard inset is applied by [_AuthKeyboardInsetRegion] around a
+///     single scroll viewport, so the only thing that moves is the scroll.
 class AuthShell extends StatelessWidget {
   const AuthShell({super.key, required this.child});
 
@@ -167,24 +361,25 @@ class AuthShell extends StatelessWidget {
   /// Below this width the three columns stack vertically.
   static const double desktopBreakpoint = 1150;
 
+  /// Below this width a phone gets the compact composition (brand + card
+  /// first, marketing content after it).
+  static const double phoneBreakpoint = 600;
+
+  /// Smallest stable viewport height that keeps the hero heading block.
+  static const double heroMinHeight = 700;
+
+  /// Smallest stable viewport that keeps the hero illustration and flow strip.
+  static const double heroVisualsMinWidth = 760;
+  static const double heroVisualsMinHeight = 720;
+
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final viewportSize = MediaQuery.sizeOf(context);
-    final viewPadding = MediaQuery.viewPaddingOf(context);
-    final safeSize = Size(
-      math.max(0.0, viewportSize.width - viewPadding.horizontal).toDouble(),
-      math.max(0.0, viewportSize.height - viewPadding.vertical).toDouble(),
-    );
-    final desktop = safeSize.width >= desktopBreakpoint;
-    final scale = desktop
-        ? (safeSize.width / referenceWidth).clamp(.68, 1.0).toDouble()
-        : (safeSize.width / desktopBreakpoint).clamp(.56, .8).toDouble();
 
     return Scaffold(
       // The auth content owns its keyboard adjustment. Scaffold's default
-      // resize can change the responsive composition with the keyboard. Keep
-      // the viewport stable and animate only the inset inside the safe area.
+      // resize would shrink the body, and with it the whole composition, every
+      // time the soft keyboard animates.
       resizeToAvoidBottomInset: false,
       body: AnimatedContainer(
         duration: const Duration(milliseconds: 350),
@@ -209,25 +404,20 @@ class AuthShell extends StatelessWidget {
                   ],
                 ),
         ),
-        child: SafeArea(
-          // Keep the navigation/gesture safe edge constant while the keyboard
-          // animates; the keyboard inset is handled by the region below.
-          maintainBottomViewPadding: true,
-          child: _AuthKeyboardInsetRegion(
+        child: _AuthLayoutScope(
+          child: SafeArea(
+            // `viewPadding` is the physical safe area (status bar, notch,
+            // gesture/navigation bar) and stays constant while the keyboard
+            // animates. `viewInsets` - the keyboard itself - is applied far
+            // below, to a single scroll viewport only.
+            maintainBottomViewPadding: true,
             child: Stack(
               children: [
                 if (dark)
                   Positioned.fill(child: CustomPaint(painter: _GridPainter()))
                 else
                   const Positioned.fill(child: _AmbientBackdrop()),
-                if (desktop)
-                  _DesktopComposition(scale: scale, child: child)
-                else
-                  _NarrowComposition(
-                    scale: scale,
-                    viewportSize: safeSize,
-                    child: child,
-                  ),
+                _AuthComposition(child: child),
               ],
             ),
           ),
@@ -237,9 +427,16 @@ class AuthShell extends StatelessWidget {
   }
 }
 
-/// Animates just the auth viewport's bottom inset instead of resizing the
-/// entire Scaffold when Android reports the soft keyboard. The child (and its
-/// stateful entrance animations, forms and scroll position) remains mounted.
+/// The soft-keyboard channel of the auth shell.
+///
+/// Wraps ONE scrollable region - never the composition - in an animated bottom
+/// inset so the focused field can be scrolled clear of the keyboard. Nothing
+/// above it changes size: the gradient, the grid, the hero, the brand and the
+/// card all keep their exact geometry, and every widget below keeps its
+/// element identity, state and entrance animation.
+///
+/// This is the only widget in the auth shell that reads
+/// `MediaQuery.viewInsets` for layout, and it converts it into padding only.
 class _AuthKeyboardInsetRegion extends StatelessWidget {
   const _AuthKeyboardInsetRegion({required this.child});
 
@@ -259,16 +456,36 @@ class _AuthKeyboardInsetRegion extends StatelessWidget {
       );
 }
 
-/// Desktop: the reference three-column composition.
-class _DesktopComposition extends StatelessWidget {
-  const _DesktopComposition({required this.scale, required this.child});
+/// Picks the composition from the stable, keyboard-free [AuthLayoutMetrics].
+///
+/// Reading the metrics here - below [_AuthLayoutScope] instead of above it -
+/// is what keeps the soft keyboard out of the composition: this widget is the
+/// only one that rebuilds when the real viewport changes, and it does not
+/// rebuild at all when `MediaQuery.viewInsets` changes.
+class _AuthComposition extends StatelessWidget {
+  const _AuthComposition({required this.child});
 
-  final double scale;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final s = scale;
+    final metrics = AuthLayoutMetrics.of(context);
+    return metrics.desktop
+        ? _DesktopComposition(metrics: metrics, child: child)
+        : _NarrowComposition(metrics: metrics, child: child);
+  }
+}
+
+/// Desktop: the reference three-column composition.
+class _DesktopComposition extends StatelessWidget {
+  const _DesktopComposition({required this.metrics, required this.child});
+
+  final AuthLayoutMetrics metrics;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = metrics.scale;
     return Padding(
       padding: EdgeInsets.fromLTRB(55 * s, 40 * s, 55 * s, 40 * s),
       child: Column(
@@ -324,6 +541,11 @@ class _DesktopComposition extends StatelessWidget {
 ///
 /// When the window is too short for the full composition the region falls
 /// back to vertical scrolling with a fixed-size illustration.
+///
+/// The [LayoutBuilder] below measures a region that is never inset by the soft
+/// keyboard - only the centre card column is (see [_AuthCardColumn]) - so
+/// `constraints.maxHeight` here is a stable viewport height and the
+/// scroll fallback cannot flip when a field is focused.
 class _StoryColumn extends StatelessWidget {
   const _StoryColumn({required this.scale});
 
@@ -500,6 +722,13 @@ class _StoryColumn extends StatelessWidget {
 
 /// Centre column: the login/register card, vertically centred, scrolling
 /// only when the window is shorter than the card.
+///
+/// The [LayoutBuilder] runs ABOVE [_AuthKeyboardInsetRegion], so
+/// `constraints.maxHeight` is the stable, keyboard-free height of the column.
+/// That value is the centring anchor. Opening the soft keyboard therefore only
+/// shrinks the scroll viewport (which is what lets the focused field be
+/// scrolled clear of it); the card itself never re-centres, never re-flows and
+/// never replays its entrance.
 class _AuthCardColumn extends StatelessWidget {
   const _AuthCardColumn({required this.scale, required this.child});
 
@@ -508,13 +737,15 @@ class _AuthCardColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [child],
+        builder: (context, constraints) => _AuthKeyboardInsetRegion(
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [child],
+              ),
             ),
           ),
         ),
@@ -553,28 +784,29 @@ class _SideColumn extends StatelessWidget {
 /// Narrow and tablet viewports: the desktop columns stack vertically. Phones
 /// keep the brand and auth card near the top; wider tablet layouts retain the
 /// hero and illustration before the form. All content scrolls naturally.
+///
+/// Every breakpoint here comes from [AuthLayoutMetrics], i.e. from the stable
+/// viewport - never from the constraints handed down by the keyboard inset and
+/// never from `MediaQuery.viewInsets`. Tapping a field therefore cannot remove
+/// the hero, drop the illustration or re-parent the card; the only thing the
+/// keyboard changes is the height of the scroll viewport inside
+/// [_AuthScrollRegion].
 class _NarrowComposition extends StatelessWidget {
-  const _NarrowComposition({
-    required this.scale,
-    required this.viewportSize,
-    required this.child,
-  });
+  const _NarrowComposition({required this.metrics, required this.child});
 
-  final double scale;
-  final Size viewportSize;
+  final AuthLayoutMetrics metrics;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final skin = AuthSkin.of(context);
-    final compactPhone = viewportSize.width < 600;
-    final showHero = !compactPhone && viewportSize.height >= 700;
-    final showHeroVisuals =
-        viewportSize.width >= 760 && viewportSize.height >= 720;
+    final compactPhone = metrics.compactPhone;
+    final showHero = metrics.showHero;
+    final showHeroVisuals = metrics.showHeroVisuals;
     final horizontalPadding = compactPhone ? 16.0 : 24.0;
     final verticalPadding = compactPhone ? 12.0 : 24.0;
     final cardTopGap = compactPhone ? 16.0 : 26.0;
-    final s = scale;
+    final s = metrics.scale;
     final scrollStorageKey =
         child.key ?? const ValueKey<String>('auth-shell-narrow-scroll');
     final markScale = math.max(s, .62);
@@ -589,7 +821,7 @@ class _NarrowComposition extends StatelessWidget {
     );
     final contentMaxWidth = math.min(
       700.0,
-      math.max(0.0, viewportSize.width - horizontalPadding * 2),
+      math.max(0.0, metrics.viewport.width - horizontalPadding * 2),
     ).toDouble();
 
     return _AuthScrollRegion(
@@ -623,18 +855,21 @@ class _NarrowComposition extends StatelessWidget {
               if (showHero) ...[
                 SizedBox(height: 26),
                 EntranceReveal(
+                  key: const ValueKey('auth-hero-resource-entrance'),
                   delay: const Duration(milliseconds: 80),
                   duration: const Duration(milliseconds: 550),
                   offset: const Offset(0, 12),
                   child: Text('Right Resource.', style: navy),
                 ),
                 EntranceReveal(
+                  key: const ValueKey('auth-hero-place-entrance'),
                   delay: const Duration(milliseconds: 180),
                   duration: const Duration(milliseconds: 550),
                   offset: const Offset(0, 12),
                   child: Text('Right Place.', style: navy),
                 ),
                 EntranceReveal(
+                  key: const ValueKey('auth-hero-time-entrance'),
                   delay: const Duration(milliseconds: 280),
                   duration: const Duration(milliseconds: 550),
                   offset: const Offset(0, 12),
@@ -651,6 +886,7 @@ class _NarrowComposition extends StatelessWidget {
                 ),
                 SizedBox(height: 14),
                 EntranceReveal(
+                  key: const ValueKey('auth-hero-subtext-entrance'),
                   delay: const Duration(milliseconds: 380),
                   duration: const Duration(milliseconds: 550),
                   offset: const Offset(0, 10),
@@ -668,6 +904,7 @@ class _NarrowComposition extends StatelessWidget {
               if (showHeroVisuals) ...[
                 SizedBox(height: 18),
                 EntranceReveal(
+                  key: const ValueKey('auth-hero-network-entrance'),
                   delay: const Duration(milliseconds: 260),
                   duration: const Duration(milliseconds: 600),
                   offset: Offset.zero,
@@ -682,6 +919,7 @@ class _NarrowComposition extends StatelessWidget {
                 ),
                 SizedBox(height: 16),
                 EntranceReveal(
+                  key: const ValueKey('auth-hero-flow-entrance'),
                   delay: const Duration(milliseconds: 340),
                   duration: const Duration(milliseconds: 550),
                   offset: const Offset(0, 8),
@@ -729,8 +967,16 @@ class _NarrowComposition extends StatelessWidget {
   }
 }
 
-/// Keeps only the scroll viewport subscribed to keyboard inset changes. The
-/// auth form, brand and entrance animations remain mounted and unchanged.
+/// The narrow composition's scroll viewport, and the only part of it that the
+/// soft keyboard is allowed to touch.
+///
+/// The keyboard inset is applied here, around the scroll view alone
+/// ([_AuthKeyboardInsetRegion]), so the composition above it - brand, hero,
+/// illustration, card, entrance animations - keeps its exact size, element
+/// identity and animation state. Shrinking the *viewport* (rather than only
+/// padding the content) is what lets Flutter's own show-on-screen pass scroll a
+/// focused field clear of the keyboard, and the offset captured before the
+/// keyboard arrived is animated back once it is dismissed.
 class _AuthScrollRegion extends StatefulWidget {
   const _AuthScrollRegion({
     super.key,
@@ -828,12 +1074,14 @@ class _AuthScrollRegionState extends State<_AuthScrollRegion> {
           }
           return false;
         },
-        child: SingleChildScrollView(
-          key: PageStorageKey<Key>(widget.storageKey),
-          controller: _scrollController,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: widget.padding,
-          child: widget.child,
+        child: _AuthKeyboardInsetRegion(
+          child: SingleChildScrollView(
+            key: PageStorageKey<Key>(widget.storageKey),
+            controller: _scrollController,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: widget.padding,
+            child: widget.child,
+          ),
         ),
       );
 }
