@@ -17,10 +17,14 @@ void _setMobileViewport(
 }) {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
+  // `SafeArea` reads `padding`, the layout metrics read `viewPadding`; a real
+  // device reports both, so the harness has to set both.
+  tester.view.padding = FakeViewPadding(top: 24, bottom: 24);
   tester.view.viewPadding = FakeViewPadding(top: 24, bottom: 24);
   tester.view.viewInsets = FakeViewPadding();
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPadding);
   addTearDown(() {
     tester.view.viewPadding = FakeViewPadding();
     tester.view.viewInsets = FakeViewPadding();
@@ -76,6 +80,13 @@ double _authCardEntranceOpacity(WidgetTester tester) => tester
           .first,
     )
     .opacity;
+
+/// `TextFormField` keeps its focus node in its own state rather than on the
+/// widget, so node identity is read from the `TextField` it builds.
+FocusNode _fieldFocusNode(WidgetTester tester, Finder field) {
+  final inner = find.descendant(of: field, matching: find.byType(TextField));
+  return tester.widget<TextField>(inner).focusNode!;
+}
 
 void main() {
   setUp(_resetSession);
@@ -152,9 +163,8 @@ void main() {
     final passwordController = passwordBefore.controller!;
     final emailFocusNode = emailBefore.focusNode!;
     final passwordFocusNode = passwordBefore.focusNode!;
-    final brandTop = tester
-        .getRect(find.byKey(const ValueKey('eras-brand-shield')))
-        .top;
+    final brandTop =
+        tester.getRect(find.byKey(const ValueKey('eras-brand-shield'))).top;
 
     await tester.tap(emailFinder);
     await tester.pumpAndSettle();
@@ -176,14 +186,22 @@ void main() {
       identical(_authCardEntranceState(tester), entranceState),
       isTrue,
     );
-    expect(identical(tester.widget<TextField>(emailFinder).controller,
-        emailController), isTrue);
-    expect(identical(tester.widget<TextField>(emailFinder).focusNode,
-        emailFocusNode), isTrue);
-    expect(identical(tester.widget<TextField>(passwordFinder).controller,
-        passwordController), isTrue);
-    expect(identical(tester.widget<TextField>(passwordFinder).focusNode,
-        passwordFocusNode), isTrue);
+    expect(
+        identical(
+            tester.widget<TextField>(emailFinder).controller, emailController),
+        isTrue);
+    expect(
+        identical(
+            tester.widget<TextField>(emailFinder).focusNode, emailFocusNode),
+        isTrue);
+    expect(
+        identical(tester.widget<TextField>(passwordFinder).controller,
+            passwordController),
+        isTrue);
+    expect(
+        identical(tester.widget<TextField>(passwordFinder).focusNode,
+            passwordFocusNode),
+        isTrue);
     expect(emailController.text, 'asha@example.com');
     expect(passwordController.text, 'private-pass');
     expect(passwordFocusNode.hasFocus, isTrue);
@@ -266,11 +284,11 @@ void main() {
     final passwordBefore = tester.widget<TextFormField>(passwordFinder);
     final confirmBefore = tester.widget<TextFormField>(confirmFinder);
     final nodes = <FocusNode>[
-      nameBefore.focusNode!,
-      emailBefore.focusNode!,
-      phoneBefore.focusNode!,
-      passwordBefore.focusNode!,
-      confirmBefore.focusNode!,
+      _fieldFocusNode(tester, nameFinder),
+      _fieldFocusNode(tester, emailFinder),
+      _fieldFocusNode(tester, phoneFinder),
+      _fieldFocusNode(tester, passwordFinder),
+      _fieldFocusNode(tester, confirmFinder),
     ];
     final controllers = <TextEditingController>[
       nameBefore.controller!,
@@ -314,14 +332,15 @@ void main() {
       Alignment.centerRight,
     );
     for (var i = 0; i < nodes.length; i++) {
-      final widget = tester.widget<TextFormField>(<Finder>[
+      final finder = <Finder>[
         nameFinder,
         emailFinder,
         phoneFinder,
         passwordFinder,
         confirmFinder,
-      ][i]);
-      expect(identical(widget.focusNode, nodes[i]), isTrue);
+      ][i];
+      final widget = tester.widget<TextFormField>(finder);
+      expect(identical(_fieldFocusNode(tester, finder), nodes[i]), isTrue);
       expect(identical(widget.controller, controllers[i]), isTrue);
     }
     expect(nodes[4].hasFocus, isTrue);
@@ -359,7 +378,7 @@ void main() {
     final codeFinder = find.byKey(const ValueKey('verification-code'));
     final codeBefore = tester.widget<TextFormField>(codeFinder);
     final controller = codeBefore.controller!;
-    final focusNode = codeBefore.focusNode!;
+    final focusNode = _fieldFocusNode(tester, codeFinder);
 
     await tester.tap(codeFinder);
     await tester.pumpAndSettle();
@@ -371,10 +390,11 @@ void main() {
       isTrue,
     );
     expect(identical(_authCardEntranceState(tester), entranceState), isTrue);
-    expect(identical(tester.widget<TextFormField>(codeFinder).controller,
-        controller), isTrue);
-    expect(identical(tester.widget<TextFormField>(codeFinder).focusNode,
-        focusNode), isTrue);
+    expect(
+        identical(
+            tester.widget<TextFormField>(codeFinder).controller, controller),
+        isTrue);
+    expect(identical(_fieldFocusNode(tester, codeFinder), focusNode), isTrue);
     expect(controller.text, '482915');
     expect(focusNode.hasFocus, isTrue);
     expect(find.byKey(const ValueKey('auth-why-eras')), findsOneWidget);
