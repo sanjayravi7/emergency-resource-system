@@ -1,23 +1,34 @@
 + set +e
 + cd /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app
 + flutter --version
++ cp lib/widgets/auth_shell.dart /tmp/auth_shell.branch.dart
++ mv test/auth_keyboard_composition_test.dart /tmp/
++ git show 4050655:frontend/emergency_app/lib/widgets/auth_shell.dart
++ flutter test --reporter expanded test/auth_mobile_stability_test.dart test/forgot_password_flow_test.dart test/auth_visual_layout_test.dart
++ echo baseline_exit=1
++ git checkout -- lib/widgets/auth_shell.dart
++ cp /tmp/auth_shell.branch.dart lib/widgets/auth_shell.dart
++ mv /tmp/auth_keyboard_composition_test.dart test/
++ cat
++ flutter test --reporter expanded test/zz_probe_overflow_test.dart
++ echo overflow_exit=1
++ rm -f test/zz_probe_overflow_test.dart
 + dart format --output=none --set-exit-if-changed .
-+ echo exit=1
-+ dart format .
 + echo exit=0
++ dart format .
 + git -C /home/runner/work/emergency-resource-system/emergency-resource-system diff
 + flutter analyze
 + echo exit=0
 + flutter test --reporter expanded
 + echo exit=1
-+ tail -n 1500 /tmp/test.txt
++ tail -n 1200 /tmp/test.txt
 + grep -n -B3 -A45 '\[E\]' /tmp/test.txt
-+ wc -l /tmp/test.txt
++ grep -c '' /tmp/test.txt
 + cd /home/runner/work/emergency-resource-system/emergency-resource-system
++ git checkout -- frontend/emergency_app/pubspec.lock
 + git rm --quiet .github/workflows/eras-format-probe.yml
 + git config user.name 'github-actions[bot]'
 + git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 + git add -A
 + git status --short
-+ wc -c /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/analyze.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format-apply.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format-check.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format.patch /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/status.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-errors.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-exit.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-lines.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/trace.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/version.txt
 + git add -A

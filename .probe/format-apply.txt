@@ -1,3 +1,1 @@
-Formatted test/forgot_password_flow_test.dart
-Formatted 75 files (1 changed) in 0.37 seconds.
-exit=0
+Formatted 75 files (0 changed) in 0.20 seconds.
