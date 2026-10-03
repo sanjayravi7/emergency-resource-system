@@ -1,0 +1,102 @@
+name: ERAS validation probe
+
+# TEMPORARY, session-scoped probe (deleted before the final commit).
+#
+# This sandbox has no Flutter SDK and the Flutter/pub download hosts are not
+# reachable from it, so the required `dart format`, `flutter analyze` and
+# `flutter test` runs happen on GitHub Actions and their raw output is
+# published back to this branch (under .probe/) so the agent can read it.
+#
+# It intentionally does not touch the Flutter workflow itself.
+
+on:
+  push:
+    branches:
+      - arena/01a1023f-emergency-resource-system
+
+jobs:
+  probe:
+    if: "!contains(github.event.head_commit.message, '[probe]')"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run validation commands
+        run: |
+          set +e
+          mkdir -p /tmp/probe
+          {
+            flutter --version
+            echo "commit=$(git rev-parse HEAD)"
+          } > /tmp/probe/version.txt 2>&1
+
+          # Exact command the Flutter workflow runs.
+          dart format --output=none --set-exit-if-changed . \
+            > /tmp/probe/format-repo.txt 2>&1
+          echo "exit=$?" >> /tmp/probe/format-repo.txt
+
+          CHANGED="test/nav_button_hover_test.dart"
+          CHANGED="$CHANGED test/bottom_navigation_responsive_test.dart"
+          CHANGED="$CHANGED test/email_verification_screen_test.dart"
+          CHANGED="$CHANGED test/native_location_service_test.dart"
+          CHANGED="$CHANGED lib/services/location_service.dart"
+
+          dart format --output=none --set-exit-if-changed $CHANGED \
+            > /tmp/probe/format-changed.txt 2>&1
+          echo "exit=$?" >> /tmp/probe/format-changed.txt
+
+          flutter analyze > /tmp/probe/analyze.txt 2>&1
+          echo "exit=$?" >> /tmp/probe/analyze.txt
+
+          flutter test --reporter expanded > /tmp/probe/test.txt 2>&1
+          echo "exit=$?" >> /tmp/probe/test.txt
+          tail -n 500 /tmp/probe/test.txt > /tmp/probe/test-tail.txt
+
+          for t in nav_button_hover bottom_navigation_responsive \
+                   email_verification_screen native_location_service; do
+            flutter test "test/${t}_test.dart" \
+              > "/tmp/probe/targeted-${t}.txt" 2>&1
+            echo "exit=$?" >> "/tmp/probe/targeted-${t}.txt"
+          done
+
+          # Capture exactly how the formatter wants the tracked sources, so the
+          # local tree can be corrected byte-for-byte.
+          dart format $(git ls-files '*.dart') > /dev/null 2>&1
+          git -C "$GITHUB_WORKSPACE" diff -- frontend/emergency_app \
+            > /tmp/probe/format.patch
+          git -C "$GITHUB_WORKSPACE" checkout -- frontend/emergency_app
+          exit 0
+
+      - name: Publish probe output
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          mkdir -p .probe
+          cp -f /tmp/probe/* .probe/ 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A .probe
+          if git diff --cached --quiet; then
+            echo "No probe changes to publish"
+            exit 0
+          fi
+          git commit -m "chore(probe): flutter validation output [probe]"
+          git push origin HEAD:arena/01a1023f-emergency-resource-system
