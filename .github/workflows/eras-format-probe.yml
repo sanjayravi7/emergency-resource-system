@@ -1,0 +1,65 @@
+name: ERAS format probe
+
+# TEMPORARY. The authoring sandbox for the keyboard-stability fix has no
+# Flutter/Dart toolchain, so `dart format` could not be run locally and the
+# Flutter CI job failed on "Verify formatting". This workflow borrows the CI
+# Flutter SDK to produce the exact formatter patch (plus analyze/test output)
+# as a downloadable artifact, so it can be applied to the branch. Delete this
+# file once the branch is green.
+on:
+  push:
+    branches: ["arena/01a0fe8a-emergency-resource-system"]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: frontend/emergency_app
+        run: flutter pub get
+
+      - name: Format, analyze and test, capturing every result
+        working-directory: frontend/emergency_app
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe"
+          flutter --version > "$RUNNER_TEMP/probe/version.txt" 2>&1
+          set +e
+
+          dart format --output=none --set-exit-if-changed . \
+            > "$RUNNER_TEMP/probe/format-check.txt" 2>&1
+          echo "exit=$?" >> "$RUNNER_TEMP/probe/format-check.txt"
+
+          dart format . > "$RUNNER_TEMP/probe/format-apply.txt" 2>&1
+          echo "exit=$?" >> "$RUNNER_TEMP/probe/format-apply.txt"
+
+          # Everything the formatter changed, as an applicable patch.
+          git diff > "$RUNNER_TEMP/probe/format.patch"
+
+          flutter analyze > "$RUNNER_TEMP/probe/analyze.txt" 2>&1
+          echo "exit=$?" >> "$RUNNER_TEMP/probe/analyze.txt"
+
+          flutter test --reporter expanded \
+            > "$RUNNER_TEMP/probe/test.txt" 2>&1
+          echo "exit=$?" >> "$RUNNER_TEMP/probe/test.txt"
+
+          set -e
+          wc -l "$RUNNER_TEMP/probe/"*
+
+      - name: Upload probe results
+        uses: actions/upload-artifact@v4
+        with:
+          name: eras-format-probe
+          path: ${{ runner.temp }}/probe
+          if-no-files-found: error
