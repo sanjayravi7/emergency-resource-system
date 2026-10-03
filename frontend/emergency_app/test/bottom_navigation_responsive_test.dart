@@ -32,7 +32,8 @@ Widget _buildNavHost({
 
 void main() {
   group('BottomNav responsive mobile layout', () {
-    testWidgets('all five navigation items visible on narrow phone without overflow',
+    testWidgets(
+        'all five navigation items visible on narrow phone without overflow',
         (tester) async {
       tester.view.physicalSize = const Size(360, 740);
       tester.view.devicePixelRatio = 1.0;
@@ -60,13 +61,25 @@ void main() {
       // No overflow errors recorded
       expect(tester.takeException(), isNull);
 
-      // Verify bottom navigation bar has stable total height (64 + 24 inset = 88)
+      // Verify the bottom navigation bar has a stable total height. The
+      // production bar is: 1px top border + 64px of interactive navigation
+      // content + the simulated 24px bottom safe-area inset = 89px.
       final navBarSize = tester.getSize(find.byType(BottomNav));
-      expect(navBarSize.height, 88.0);
+      expect(navBarSize.height, 89.0);
       expect(navBarSize.width, 360.0);
+
+      // The interactive navigation content itself stays 64px tall: the extra
+      // height comes from the 1px border and the device inset, never from
+      // shrinking or padding the tappable row.
+      final navContent = find.descendant(
+        of: find.byType(BottomNav),
+        matching: find.byType(Row),
+      );
+      expect(tester.getSize(navContent).height, 64.0);
     });
 
-    testWidgets('all five items have equal visual width on narrow and wide phones',
+    testWidgets(
+        'all five items have equal visual width on narrow and wide phones',
         (tester) async {
       for (final width in [360.0, 412.0, 600.0]) {
         tester.view.physicalSize = Size(width, 800);
@@ -85,10 +98,14 @@ void main() {
         final expectedItemWidth = width / 5.0;
 
         final itemFinders = [
-          find.ancestor(of: find.text('Board'), matching: find.byType(Expanded)),
-          find.ancestor(of: find.text('New Emergency'), matching: find.byType(Expanded)),
-          find.ancestor(of: find.text('Resources'), matching: find.byType(Expanded)),
-          find.ancestor(of: find.text('Responders'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('Board'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('New Emergency'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('Resources'), matching: find.byType(Expanded)),
+          find.ancestor(
+              of: find.text('Responders'), matching: find.byType(Expanded)),
           find.ancestor(of: find.text('Log'), matching: find.byType(Expanded)),
         ];
 
@@ -104,7 +121,8 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    testWidgets('selected New Emergency item maintains stable height and triggers change',
+    testWidgets(
+        'selected New Emergency item maintains stable height and triggers change',
         (tester) async {
       tester.view.physicalSize = const Size(360, 740);
       tester.view.devicePixelRatio = 1.0;
@@ -139,7 +157,8 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('works consistently in dark theme with contrasting borders and icons',
+    testWidgets(
+        'works consistently in dark theme with contrasting borders and icons',
         (tester) async {
       tester.view.physicalSize = const Size(360, 740);
       tester.view.devicePixelRatio = 1.0;

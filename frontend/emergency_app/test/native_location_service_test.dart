@@ -29,25 +29,27 @@ void main() {
         expect(place.label, 'Kolenchery, Kerala, India');
         expect(place.latitude, 9.9816);
         expect(place.longitude, 76.2999);
-      }, () => MockClient((request) async {
-        expect(request.url.path, '/api/location/reverse');
-        expect(request.url.queryParameters['latitude'], '9.9816');
-        expect(request.url.queryParameters['longitude'], '76.2999');
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'displayName': 'Kolenchery, Kerala, India',
-              'latitude': 9.9816,
-              'longitude': 76.2999,
-            },
-          }),
-          200,
-        );
-      }));
+      },
+          () => MockClient((request) async {
+                expect(request.url.path, '/api/location/reverse');
+                expect(request.url.queryParameters['latitude'], '9.9816');
+                expect(request.url.queryParameters['longitude'], '76.2999');
+                return http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'data': {
+                      'displayName': 'Kolenchery, Kerala, India',
+                      'latitude': 9.9816,
+                      'longitude': 76.2999,
+                    },
+                  }),
+                  200,
+                );
+              }));
     });
 
-    test('reverseGeocode rejects (0, 0) coordinates without making request', () async {
+    test('reverseGeocode rejects (0, 0) coordinates without making request',
+        () async {
       expect(
         () => service.reverseGeocode(0.0, 0.0),
         throwsA(isA<LocationServiceException>()),
@@ -68,40 +70,44 @@ void main() {
         expect(predictions[0].secondaryText, 'Kolenchery');
         expect(predictions[1].placeId, 'place_2');
         expect(predictions[1].primaryText, 'Taluk Hospital');
-      }, () => MockClient((request) async {
-        expect(request.url.path, '/api/location/autocomplete');
-        expect(request.url.queryParameters['query'], 'Government Hospital');
-        expect(request.url.queryParameters['latitude'], '9.9816');
-        expect(request.url.queryParameters['longitude'], '76.2999');
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'predictions': [
-                {
-                  'placeId': 'place_1',
-                  'primaryText': 'Government Hospital',
-                  'secondaryText': 'Kolenchery',
-                },
-                {
-                  'placeId': 'place_2',
-                  'primaryText': 'Taluk Hospital',
-                  'secondaryText': '',
-                },
-              ],
-            },
-          }),
-          200,
-        );
-      }));
+      },
+          () => MockClient((request) async {
+                expect(request.url.path, '/api/location/autocomplete');
+                expect(request.url.queryParameters['query'],
+                    'Government Hospital');
+                expect(request.url.queryParameters['latitude'], '9.9816');
+                expect(request.url.queryParameters['longitude'], '76.2999');
+                return http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'data': {
+                      'predictions': [
+                        {
+                          'placeId': 'place_1',
+                          'primaryText': 'Government Hospital',
+                          'secondaryText': 'Kolenchery',
+                        },
+                        {
+                          'placeId': 'place_2',
+                          'primaryText': 'Taluk Hospital',
+                          'secondaryText': '',
+                        },
+                      ],
+                    },
+                  }),
+                  200,
+                );
+              }));
     });
 
-    test('autocomplete returns empty list for whitespace query without request', () async {
+    test('autocomplete returns empty list for whitespace query without request',
+        () async {
       final results = await service.autocomplete('   ');
       expect(results, isEmpty);
     });
 
-    test('resolvePrediction maps canonical coordinates from selected place', () async {
+    test('resolvePrediction maps canonical coordinates from selected place',
+        () async {
       await http.runWithClient(() async {
         const prediction = PlacePrediction(
           placeId: 'place_gh_123',
@@ -114,22 +120,23 @@ void main() {
         expect(resolved.latitude, 9.9795);
         expect(resolved.longitude, 76.4712);
         expect(resolved.label, 'Government Hospital, Kolenchery, Kerala');
-      }, () => MockClient((request) async {
-        expect(request.url.path, '/api/location/details');
-        expect(request.url.queryParameters['placeId'], 'place_gh_123');
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'placeId': 'place_gh_123',
-              'label': 'Government Hospital, Kolenchery, Kerala',
-              'latitude': 9.9795,
-              'longitude': 76.4712,
-            },
-          }),
-          200,
-        );
-      }));
+      },
+          () => MockClient((request) async {
+                expect(request.url.path, '/api/location/details');
+                expect(request.url.queryParameters['placeId'], 'place_gh_123');
+                return http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'data': {
+                      'placeId': 'place_gh_123',
+                      'label': 'Government Hospital, Kolenchery, Kerala',
+                      'latitude': 9.9795,
+                      'longitude': 76.4712,
+                    },
+                  }),
+                  200,
+                );
+              }));
     });
 
     test('resolvePrediction rejects zero coordinates (0, 0)', () async {
@@ -143,20 +150,21 @@ void main() {
           () => service.resolvePrediction(prediction),
           throwsA(isA<LocationServiceException>()),
         );
-      }, () => MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'placeId': 'place_zero',
-              'label': 'Zero Place',
-              'latitude': 0.0,
-              'longitude': 0.0,
-            },
-          }),
-          200,
-        );
-      }));
+      },
+          () => MockClient((request) async {
+                return http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'data': {
+                      'placeId': 'place_zero',
+                      'label': 'Zero Place',
+                      'latitude': 0.0,
+                      'longitude': 0.0,
+                    },
+                  }),
+                  200,
+                );
+              }));
     });
 
     test('searchNearbyPlaces returns places ranked by distance', () async {
@@ -175,41 +183,43 @@ void main() {
         expect(places[1].placeId, 'hosp_far');
         expect(places[1].name, 'General Hospital');
         expect(places[0].distanceMeters!, lessThan(places[1].distanceMeters!));
-      }, () => MockClient((request) async {
-        expect(request.url.path, '/api/location/nearby');
-        expect(request.url.queryParameters['category'], 'hospital');
-        expect(request.url.queryParameters['latitude'], '9.98');
-        expect(request.url.queryParameters['longitude'], '76.3');
-        return http.Response(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'places': [
-                {
-                  'placeId': 'hosp_close',
-                  'name': 'City Clinic',
-                  'address': 'MG Rd',
-                  'latitude': 9.9810,
-                  'longitude': 76.3010,
-                  'distanceMeters': 150,
-                },
-                {
-                  'placeId': 'hosp_far',
-                  'name': 'General Hospital',
-                  'address': 'Ring Rd',
-                  'latitude': 9.9950,
-                  'longitude': 76.3150,
-                  'distanceMeters': 2300,
-                },
-              ],
-            },
-          }),
-          200,
-        );
-      }));
+      },
+          () => MockClient((request) async {
+                expect(request.url.path, '/api/location/nearby');
+                expect(request.url.queryParameters['category'], 'hospital');
+                expect(request.url.queryParameters['latitude'], '9.98');
+                expect(request.url.queryParameters['longitude'], '76.3');
+                return http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'data': {
+                      'places': [
+                        {
+                          'placeId': 'hosp_close',
+                          'name': 'City Clinic',
+                          'address': 'MG Rd',
+                          'latitude': 9.9810,
+                          'longitude': 76.3010,
+                          'distanceMeters': 150,
+                        },
+                        {
+                          'placeId': 'hosp_far',
+                          'name': 'General Hospital',
+                          'address': 'Ring Rd',
+                          'latitude': 9.9950,
+                          'longitude': 76.3150,
+                          'distanceMeters': 2300,
+                        },
+                      ],
+                    },
+                  }),
+                  200,
+                );
+              }));
     });
 
-    test('searchNearbyPlaces surfaces PlacesApiDisabledException when disabled', () async {
+    test('searchNearbyPlaces surfaces PlacesApiDisabledException when disabled',
+        () async {
       await http.runWithClient(() async {
         expect(
           () => service.searchNearbyPlaces(
@@ -219,17 +229,43 @@ void main() {
           ),
           throwsA(isA<PlacesApiDisabledException>()),
         );
-      }, () => MockClient((request) async {
-        return http.Response(
-          jsonEncode({
-            'success': false,
-            'message':
-              'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
-            'code': 'PLACES_API_DISABLED',
-          }),
-          502,
+      },
+          () => MockClient((request) async {
+                return http.Response(
+                  jsonEncode({
+                    'success': false,
+                    'message':
+                        'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
+                    'code': 'PLACES_API_DISABLED',
+                  }),
+                  502,
+                );
+              }));
+    });
+
+    test('autocomplete surfaces PlacesApiDisabledException when disabled',
+        () async {
+      await http.runWithClient(() async {
+        expect(
+          () => service.autocomplete('Government Hospital'),
+          throwsA(isA<PlacesApiDisabledException>()),
         );
-      }));
+      },
+          () => MockClient((request) async {
+                // The backend classifies every Google Places failure the same way, so
+                // autocomplete receives the same PLACES_API_DISABLED answer as nearby
+                // search and must be classified identically.
+                expect(request.url.path, '/api/location/autocomplete');
+                return http.Response(
+                  jsonEncode({
+                    'success': false,
+                    'message':
+                        'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
+                    'code': 'PLACES_API_DISABLED',
+                  }),
+                  502,
+                );
+              }));
     });
   });
 }

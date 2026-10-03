@@ -1,6 +1,7 @@
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/theme/app_theme.dart';
 import 'package:dispatch_console_flutter/widgets/common_widgets.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,7 +23,10 @@ const NavItem _responders = NavItem(
 const Offset _emptySpot = Offset(400, 500);
 
 // Both palettes, so every contract assertion is checked in light AND dark.
-const List<ErasPalette> _palettes = [ErasPalette.light, ErasPalette.darkPalette];
+const List<ErasPalette> _palettes = [
+  ErasPalette.light,
+  ErasPalette.darkPalette
+];
 
 /// Wraps the navigation rows in a themed app so the palette resolves the same
 /// way it does inside the real dispatch console.
