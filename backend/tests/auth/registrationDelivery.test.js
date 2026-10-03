@@ -12,13 +12,15 @@ process.env.DATABASE_URL =
 process.env.JWT_SECRET =
   process.env.JWT_SECRET || 'S6m2yq0m9k3wq7Zt1v8Xr4Lp6Nc2Bd5Hf8Jk1Mn4Qs7Uw0';
 
+jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
+
 const mockUsers = [];
 const mockAuditLogs = [];
 let mockNextUserId = 1;
 let mockNextAuditId = 1;
 
 jest.mock('../../src/config/prisma', () => {
-  const fakeAuthCode = require('../helpers/fakeAuthCodePrisma');
+      const fakeAuthCode = require('../helpers/fakeAuthCodePrisma');
 
   function projectSelect(row, select) {
     if (!row || !select) return row ? { ...row } : null;
@@ -56,6 +58,7 @@ jest.mock('../../src/config/prisma', () => {
           responderStatus: data.responderStatus ?? 'OFFLINE',
           emailVerified: data.emailVerified ?? false,
           emailVerifiedAt: data.emailVerifiedAt ?? null,
+          welcomeEmailDispatchClaimedAt: data.welcomeEmailDispatchClaimedAt ?? null,
           authProvider: data.authProvider ?? 'PASSWORD',
           firebaseUid: data.firebaseUid ?? null,
           passwordChangedAt: data.passwordChangedAt ?? null,
@@ -70,6 +73,14 @@ jest.mock('../../src/config/prisma', () => {
         if (!user) throw new Error('User not found');
         Object.assign(user, data, { updatedAt: new Date() });
         return projectSelect(user, select);
+      }),
+      updateMany: jest.fn(async ({ where, data } = {}) => {
+        const user = mockUsers.find((candidate) =>
+          Object.entries(where || {}).every(([key, value]) => candidate[key] === value)
+        );
+        if (!user) return { count: 0 };
+        Object.assign(user, data, { updatedAt: new Date() });
+        return { count: 1 };
       }),
     },
     authCode: fakeAuthCode.authCode,
@@ -92,6 +103,7 @@ jest.mock('../../src/config/prisma', () => {
 
 const request = require('supertest');
 const bcrypt = require('bcrypt');
+const nodemailer = require('nodemailer');
 
 const fakeAuthCode = require('../helpers/fakeAuthCodePrisma');
 const env = require('../../src/config/env');
@@ -129,8 +141,11 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     sendSpy = jest.spyOn(emailService, 'send').mockImplementation(async (payload) => {
       sentMessages.push(payload);
       return {
-        delivered: true,
-        deliveryResult: 'success',
+        deliveryAccepted: true,
+        accepted: true,
+        delivered: null,
+        deliveryConfirmed: false,
+        deliveryResult: 'accepted',
         transport: 'resend',
         provider: 'Resend',
         transportConfigured: 'yes',
@@ -160,7 +175,13 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.verificationRequired).toBe(true);
-    expect(res.body.data.emailDelivered).toBe(true);
+    expect(res.body.data.emailVerified).toBe(false);
+    expect(res.body.data.emailDelivered).toBeNull();
+    expect(res.body.data.emailRequestAccepted).toBe(true);
+    expect(res.body.data.emailDeliveryAccepted).toBe(true);
+    expect(res.body.data.emailDeliveryConfirmed).toBe(false);
+    expect(res.body.data.emailDeliveryStatus).toBe('accepted');
+    expect(res.body.data.emailDeliveryResult).toBe('accepted');
     expect(res.body.data.user.email).toBe('asha@example.com');
     expect(res.body.data.user.emailVerified).toBe(false);
     expect(res.body.data.user.authProvider).toBe('PASSWORD');
@@ -235,12 +256,18 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.body.success).toBe(true);
     expect(verifyRes.body.data.user.emailVerified).toBe(true);
+    expect(verifyRes.body.data.emailVerified).toBe(true);
     expect(verifyRes.body.data.welcomeEmailSent).toBe(true);
-    expect(verifyRes.body.data.welcomeEmailDelivered).toBe(true);
+    expect(verifyRes.body.data.welcomeEmailRequestAccepted).toBe(true);
+    expect(verifyRes.body.data.welcomeEmailDelivered).toBeNull();
+    expect(verifyRes.body.data.welcomeEmailDeliveryConfirmed).toBe(false);
+    expect(verifyRes.body.data.welcomeEmailDeliveryStatus).toBe('accepted');
+    expect(verifyRes.body.data.welcomeEmailDeliveryResult).toBe('accepted');
 
     // Persisted user is now verified
     expect(mockUsers[0].emailVerified).toBe(true);
     expect(mockUsers[0].emailVerifiedAt).toBeInstanceOf(Date);
+    expect(mockUsers[0].welcomeEmailDispatchClaimedAt).toBeInstanceOf(Date);
 
     // Code is marked consumed
     const storedCodes = fakeAuthCode.allRows();
@@ -272,6 +299,33 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     expect(serializedWelcome).not.toContain(token);
     expect(serializedWelcome).not.toContain(code);
     expect(serializedWelcome).not.toMatch(/firebase|google/i);
+  });
+
+  test('verification endpoint rejects non-string, whitespace-padded, and non-six-digit codes before consumption', async () => {
+    const reg = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Strict Code User',
+        email: 'strict-code@example.com',
+        password: 'StrongPassword123!',
+        role: 'REQUESTER',
+      });
+    const token = reg.body.data.token;
+
+    for (const code of [' 123456', '123456 ', '12345', 123456]) {
+      const response = await request(app)
+        .post('/api/auth/verify-email')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code });
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe('Enter the 6-digit code');
+    }
+
+    expect(fakeAuthCode.allRows()[0].consumedAt).toBeNull();
+    expect(mockUsers[0].emailVerified).toBe(false);
+    expect(
+      sentMessages.filter((message) => message.subject === 'Welcome to ERAS — your account is verified'),
+    ).toHaveLength(0);
   });
 
   test('5 & 11. Wrong code fails verification and does NOT send welcome email', async () => {
@@ -513,7 +567,9 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     expect(reg1.user.email).toBe('jane@example.com');
     expect(reg1.user.role).toBe('RESPONDER');
     expect(reg1.verificationRequired).toBe(true);
-    expect(reg1.emailDelivered).toBe(false);
+    expect(reg1.emailDelivered).toBeNull();
+    expect(reg1.emailRequestAccepted).toBe(false);
+    expect(reg1.emailDeliveryResult).toBe('unconfigured');
     expect(reg1.token).toBeDefined();
     expect(mockUsers).toHaveLength(1);
 
@@ -529,7 +585,9 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       role: 'REQUESTER',
     });
     expect(reg2.user.email).toBe('bob@example.com');
-    expect(reg2.emailDelivered).toBe(false);
+    expect(reg2.emailDelivered).toBeNull();
+    expect(reg2.emailRequestAccepted).toBe(false);
+    expect(reg2.emailDeliveryResult).toBe('failed');
     expect(mockUsers).toHaveLength(2);
 
     // Part C: Welcome email fails / throws during verification -> user still stays verified
@@ -538,6 +596,8 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       email: 'ananya@example.com',
     });
     await emailVerificationService.issueVerificationForUser(user3, { code: '777888' });
+    env.RESEND_API_KEY = 're_mock_resend_key';
+    env.ERAS_MAIL_FROM = 'no-reply@eras.example.org';
 
     jest
       .spyOn(emailService, 'sendWelcomeEmail')
@@ -549,7 +609,9 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     );
     expect(confirmed.ok).toBe(true);
     expect(confirmed.user.emailVerified).toBe(true);
-    expect(confirmed.welcomeEmailDelivered).toBe(false);
+    expect(confirmed.welcomeEmailDelivered).toBeNull();
+    expect(confirmed.welcomeEmailRequestAccepted).toBe(false);
+    expect(confirmed.welcomeEmailDeliveryResult).toBe('failed');
 
     const storedUser3 = mockUsers.find((u) => u.id === user3.id);
     expect(storedUser3.emailVerified).toBe(true);
@@ -571,6 +633,7 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     process.env.LOG_IN_TEST = '1';
     const fakeResendSecret = 're_secret_api_key_99887766';
     env.RESEND_API_KEY = fakeResendSecret;
+    env.ERAS_MAIL_FROM = 'no-reply@eras.example.org';
 
     // Exercise real `emailService.send` with a mocked fetch that fails and includes sensitive values
     sendSpy.mockRestore();
@@ -578,6 +641,11 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
     global.fetch = jest.fn(async () => ({
       ok: false,
       status: 502,
+      json: async () => ({
+        name: 'validation_error',
+        type: 'sender_rejected',
+        message: `request for private.person@example.com rejected with code 654321; ${fakeResendSecret}; smtps://smtp-user:smtp-password@smtp.example.org:465`,
+      }),
     }));
 
     try {
@@ -628,12 +696,72 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       expect(combinedLogs).not.toContain(secretPassword);
       expect(combinedLogs).not.toContain(jwtToken);
       expect(combinedLogs).not.toContain(fakeResendSecret);
+      expect(combinedLogs).not.toContain('smtp-user');
+      expect(combinedLogs).not.toContain('smtp-password');
+      expect(combinedLogs).not.toContain('private.person@example.com');
+      expect(combinedLogs).not.toContain('654321');
+      expect(combinedLogs).toContain('validation_error');
+      expect(combinedLogs).toContain('sender_rejected');
+      expect(combinedLogs).toContain('502');
     } finally {
       global.fetch = originalFetch;
       delete process.env.LOG_IN_TEST;
       logSpy.mockRestore();
       warnSpy.mockRestore();
       errSpy.mockRestore();
+    }
+  });
+
+  test('concurrent code confirmations verify once and persist one welcome-email claim', async () => {
+    const registration = await request(app)
+      .post('/api/auth/register')
+      .send({
+        name: 'Concurrent User',
+        email: 'concurrent@example.com',
+        password: 'StrongPassword123!',
+        role: 'REQUESTER',
+      });
+    const token = registration.body.data.token;
+    const code = extractSixDigitCode(sentMessages[0]);
+
+    const confirm = () => request(app)
+      .post('/api/auth/verify-email')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ code });
+    const results = await Promise.all([confirm(), confirm()]);
+
+    expect(results.every((response) => response.status === 200)).toBe(true);
+    expect(mockUsers[0].emailVerified).toBe(true);
+    expect(mockUsers[0].emailVerifiedAt).toBeInstanceOf(Date);
+    expect(mockUsers[0].welcomeEmailDispatchClaimedAt).toBeInstanceOf(Date);
+    expect(
+      sentMessages.filter((message) => message.subject === 'Welcome to ERAS — your account is verified'),
+    ).toHaveLength(1);
+    expect(results.filter((response) => response.body.data.welcomeEmailSent === true)).toHaveLength(1);
+  });
+
+  test('welcome email is not attempted unless the durable verification update succeeds', async () => {
+    const user = await prismaUserForTest({
+      name: 'Database Failure User',
+      email: 'database-failure@example.com',
+    });
+    await emailVerificationService.issueVerificationForUser(user, {
+      code: '808080',
+    });
+    const prisma = require('../../src/config/prisma');
+    const updateMany = prisma.user.updateMany;
+    prisma.user.updateMany = jest.fn().mockRejectedValueOnce(new Error('database write failed'));
+
+    try {
+      await expect(
+        emailVerificationService.confirmVerification(user.id, '808080'),
+      ).rejects.toThrow('database write failed');
+      expect(mockUsers[0].emailVerified).toBe(false);
+      expect(sentMessages.filter((message) =>
+        message.subject === 'Welcome to ERAS — your account is verified',
+      )).toHaveLength(0);
+    } finally {
+      prisma.user.updateMany = updateMany;
     }
   });
 
@@ -645,6 +773,9 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       provider: 'unconfigured',
       transport: 'unconfigured',
       fromConfigured: 'no',
+      senderValid: 'no',
+      smtpFallbackConfigured: 'no',
+      configurationError: 'EMAIL_TRANSPORT_UNCONFIGURED',
     });
 
     const healthUnconfigured = await request(app).get('/health/email');
@@ -656,6 +787,9 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
         transportConfigured: 'no',
         provider: 'unconfigured',
         fromConfigured: 'no',
+        senderValid: 'no',
+        smtpFallbackConfigured: 'no',
+        configurationError: 'EMAIL_TRANSPORT_UNCONFIGURED',
       },
     });
 
@@ -668,6 +802,9 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       provider: 'Resend',
       transport: 'resend',
       fromConfigured: 'yes',
+      senderValid: 'yes',
+      smtpFallbackConfigured: 'no',
+      configurationError: null,
     });
 
     const healthResend = await request(app).get('/health/email');
@@ -676,6 +813,9 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       transportConfigured: 'yes',
       provider: 'Resend',
       fromConfigured: 'yes',
+      senderValid: 'yes',
+      smtpFallbackConfigured: 'no',
+      configurationError: null,
     });
     expect(JSON.stringify(healthResend.body)).not.toContain('re_live_super_secret_do_not_leak');
     expect(JSON.stringify(healthResend.body)).not.toContain('no-reply@eras.example.org');
@@ -689,52 +829,72 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       provider: 'SMTP',
       transport: 'smtp',
       fromConfigured: 'yes',
+      senderValid: 'yes',
+      smtpFallbackConfigured: 'no',
+      configurationError: null,
     });
   });
 
-  test('emailService transport abstraction uses Resend first, falls back to SMTP, and handles unconfigured/failed transports gracefully', async () => {
+  test('emailService uses Resend first, falls back to configured SMTP, and reports unconfigured/failure states', async () => {
     sendSpy.mockRestore();
     const originalFetch = global.fetch;
 
     try {
-      // 1. Unconfigured -> graceful no-op
+      // 1. Unconfigured -> safe no-op. No invented sender or code is logged.
       env.RESEND_API_KEY = null;
       env.SMTP_URL = null;
+      env.ERAS_MAIL_FROM = null;
       const unconfiguredResult = await emailService.sendWelcomeEmail(
         'asha@example.com',
         'Asha Menon'
       );
-      expect(unconfiguredResult).toEqual({
-        delivered: false,
-        deliveryResult: 'failure',
+      expect(unconfiguredResult).toMatchObject({
+        delivered: null,
+        deliveryAccepted: false,
+        deliveryConfirmed: false,
+        deliveryResult: 'unconfigured',
         transport: 'unconfigured',
         provider: 'unconfigured',
         transportConfigured: 'no',
       });
 
-      // 2. Resend configured -> sends via Resend HTTPS API
+      // 2. Resend configured -> uses the Resend HTTPS API before SMTP fallback.
       const fetchCalls = [];
       global.fetch = jest.fn(async (url, options) => {
         fetchCalls.push({ url, options });
-        return { ok: true, status: 200 };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'resend-message-123' }),
+        };
       });
       env.RESEND_API_KEY = 're_mock_resend_key';
       env.SMTP_URL = 'smtps://user:pass@smtp.example.org:465';
       env.ERAS_MAIL_FROM = 'verify@eras.example.org';
+      nodemailer.createTransport.mockReturnValue({
+        sendMail: jest.fn().mockResolvedValue({ accepted: ['asha@example.com'] }),
+      });
 
       const resendResult = await emailService.sendWelcomeEmail(
         'asha@example.com',
         'Asha Menon'
       );
-      expect(resendResult).toEqual({
-        delivered: true,
-        deliveryResult: 'success',
+      expect(resendResult).toMatchObject({
+        delivered: null,
+        deliveryConfirmed: false,
+        accepted: true,
+        deliveryAccepted: true,
+        deliveryResult: 'accepted',
         transport: 'resend',
         provider: 'Resend',
         transportConfigured: 'yes',
+        providerResponseStatus: 200,
+        messageId: 'resend-message-123',
+        fallbackUsed: false,
       });
       expect(fetchCalls).toHaveLength(1);
       expect(fetchCalls[0].url).toBe('https://api.resend.com/emails');
+      expect(fetchCalls[0].options.headers.Authorization).toBe('Bearer re_mock_resend_key');
       const sentBody = JSON.parse(fetchCalls[0].options.body);
       expect(sentBody.from).toBe(
         'ERAS (Emergency Resource Allocation System) <verify@eras.example.org>'
@@ -742,17 +902,118 @@ describe('ERAS registration, 6-digit email verification, and welcome email flow'
       expect(sentBody.to).toEqual(['asha@example.com']);
       expect(sentBody.subject).toBe('Welcome to ERAS — your account is verified');
       expect(sentBody.text).toContain('Welcome to ERAS, Asha.');
+      expect(nodemailer.createTransport).not.toHaveBeenCalled();
 
-      // 3. Resend unset + SMTP set (without nodemailer installed) -> graceful failure, never throws
-      env.RESEND_API_KEY = null;
-      const smtpFallbackResult = await emailService.sendWelcomeEmail(
+      // 3. A Resend rejection without SMTP is surfaced as a real failure with
+      // safe status/type fields (it cannot silently look like an accepted send).
+      env.SMTP_URL = null;
+      const failedFetch = jest.fn(async () => ({
+        ok: false,
+        status: 422,
+        json: async () => ({
+          name: 'validation_error',
+          type: 'sender_rejected',
+          message: 'Sender verify@eras.example.org was not accepted.',
+        }),
+      }));
+      global.fetch = failedFetch;
+      const rejectedResult = await emailService.sendWelcomeEmail(
         'asha@example.com',
         'Asha Menon'
       );
-      expect(smtpFallbackResult.delivered).toBe(false);
-      expect(smtpFallbackResult.deliveryResult).toBe('failure');
-      expect(smtpFallbackResult.provider).toBe('SMTP');
-      expect(smtpFallbackResult.transportConfigured).toBe('yes');
+      expect(rejectedResult).toMatchObject({
+        delivered: null,
+        deliveryConfirmed: false,
+        accepted: false,
+        deliveryResult: 'failed',
+        transport: 'resend',
+        provider: 'Resend',
+        providerResponseStatus: 422,
+        providerErrorCode: 'validation_error',
+        providerErrorType: 'sender_rejected',
+      });
+      expect(failedFetch).toHaveBeenCalledTimes(1);
+
+      // 4. If Resend rejects the request and SMTP is configured, SMTP receives
+      // exactly one fallback attempt.
+      env.SMTP_URL = 'smtps://user:pass@smtp.example.org:465';
+      const smtpSendMail = jest.fn().mockResolvedValue({
+        accepted: ['asha@example.com'],
+        responseCode: 250,
+        messageId: 'smtp-message-456',
+      });
+      nodemailer.createTransport.mockReturnValue({ sendMail: smtpSendMail });
+      global.fetch = jest.fn(async () => ({
+        ok: false,
+        status: 422,
+        json: async () => ({
+          name: 'validation_error',
+          message: 'The sender address verify@eras.example.org is not verified for this domain.',
+        }),
+      }));
+      const fallbackResult = await emailService.sendWelcomeEmail(
+        'asha@example.com',
+        'Asha Menon'
+      );
+      expect(fallbackResult).toMatchObject({
+        delivered: null,
+        deliveryConfirmed: false,
+        deliveryAccepted: true,
+        deliveryResult: 'accepted',
+        transport: 'smtp',
+        provider: 'SMTP',
+        providerResponseStatus: 250,
+        messageId: 'smtp-message-456',
+        fallbackUsed: true,
+      });
+      expect(smtpSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: 'ERAS (Emergency Resource Allocation System) <verify@eras.example.org>',
+          to: 'asha@example.com',
+          subject: 'Welcome to ERAS — your account is verified',
+        })
+      );
+
+      // 4. SMTP-only mode works with the installed transport dependency.
+      env.RESEND_API_KEY = null;
+      smtpSendMail.mockResolvedValueOnce({
+        accepted: ['asha@example.com'],
+        responseCode: 250,
+        messageId: 'smtp-only-message',
+      });
+      const smtpOnlyResult = await emailService.sendWelcomeEmail(
+        'asha@example.com',
+        'Asha Menon'
+      );
+      expect(smtpOnlyResult).toMatchObject({
+        delivered: null,
+        deliveryConfirmed: false,
+        deliveryAccepted: true,
+        deliveryResult: 'accepted',
+        transport: 'smtp',
+        provider: 'SMTP',
+        fallbackUsed: false,
+      });
+
+      // 5. Invalid/missing sender is a safe configuration failure and makes no
+      // provider request (the service never invents a local sender address).
+      env.SMTP_URL = null;
+      env.RESEND_API_KEY = 're_mock_resend_key';
+      env.ERAS_MAIL_FROM = null;
+      const missingSenderFetch = jest.fn();
+      global.fetch = missingSenderFetch;
+      const missingFrom = await emailService.sendWelcomeEmail(
+        'asha@example.com',
+        'Asha Menon'
+      );
+      expect(missingFrom).toMatchObject({
+        delivered: null,
+        deliveryConfirmed: false,
+        accepted: false,
+        deliveryResult: 'failed',
+        providerErrorCode: 'ERAS_MAIL_FROM_UNCONFIGURED',
+      });
+      expect(missingSenderFetch).not.toHaveBeenCalled();
     } finally {
       global.fetch = originalFetch;
     }

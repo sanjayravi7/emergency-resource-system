@@ -100,8 +100,9 @@ Render's environment/secret settings; do not put them in Git or chat.
 | `FIREBASE_PROJECT_ID` | Exact Firebase Project ID used by the Web and Android apps. Required to verify Firebase ID tokens. |
 | `GOOGLE_CLIENT_ID` | Comma-separated Google OAuth client ID(s), at minimum the Web client ID when Google OAuth ID tokens for that audience are accepted. |
 | `CORS_ORIGINS` | Exact comma-separated Firebase Hosting/custom origins; never `*` in production. |
-| `RESEND_API_KEY` | Resend credential for real verification/reset email delivery; configure a verified sender domain. |
-| `ERAS_MAIL_FROM` | Bare address on the verified domain, e.g. `auth@example.com`; ERAS adds its display name. |
+| `RESEND_API_KEY` | Resend credential for verification, post-verification welcome, and password-reset email requests. |
+| `ERAS_MAIL_FROM` | The actual bare sender address verified with the configured provider; ERAS adds its display name. Do not enter a placeholder or invented domain. |
+| `SMTP_URL` | Optional SMTP URL from your provider. When both transports are configured, ERAS tries Resend first and falls back to SMTP after a Resend failure. Keep SMTP credentials secret. |
 | `DATABASE_URL` | Existing production Neon PostgreSQL connection string. |
 | `JWT_SECRET` | Existing strong production ERAS JWT secret. |
 | `NODE_ENV` | `production`. |
@@ -110,11 +111,21 @@ Render's environment/secret settings; do not put them in Git or chat.
 
 `FIREBASE_PROJECT_ID` and `GOOGLE_CLIENT_ID` are identifiers, not secrets. The
 Google token verifier fetches and caches Google's public signing certificates;
-no private Firebase key is needed. Configure Resend and `ERAS_MAIL_FROM` before accepting real
-email-verification/password-reset flows. The optional SMTP fallback is usable
-only if `nodemailer` is intentionally added to the backend deployment. Code
-expiry, attempt limits, and resend limits have defaults documented
-in `backend/.env.example`; change them only after operational review.
+no private Firebase key is needed. Configure Resend and the actual verified
+`ERAS_MAIL_FROM` before accepting real verification, welcome, or password-reset
+email flows. SMTP is supported as a fallback (and as a sole transport); the
+backend lockfile already includes Nodemailer. Code expiry, attempt limits, and
+resend limits have defaults documented in `backend/.env.example`; change them
+only after operational review.
+
+Provider acceptance is reported separately from confirmed inbox delivery:
+`emailRequestAccepted` / `welcomeEmailRequestAccepted` and
+`emailDeliveryResult` (`accepted`, `failed`, `unconfigured`, or
+`not_attempted`) describe the synchronous send request. `emailDelivered` /
+`welcomeEmailDelivered` remains `null` until an actual provider delivery
+confirmation is available. A success response or message ID alone is not proof
+that the message reached the recipient's inbox. `GET /health/email` reports
+only safe configuration state and never returns credentials or sender data.
 
 ## 5. Deploy backend and Web
 
@@ -174,31 +185,52 @@ Android device before recording Android acceptance as passed.
 Use dedicated non-admin test accounts and real provider/email services. Widget
 and backend tests do not replace these real flows.
 
-1. **Web Google registration:** on the deployed Firebase Hosting origin, use a
-   Google identity not yet registered in ERAS. Choose REQUESTER or RESPONDER;
-   verify the one new PostgreSQL user, role, ERAS JWT, and role-based route.
-2. **Web Google login:** sign out and sign back in with that same Google
-   identity; verify the existing Firebase UID resolves to the same ERAS user
-   and the returned ERAS JWT/session works.
-3. **Existing-account resolution:** create a pre-existing email/password ERAS
-   account for a test email, then register/sign in with Google using the same
-   verified email for the first time. Confirm the existing database row receives
-   the Firebase UID, is marked verified, keeps its original role/password, and
-   is not duplicated; then confirm the original email/password login still
-   works.
-4. **Android Google login:** install the production-signed APK on a physical
-   Android phone with Google Play Services, complete the native account chooser,
-   and verify the ERAS session and role-based route.
-5. **Existing email/password login:** authenticate a verified existing account
-   and confirm the established ERAS JWT `/api/auth/me` flow still works.
-6. **First-time email verification:** register a new email/password account,
-   receive the actual six-digit email, submit the code, and then log in.
-7. **Six-digit password reset:** request and receive the actual reset code, set
-   a new password, verify the old password is rejected and the new one works.
+1. **Health/configuration:** verify `GET /health` still returns HTTP 200. Check
+   `GET /health/email` for `transportConfigured`, `provider`, `fromConfigured`,
+   `senderValid`, and `configurationError`; confirm the JSON contains no sender
+   address, API key, SMTP URL/credentials, or user data.
+2. **Password registration and verification:** register a new password account
+   from the deployed Web UI. Confirm the database account begins unverified
+   (`emailVerified=false`, `emailVerifiedAt=null`) and receives an
+   `EMAIL_VERIFICATION` code whose stored value is a hash. Check that API
+   `emailRequestAccepted` and `emailDeliveryResult` report the provider's real
+   response; do not treat `emailDelivered=null` as a confirmed inbox delivery.
+   Receive the actual six-digit ERAS message, verify the code, and confirm the
+   welcome message is attempted only after the DB verification commit. Submit an
+   invalid, expired, and already-used code and confirm none sends another
+   welcome message. Repeat verification, refresh `/api/auth/me`, open another
+   tab/session, and restart/redeploy the service; confirm the persisted claim
+   still prevents duplicate welcome mail.
+3. **New Google Web registration:** on the deployed Firebase Hosting origin,
+   use a Google identity not yet registered in ERAS. Choose REQUESTER or
+   RESPONDER. Confirm `isNewUser=true`, `emailVerified=true`, no OTP step, one
+   new PostgreSQL user, the selected role, an ERAS JWT, and the role-based
+   authenticated route. Check `welcomeEmailRequestAccepted` and
+   `welcomeEmailDeliveryResult`; `welcomeEmailDelivered=null` until a delivery
+   confirmation is actually received.
+4. **Existing Google login / account linking:** sign out and sign in again
+   with that same identity. Confirm `isNewUser=false`, the same ERAS user and
+   role are returned, and no welcome email is sent again. Separately link a
+   verified Google identity to a pre-existing password account: confirm the row
+   is not duplicated, its original role/password are unchanged, Google
+   verification is reflected without an ERAS OTP, and the account does not get
+   a new-user welcome email.
+5. **Android Google login:** install the production-signed APK on a physical
+   Android phone with Google Play Services, complete native sign-in, and verify
+   the ERAS session and role-based route. Android sign-in is not accepted based
+   only on a successful build.
+6. **Existing password login and reset:** authenticate a verified existing
+   account and confirm the ERAS JWT `/api/auth/me` flow still works. Request and
+   receive the actual six-digit password-reset code, set a new password, then
+   verify the old password is rejected and the new one works.
+7. **Operational checks:** verify CORS from the real Hosting origin, use a
+   controlled invalid sender/provider response to confirm the UI shows a failure
+   instead of claiming delivery, and inspect redacted logs for absence of
+   recipient addresses, codes, passwords, JWTs, API keys, and SMTP credentials.
 
-Do not describe Google Sign-In as fully verified until the real Web registration
-and login and physical Android sign-in above all pass. Keep a private release
-record of project/package/build IDs, timestamps, response statuses, and
-pass/fail outcomes; never record tokens, codes, passwords, service-account
+Do not describe Google Sign-In or real email delivery as fully verified until
+these production Web, provider, and physical-device checks pass. Keep a private
+release record of project/package/build IDs, timestamps, response statuses,
+and pass/fail outcomes; never record tokens, codes, passwords, service-account
 contents, or personal data. See [`FIREBASE_GOOGLE_SIGNIN_STATUS.md`](FIREBASE_GOOGLE_SIGNIN_STATUS.md)
 for the current workspace verification status.

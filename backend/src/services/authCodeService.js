@@ -45,17 +45,17 @@ function generateNumericCode(length = CODE_LENGTH) {
 
 /** Strict format check before any hashing/DB work. */
 function isValidCodeFormat(code) {
-  return typeof code === 'string' && CODE_PATTERN.test(code.trim());
+  return typeof code === 'string' && CODE_PATTERN.test(code);
 }
 
 function hashCode(code) {
-  return bcrypt.hash(String(code).trim(), BCRYPT_ROUNDS);
+  return bcrypt.hash(String(code), BCRYPT_ROUNDS);
 }
 
 async function verifyCodeHash(code, codeHash) {
   if (!codeHash) return false;
   try {
-    return await bcrypt.compare(String(code).trim(), codeHash);
+    return await bcrypt.compare(String(code), codeHash);
   } catch {
     return false;
   }
@@ -168,7 +168,14 @@ async function issueCode({ userId, purpose, now = new Date(), code = null } = {}
  *        (used by the two-step "verify code" screen). A WRONG code still counts
  *        against the attempt limit in both modes.
  */
-async function consumeCode({ userId, purpose, code, now = new Date(), consume = true } = {}) {
+async function consumeCode({
+  userId,
+  purpose,
+  code,
+  now = new Date(),
+  consume = true,
+  transactionClient = null,
+} = {}) {
   const numericUserId = Number(userId);
   if (!Number.isInteger(numericUserId) || numericUserId <= 0) {
     return { ok: false, reason: 'INVALID_CODE' };
@@ -177,7 +184,11 @@ async function consumeCode({ userId, purpose, code, now = new Date(), consume = 
     return { ok: false, reason: 'INVALID_CODE' };
   }
 
-  const record = await prisma.authCode.findFirst({
+  // The caller may pass a Prisma transaction client so OTP consumption and the
+  // corresponding account state change commit or roll back together.
+  const client = transactionClient || prisma;
+  const authCodes = client.authCode;
+  const record = await authCodes.findFirst({
     where: { userId: numericUserId, purpose, consumedAt: null },
     orderBy: { id: 'desc' },
   });
@@ -185,16 +196,16 @@ async function consumeCode({ userId, purpose, code, now = new Date(), consume = 
   if (!record) return { ok: false, reason: 'INVALID_CODE' };
 
   if (new Date(record.expiresAt).getTime() <= now.getTime()) {
-    await prisma.authCode.update({
-      where: { id: record.id },
+    await authCodes.updateMany({
+      where: { id: record.id, consumedAt: null },
       data: { consumedAt: now },
     });
     return { ok: false, reason: 'EXPIRED_CODE' };
   }
 
   if (record.attempts >= record.maxAttempts) {
-    await prisma.authCode.update({
-      where: { id: record.id },
+    await authCodes.updateMany({
+      where: { id: record.id, consumedAt: null },
       data: { consumedAt: now },
     });
     return { ok: false, reason: 'TOO_MANY_ATTEMPTS' };
@@ -203,8 +214,10 @@ async function consumeCode({ userId, purpose, code, now = new Date(), consume = 
   const matches = await verifyCodeHash(code, record.codeHash);
   if (!matches) {
     const attempts = record.attempts + 1;
-    await prisma.authCode.update({
-      where: { id: record.id },
+    const changed = await authCodes.updateMany({
+      // Compare-and-swap prevents concurrent requests from overwriting one
+      // another's attempt count or reviving a code another request consumed.
+      where: { id: record.id, consumedAt: null, attempts: record.attempts },
       data: {
         attempts,
         // Burning the code once the limit is reached prevents unlimited
@@ -212,6 +225,7 @@ async function consumeCode({ userId, purpose, code, now = new Date(), consume = 
         ...(attempts >= record.maxAttempts ? { consumedAt: now } : {}),
       },
     });
+    if (changed.count !== 1) return { ok: false, reason: 'INVALID_CODE' };
     return {
       ok: false,
       reason: attempts >= record.maxAttempts ? 'TOO_MANY_ATTEMPTS' : 'INVALID_CODE',
@@ -220,15 +234,20 @@ async function consumeCode({ userId, purpose, code, now = new Date(), consume = 
   }
 
   if (consume) {
-    // Single use: mark consumed before the caller performs the privileged
-    // action, so a replay can never succeed.
-    await prisma.authCode.update({
-      where: { id: record.id },
+    // The predicate is atomic in PostgreSQL: only one concurrent request may
+    // move the code from active to consumed. The transaction supplied by email
+    // verification also makes this commit atomic with emailVerified=true.
+    const consumed = await authCodes.updateMany({
+      where: { id: record.id, consumedAt: null, attempts: record.attempts },
       data: { consumedAt: now },
     });
+    if (consumed.count !== 1) return { ok: false, reason: 'INVALID_CODE' };
   }
 
-  return { ok: true, attemptsRemaining: Math.max(0, record.maxAttempts - record.attempts) };
+  return {
+    ok: true,
+    attemptsRemaining: Math.max(0, record.maxAttempts - record.attempts),
+  };
 }
 
 /** Invalidate every outstanding code for a purpose (e.g. after a reset). */

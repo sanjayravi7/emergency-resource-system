@@ -1,3 +1,9 @@
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL =
+  process.env.DATABASE_URL || 'postgresql://u:p@localhost:5432/db';
+process.env.JWT_SECRET =
+  process.env.JWT_SECRET || 'S6m2yq0m9k3wq7Zt1v8Xr4Lp6Nc2Bd5Hf8Jk1Mn4Qs7Uw0';
+
 jest.mock('../../src/config/prisma', () => ({
   user: {
     findUnique: jest.fn(),
@@ -114,6 +120,8 @@ describe('googleAuthService account resolution', () => {
         authProvider: 'GOOGLE',
         firebaseUid: identity.subject,
         emailVerified: true,
+        emailVerifiedAt: expect.any(Date),
+        welcomeEmailDispatchClaimedAt: expect.any(Date),
       }),
     });
     expect(result).toEqual({ user: createdUser, created: true, linked: false });

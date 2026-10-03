@@ -32,10 +32,15 @@ class EmailVerificationScreen extends StatefulWidget {
     this.email,
     this.initialNotice,
     this.initialNoticeIsError = false,
+    this.emailDeliveryAccepted,
   });
 
   /// Optional pre-fill (the address the account was created with).
   final String? email;
+
+  /// True only when the backend reports that the mail provider accepted the
+  /// verification request; null means an older response did not report status.
+  final bool? emailDeliveryAccepted;
 
   /// Optional initial message (e.g. email delivery failure notice on signup).
   final String? initialNotice;
@@ -54,8 +59,31 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   bool refreshing = false;
   bool resending = false;
   bool verified = false;
+  bool? welcomeEmailAccepted;
   String? error;
   String? notice;
+
+  bool? get emailDeliveryAccepted => widget.emailDeliveryAccepted;
+
+  String get emailLabel {
+    final address = widget.email ?? ApiService.currentUserEmail;
+    if (address == null || !address.contains('@')) return 'your ERAS email';
+    final at = address.lastIndexOf('@');
+    final local = address.substring(0, at);
+    final domain = address.substring(at + 1);
+    if (local.isEmpty || domain.isEmpty) return 'your ERAS email';
+    final safeLocal = '${local.substring(0, 1)}•••';
+    return '$safeLocal@$domain';
+  }
+
+  String get deliveryInstruction => switch (emailDeliveryAccepted) {
+        true => 'The ERAS email provider accepted a 6-digit verification '
+            'message for $emailLabel. Delivery may take a few minutes.',
+        false => 'The ERAS email provider could not accept a verification '
+            'message for $emailLabel. You can request another code below.',
+        null => 'Enter the 6-digit ERAS verification code for $emailLabel. '
+            'If you do not have it, request a new one below.',
+      };
 
   @override
   void initState() {
@@ -76,12 +104,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     super.dispose();
   }
 
-  String get emailLabel =>
-      widget.email ?? ApiService.currentUserEmail ?? 'your ERAS email';
-
   Future<void> verify() async {
-    final value = code.text.trim();
-    if (value.length != 6 || int.tryParse(value) == null) {
+    final value = code.text;
+    if (!RegExp(r'^\d{6}$').hasMatch(value)) {
       setState(() => error = 'Enter the 6-digit code from the email.');
       return;
     }
@@ -96,10 +121,19 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       final response = await ApiService.verifyEmail(value);
       if (!mounted) return;
       ApiService.applySession(response);
+      final verificationData = ApiService.authResponseData(response);
+      final deliveryResult = verificationData['welcomeEmailDeliveryResult']
+          ?.toString()
+          .toLowerCase();
 
       setState(() {
         verified = true;
         notice = 'Email verified. Welcome to ERAS.';
+        welcomeEmailAccepted = deliveryResult == 'accepted'
+            ? true
+            : deliveryResult == 'failed' || deliveryResult == 'unconfigured'
+                ? false
+                : null;
       });
       _showToast('Email verified');
 
@@ -254,6 +288,20 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             color: skin.textDim,
           ),
         ),
+        if (welcomeEmailAccepted != null) ...[
+          const SizedBox(height: 10),
+          Text(
+            welcomeEmailAccepted == true
+                ? 'ERAS accepted the welcome email request. Inbox delivery is not confirmed yet.'
+                : 'Your account is ready, but the ERAS email provider could not accept the welcome message.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11.5,
+              height: 1.4,
+              color: skin.textDim,
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         Center(
           child: Container(
@@ -341,8 +389,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'ERAS sent a 6-digit verification code to $emailLabel. '
-                    'Enter it below to finish setting up your account.',
+                    deliveryInstruction,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12.5,

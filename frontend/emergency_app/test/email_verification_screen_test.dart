@@ -141,12 +141,48 @@ void main() {
 
     expect(find.text('VERIFY YOUR EMAIL'), findsOneWidget);
     expect(
-      find.textContaining('asha@example.com'),
+      find.textContaining('a•••@example.com'),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('verification-code')), findsOneWidget);
     expect(find.byKey(const ValueKey('resend-verification')), findsOneWidget);
     expect(find.byKey(const ValueKey('refresh-verification')), findsOneWidget);
+  });
+
+  testWidgets('states provider acceptance without claiming inbox delivery',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EmailVerificationScreen(
+          email: 'asha@example.com',
+          emailDeliveryAccepted: true,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('email provider accepted'), findsOneWidget);
+    expect(find.textContaining('Inbox delivery'), findsNothing);
+    expect(
+        find.textContaining('Delivery may take a few minutes'), findsOneWidget);
+    expect(find.textContaining('asha@example.com'), findsNothing);
+  });
+
+  testWidgets('states when the mail provider rejects the verification request',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: EmailVerificationScreen(
+          email: 'asha@example.com',
+          emailDeliveryAccepted: false,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('could not accept a verification message'),
+        findsOneWidget);
+    expect(find.textContaining('a•••@example.com'), findsOneWidget);
   });
 
   testWidgets('rejects anything that is not a 6-digit code', (tester) async {
@@ -402,7 +438,7 @@ void main() {
         // console is not reachable until the mailbox is confirmed.
         expect(ApiService.token, 'session-token');
         expect(ApiService.emailVerified, isFalse);
-        expect(find.textContaining('asha@example.com'), findsOneWidget);
+        expect(find.textContaining('a•••@example.com'), findsOneWidget);
 
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
         await tester.pump(const Duration(milliseconds: 100));

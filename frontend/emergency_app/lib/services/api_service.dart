@@ -1,4 +1,6 @@
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// Thin HTTP data layer for the ERAS backend.
@@ -9,12 +11,36 @@ import 'package:http/http.dart' as http;
 class ApiService {
   /// Override for a native simulator when needed:
   ///   flutter run --dart-define=ERAS_API_BASE_URL=http://10.0.2.2:5000/api
-  /// Web builds use the same-origin API by default so the browser never calls
-  /// a sandbox-localhost address.
-  static const String baseUrl = String.fromEnvironment(
-    'ERAS_API_BASE_URL',
-    defaultValue: '/api',
-  );
+  ///
+  /// Local/debug builds retain the same-origin `/api` default. Production Web
+  /// runs on Firebase Hosting and must be built with the absolute HTTPS Render
+  /// API URL ending in `/api`; otherwise requests would hit Firebase's SPA
+  /// rewrite instead of the backend.
+  static const String _configuredBaseUrl =
+      String.fromEnvironment('ERAS_API_BASE_URL');
+
+  static String get baseUrl {
+    final configured = _configuredBaseUrl.trim();
+    if (kIsWeb && kReleaseMode && !_isProductionApiUrl(configured)) {
+      throw StateError(
+        'Production ERAS_API_BASE_URL must be an HTTPS Render URL ending in /api.',
+      );
+    }
+    final resolved = configured.isEmpty ? '/api' : configured;
+    return resolved.endsWith('/')
+        ? resolved.substring(0, resolved.length - 1)
+        : resolved;
+  }
+
+  static bool _isProductionApiUrl(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.host.isNotEmpty &&
+        uri.path.replaceFirst(RegExp(r'/+$'), '').endsWith('/api') &&
+        uri.query.isEmpty &&
+        uri.fragment.isEmpty;
+  }
 
   static String? token;
   static String? currentRole;
@@ -44,7 +70,17 @@ class ApiService {
       return <String, dynamic>{};
     }
 
-    final decoded = jsonDecode(response.body);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException {
+      // Firebase Hosting's SPA rewrite returns index.html for a misconfigured
+      // relative `/api` request. Report the likely API/CORS config issue
+      // instead of hiding it behind an opaque JSON parser stack trace.
+      throw Exception(
+        'The ERAS server returned an unreadable response. Check the production API URL and CORS configuration.',
+      );
+    }
 
     if (decoded is Map<String, dynamic>) {
       return decoded;
@@ -115,25 +151,49 @@ class ApiService {
     return body;
   }
 
-  /// Stores the ERAS session carried by an auth response.
-  ///
-  /// Shared by password login and Google sign-in so both paths always populate
-  /// exactly the same fields (token, role, name, id and the verification
-  /// state). The server remains the role authority; this only mirrors it.
-  static void applySession(Map<String, dynamic> body) {
+  /// Returns the auth payload from either `{data: {...}}` or the flat legacy
+  /// response used by older mocks/integrations.
+  static Map<String, dynamic> authResponseData(Map<String, dynamic> body) {
     final data = body['data'];
-    if (data is! Map) return;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return body;
+  }
 
-    final user = data['user'];
-    if (user is! Map) return;
+  /// Reads a user from `{data: {user: {...}}}`, `{user: {...}}`, or the
+  /// existing flat user payload format.
+  static Map<String, dynamic> authResponseUser(Map<String, dynamic> body) {
+    final data = authResponseData(body);
+    final user = data['user'] ?? body['user'];
+    if (user is Map) return Map<String, dynamic>.from(user);
+    return data;
+  }
 
-    token = data['token']?.toString() ?? token;
+  /// True only when the backend explicitly says this ERAS account was created
+  /// by the current Google exchange. Existing logins never get a fake welcome.
+  static bool isNewGoogleUser(Map<String, dynamic> body) {
+    final data = authResponseData(body);
+    return data['isNewUser'] == true || data['created'] == true;
+  }
+
+  /// Stores the ERAS session carried by an auth response. Shared by password
+  /// login, registration, verification and Google sign-in. The server remains
+  /// the role authority; this only mirrors its nested or flat response.
+  static void applySession(Map<String, dynamic> body) {
+    final data = authResponseData(body);
+    final user = authResponseUser(body);
+    if (user.isEmpty) return;
+
+    final responseToken = data['token'] ?? body['token'];
+    if (responseToken != null && responseToken.toString().isNotEmpty) {
+      token = responseToken.toString();
+    }
     currentUserId = user['id'] is num ? (user['id'] as num).toInt() : null;
     currentRole = user['role']?.toString();
     currentUserName = user['name']?.toString();
     currentUserEmail = user['email']?.toString();
-    emailVerified =
-        user['emailVerified'] is bool ? user['emailVerified'] as bool : null;
+    if (user['emailVerified'] is bool) {
+      emailVerified = user['emailVerified'] as bool;
+    }
   }
 
   /// Google sign-in through the EXISTING Firebase project.
@@ -179,9 +239,8 @@ class ApiService {
     if (response.statusCode != 200) {
       _fail(body, 'Could not refresh the account state');
     }
-    final data = body['data'];
-    if (data is Map) {
-      final user = data['user'] is Map ? data['user'] as Map : data;
+    final user = authResponseUser(body);
+    if (user.isNotEmpty) {
       if (user['emailVerified'] is bool) {
         emailVerified = user['emailVerified'] as bool;
       }

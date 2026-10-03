@@ -16,7 +16,7 @@ import 'package:flutter/foundation.dart';
 ///     out of the repository; pass it with `--dart-define`:
 ///
 ///       flutter build web --release \
-///         --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com \
+///         --dart-define=ERAS_API_BASE_URL=https://<render-service>.onrender.com/api \
 ///         --dart-define=ERAS_FIREBASE_API_KEY=... \
 ///         --dart-define=ERAS_FIREBASE_APP_ID=... \
 ///         --dart-define=ERAS_FIREBASE_MESSAGING_SENDER_ID=... \

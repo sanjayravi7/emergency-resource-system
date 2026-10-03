@@ -1,17 +1,18 @@
 // ---------------------------------------------------------------------------
 // ERAS EMAIL VERIFICATION
 //
-// New EMAIL/PASSWORD registrations start unverified and receive a one-time
-// ERAS verification code (the email itself is ERAS-branded - it never pretends
-// to come from Google or Firebase). Google sign-ups are already verified by
-// Google and never receive this email.
+// Password accounts start unverified and receive a one-time ERAS verification
+// code. Google accounts are already verified by the identity provider and do
+// not use this code flow.
 //
-// After the 6-digit verification code is validated and consumed and the user
-// record is updated to emailVerified=true (with emailVerifiedAt persisted),
-// ERAS sends a one-time post-verification welcome email.
+// On successful verification, AuthCode consumption, the emailVerified update,
+// and the persistent welcome-email dispatch claim commit in one PostgreSQL
+// transaction. Only the transaction that claims the transition can attempt the
+// welcome email. This works across Render workers/restarts; no in-memory lock
+// is used for correctness.
 //
-// Anti-enumeration: "resend" always answers with the same generic success,
-// whether or not the address belongs to an ERAS account.
+// Anti-enumeration: resend always answers generically, whether or not an
+// address belongs to an ERAS account.
 // ---------------------------------------------------------------------------
 
 const prisma = require('../config/prisma');
@@ -19,12 +20,9 @@ const logger = require('../config/logger');
 const emailService = require('./emailService');
 const authCodeService = require('./authCodeService');
 const { normalizeEmail } = require('../domain/emailValidation');
+const { summarizeEmailDelivery } = require('../domain/emailDelivery');
 
 const PURPOSE = authCodeService.PURPOSES.EMAIL_VERIFICATION;
-
-// Guards against concurrent duplicate confirmation requests for the same userId
-// before the persisted emailVerified / emailVerifiedAt flags are committed.
-const inFlightConfirmations = new Set();
 
 function resolveDiagnostics() {
   if (typeof emailService.getTransportDiagnostics === 'function') {
@@ -40,13 +38,12 @@ function resolveDiagnostics() {
 }
 
 /**
- * Send (or resend) the verification code for a freshly registered account.
- * Best effort by design: a delivery problem must never roll back a completed
- * registration.
+ * Issue a code for a freshly registered account and send the ERAS email.
+ * Best effort: a provider problem never rolls back completed registration.
  */
 async function issueVerificationForUser(user, { now = new Date(), code = null } = {}) {
   if (!user || !user.email || user.emailVerified) {
-    return { sent: false, reason: 'ALREADY_VERIFIED' };
+    return { sent: false, codeIssued: false, reason: 'ALREADY_VERIFIED' };
   }
 
   const allowance = await authCodeService.checkRequestAllowance({
@@ -57,6 +54,7 @@ async function issueVerificationForUser(user, { now = new Date(), code = null } 
   if (!allowance.allowed) {
     return {
       sent: false,
+      codeIssued: false,
       reason: allowance.reason,
       retryAfterSeconds: allowance.retryAfterSeconds,
     };
@@ -69,25 +67,26 @@ async function issueVerificationForUser(user, { now = new Date(), code = null } 
     code,
   });
   const delivery = await emailService.sendVerificationCode(user.email, issued.code);
+  const summary = summarizeEmailDelivery(delivery);
   const diagnostics = resolveDiagnostics();
-  const delivered = Boolean(delivery && delivery.delivered);
 
   logger.info('auth.verification_email_issued', {
     userId: user.id,
     transportConfigured: delivery?.transportConfigured ?? diagnostics.transportConfigured,
     provider: delivery?.provider ?? diagnostics.provider,
-    delivered,
-    deliveryResult: delivered ? 'success' : 'failure',
+    emailRequestAccepted: summary.accepted,
+    deliveryResult: summary.deliveryResult,
     transport: delivery?.transport ?? diagnostics.transport,
+    providerResponseStatus: summary.providerResponseStatus,
+    providerErrorCode: summary.providerErrorCode,
+    providerErrorType: summary.providerErrorType,
+    messageId: summary.messageId,
   });
 
   return {
     sent: true,
-    delivered,
-    deliveryResult: delivered ? 'success' : 'failure',
-    transport: delivery?.transport ?? diagnostics.transport,
-    provider: delivery?.provider ?? diagnostics.provider,
-    transportConfigured: delivery?.transportConfigured ?? diagnostics.transportConfigured,
+    codeIssued: true,
+    ...summary,
     expiresAt: issued.expiresAt,
     retryAfterSeconds: 0,
   };
@@ -110,29 +109,36 @@ async function resendVerificationForEmail(email, { now = new Date() } = {}) {
   return {
     ok: true,
     sent: result.sent,
-    delivered: Boolean(result.delivered),
+    codeIssued: Boolean(result.codeIssued),
+    delivered: Boolean(result.accepted),
+    deliveryResult: result.deliveryResult,
     reason: result.reason ?? null,
     retryAfterSeconds: result.retryAfterSeconds ?? 0,
   };
 }
 
+function alreadyVerifiedResult(user) {
+  return {
+    ok: true,
+    alreadyVerified: true,
+    welcomeEmailSent: false,
+    welcomeEmailDelivered: null,
+    welcomeEmailRequestAccepted: false,
+    welcomeEmailDeliveryStatus: 'not_attempted',
+    welcomeEmailDeliveryResult: 'not_attempted',
+    user,
+  };
+}
+
 /**
- * Confirm a verification code, mark the account verified, and send the
- * post-verification ERAS welcome email once.
+ * Confirm a verification code, mark the account verified, and dispatch its
+ * one-time ERAS welcome email.
  *
- * Idempotency & ordering guarantees:
- *   1. If the account is already verified (emailVerified === true or
- *      emailVerifiedAt is set), returns immediately without consuming any code
- *      and without sending a duplicate welcome email.
- *   2. Validates and consumes the 6-digit code first. Invalid, expired, or
- *      already-consumed codes fail before any user update or welcome email.
- *   3. Updates the user record to emailVerified=true and emailVerifiedAt=now.
- *   4. Sends the welcome email best-effort; a mail failure never rolls back
- *      the verified account state.
- *
- * @returns {Promise<{ ok: boolean, reason?: string, attemptsRemaining?: number,
- *                     alreadyVerified?: boolean, welcomeEmailSent?: boolean,
- *                     welcomeEmailDelivered?: boolean, user?: object }>}
+ * Provider acceptance is best effort and never rolls back verification. The
+ * persisted `welcomeEmailDispatchClaimedAt` field is set atomically with the
+ * verification transition, before the external call, so retries and other
+ * Render instances cannot send a duplicate. Provider acceptance is reported
+ * separately; final inbox delivery stays unknown without provider webhooks.
  */
 async function confirmVerification(userId, code, { now = new Date() } = {}) {
   const numericUserId = Number(userId);
@@ -142,94 +148,127 @@ async function confirmVerification(userId, code, { now = new Date() } = {}) {
 
   const user = await prisma.user.findUnique({ where: { id: numericUserId } });
   if (!user) return { ok: false, reason: 'INVALID_CODE', welcomeEmailSent: false };
-
   if (user.emailVerified || Boolean(user.emailVerifiedAt)) {
-    return {
-      ok: true,
-      alreadyVerified: true,
-      welcomeEmailSent: false,
-      welcomeEmailDelivered: false,
-      user,
-    };
+    return alreadyVerifiedResult(user);
   }
 
-  if (inFlightConfirmations.has(numericUserId)) {
-    return {
-      ok: true,
-      alreadyVerified: true,
-      welcomeEmailSent: false,
-      welcomeEmailDelivered: false,
-      user,
-    };
-  }
-
-  inFlightConfirmations.add(numericUserId);
-  try {
-    const result = await authCodeService.consumeCode({
+  const transactionResult = await prisma.$transaction(async (tx) => {
+    const codeResult = await authCodeService.consumeCode({
       userId: numericUserId,
       purpose: PURPOSE,
       code,
       now,
+      transactionClient: tx,
     });
-    if (!result.ok) {
-      return { ...result, welcomeEmailSent: false };
+
+    if (!codeResult.ok) return { codeResult };
+
+    const claim = await tx.user.updateMany({
+      where: {
+        id: numericUserId,
+        emailVerified: false,
+        emailVerifiedAt: null,
+        welcomeEmailDispatchClaimedAt: null,
+      },
+      data: {
+        emailVerified: true,
+        emailVerifiedAt: now,
+        welcomeEmailDispatchClaimedAt: now,
+      },
+    });
+
+    if (claim.count !== 1) {
+      return { alreadyClaimed: true };
     }
 
-    const updated = await prisma.user.update({
+    const updatedUser = await tx.user.findUnique({
       where: { id: numericUserId },
-      data: { emailVerified: true, emailVerifiedAt: now },
     });
+    return { verified: true, user: updatedUser };
+  });
 
-    const diagnostics = resolveDiagnostics();
-    let welcomeDelivery = {
-      delivered: false,
-      deliveryResult: 'failure',
-      transport: diagnostics.transport,
-      provider: diagnostics.provider,
-      transportConfigured: diagnostics.transportConfigured,
-    };
-
-    if (typeof emailService.sendWelcomeEmail === 'function') {
-      try {
-        const delivery = await emailService.sendWelcomeEmail(
-          updated?.email || user.email,
-          updated?.name || user.name
-        );
-        if (delivery && typeof delivery === 'object') {
-          welcomeDelivery = delivery;
-        }
-      } catch (error) {
-        logger.warn('auth.welcome_email_failed', {
-          userId: numericUserId,
-          transportConfigured: diagnostics.transportConfigured,
-          provider: diagnostics.provider,
-          deliveryResult: 'failure',
-          message: error?.message,
-        });
-      }
+  if (!transactionResult.verified) {
+    // Another request/instance may have won the code-consumption and state
+    // transition race. Re-read the durable row so a retry receives the same
+    // successful state instead of a misleading invalid-code response.
+    const current = await prisma.user.findUnique({ where: { id: numericUserId } });
+    if (current?.emailVerified || current?.emailVerifiedAt) {
+      return alreadyVerifiedResult(current);
     }
-
-    const welcomeEmailDelivered = Boolean(welcomeDelivery.delivered);
-
-    logger.info('auth.email_verified', {
-      userId: numericUserId,
-      transportConfigured:
-        welcomeDelivery.transportConfigured ?? diagnostics.transportConfigured,
-      provider: welcomeDelivery.provider ?? diagnostics.provider,
-      welcomeEmailDelivered,
-      deliveryResult: welcomeEmailDelivered ? 'success' : 'failure',
-    });
-
     return {
-      ok: true,
-      alreadyVerified: false,
-      welcomeEmailSent: true,
-      welcomeEmailDelivered,
-      user: updated,
+      ...(transactionResult.codeResult || {
+        ok: false,
+        reason: transactionResult.alreadyClaimed ? 'INVALID_CODE' : 'INVALID_CODE',
+      }),
+      welcomeEmailSent: false,
+      welcomeEmailDelivered: null,
+      welcomeEmailRequestAccepted: false,
+      welcomeEmailDeliveryStatus: 'not_attempted',
+      welcomeEmailDeliveryResult: 'not_attempted',
     };
-  } finally {
-    inFlightConfirmations.delete(numericUserId);
   }
+
+  const verifiedUser = transactionResult.user;
+  const diagnostics = resolveDiagnostics();
+  let delivery = null;
+  try {
+    if (typeof emailService.sendWelcomeEmail === 'function') {
+      delivery = await emailService.sendWelcomeEmail(
+        verifiedUser?.email || user.email,
+        verifiedUser?.name || user.name,
+      );
+    }
+  } catch (error) {
+    // Never log the provider's raw error text; it may contain recipient or
+    // transport credentials. emailService logs its own safe structured reason.
+    logger.warn('auth.welcome_email_failed', {
+      userId: numericUserId,
+      transportConfigured: diagnostics.transportConfigured,
+      provider: diagnostics.provider,
+      deliveryResult: 'failed',
+      errorType: error?.name || 'Error',
+    });
+    delivery = {
+      accepted: false,
+      deliveryAccepted: false,
+      delivered: null,
+      deliveryConfirmed: false,
+      deliveryResult: 'failed',
+      transportConfigured: diagnostics.transportConfigured,
+      provider: diagnostics.provider,
+      providerErrorCode: 'WELCOME_EMAIL_SEND_FAILED',
+    };
+  }
+
+  const summary = summarizeEmailDelivery(delivery);
+  logger.info('auth.email_verified', {
+    userId: numericUserId,
+    transportConfigured: delivery?.transportConfigured ?? diagnostics.transportConfigured,
+    provider: summary.provider,
+    welcomeEmailRequestAccepted: summary.accepted,
+    welcomeEmailDeliveryResult: summary.deliveryResult,
+    providerResponseStatus: summary.providerResponseStatus,
+    providerErrorCode: summary.providerErrorCode,
+    providerErrorType: summary.providerErrorType,
+    messageId: summary.messageId,
+  });
+
+  return {
+    ok: true,
+    alreadyVerified: false,
+    welcomeEmailSent: summary.accepted,
+    // A synchronous Resend/SMTP response cannot confirm final inbox delivery.
+    welcomeEmailDelivered: summary.delivered,
+    welcomeEmailRequestAccepted: summary.accepted,
+    welcomeEmailDeliveryStatus: summary.deliveryStatus,
+    welcomeEmailDeliveryResult: summary.deliveryResult,
+    welcomeEmailProvider: summary.provider,
+    welcomeEmailProviderResponseStatus: summary.providerResponseStatus,
+    welcomeEmailProviderErrorCode: summary.providerErrorCode,
+    welcomeEmailProviderErrorType: summary.providerErrorType,
+    welcomeEmailMessageId: summary.messageId,
+    user: verifiedUser,
+  };
 }
 
 module.exports = {

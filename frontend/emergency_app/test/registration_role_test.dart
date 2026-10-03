@@ -70,6 +70,13 @@ class _RecordingApi {
                 'emailVerified': false,
               },
               'verificationRequired': true,
+              'verificationCodeIssued': true,
+              'emailDelivered': null,
+              'emailRequestAccepted': true,
+              'emailDeliveryAccepted': true,
+              'emailDeliveryConfirmed': false,
+              'emailDeliveryStatus': 'accepted',
+              'emailDeliveryResult': 'accepted',
               'token': 'test-registration-token',
             },
           }, 201);
@@ -352,6 +359,10 @@ void main() {
 
         expect(find.byType(EmailVerificationScreen), findsOneWidget);
         expect(find.byType(RegisterScreen), findsNothing);
+        expect(find.textContaining('email provider accepted'), findsOneWidget);
+        expect(find.textContaining('Delivery may take a few minutes'),
+            findsOneWidget);
+        expect(find.textContaining('r•••@example.com'), findsOneWidget);
         expect(api.registerBody, isNotNull);
         expect(api.registerBody!['role'], 'REQUESTER');
         expect(api.registerBody!['name'], 'Role Test User');

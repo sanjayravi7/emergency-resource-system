@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
 import '../widgets/auth_visuals.dart';
+import 'auth_welcome_screen.dart';
 import 'dispatch_console_page.dart';
 import 'email_verification_screen.dart';
 import 'login_screen.dart';
@@ -115,20 +116,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // code; Google accounts are verified by Google and skip it.
       ApiService.applySession(response);
 
-      if (ApiService.emailVerified == false) {
-        final data = response['data'] is Map ? response['data'] as Map : null;
-        final emailDelivered = data?['emailDelivered'] != false;
-        final initialNotice = emailDelivered
-            ? null
-            : "Your account was created, but we couldn't deliver the verification email. You can resend the code.";
+      final authData = ApiService.authResponseData(response);
+      if (ApiService.emailVerified == false ||
+          authData['verificationRequired'] == true) {
+        final bool? emailAccepted = authData['emailRequestAccepted'] is bool
+            ? authData['emailRequestAccepted'] as bool
+            : authData['emailDeliveryAccepted'] is bool
+                ? authData['emailDeliveryAccepted'] as bool
+                : authData['emailDelivered'] is bool
+                    ? authData['emailDelivered'] as bool
+                    : null;
+        final codeIssued = authData['verificationCodeIssued'] is bool
+            ? authData['verificationCodeIssued'] as bool
+            : null;
+        final initialNotice = emailAccepted == false
+            ? codeIssued == false
+                ? 'Your account was created, but ERAS could not prepare the verification request. You can request another code.'
+                : "Your account was created, but the ERAS email provider couldn't accept the verification message. You can request another code."
+            : null;
 
         await Navigator.pushReplacement(
           context,
           MaterialPageRoute<void>(
             builder: (_) => EmailVerificationScreen(
               email: ApiService.currentUserEmail ?? email.text.trim(),
+              emailDeliveryAccepted: codeIssued == false ? null : emailAccepted,
               initialNotice: initialNotice,
-              initialNoticeIsError: !emailDelivered,
+              initialNoticeIsError: emailAccepted == false,
             ),
           ),
         );
@@ -371,14 +385,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final idToken = await GoogleAuthService.instance.signInAndGetIdToken();
       if (idToken == null) return; // dismissed the account sheet
 
-      await ApiService.googleSignIn(
+      final response = await ApiService.googleSignIn(
         idToken: idToken,
         role: selectedRole!.wireName,
         name: name.text.trim(),
         phone: phone.text.trim(),
       );
       if (!mounted) return;
-      _openAuthenticatedArea();
+      if (ApiService.isNewGoogleUser(response)) {
+        final data = ApiService.authResponseData(response);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => AuthWelcomeScreen(
+              welcomeEmailDeliveryResult:
+                  data['welcomeEmailDeliveryResult']?.toString(),
+            ),
+          ),
+        );
+      } else {
+        // Existing linked/known Google accounts enter their normal ERAS route.
+        _openAuthenticatedArea();
+      }
     } on GoogleAuthException catch (e) {
       if (mounted) setState(() => error = e.message);
     } catch (e) {

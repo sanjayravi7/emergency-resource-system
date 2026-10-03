@@ -16,6 +16,7 @@ library;
 
 import 'dart:convert';
 
+import 'package:dispatch_console_flutter/screens/auth_welcome_screen.dart';
 import 'package:dispatch_console_flutter/screens/dispatch_console_page.dart';
 import 'package:dispatch_console_flutter/screens/email_verification_screen.dart';
 import 'package:dispatch_console_flutter/screens/login_screen.dart';
@@ -42,6 +43,8 @@ MockClient _googleBackend(
   _Recorder recorder, {
   required String role,
   bool emailVerified = true,
+  bool isNewUser = false,
+  bool welcomeEmailAccepted = true,
   int status = 200,
 }) {
   return MockClient((request) async {
@@ -63,6 +66,30 @@ MockClient _googleBackend(
             'emailVerified': emailVerified,
             'responderStatus': role == 'RESPONDER' ? 'OFFLINE' : null,
           },
+          'created': isNewUser,
+          'isNewUser': isNewUser,
+          'verificationRequired': false,
+          'emailVerified': emailVerified,
+          'emailDelivered': null,
+          'emailRequestAccepted': isNewUser && welcomeEmailAccepted,
+          'emailDeliveryAccepted': isNewUser && welcomeEmailAccepted,
+          'emailDeliveryConfirmed': false,
+          'emailDeliveryStatus': isNewUser
+              ? (welcomeEmailAccepted ? 'accepted' : 'failed')
+              : 'not_attempted',
+          'emailDeliveryResult': isNewUser
+              ? (welcomeEmailAccepted ? 'accepted' : 'failed')
+              : 'not_attempted',
+          'welcomeEmailSent': isNewUser && welcomeEmailAccepted,
+          'welcomeEmailDelivered': null,
+          'welcomeEmailRequestAccepted': isNewUser && welcomeEmailAccepted,
+          'welcomeEmailDeliveryConfirmed': false,
+          'welcomeEmailDeliveryStatus': isNewUser
+              ? (welcomeEmailAccepted ? 'accepted' : 'failed')
+              : 'not_attempted',
+          'welcomeEmailDeliveryResult': isNewUser
+              ? (welcomeEmailAccepted ? 'accepted' : 'failed')
+              : 'not_attempted',
         },
       });
     }
@@ -173,6 +200,7 @@ void main() {
         expect(find.byType(DispatchConsolePage), findsOneWidget);
         // Google verified the mailbox, so the verification screen is skipped.
         expect(find.byType(EmailVerificationScreen), findsNothing);
+        expect(find.byType(AuthWelcomeScreen), findsNothing);
 
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
         await tester.pump(const Duration(milliseconds: 100));
@@ -302,6 +330,85 @@ void main() {
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       },
       () => _googleBackend(recorder, role: 'REQUESTER'),
+    );
+  });
+
+  testWidgets(
+      'new Google signup shows an ERAS welcome state then enters the app',
+      (tester) async {
+    final recorder = _Recorder();
+    GoogleAuthService.debugTokenProvider = () async => 'firebase-id-token-new';
+
+    await http.runWithClient(
+      () async {
+        await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
+        await tester.pump();
+        await tester
+            .tap(find.byKey(const ValueKey<String>('role-card-REQUESTER')));
+        await tester.pump();
+        await _tapGoogle(tester);
+
+        expect(find.byType(AuthWelcomeScreen), findsOneWidget);
+        expect(find.text('Welcome to ERAS, Google'), findsOneWidget);
+        expect(
+            find.textContaining('Google verified your email'), findsOneWidget);
+        expect(find.text('Your ERAS account is ready.'), findsNothing);
+        expect(find.textContaining('ERAS accepted the welcome email request'),
+            findsOneWidget);
+        expect(find.text('REQUESTER'), findsOneWidget);
+        expect(ApiService.emailVerified, isTrue);
+        expect(ApiService.token, 'eras-jwt-from-server');
+        expect(find.byType(DispatchConsolePage), findsNothing);
+
+        await tester.pump(const Duration(milliseconds: 1700));
+        await tester.pump();
+        expect(find.byType(AuthWelcomeScreen), findsNothing);
+        expect(find.byType(DispatchConsolePage), findsOneWidget);
+
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+        await tester.pump(const Duration(milliseconds: 100));
+      },
+      () => _googleBackend(
+        recorder,
+        role: 'REQUESTER',
+        isNewUser: true,
+        welcomeEmailAccepted: true,
+      ),
+    );
+  });
+
+  testWidgets('Google account remains ready when its welcome email is rejected',
+      (tester) async {
+    final recorder = _Recorder();
+    GoogleAuthService.debugTokenProvider =
+        () async => 'firebase-id-token-no-mail';
+
+    await http.runWithClient(
+      () async {
+        await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
+        await tester.pump();
+        await tester
+            .tap(find.byKey(const ValueKey<String>('role-card-REQUESTER')));
+        await tester.pump();
+        await _tapGoogle(tester);
+
+        expect(find.byType(AuthWelcomeScreen), findsOneWidget);
+        expect(find.textContaining('email provider could not accept'),
+            findsOneWidget);
+        expect(find.textContaining('accepted the welcome email request'),
+            findsNothing);
+        expect(ApiService.emailVerified, isTrue);
+        expect(ApiService.token, 'eras-jwt-from-server');
+
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+        await tester.pump(const Duration(milliseconds: 100));
+      },
+      () => _googleBackend(
+        recorder,
+        role: 'REQUESTER',
+        isNewUser: true,
+        welcomeEmailAccepted: false,
+      ),
     );
   });
 
