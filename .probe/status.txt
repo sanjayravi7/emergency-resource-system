@@ -1,0 +1,12 @@
+D  .github/workflows/eras-format-probe.yml
+A  .probe/analyze.txt
+A  .probe/format-apply.txt
+A  .probe/format-check.txt
+A  .probe/format.patch
+A  .probe/test-errors.txt
+A  .probe/test-exit.txt
+A  .probe/test-lines.txt
+A  .probe/test.txt
+AM .probe/trace.txt
+A  .probe/version.txt
+?? .probe/status.txt

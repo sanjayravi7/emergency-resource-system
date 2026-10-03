@@ -1,0 +1,363 @@
+Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.59 (1.3.77 available)
+  firebase_auth 5.7.0 (6.7.0 available)
+  firebase_auth_platform_interface 7.7.3 (9.1.0 available)
+  firebase_auth_web 5.15.3 (6.3.0 available)
+  firebase_core 3.15.2 (4.15.0 available)
+  firebase_core_platform_interface 6.0.3 (8.1.1 available)
+  firebase_core_web 2.24.1 (3.12.0 available)
+  firebase_messaging 15.2.10 (16.7.0 available)
+  firebase_messaging_platform_interface 4.6.10 (4.10.0 available)
+  firebase_messaging_web 3.10.10 (4.2.5 available)
+  flutter_lints 5.0.0 (6.0.0 available)
+  geolocator 13.0.4 (14.1.1 available)
+  geolocator_android 4.6.2 (5.1.1+1 available)
+  geolocator_platform_interface 4.3.0 (4.4.0 available)
+  google_maps_flutter 2.18.1 (2.18.2 available)
+  google_maps_flutter_android 2.20.0 (2.21.0 available)
+  google_sign_in 6.3.0 (7.2.0 available)
+  google_sign_in_android 6.2.1 (7.2.17 available)
+  google_sign_in_ios 5.9.0 (6.3.6 available)
+  google_sign_in_platform_interface 2.5.0 (3.1.0 available)
+  google_sign_in_web 0.12.4+4 (1.1.3 available)
+  js 0.6.7 (0.7.2 available)
+  lints 5.1.1 (6.1.0 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  socket_io_client 2.0.3+1 (3.1.6 available)
+  socket_io_common 2.0.3 (3.1.1 available)
+  test_api 0.7.12 (0.7.14 available)
+  url_launcher 6.3.2 (6.3.3 available)
+Got dependencies!
+28 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/directions_button_styling_test.dart
+00:00 +0: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/directions_button_styling_test.dart: dark theme the filled variant uses the ERAS accent
+00:00 +1: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +2: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +3: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +4: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +5: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +6: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +7: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +8: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +9: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +10: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: request timeline shows the normal lifecycle sequence
+00:00 +11: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/directions_button_styling_test.dart: renders the GET DIRECTIONS label with the accent background
+00:00 +12: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/directions_button_styling_test.dart: renders the GET DIRECTIONS label with the accent background
+00:00 +13: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: allocation row shows resource quantity responder and status
+00:00 +14: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/directions_button_styling_test.dart: a disabled button reports disabled state to the framework
+00:00 +15: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: connection indicator exposes all operational states
+00:00 +16: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/directions_button_styling_test.dart: hovering the real button repaints it with the hover color
+00:00 +17: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/operational_status_test.dart: responder availability uses backend status and unfinished count
+00:00 +18: loading /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart
+00:01 +18: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.assigned adds the assignment and updates the board
+00:01 +19: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a duplicate responder.assigned never duplicates the assignment
+00:01 +20: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.assigned without a snapshot merges the single row
+00:01 +21: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) request.updated refreshes the assignments of a known request
+00:01 +22: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a redacted request.updated keeps a still-joinable pending card and removes a no-longer-joinable one
+00:01 +23: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) location updates from two responders are stored by responderId
+00:01 +24: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) responder.location.stop removes only that responder stream
+00:01 +25: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) terminal cleanup removes every responder location of the request
+00:01 +26: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) per-responder stops never cross-clear, the terminal request does
+00:01 +27: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a redacted terminal request.updated also clears every location
+00:01 +28: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) a full snapshot REPLACES assignments, an incremental row MERGES
+00:01 +29: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/realtime_multi_responder_test.dart: realtime multi-responder events (Phase F) allocation.updated patches a request without losing assignments
+00:01 +30: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_contact_privacy_test.dart: dispatch board REQUESTER never sees responder phone numbers
+00:02 +31: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:02 +32: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:02 +33: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:02 +34: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:02 +35: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +36: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +37: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +38: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +39: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +40: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +41: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +42: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +43: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +44: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +45: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +46: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +47: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +48: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +49: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +50: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:03 +51: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: narrow scroll storage is scoped to its auth card
+00:04 +52: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard shows LIVE/SET state and a clearly labelled direct distance
+00:04 +53: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: small Android viewport keeps the login card in the safe area
+00:04 +54: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: small Android viewport keeps the login card in the safe area
+00:04 +55: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: NavigationInfoCard mobile widths use a full-width tappable directions button
+00:04 +56: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login focus, text, tab and entrance survive keyboard inset changes
+00:04 +57: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login focus, text, tab and entrance survive keyboard inset changes
+00:04 +58: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login focus, text, tab and entrance survive keyboard inset changes
+00:04 +59: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login focus, text, tab and entrance survive keyboard inset changes
+00:05 +60: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: OperationalGoogleMap responsive layout completed/cancelled requests remove navigation card on mobile
+00:05 +61: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +62: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +63: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +64: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +65: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +66: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +67: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +68: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +69: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +70: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +71: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +72: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +73: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: keyboard dismissal restores the pre-keyboard scroll offset
+00:05 +74: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/direct_connection_navigation_test.dart: multi-responder direct connections (Phase F) every navigation card can be scrolled to and tapped
+00:05 +75: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: register fields keep focus order and values with the keyboard
+00:05 +76: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: register fields keep focus order and values with the keyboard
+00:05 +77: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: register fields keep focus order and values with the keyboard
+00:05 +78: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: register fields keep focus order and values with the keyboard
+00:05 +79: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: verification code and page state survive keyboard changes
+00:06 +80: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_location_authorization_test.dart: isGeocodingApiDeniedError recognises the Maps JS geocoder denial verbatim
+00:06 +81: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login error region expands on a short phone without overflow
+00:06 +82: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login error region expands on a short phone without overflow
+00:06 +83: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login error region expands on a short phone without overflow
+00:06 +84: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login error region expands on a short phone without overflow
+00:06 +85: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login error region expands on a short phone without overflow
+00:06 +86: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login error region expands on a short phone without overflow
+00:06 +87: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: login error region expands on a short phone without overflow
+00:06 +88: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_mobile_stability_test.dart: reduced motion remains settled while the keyboard opens
+00:06 +89: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: ErasPalette exposes distinct tokens and lerps smoothly
+00:06 +90: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:07 +91: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:07 +92: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:07 +93: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:07 +94: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:07 +95: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:07 +96: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:07 +97: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: authenticated shell renders dark surfaces
+00:08 +98: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/e2e/phase_h_workflow_test.dart: Phase H responsive participant UX join action is offered for every open joinable lifecycle
+00:08 +99: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: console panels render cleanly in dark mode
+00:08 +100: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: console panels render cleanly in dark mode
+00:08 +101: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: console panels render cleanly in dark mode
+00:08 +102: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: console panels render cleanly in dark mode
+00:08 +103: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_dark_theme_and_motion_test.dart: dialogs and readiness use dark palette
+00:09 +104: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/inventory_layout_test.dart: narrow phone width stacks the quantity fields with no overflow
+00:09 +105: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/inventory_layout_test.dart: narrow phone width stacks the quantity fields with no overflow
+00:10 +106: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login screen renders
+00:10 +107: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login screen renders
+00:10 +108: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login screen renders
+00:10 +109: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login screen renders
+00:11 +110: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login screen renders
+00:11 +111: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/widget_test.dart: login requires email and password
+00:12 +112: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: registration page renders with ERAS identity
+00:13 +113: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: requester board shows lead and additional responders
+00:13 +114: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: two role cards are visible
+00:13 +115: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: two role cards are visible
+00:13 +116: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: an ENDED-only responder gets no responder actions
+00:13 +117: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: ADMIN is not offered as a public registration option
+00:14 +118: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: ADMIN is not offered as a public registration option
+00:14 +119: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/multi_responder_ui_test.dart: mobile board renders a multi-responder card without overflow
+00:14 +120: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: REQUESTER card can be selected
+00:14 +121: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: REQUESTER card can be selected
+00:14 +122: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: RESPONDER card can be selected
+00:14 +123: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: selecting one role deselects the other (single choice)
+00:15 +124: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: A/B/C: keyboard insets never change the auth composition
+00:15 +125: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: A/B/C: keyboard insets never change the auth composition
+00:15 +126: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: A/B/C: keyboard insets never change the auth composition
+00:16 +127: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: REQUESTER registration sends role=REQUESTER and opens the ERAS email verification step
+00:16 +128: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: C: a window resized for the IME cannot move a breakpoint
+00:16 +129: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: RESPONDER registration sends role=RESPONDER
+00:17 +130: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: D/E: login keeps email and password through focus + keyboard
+00:17 +131: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: D/E: login keeps email and password through focus + keyboard
+00:17 +132: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role cards lay out cleanly across phone and desktop widths
+00:17 +133: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: F: register keeps its form and role while the keyboard opens
+00:18 +134: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/registration_role_test.dart: role selection is keyboard operable (focus + Enter)
+00:18 +135: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: G: password reset keeps its step while the keyboard opens
+00:18 +136: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: H: verification keeps its code while the keyboard opens
+00:18 +137: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: entrance reveal fades the auth card in and fully settles
+00:19 +138: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: entrance reveal fades the auth card in and fully settles
+00:19 +139: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: entrance reveal fades the auth card in and fully settles
+00:19 +140: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: entrance reveal fades the auth card in and fully settles
+00:19 +141: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: entrance reveal fades the auth card in and fully settles
+00:20 +142: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: J: every auth screen keeps its own page storage key
+00:20 +143: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: J: every auth screen keeps its own page storage key
+00:20 +144: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: ambient network motion runs only when explicitly enabled
+00:20 +145: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_keyboard_composition_test.dart: 17: repeated email/password focus never looks like a refresh
+00:20 +146: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: tab selection glides between the auth screens
+00:21 +147: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: tab selection glides between the auth screens
+00:21 +148: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: sign-in button keeps its exact size while loading
+00:21 +149: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: focusing the email field raises its soft glow
+00:21 +150: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: theme switch slides the thumb and cross-fades sun/moon
+00:22 +151: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/copy_strings_test.dart: rendered copy an empty board says an active request is not available
+00:22 +152: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: pointer hover lifts the auth card and the status cards
+00:22 +153: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: pointer hover lifts the auth card and the status cards
+00:22 +154: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: pointer hover lifts the auth card and the status cards
+00:22 +155: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/copy_strings_test.dart: source guard no UI string still says "from PostgreSQL"
+00:22 +156: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: password visibility icon cross-fades on toggle
+00:22 +157: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: password visibility icon cross-fades on toggle
+00:22 +158: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: password visibility icon cross-fades on toggle
+00:22 +159: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_motion_test.dart: password visibility icon cross-fades on toggle
+00:23 +160: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner
+00:23 +160: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/push_notification_service_test.dart: PushNotificationService startForResponder is a silent no-op without a Firebase setup
+Firebase is not configured for this build: PlatformException(channel-error, Unable to establish connection on channel: "dev.flutter.pigeon.firebase_core_platform_interface.FirebaseCoreHostApi.initializeCore"., null, null)
+00:23 +161: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner
+00:23 +162: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner
+00:23 +163: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner
+00:23 +164: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner
+00:23 +165: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: granted permission enables state without showing the banner
+00:24 +166: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: ADMIN sees ACCEPT / ASSIGN for a PENDING request
+00:24 +167: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: ADMIN sees ACCEPT / ASSIGN for a PENDING request
+00:24 +168: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/location_permission_after_login_test.dart: ENABLE LOCATION retries and removes banner after a grant
+00:24 +169: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: assignment picker only displays backend-compatible responders
+00:24 +170: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: REQUESTER sees EDIT and CANCEL REQUEST for PENDING
+00:24 +171: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: REQUESTER does not see EDIT for COMPLETED
+00:25 +172: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +173: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +174: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +175: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +176: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +177: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +178: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +179: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +180: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +181: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +182: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +183: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +184: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +185: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +186: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: edit form loads every existing mutable value
+00:25 +187: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: manual location submits null coordinates rather than 0,0
+00:25 +188: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: request detail view includes the operational request fields
+00:25 +189: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: denied location state shows a non-blocking retry action
+00:25 +190: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/request_management_ui_test.dart: permission states distinguish granted, promptable and blocked
+00:26 +191: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +192: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +193: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +194: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +195: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +196: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +197: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +198: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +199: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +200: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +201: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: renders backend help type selector and empty-inventory guidance
+00:26 +202: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_readiness_help_types_test.dart: goes available with FIRE selected and zero resources
+00:27 +203: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_bearing_workflow_ui_test.dart: Start Response is visible on an ACCEPTED resource-bearing request
+00:27 +204: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_bearing_workflow_ui_test.dart: Start Response is visible on an ACCEPTED resource-bearing request
+00:28 +205: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_bearing_workflow_ui_test.dart: Request card lists the requested resources clearly (Blood × 2, First Aid Kit × 1)
+00:28 +206: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/resource_bearing_workflow_ui_test.dart: Complete Response is visible on an IN_PROGRESS resource-bearing request with location sharing state
+00:28 +207: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: login screen links to the reset flow
+00:28 +208: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: login screen links to the reset flow
+00:28 +209: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: login screen links to the reset flow
+00:28 +210: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: login screen links to the reset flow
+00:29 +211: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: login page has email, password and sign-in - no role selection
+00:29 +212: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: login page has email, password and sign-in - no role selection
+00:30 +213: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: the whole 3-step flow completes with exactly three calls
+00:30 +214: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: the whole 3-step flow completes with exactly three calls
+00:30 +215: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: REQUESTER login opens the requester experience
+00:30 +216: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: REQUESTER login opens the requester experience
+00:31 +217: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: REQUESTER login opens the requester experience
+00:31 +218: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: the code step only accepts six digits
+00:31 +219: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: RESPONDER login opens the responder experience
+00:31 +220: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: a mismatched confirmation never reaches the backend
+00:31 +221: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/login_role_routing_test.dart: ADMIN login opens the admin experience
+00:32 +222: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/forgot_password_flow_test.dart: a short password is refused with the same rule as the server
+00:32 +223: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: (setUpAll)
+00:32 +223: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: login page offers Google sign-in next to the password form
+00:33 +224: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker A. current location success: GPS -> reverse geocode -> place filled
+00:33 +225: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: a dismissed Google sheet leaves the user on the login page
+00:34 +226: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: a dismissed Google sheet leaves the user on the login page
+00:34 +227: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: RequesterLocationPicker C. place selection sets both the place text and exact coordinates
+00:34 +228: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: a Google ID token is exchanged for an ERAS session and the REQUESTER console opens
+00:34 +229: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: a Google ID token is exchanged for an ERAS session and the REQUESTER console opens
+00:34 +230: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation D. coordinates + place -> submit allowed
+00:35 +231: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation D. coordinates + place -> submit allowed
+00:35 +232: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation D. coordinates + place -> submit allowed
+00:35 +233: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: registration still requires a role before Google runs
+00:35 +234: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation E. empty description -> submit allowed
+00:36 +235: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/google_signin_flow_test.dart: Google registration sends the selected PUBLIC role only
+00:36 +236: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation F. whitespace-only description -> submitted as empty/null
+00:36 +237: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +238: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +239: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +240: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +241: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +242: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +243: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +244: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +245: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +246: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +247: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation G. non-empty description is preserved exactly
+00:36 +248: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation H. missing place -> submit rejected
+00:37 +249: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+00:37 +250: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+00:37 +251: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+00:37 +252: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+00:37 +253: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+00:37 +254: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+00:37 +255: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: NewRequestPanel validation I. place typed but no coordinates -> stored without a fabricated pin
+00:37 +256: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_location_test.dart: J. Socket.IO live responder location live location updates never trigger reverse geocoding or nearby search
+00:38 +257: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: zero available responders never block a SERVICE resource
+00:39 +258: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: zero available responders never block a SERVICE resource
+00:39 +259: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: zero available responders never block a SERVICE resource
+00:39 +260: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: zero available responders never block a SERVICE resource
+00:39 +261: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: zero available responders never block a SERVICE resource
+00:39 +262: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/requester_submission_availability_test.dart: the requester is told the request queues instead of being blocked
+00:40 +263: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel an ADMIN row offers DELETE next to VIEW
+00:40 +264: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel an ADMIN row offers DELETE next to VIEW
+00:40 +265: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel an ADMIN row offers DELETE next to VIEW
+00:40 +266: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel an ADMIN row offers DELETE next to VIEW
+00:40 +267: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel an ADMIN row offers DELETE next to VIEW
+00:40 +268: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel an ADMIN row offers DELETE next to VIEW
+00:40 +269: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel without the admin callback there is no delete control
+00:41 +270: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel the mobile card also hides delete for non-admins
+00:41 +271: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: log panel the mobile card shows delete for an ADMIN
+00:41 +272: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: confirmation dialog cancelling deletes nothing
+00:41 +273: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: confirmation dialog cancelling deletes nothing
+00:41 +274: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: confirmation dialog cancelling deletes nothing
+00:41 +275: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/admin_log_deletion_ui_test.dart: confirmation dialog cancelling deletes nothing
+00:41 +276: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_clock_test.dart: ErasClock widget shows the injected time and ticks to the next second
+00:41 +277: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_clock_test.dart: ErasClock widget shows the injected time and ticks to the next second
+00:42 +278: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_clock_test.dart: ErasClock widget shows the injected time and ticks to the next second
+00:42 +279: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_clock_test.dart: ErasClock widget uses the palette clock color in both themes
+00:42 +280: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_clock_test.dart: console surfaces Rail renders the 24-hour clock text it is given
+00:42 +281: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/console_clock_test.dart: console surfaces MobileAppBar renders the 24-hour clock text it is given
+00:42 +282: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: (setUpAll)
+00:42 +282: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: renders the ERAS verification step for the signed-in address
+00:43 +283: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_location_autostart_test.dart: accepting without location permission never rolls back the acceptance
+00:44 +284: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_location_autostart_test.dart: accepting without location permission never rolls back the acceptance
+00:44 +285: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a valid code verifies the account through the server
+00:44 +286: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_location_autostart_test.dart: a granted permission with an offline realtime service is also harmless
+00:44 +287: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: an invalid code keeps the account unverified and explains why
+00:44 +288: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_location_autostart_test.dart: the automatic path is silent, the manual one guides
+00:44 +289: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: resending asks the server for a new code and stays generic
+00:44 +290: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_location_autostart_test.dart: an ACCEPTED participation passes the eligibility gate
+00:44 +291: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: refresh status re-reads the server, then reports the result
+00:44 +292: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: refresh status re-reads the server, then reports the result
+00:44 +293: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: refresh status re-reads the server, then reports the result
+00:44 +294: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: refresh status confirms a server-side verification
+00:45 +295: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a password login for an unverified account opens verification instead of the console
+00:45 +296: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +297: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +298: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +299: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +300: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +301: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +302: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +303: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:45 +304: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/email_verification_screen_test.dart: a verified password login goes straight to the console
+00:46 +305: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 1. nearby request uses the current GPS latitude/longitude (5 km)
+00:46 +306: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 1. nearby request uses the current GPS latitude/longitude (5 km)
+00:47 +307: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: desktop composition matches the reference geometry
+00:47 +308: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: desktop composition matches the reference geometry
+00:48 +309: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 4. selecting a nearby place updates the form label + exact coordinates and allows submission
+00:48 +310: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: phone brings the login card directly below the brand
+00:48 +311: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: phone brings the login card directly below the brand
+00:48 +312: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 5b. generic nearby failure -> status text, no crash
+00:48 +313: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/auth_visual_layout_test.dart: tablet keeps the full hierarchy and stays overflow-free
+00:49 +314: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 6. existing autocomplete still works while nearby is unavailable
+00:49 +315: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow 7. reverse geocoding keeps working after nearby failures
+00:49 +316: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow explicit refresh and location changes re-query; typing never does
+00:49 +317: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: Nearby places — requester workflow no coordinates -> nearby section hidden
+00:49 +318: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/nearby_places_test.dart: 8. Socket.IO live responder updates live responder location updates never trigger Nearby Search
+00:49 +319: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 13. MY HELP TYPES panel renders saved backend categories
+00:50 +320: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 14. Empty inventory does not hide help types
+00:50 +321: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: 19. Help-type editing action still works
+00:50 +322: /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app/test/responder_help_types_panel_test.dart: Clean empty state for ResponderHelpTypesPanel when none configured
+00:50 +323: All tests passed!
