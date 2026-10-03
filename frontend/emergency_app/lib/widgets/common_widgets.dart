@@ -1082,8 +1082,7 @@ class _BottomNavItem extends StatelessWidget {
               children: [
                 Container(
                   height: 28,
-                  constraints:
-                      const BoxConstraints(minWidth: 44, maxWidth: 52),
+                  constraints: const BoxConstraints(minWidth: 44, maxWidth: 52),
                   decoration: BoxDecoration(
                     color: selected ? p.tealDim : Colors.transparent,
                     borderRadius: BorderRadius.circular(14),

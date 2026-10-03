@@ -4,8 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('sanitizeGoogleAuthDiagnosticMessage', () {
     test('keeps native error context while redacting credential values', () {
-      const message =
-          'ApiException: 10, idToken=identity-fixture, '
+      const message = 'ApiException: 10, idToken=identity-fixture, '
           'access_token=access-fixture, apiKey=maps-fixture, '
           'clientSecret=oauth-fixture, password=password-fixture';
 

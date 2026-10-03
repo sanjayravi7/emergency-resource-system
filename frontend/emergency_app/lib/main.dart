@@ -19,8 +19,7 @@ class DispatchConsoleApp extends StatelessWidget {
           final isDark = mode == ThemeMode.dark ||
               (mode == ThemeMode.system &&
                   MediaQuery.platformBrightnessOf(context) == Brightness.dark);
-          final palette =
-              isDark ? ErasPalette.darkPalette : ErasPalette.light;
+          final palette = isDark ? ErasPalette.darkPalette : ErasPalette.light;
           final overlayStyle = SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
             statusBarIconBrightness:

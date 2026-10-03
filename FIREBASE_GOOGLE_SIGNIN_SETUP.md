@@ -57,8 +57,13 @@ client used by Firebase:
   `https://<project-id>.firebaseapp.com/__/auth/handler`). Verify the value in
   the actual Firebase/Google consoles; do not infer it from a Hosting URL.
 - Record the complete Web client ID ending in
-  `.apps.googleusercontent.com`. It is used by the Web build and as Android's
-  `serverClientId`.
+  `.apps.googleusercontent.com`. It is passed to the **Web** build as
+  `ERAS_GOOGLE_WEB_CLIENT_ID`, which Flutter Web uses as the Google Identity
+  Services `clientId`. Android does **not** take this value from the build: it
+  reads the same client from the `default_web_client_id` string resource that
+  the google-services Gradle plugin generates from `google-services.json`, so
+  the ID-token audience can never drift from the registered Android OAuth
+  client. See `GOOGLE_SIGNIN_ANDROID_DEVELOPER_ERROR_REPORT.md`.
 - Verify all origins and clients belong to the selected production project.
 
 ## 3. Android signing fingerprints

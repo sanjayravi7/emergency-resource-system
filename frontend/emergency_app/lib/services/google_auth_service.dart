@@ -73,6 +73,115 @@ String sanitizeGoogleAuthDiagnosticMessage(String? message) {
   return sanitized.isEmpty ? '<empty>' : sanitized;
 }
 
+/// Renders an OAuth client id as a non-reversible fingerprint.
+///
+/// Diagnostics must be able to tell two builds apart without ever writing a
+/// complete client id into a log, a crash report or a screenshot.
+@visibleForTesting
+String maskGoogleClientId(String? value) {
+  if (value == null || value.trim().isEmpty) return 'unset';
+
+  // Stays well inside the exactly-representable integer range on both the VM
+  // and dart2js, so the fingerprint is stable for a given value.
+  var hash = 0;
+  for (final unit in value.codeUnits) {
+    hash = (hash * 31 + unit) & 0x3fffffff;
+  }
+  final fingerprint = hash.toRadixString(16).padLeft(6, '0');
+  return '[client-id:len=${value.length},fp=$fingerprint]';
+}
+
+/// The OAuth client identifiers a `GoogleSignIn` instance is constructed with.
+///
+/// [toString] never prints a complete client id (see [maskGoogleClientId]).
+@immutable
+class GoogleSignInClientConfig {
+  const GoogleSignInClientConfig({this.clientId, this.serverClientId});
+
+  /// The OAuth client id of the app. Flutter Web only: `google_sign_in_web`
+  /// reads it (or the `google-signin-client_id` meta tag) to drive Google
+  /// Identity Services.
+  final String? clientId;
+
+  /// The backend server client id whose audience the returned ID token is
+  /// issued for.
+  final String? serverClientId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is GoogleSignInClientConfig &&
+      other.clientId == clientId &&
+      other.serverClientId == serverClientId;
+
+  @override
+  int get hashCode => Object.hash(clientId, serverClientId);
+
+  @override
+  String toString() {
+    return 'GoogleSignInClientConfig('
+        'clientId: ${maskGoogleClientId(clientId)}, '
+        'serverClientId: ${maskGoogleClientId(serverClientId)})';
+  }
+}
+
+/// Resolves the OAuth client identifiers `GoogleSignIn` receives, per platform.
+///
+/// **Android.** The Google Sign-In SDK identifies an Android app by its package
+/// name plus the SHA-1 of its signing certificate — never by a client id — and
+/// takes the ID-token audience from the `default_web_client_id` string resource
+/// that the google-services Gradle plugin generates from
+/// `android/app/google-services.json`. `google_sign_in_android` only reads that
+/// resource when Dart supplied neither `serverClientId` nor `clientId`; a
+/// Dart-supplied value always wins ("The value specified here has precedence
+/// over a value from a configuration file"), and `clientId` is explicitly
+/// unsupported on Android.
+///
+/// Hand-copying `ERAS_GOOGLE_WEB_CLIENT_ID` into the APK therefore decouples
+/// the OAuth request from the configuration the app is actually registered
+/// with. Any drift between the two — a web client that is not linked to this
+/// Android client, a value taken from another Google Cloud project, or a stale
+/// copy — makes Google reject the request with
+/// `CommonStatusCodes.DEVELOPER_ERROR` (status 10), which the plugin reports as
+/// `sign_in_failed` with the message `h2: 10`.
+///
+/// So the rule is:
+///
+///   * Web: `clientId` MUST be the Firebase OAuth **web** client id
+///     (`ERAS_GOOGLE_WEB_CLIENT_ID`) and `serverClientId` MUST stay null —
+///     `google_sign_in_web` asserts `serverClientId == null`.
+///   * Android, iOS, macOS and desktop: both stay null so
+///     `google-services.json` / `GoogleService-Info.plist` supply the
+///     identifiers, which is the only source guaranteed to agree with the
+///     registered package name and signing fingerprint.
+@visibleForTesting
+GoogleSignInClientConfig resolveGoogleSignInClientConfig({
+  required bool isWeb,
+  required TargetPlatform platform,
+  required String googleWebClientId,
+}) {
+  final webClientId = googleWebClientId.trim();
+  if (isWeb) {
+    return GoogleSignInClientConfig(
+      // An empty value keeps the plugin's own detection (meta tag) in charge,
+      // which is exactly what an unconfigured build needs.
+      clientId: webClientId.isEmpty ? null : webClientId,
+      serverClientId: null,
+    );
+  }
+
+  // Every native platform resolves its OAuth configuration from its Firebase
+  // configuration file; see the documentation above.
+  switch (platform) {
+    case TargetPlatform.android:
+    case TargetPlatform.iOS:
+    case TargetPlatform.macOS:
+    case TargetPlatform.linux:
+    case TargetPlatform.windows:
+    case TargetPlatform.fuchsia:
+      return const GoogleSignInClientConfig();
+  }
+}
+
 String _safePlatformDetails(Object? details) {
   if (details is int) return '; detailsCode=$details';
   if (details is Map) {
@@ -124,22 +233,50 @@ class GoogleAuthService {
   @visibleForTesting
   static Future<String?> Function()? debugTokenProvider;
 
+  /// Test seam: stands in for the `ERAS_GOOGLE_WEB_CLIENT_ID` that a release
+  /// build compiles in. `null` means "use the compiled value".
+  ///
+  /// Without it, `flutter test` always runs with an empty web client id and
+  /// could not observe an Android build that wrongly forwards one.
+  @visibleForTesting
+  static String? debugGoogleWebClientId;
+
   /// True when this build can attempt Google sign-in.
   bool get isConfigured =>
       debugTokenProvider != null || ErasFirebaseConfig.isConfigured;
 
-  GoogleSignIn get _googleSignIn => GoogleSignIn(
-        // Web needs the Google *web* client id; an empty value keeps the
-        // platform default (which is exactly what unconfigured builds get).
-        clientId: kIsWeb && ErasFirebaseConfig.googleWebClientId.isNotEmpty
-            ? ErasFirebaseConfig.googleWebClientId
-            : null,
-        // Native platforms return an ID token whose audience is this client.
-        serverClientId: ErasFirebaseConfig.googleWebClientId.isEmpty
-            ? null
-            : ErasFirebaseConfig.googleWebClientId,
-        scopes: const <String>['email', 'profile'],
-      );
+  /// The OAuth client configuration this build hands to `GoogleSignIn`.
+  ///
+  /// Exposed for tests: it is the single place that decides which OAuth
+  /// identifiers reach the Google SDK, and [buildSignInClient] is the single
+  /// place that turns them into a client.
+  @visibleForTesting
+  GoogleSignInClientConfig get clientConfig {
+    final webClientId =
+        debugGoogleWebClientId ?? ErasFirebaseConfig.googleWebClientId;
+    return resolveGoogleSignInClientConfig(
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+      googleWebClientId: webClientId,
+    );
+  }
+
+  /// Builds the platform Google sign-in client from [clientConfig].
+  ///
+  /// `GoogleSignIn` forwards `clientId` and `serverClientId` verbatim to
+  /// `GoogleSignInPlatform.initWithParams`, so what these two fields hold is
+  /// exactly what the platform plugin receives.
+  @visibleForTesting
+  GoogleSignIn buildSignInClient() {
+    final config = clientConfig;
+    return GoogleSignIn(
+      clientId: config.clientId,
+      serverClientId: config.serverClientId,
+      scopes: const <String>['email', 'profile'],
+    );
+  }
+
+  GoogleSignIn get _googleSignIn => buildSignInClient();
 
   /// Runs the Google flow and returns the Firebase **ID token**.
   ///

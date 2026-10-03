@@ -57,13 +57,27 @@ if [[ -f "$config_path" ]]; then
 fi
 printf 'MAPS_API_KEY=%s\n' "$MAPS_API_KEY" > "$config_path"
 
-python3 tool/verify_firebase_android_config.py \
-  --file android/app/google-services.json \
-  --project-id "$ERAS_FIREBASE_PROJECT_ID" \
-  --web-client-id "$ERAS_GOOGLE_WEB_CLIENT_ID" \
+# The web OAuth client id must appear in google-services.json as client_type 3:
+# the google-services Gradle plugin turns exactly that entry into the
+# `default_web_client_id` string resource, which is what the Android Google
+# Sign-In SDK uses as the ID-token audience. The APK itself never receives the
+# value from Dart (see lib/services/google_auth_service.dart).
+firebase_check_args=(
+  --file android/app/google-services.json
+  --project-id "$ERAS_FIREBASE_PROJECT_ID"
+  --web-client-id "$ERAS_GOOGLE_WEB_CLIENT_ID"
   --release-sha1 "$release_sha1"
+)
+if [[ -n "${ERAS_FIREBASE_PROJECT_NUMBER:-}" ]]; then
+  firebase_check_args+=(--project-number "$ERAS_FIREBASE_PROJECT_NUMBER")
+fi
+python3 tool/verify_firebase_android_config.py "${firebase_check_args[@]}"
 
 echo "Building production-signed Android APK (secrets are not printed)."
+# ERAS_GOOGLE_WEB_CLIENT_ID is read by the Web build only. It is still passed
+# here so an APK produced from this script and a web build cannot disagree
+# about which Firebase project they belong to; the Android sign-in path ignores
+# it and reads google-services.json instead.
 flutter build apk --release \
   --dart-define="ERAS_API_BASE_URL=${ERAS_API_BASE_URL%/}" \
   --dart-define="ERAS_GOOGLE_WEB_CLIENT_ID=${ERAS_GOOGLE_WEB_CLIENT_ID}"
