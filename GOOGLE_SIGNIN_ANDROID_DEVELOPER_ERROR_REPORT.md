@@ -257,21 +257,60 @@ python3 tool/verify_firebase_android_config.py \
 
 ---
 
-## 4. Commands that could not be run in this workspace
+## 4. Verification
 
-`flutter analyze`, `flutter test` and `flutter build apk --release` were **not**
-executed. This sandbox has no Flutter/Dart toolchain and cannot obtain one:
+### Run in CI (this is the real check)
 
-- no `flutter` or `dart` binary anywhere on the filesystem;
-- `pub.dev`, `storage.googleapis.com` and `dl.google.com` are network-blocked
-  (curl returns 000), so neither the SDK, the engine artifacts, the pub
-  packages nor an Android SDK can be downloaded;
-- no JDK, and no permission to install one (`apt-get update` → permission
-  denied).
+GitHub Actions run `37144584018` on commit `b93181b`, workflow `Flutter`:
 
-Static checks that *were* run: line width against the 80-column page width used
-by `dart format` (the only >80 line in the touched files is pre-existing and
-untouched), brace/parenthesis balance with comments and string literals
-stripped, and an unused-import audit of the new test. `dart.yml` was not
-modified, so CI will run `dart format --output=none --set-exit-if-changed .`,
-`flutter analyze` and `flutter test` on the change.
+```
+✓ Verify formatting        (dart format --output=none --set-exit-if-changed .)
+✓ Analyze project source   (flutter analyze)
+✓ Run tests                (flutter test)
+```
+
+Workflow `Backend` run `37144584031`: **success**.
+
+`flutter analyze` and `flutter test` therefore executed the changed code paths:
+`resolveGoogleSignInClientConfig`, `GoogleSignInClientConfig` (including its
+`==`/`hashCode`/`toString`), `maskGoogleClientId`, `GoogleAuthService.clientConfig`,
+`GoogleAuthService.buildSignInClient` and the `debugGoogleWebClientId` seam.
+
+### Not run in CI, and still outstanding
+
+- `flutter build apk --release` — no workflow builds an APK. A signed release
+  APK plus real-device Google sign-in remains the acceptance step; a green
+  Gradle build is not proof that native sign-in works.
+- The production `google-services.json` assertions — see section 3.
+
+### A pre-existing failure this PR had to absorb
+
+The first two pushes of this branch failed at `Verify formatting`. `dart format`
+was run in CI and its output pushed back, which showed the failures came from
+three files this change never touched:
+
+- `lib/main.dart`
+- `lib/widgets/common_widgets.dart`
+- `test/google_auth_diagnostics_test.dart`
+
+All three are byte-identical to `main`
+(`git diff 51cc43e..8f5882f -- <paths>` is empty), so the check fails on `main`
+too. The cause is that `.github/workflows/dart.yml` pins
+`subosito/flutter-action@v2` with `channel: stable`: the formatter moved
+between the run recorded in `.probe/` (Flutter 3.47.6, empty `format.patch`)
+and now, and the newer formatter joins lines the previous stable left split.
+`dart.yml` was not modified; the formatter's output is included here so the
+workflow is green.
+
+### Static checks that were run locally
+
+The verifier against a synthetic fixture (happy path exit 0 with all four
+assertions plus the generated-resource cross-check; 8 negative fixtures each
+exit 1 with a specific message); `bash -n` on `build_release_apk.sh` plus both
+of its argument-building branches; 80-column width checks; brace/parenthesis
+balance with comments and strings stripped; unused-import audit.
+
+`flutter analyze`, `flutter test` and `flutter build apk --release` could not
+be run in that workspace: no Flutter/Dart binary on the filesystem,
+`pub.dev` / `storage.googleapis.com` / `dl.google.com` network-blocked (curl
+returns 000), no JDK, and `apt-get` permission-denied.
