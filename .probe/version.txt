@@ -2,4 +2,4 @@ Flutter 3.47.6 • channel stable • https://github.com/flutter/flutter.git
 Framework • revision 5fc346839b (3 days ago) • 2026-09-30 15:02:49 -0700
 Engine • hash b8c8d3d8d5d0095127057f8a29ca8cc53da2167c (revision 692136cb65) (3 days ago) • 2026-09-30 00:56:59.000Z
 Tools • Dart 3.13.5 • DevTools 2.60.0
-commit=ba259857b70ce2aa98c0ea9546c4f718300110bd
+commit=d5212d1f92eac42dadac92268bf2e091196420de

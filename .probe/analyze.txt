@@ -32,5 +32,5 @@ Got dependencies!
 28 packages have newer versions incompatible with dependency constraints.
 Try `flutter pub outdated` for more information.
 Analyzing emergency_app...                                      
-No issues found! (ran in 7.4s)
+No issues found! (ran in 9.0s)
 exit=0

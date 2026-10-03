@@ -1,6 +1,2 @@
-Changed test/nav_button_hover_test.dart
-Changed test/bottom_navigation_responsive_test.dart
-Changed test/email_verification_screen_test.dart
-Changed test/native_location_service_test.dart
-Formatted 5 files (4 changed) in 0.02 seconds.
-exit=1
+Formatted 5 files (0 changed) in 0.02 seconds.
+exit=0
