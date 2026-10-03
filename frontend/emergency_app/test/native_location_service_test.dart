@@ -159,7 +159,7 @@ void main() {
       }));
     });
 
-    test('searchNearbyPlaces returns places ranked by distance', async () async {
+    test('searchNearbyPlaces returns places ranked by distance', () async {
       await http.runWithClient(() async {
         final places = await service.searchNearbyPlaces(
           latitude: 9.9800,
