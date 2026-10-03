@@ -144,6 +144,13 @@ Future<void> _tapAndDrain(WidgetTester tester, Finder button) async {
   await tester.pump(const Duration(milliseconds: 400));
 }
 
+/// `TextFormField` keeps its focus node in its own state rather than on the
+/// widget, so node identity is read from the `TextField` it builds.
+FocusNode _fieldFocusNode(WidgetTester tester, Finder field) {
+  final inner = find.descendant(of: field, matching: find.byType(TextField));
+  return tester.widget<TextField>(inner).focusNode!;
+}
+
 void main() {
   setUp(_resetSession);
   tearDown(() {
@@ -331,6 +338,7 @@ void main() {
     final closed = _metricsOf(tester, _registerCard);
     final page = tester.state(find.byType(RegisterScreen));
     final nameField = tester.widget<TextFormField>(name);
+    final nameFocus = _fieldFocusNode(tester, name);
 
     await tester.ensureVisible(name);
     await tester.pumpAndSettle();
@@ -344,10 +352,7 @@ void main() {
       tester.widget<TextFormField>(name).controller,
       same(nameField.controller),
     );
-    expect(
-      tester.widget<TextFormField>(name).focusNode,
-      same(nameField.focusNode),
-    );
+    expect(_fieldFocusNode(tester, name), same(nameFocus));
     expect(_metricsOf(tester, _registerCard), closed);
     expect(tester.state(find.byType(RegisterScreen)), same(page));
     expect(find.byType(RegisterScreen), findsOneWidget);
@@ -447,21 +452,23 @@ void main() {
     final closed = _metricsOf(tester, _verificationCard);
     final page = tester.state(find.byType(EmailVerificationScreen));
     final codeField = tester.widget<TextFormField>(code);
+    final codeFocus = _fieldFocusNode(tester, code);
 
     await tester.ensureVisible(code);
     await tester.pumpAndSettle();
     await tester.tap(code);
     await tester.pumpAndSettle();
-    expect(codeField.focusNode!.hasFocus, isTrue);
+    expect(codeFocus.hasFocus, isTrue);
     await tester.enterText(code, '482915');
 
     await _setKeyboard(tester, 400);
     expect(codeField.controller!.text, '482915');
-    expect(codeField.focusNode!.hasFocus, isTrue);
+    expect(codeFocus.hasFocus, isTrue);
     expect(
       tester.widget<TextFormField>(code).controller,
       same(codeField.controller),
     );
+    expect(_fieldFocusNode(tester, code), same(codeFocus));
     expect(_metricsOf(tester, _verificationCard), closed);
     expect(tester.state(find.byType(EmailVerificationScreen)), same(page));
     expect(find.byKey(const ValueKey('auth-why-eras')), findsOneWidget);
@@ -469,7 +476,7 @@ void main() {
 
     await _setKeyboard(tester, 0);
     expect(codeField.controller!.text, '482915');
-    expect(codeField.focusNode!.hasFocus, isTrue);
+    expect(codeFocus.hasFocus, isTrue);
     expect(_metricsOf(tester, _verificationCard), closed);
     expect(tester.takeException(), isNull);
   });

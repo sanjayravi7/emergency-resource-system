@@ -97,6 +97,13 @@ void _resetApiState() {
   ApiService.emailVerified = null;
 }
 
+/// `TextFormField` keeps its focus node in its own state rather than on the
+/// widget, so node identity is read from the `TextField` it builds.
+FocusNode _fieldFocusNode(WidgetTester tester, Finder field) {
+  final inner = find.descendant(of: field, matching: find.byType(TextField));
+  return tester.widget<TextField>(inner).focusNode!;
+}
+
 void main() {
   setUp(_resetApiState);
   tearDown(_resetApiState);
@@ -268,7 +275,7 @@ void main() {
         final codeFinder = find.byKey(const ValueKey('reset-code'));
         final before = tester.widget<TextFormField>(codeFinder);
         final controller = before.controller!;
-        final focusNode = before.focusNode!;
+        final focusNode = _fieldFocusNode(tester, codeFinder);
         await tester.tap(codeFinder);
         await tester.pump();
         await tester.enterText(codeFinder, '135790');
@@ -286,8 +293,7 @@ void main() {
                 controller),
             isTrue);
         expect(
-            identical(
-                tester.widget<TextFormField>(codeFinder).focusNode, focusNode),
+            identical(_fieldFocusNode(tester, codeFinder), focusNode),
             isTrue);
         expect(controller.text, '135790');
         expect(focusNode.hasFocus, isTrue);
