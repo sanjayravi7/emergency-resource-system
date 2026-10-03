@@ -104,8 +104,14 @@ class ErasFirebaseConfig {
         return false;
       }
       return true;
+    } on FirebaseException catch (error) {
+      debugPrint('Firebase initialization failed: ${error.code}');
+      return false;
     } catch (error) {
-      debugPrint('Firebase is not configured for this build: $error');
+      // Avoid stringifying plugin errors, which can include serialized config.
+      debugPrint(
+        'Firebase initialization failed: unexpected=${error.runtimeType}',
+      );
       return false;
     }
   }

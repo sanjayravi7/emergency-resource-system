@@ -7,24 +7,28 @@ import '../services/socket_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
 
-/// Formats a wall-clock time as a true 24-hour `HH:MM:SS` value.
+/// Formats a wall-clock time as `h:MM AM` or `h:MM PM`, without seconds.
 ///
-/// Zero padded, no AM/PM marker, hours 00-23:
-///   00:02:17, 08:45:03, 19:32:41, 23:59:59
+/// The hour is not zero-padded; the minute is always two digits. For example:
+///   12:05 AM, 1:07 AM, 12:00 PM, 10:12 PM
 ///
 /// Kept as a pure top-level function so the format is unit testable and so the
 /// clock widget stays trivially small.
 String formatErasClock(DateTime time) {
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
+  final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
+  final minute = time.minute.toString().padLeft(2, '0');
+  final period = time.hour < 12 ? 'AM' : 'PM';
+  return '$hour:$minute $period';
 }
 
-/// Self-contained 24-hour clock.
+/// Self-contained 12-hour clock.
 ///
 /// The sidebar/app-bar timer is isolated in this widget: only this subtree
-/// rebuilds every second, instead of the whole dispatch console (an
-/// application-wide rebuild per tick was pure overhead). The stream used by
-/// tests can be replaced through [now] to keep widget tests deterministic.
+/// checks the time every second, instead of rebuilding the whole dispatch
+/// console (an application-wide rebuild per tick was pure overhead). Since
+/// seconds are not displayed, this label only rebuilds when its minute changes.
+/// The clock used by tests can be replaced through [now] to keep widget tests
+/// deterministic.
 class ErasClock extends StatefulWidget {
   const ErasClock({
     super.key,
@@ -33,7 +37,7 @@ class ErasClock extends StatefulWidget {
     this.style,
   });
 
-  /// How often the displayed second is refreshed.
+  /// How often the current time is sampled (one second by default).
   final Duration tick;
 
   /// Injectable clock (tests). Defaults to [DateTime.now].
@@ -1268,7 +1272,7 @@ class MobileAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
                 const SizedBox(width: 7),
                 if (clock == null)
-                  // Same 24-hour clock as the rail, at the compact app-bar size.
+                  // Same 12-hour rail clock at compact app-bar size.
                   ErasClock(style: monoStyle(size: 12, color: p.textFaint))
                 else
                   Text(clock!, style: monoStyle(size: 12, color: p.textFaint)),
