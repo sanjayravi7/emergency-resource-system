@@ -1,4 +1,0 @@
-Changed lib/main.dart
-Changed lib/widgets/common_widgets.dart
-Formatted 78 files (2 changed) in 0.38 seconds.
-exit=1
