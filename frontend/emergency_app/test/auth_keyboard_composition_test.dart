@@ -56,9 +56,8 @@ const Key _cardEntranceKey = ValueKey<String>('auth-card-entrance');
 void _useViewport(WidgetTester tester, Size size, {bool safeArea = true}) {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
-  tester.view.viewPadding = safeArea
-      ? FakeViewPadding(top: 24, bottom: 24)
-      : FakeViewPadding();
+  tester.view.viewPadding =
+      safeArea ? FakeViewPadding(top: 24, bottom: 24) : FakeViewPadding();
   tester.view.viewInsets = FakeViewPadding();
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);

@@ -1,0 +1,30 @@
+D  .github/workflows/eras-format-probe.yml
+A  .probe/analyze.txt
+A  .probe/format-apply.txt
+A  .probe/format-check.txt
+A  .probe/format.patch
+A  .probe/test-errors.txt
+A  .probe/test-exit.txt
+A  .probe/test-lines.txt
+A  .probe/test.txt
+AM .probe/trace.txt
+A  .probe/version.txt
+M  frontend/emergency_app/lib/widgets/auth_shell.dart
+M  frontend/emergency_app/pubspec.lock
+M  frontend/emergency_app/test/auth_keyboard_composition_test.dart
+M  frontend/emergency_app/test/auth_mobile_stability_test.dart
+M  frontend/emergency_app/test/forgot_password_flow_test.dart
+M  frontend/emergency_app/test/google_signin_flow_test.dart
+?? .probe/status.txt
+  4668 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/analyze.txt
+   281 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format-apply.txt
+   271 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format-check.txt
+ 14587 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format.patch
+   644 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/status.txt
+ 21929 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-errors.txt
+     7 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-exit.txt
+    18 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-lines.txt
+ 80755 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test.txt
+  1772 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/trace.txt
+   317 /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/version.txt
+125249 total

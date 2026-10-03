@@ -1,0 +1,7 @@
+Changed lib/widgets/auth_shell.dart
+Changed test/auth_keyboard_composition_test.dart
+Changed test/auth_mobile_stability_test.dart
+Changed test/forgot_password_flow_test.dart
+Changed test/google_signin_flow_test.dart
+Formatted 75 files (5 changed) in 0.35 seconds.
+exit=1

@@ -1,0 +1,23 @@
++ set +e
++ cd /home/runner/work/emergency-resource-system/emergency-resource-system/frontend/emergency_app
++ flutter --version
++ dart format --output=none --set-exit-if-changed .
++ echo exit=1
++ dart format .
++ echo exit=0
++ git -C /home/runner/work/emergency-resource-system/emergency-resource-system diff
++ flutter analyze
++ echo exit=1
++ flutter test --reporter expanded
++ echo exit=1
++ tail -n 1500 /tmp/test.txt
++ grep -n -B3 -A45 '\[E\]' /tmp/test.txt
++ wc -l /tmp/test.txt
++ cd /home/runner/work/emergency-resource-system/emergency-resource-system
++ git rm --quiet .github/workflows/eras-format-probe.yml
++ git config user.name 'github-actions[bot]'
++ git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
++ git add -A
++ git status --short
++ wc -c /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/analyze.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format-apply.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format-check.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/format.patch /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/status.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-errors.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-exit.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test-lines.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/test.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/trace.txt /home/runner/work/emergency-resource-system/emergency-resource-system/.probe/version.txt
++ git add -A

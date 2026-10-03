@@ -277,12 +277,18 @@ void main() {
         await tester.pump();
         await tester.pumpAndSettle();
 
-        expect(identical(tester.state(find.byType(ForgotPasswordScreen)),
-            pageState), isTrue);
-        expect(identical(tester.widget<TextFormField>(codeFinder).controller,
-            controller), isTrue);
-        expect(identical(tester.widget<TextFormField>(codeFinder).focusNode,
-            focusNode), isTrue);
+        expect(
+            identical(
+                tester.state(find.byType(ForgotPasswordScreen)), pageState),
+            isTrue);
+        expect(
+            identical(tester.widget<TextFormField>(codeFinder).controller,
+                controller),
+            isTrue);
+        expect(
+            identical(
+                tester.widget<TextFormField>(codeFinder).focusNode, focusNode),
+            isTrue);
         expect(controller.text, '135790');
         expect(focusNode.hasFocus, isTrue);
         expect(tester.takeException(), isNull);

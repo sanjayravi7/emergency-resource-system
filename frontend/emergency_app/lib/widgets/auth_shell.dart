@@ -819,10 +819,12 @@ class _NarrowComposition extends StatelessWidget {
       fontWeight: FontWeight.w900,
       color: skin.text,
     );
-    final contentMaxWidth = math.min(
-      700.0,
-      math.max(0.0, metrics.viewport.width - horizontalPadding * 2),
-    ).toDouble();
+    final contentMaxWidth = math
+        .min(
+          700.0,
+          math.max(0.0, metrics.viewport.width - horizontalPadding * 2),
+        )
+        .toDouble();
 
     return _AuthScrollRegion(
       key: const ValueKey('auth-narrow-scroll-region'),
