@@ -341,7 +341,26 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
 
         expect(ApiService.emailVerified, isTrue);
-        expect(find.textContaining('Your email is verified.'), findsOneWidget);
+
+        // A server-confirmed account does not stay on the verification form:
+        // the screen switches to the welcome state, so the inline
+        // "Your email is verified." notice is no longer what the user sees.
+        expect(
+          find.byKey(const ValueKey('verification-welcome-state')),
+          findsOneWidget,
+        );
+        expect(find.textContaining('Welcome to ERAS'), findsOneWidget);
+        expect(
+          find.text('Email verified. Your account is ready.'),
+          findsOneWidget,
+        );
+        // The role badge is rendered from the session the server reported.
+        expect(find.text('REQUESTER'), findsOneWidget);
+
+        // The welcome state waits 1400ms before opening the console; advance
+        // that transition so the test ends without a pending timer.
+        await tester.pump(const Duration(milliseconds: 1500));
+        await tester.pump();
       },
       () => _verificationBackend(recorder, verifiedAfterRefresh: true),
     );

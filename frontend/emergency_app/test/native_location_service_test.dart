@@ -231,5 +231,28 @@ void main() {
         );
       }));
     });
+
+    test('autocomplete surfaces PlacesApiDisabledException when disabled', () async {
+      await http.runWithClient(() async {
+        expect(
+          () => service.autocomplete('Government Hospital'),
+          throwsA(isA<PlacesApiDisabledException>()),
+        );
+      }, () => MockClient((request) async {
+        // The backend classifies every Google Places failure the same way, so
+        // autocomplete receives the same PLACES_API_DISABLED answer as nearby
+        // search and must be classified identically.
+        expect(request.url.path, '/api/location/autocomplete');
+        return http.Response(
+          jsonEncode({
+            'success': false,
+            'message':
+              'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
+            'code': 'PLACES_API_DISABLED',
+          }),
+          502,
+        );
+      }));
+    });
   });
 }

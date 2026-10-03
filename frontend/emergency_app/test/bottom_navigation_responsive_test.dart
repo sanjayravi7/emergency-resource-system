@@ -60,10 +60,21 @@ void main() {
       // No overflow errors recorded
       expect(tester.takeException(), isNull);
 
-      // Verify bottom navigation bar has stable total height (64 + 24 inset = 88)
+      // Verify the bottom navigation bar has a stable total height. The
+      // production bar is: 1px top border + 64px of interactive navigation
+      // content + the simulated 24px bottom safe-area inset = 89px.
       final navBarSize = tester.getSize(find.byType(BottomNav));
-      expect(navBarSize.height, 88.0);
+      expect(navBarSize.height, 89.0);
       expect(navBarSize.width, 360.0);
+
+      // The interactive navigation content itself stays 64px tall: the extra
+      // height comes from the 1px border and the device inset, never from
+      // shrinking or padding the tappable row.
+      final navContent = find.descendant(
+        of: find.byType(BottomNav),
+        matching: find.byType(Row),
+      );
+      expect(tester.getSize(navContent).height, 64.0);
     });
 
     testWidgets('all five items have equal visual width on narrow and wide phones',

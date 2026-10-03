@@ -1,6 +1,7 @@
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/theme/app_theme.dart';
 import 'package:dispatch_console_flutter/widgets/common_widgets.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

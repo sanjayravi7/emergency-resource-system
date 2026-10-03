@@ -280,10 +280,24 @@ const String kGeocodingApiDeniedHint =
 
 /// Whether a Google error [message] means the Places API (New) is disabled,
 /// not yet used, or not authorized for this project/key.
+///
+/// Native builds never see raw Google text: the ERAS backend classifies the
+/// upstream failure and answers a disabled Places API (New) with its own
+/// explicit, stable message (used by nearby search *and* autocomplete), which
+/// is the same text as [PlacesApiDisabledException.userMessage]. It is matched
+/// below so those responses are classified from the message the client
+/// actually receives.
 bool isPlacesApiDisabledError(String message) {
   final text = message.toLowerCase();
   if (text.contains('places api (new) has not been used')) return true;
   if (text.contains('places api') && text.contains('disabled')) return true;
+  // The backend's explicit "Places API disabled" answer. Both halves of the
+  // sentence are required, so an unrelated error that happens to mention one
+  // of them is never mistaken for a disabled Places API.
+  if (text.contains('nearby places unavailable') &&
+      text.contains('enable places api')) {
+    return true;
+  }
   if (text.contains('request_denied')) return true;
   if (text.contains('permission_denied')) return true;
   if (text.contains('apitargetblockedmaperror')) return true;
