@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 
 const env = require('./config/env');
+const emailService = require('./services/emailService');
 const authRoutes = require('./routes/authRoutes');
 const requestRoutes = require('./routes/requestRoutes');
 const resourceRoutes = require('./routes/resourceRoutes');
@@ -50,6 +51,30 @@ app.use(
 // deployment smoke tests, not in a high-frequency health check.
 app.get('/health', (req, res) => {
   res.status(200).json({ success: true, status: 'ok' });
+});
+
+// Safe email transport diagnostics (never exposes API keys, SMTP URLs, sender
+// addresses, or verification codes).
+app.get('/health/email', (req, res) => {
+  const diagnostics =
+    typeof emailService.getTransportDiagnostics === 'function'
+      ? emailService.getTransportDiagnostics()
+      : {
+          configured: false,
+          transportConfigured: 'no',
+          provider: 'unconfigured',
+          transport: 'unconfigured',
+          fromConfigured: 'no',
+        };
+  res.status(200).json({
+    success: true,
+    status: 'ok',
+    email: {
+      transportConfigured: diagnostics.transportConfigured,
+      provider: diagnostics.provider,
+      fromConfigured: diagnostics.fromConfigured,
+    },
+  });
 });
 
 // Bounded JSON body parsing. Oversized bodies are rejected by body-parser with

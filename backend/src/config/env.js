@@ -190,12 +190,12 @@ const env = {
     .filter(Boolean),
 
   // ---------------------------------------------------------------------------
-  // ERAS transactional email (verification + password reset codes)
+  // ERAS transactional email (verification + password reset + welcome emails)
   // ---------------------------------------------------------------------------
   // Resend HTTPS API (preferred: no extra dependency) or SMTP. When neither is
   // configured, sending is a logged no-op and no code is ever logged.
-  RESEND_API_KEY: process.env.RESEND_API_KEY || null,
-  SMTP_URL: process.env.SMTP_URL || null,
+  RESEND_API_KEY: (process.env.RESEND_API_KEY || '').trim() || null,
+  SMTP_URL: (process.env.SMTP_URL || '').trim() || null,
   ERAS_MAIL_FROM: (process.env.ERAS_MAIL_FROM || '').trim() || null,
 
   // ---------------------------------------------------------------------------

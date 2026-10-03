@@ -16,7 +16,16 @@ const env = require('./env');
  * set, so the suite output is not polluted.
  */
 
-const SENSITIVE_KEY = /(pass(word)?|secret|token|authorization|auth|cookie|jwt|database_url|connection|credential|apikey|api_key)/i;
+const SENSITIVE_KEY =
+  /(pass(word)?|secret|token|authorization|auth|cookie|jwt|database_url|smtp_url|connection|credential|apikey|api_key|private_key|verification_?code|reset_?code|auth_?code|code_?hash|otp|email)/i;
+
+function isSensitiveKeyOrValue(key, val) {
+  if (SENSITIVE_KEY.test(key)) return true;
+  if (/^code$/i.test(key) && typeof val === 'string' && /^\d{6}$/.test(val.trim())) {
+    return true;
+  }
+  return false;
+}
 
 function redact(value, depth = 0) {
   if (value === null || value === undefined) return value;
@@ -29,7 +38,7 @@ function redact(value, depth = 0) {
   if (typeof value === 'object') {
     const out = {};
     for (const [key, val] of Object.entries(value)) {
-      if (SENSITIVE_KEY.test(key)) {
+      if (isSensitiveKeyOrValue(key, val)) {
         out[key] = '[REDACTED]';
       } else {
         out[key] = redact(val, depth + 1);

@@ -123,7 +123,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     });
 
     try {
-      final response = await ApiService.resendVerification(email: widget.email);
+      final response = await ApiService.resendVerification(
+        email: widget.email ?? ApiService.currentUserEmail,
+      );
       if (!mounted) return;
       setState(() {
         notice = response['message']?.toString() ??
