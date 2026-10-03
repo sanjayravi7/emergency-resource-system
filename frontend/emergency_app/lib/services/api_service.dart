@@ -179,12 +179,16 @@ class ApiService {
     if (response.statusCode != 200) {
       _fail(body, 'Could not refresh the account state');
     }
-    final user = body['data'];
-    if (user is Map) {
+    final data = body['data'];
+    if (data is Map) {
+      final user = data['user'] is Map ? data['user'] as Map : data;
       if (user['emailVerified'] is bool) {
         emailVerified = user['emailVerified'] as bool;
       }
       if (user['email'] != null) currentUserEmail = user['email'].toString();
+      if (user['name'] != null) currentUserName = user['name'].toString();
+      if (user['role'] != null) currentRole = user['role'].toString();
+      if (user['id'] is num) currentUserId = (user['id'] as num).toInt();
     }
     return body;
   }

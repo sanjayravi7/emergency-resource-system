@@ -19,6 +19,10 @@ describe('logger redaction', () => {
       nested: {
         secret: 'topsecret',
         DATABASE_URL: 'postgresql://user:pw@host/db',
+        email: 'person@example.com',
+        verificationCode: '123456',
+        code: '654321',
+        prismaCode: 'P2025',
         keep: 'visible',
       },
     });
@@ -29,6 +33,10 @@ describe('logger redaction', () => {
     expect(out.authorization).toBe('[REDACTED]');
     expect(out.nested.secret).toBe('[REDACTED]');
     expect(out.nested.DATABASE_URL).toBe('[REDACTED]');
+    expect(out.nested.email).toBe('[REDACTED]');
+    expect(out.nested.verificationCode).toBe('[REDACTED]');
+    expect(out.nested.code).toBe('[REDACTED]');
+    expect(out.nested.prismaCode).toBe('P2025');
     expect(out.nested.keep).toBe('visible');
   });
 
