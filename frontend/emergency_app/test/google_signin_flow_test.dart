@@ -228,7 +228,8 @@ void main() {
           findsOneWidget,
         );
         expect(
-          tester.widget<AuthGoogleButton>(find.byType(AuthGoogleButton))
+          tester
+              .widget<AuthGoogleButton>(find.byType(AuthGoogleButton))
               .onPressed,
           isNotNull,
         );
@@ -237,8 +238,8 @@ void main() {
         // login page, can read the message, and can retry the Google action.
         await _tapGoogle(tester);
         expect(
-          recorder.requests.where((request) =>
-              request.url.path == '/api/auth/google'),
+          recorder.requests
+              .where((request) => request.url.path == '/api/auth/google'),
           hasLength(2),
         );
         expect(ApiService.token, isNull);
@@ -254,8 +255,9 @@ void main() {
         tester.view.viewInsets = FakeViewPadding(bottom: 250);
         await tester.pump();
         await tester.pumpAndSettle();
-        expect(identical(tester.state(find.byType(LoginScreen)),
-            loginPageState), isTrue);
+        expect(
+            identical(tester.state(find.byType(LoginScreen)), loginPageState),
+            isTrue);
         expect(
           find.textContaining(
               'Google sign-in is not configured on this server'),
