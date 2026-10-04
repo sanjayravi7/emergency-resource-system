@@ -236,8 +236,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /// One safe sentence for anything that is not a [GoogleAuthException].
-  String _safeErrorMessage(Object error) =>
-      error.toString().replaceFirst('Exception: ', '');
+  ///
+  /// Messages raised by ERAS's own API layer are written for the user and are
+  /// shown as-is. Anything else is logged as a sanitized diagnostic and
+  /// replaced by the generic notice, so an unexpected exception can never leak
+  /// internals (URLs, plugin payloads, identifiers) into the UI.
+  String _safeErrorMessage(Object error) {
+    if (error is Exception) {
+      final text = error
+          .toString()
+          .replaceFirst('Exception: ', '')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      if (text.isNotEmpty && text.length <= 200) return text;
+    }
+    logErasClientDiagnostic('google-signin-unexpected', error);
+    return erasGoogleGenericFailureMessage;
+  }
 
   @override
   void dispose() {
