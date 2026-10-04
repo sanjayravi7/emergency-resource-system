@@ -53,6 +53,20 @@ jobs:
           flutter analyze > /tmp/analyze.log 2>&1
           flutter test --reporter expanded > /tmp/test.log 2>&1
 
+          # Release web compile check: same command as tool/build_production_web.sh
+          # minus the private Firebase/Google values, which only the maintainer
+          # has. Proves the release web bundle (and the Firebase Auth web path)
+          # compiles for the deployed origin.
+          flutter build web --release \
+            --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api \
+            > /tmp/build-web.log 2>&1
+          build_status=$?
+          if [ -f build/web/index.html ]; then
+            echo "web bundle: $(du -sh build/web | cut -f1), index.html present" > /tmp/build-web-summary.txt
+          else
+            echo "web bundle: build/web/index.html MISSING" > /tmp/build-web-summary.txt
+          fi
+
           {
             echo "=== dart format ==="
             cat /tmp/format.log
@@ -60,6 +74,9 @@ jobs:
             head -c 30000 /tmp/analyze.log
             echo "=== flutter test (tail) ==="
             tail -c 500000 /tmp/test.log
+            echo "=== flutter build web (exit $build_status) ==="
+            cat /tmp/build-web-summary.txt
+            tail -c 20000 /tmp/build-web.log
           } > /tmp/combined.log
           gzip -9 -c /tmp/combined.log | base64 -w0 > /tmp/combined.b64
           split -b 55000 /tmp/combined.b64 /tmp/part_

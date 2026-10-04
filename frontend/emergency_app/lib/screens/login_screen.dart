@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/client_error_reporting.dart';
 import '../services/email_validation.dart';
 import '../services/google_auth_service.dart';
 import '../services/socket_service.dart';
