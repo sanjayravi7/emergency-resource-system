@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/client_error_reporting.dart';
 import '../services/email_validation.dart';
 import '../services/google_auth_service.dart';
 import '../services/socket_service.dart';
@@ -30,6 +31,21 @@ class _LoginScreenState extends State<LoginScreen> {
       obscurePassword = true,
       rememberMe = false;
   String? errorMessage;
+
+  /// Neutral, non-error feedback (for example while a Google redirect starts).
+  String? statusMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // Flutter Web: a Google redirect return - or a browser refresh after a
+    // completed Google sign-in - is resumed here, without another popup.
+    // Everywhere else this is a no-op.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resumeWebGoogleSignIn();
+    });
+  }
+
   Future<void> login() async {
     FocusScope.of(context).unfocus();
     if (emailController.text.trim().isEmpty ||
@@ -105,54 +121,137 @@ class _LoginScreenState extends State<LoginScreen> {
   /// The client only obtains the Firebase ID token; the ERAS backend verifies
   /// it, logs in a known Firebase UID or links an existing user with the same
   /// verified email while preserving the ERAS role, then returns the normal
-  /// ERAS JWT. A new Google account needs a public registration role, so new
-  /// users start on the register screen. Google accounts are verified by
-  /// Google and skip the email-verification screen.
+  /// ERAS JWT. Flutter Web runs the popup/redirect flow inside Firebase Auth,
+  /// so a blocked popup degrades to a redirect instead of failing. A new
+  /// Google account needs a public registration role, so new users start on
+  /// the register screen. Google accounts are verified by Google and skip the
+  /// email-verification screen.
   Future<void> signInWithGoogle() async {
     if (loading) return;
     FocusScope.of(context).unfocus();
     setState(() {
       loading = true;
       errorMessage = null;
+      statusMessage = null;
     });
 
     try {
-      final idToken = await GoogleAuthService.instance.signInAndGetIdToken();
-      if (idToken == null) {
-        // The user dismissed the Google account sheet: nothing happened and no
-        // session changed.
+      final outcome = await GoogleAuthService.instance.signIn();
+      if (!mounted) return;
+      if (outcome.isRedirecting) {
+        // The browser is leaving for Google's handler; stay usable meanwhile.
+        setState(() => statusMessage = 'Continuing with Google in this tab…');
         return;
       }
-
-      final response = await ApiService.googleSignIn(idToken: idToken);
-      if (!mounted) return;
-      setState(() => success = true);
-      if (ApiService.isNewGoogleUser(response)) {
-        final data = ApiService.authResponseData(response);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => AuthWelcomeScreen(
-              welcomeEmailDeliveryResult:
-                  data['welcomeEmailDeliveryResult']?.toString(),
-            ),
-          ),
-        );
-      } else {
-        // Existing Google users sign in normally; they never see a first-time
-        // welcome screen or trigger another welcome email.
-        _openAuthenticatedArea();
+      final idToken = outcome.idToken;
+      if (idToken == null) {
+        // The user dismissed the Google UI: nothing happened and no session
+        // changed.
+        return;
       }
+      await _completeGoogleSignIn(idToken);
     } on GoogleAuthException catch (error) {
       if (mounted) setState(() => errorMessage = error.message);
     } catch (error) {
-      if (mounted) {
-        setState(() =>
-            errorMessage = error.toString().replaceFirst('Exception: ', ''));
-      }
+      if (mounted) setState(() => errorMessage = _safeErrorMessage(error));
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  /// Exchanges a Firebase ID token for the ERAS session and routes the user.
+  Future<void> _completeGoogleSignIn(
+    String idToken, {
+    GoogleRegistrationRequest? registration,
+  }) async {
+    final Map<String, dynamic> response;
+    try {
+      response = await ApiService.googleSignIn(
+        idToken: idToken,
+        role: registration?.role,
+        name: registration?.name,
+        phone: registration?.phone,
+      );
+    } catch (error) {
+      // Firebase authenticated this browser but ERAS did not create a session:
+      // clear the provider session instead of leaving a half-authenticated
+      // state behind, so the next attempt starts cleanly.
+      await GoogleAuthService.instance.signOut();
+      rethrow;
+    }
+
+    if (!mounted) return;
+    setState(() => success = true);
+    if (ApiService.isNewGoogleUser(response)) {
+      final data = ApiService.authResponseData(response);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => AuthWelcomeScreen(
+            welcomeEmailDeliveryResult:
+                data['welcomeEmailDeliveryResult']?.toString(),
+          ),
+        ),
+      );
+    } else {
+      // Existing Google users sign in normally; they never see a first-time
+      // welcome screen or trigger another welcome email.
+      _openAuthenticatedArea();
+    }
+  }
+
+  /// Flutter Web: finishes a Google sign-in Firebase left pending (a redirect
+  /// return, or the persisted session after a browser refresh).
+  ///
+  /// Does nothing on native platforms.
+  Future<void> _resumeWebGoogleSignIn() async {
+    GoogleWebResumeResult? result;
+    try {
+      result = await GoogleAuthService.instance.resumeWebSignIn();
+    } on GoogleAuthException catch (error) {
+      if (mounted) setState(() => errorMessage = error.message);
+      return;
+    } catch (_) {
+      // A pending sign-in that cannot be resumed must never block the page:
+      // the user can simply press the Google button again.
+      return;
+    }
+
+    final idToken = result?.outcome.idToken;
+    if (idToken == null || !mounted) return;
+
+    setState(() {
+      loading = true;
+      errorMessage = null;
+    });
+    try {
+      await _completeGoogleSignIn(idToken, registration: result?.registration);
+    } on GoogleAuthException catch (error) {
+      if (mounted) setState(() => errorMessage = error.message);
+    } catch (error) {
+      if (mounted) setState(() => errorMessage = _safeErrorMessage(error));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  /// One safe sentence for anything that is not a [GoogleAuthException].
+  ///
+  /// Messages raised by ERAS's own API layer are written for the user and are
+  /// shown as-is. Anything else is logged as a sanitized diagnostic and
+  /// replaced by the generic notice, so an unexpected exception can never leak
+  /// internals (URLs, plugin payloads, identifiers) into the UI.
+  String _safeErrorMessage(Object error) {
+    if (error is Exception) {
+      final text = error
+          .toString()
+          .replaceFirst('Exception: ', '')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      if (text.isNotEmpty && text.length <= 200) return text;
+    }
+    logErasClientDiagnostic('google-signin-unexpected', error);
+    return erasGoogleGenericFailureMessage;
   }
 
   @override
@@ -285,6 +384,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     message: errorMessage,
                     color: skin.red,
                   ),
+                  if (statusMessage != null)
+                    AuthInlineMessage(
+                      key: const ValueKey<String>('login-status-region'),
+                      message: statusMessage,
+                      color: skin.blue,
+                      icon: Icons.info_outline_rounded,
+                    ),
                   const SizedBox(height: 16),
                   AuthPrimaryButton(
                       label: 'Sign in',

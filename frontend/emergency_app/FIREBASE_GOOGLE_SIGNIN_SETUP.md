@@ -127,9 +127,13 @@ configuration and refuses to produce a release without the configured key.
   initialise. A plain checkout/build without it degrades gracefully and reports
   Google sign-in unavailable; the production release helper requires the real
   file and validates it before building.
-* `ERAS_GOOGLE_WEB_CLIENT_ID` is the **web** client id. Flutter **Web** uses it
-  as the Google Identity Services `clientId` (and `google_sign_in_web` requires
-  `serverClientId` to stay null). Android does **not** use it at all: the
+* Flutter **Web** authenticates through Firebase Auth's own Google flow
+  (`signInWithPopup`, with a `signInWithRedirect` fallback), so it needs no Dart
+  client id and never calls `google_sign_in` on the web. What it does need is
+  the Firebase **web app configuration** (`ERAS_FIREBASE_*`) plus the deployed
+  origin being an authorized domain in Firebase Authentication.
+* `ERAS_GOOGLE_WEB_CLIENT_ID` is therefore only kept for compatibility with
+  older web builds. Android does **not** use it at all: the
   Google Sign-In SDK identifies the app by package name plus signing SHA-1 and
   takes the ID-token audience from the `default_web_client_id` resource that
   the google-services Gradle plugin generates from `google-services.json`.

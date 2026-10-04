@@ -57,9 +57,12 @@ client used by Firebase:
   `https://<project-id>.firebaseapp.com/__/auth/handler`). Verify the value in
   the actual Firebase/Google consoles; do not infer it from a Hosting URL.
 - Record the complete Web client ID ending in
-  `.apps.googleusercontent.com`. It is passed to the **Web** build as
-  `ERAS_GOOGLE_WEB_CLIENT_ID`, which Flutter Web uses as the Google Identity
-  Services `clientId`. Android does **not** take this value from the build: it
+  `.apps.googleusercontent.com`. It is still passed to the **Web** build as
+  `ERAS_GOOGLE_WEB_CLIENT_ID`, but the current web build authenticates through
+  Firebase Auth's own Google popup/redirect flow and does not hand a client id
+  to any Dart-side SDK, so the authoritative setting for the deployed site is
+  the Firebase Authentication **authorized domains** list. Android does **not**
+  take this value from the build: it
   reads the same client from the `default_web_client_id` string resource that
   the google-services Gradle plugin generates from `google-services.json`, so
   the ID-token audience can never drift from the registered Android OAuth

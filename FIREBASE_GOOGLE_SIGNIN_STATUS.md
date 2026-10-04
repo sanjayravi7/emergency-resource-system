@@ -1,11 +1,19 @@
 # Firebase / Google Sign-In status
 
-**Status as of 2026-10-03: local auth-flow implementation is updated and targeted backend tests pass, but production configuration, deployment, release APK, and real-device acceptance are NOT complete. Google Sign-In and real email delivery are NOT fully verified.**
+**Status as of 2026-10-04: implementation and automated checks are complete, but
+production configuration, deployment, and real browser/device acceptance are NOT
+complete. Google Sign-In and real email delivery are NOT fully verified — no
+claim that Google Web sign-in is fixed may be made until the deployed site runs
+the acceptance flows in `FIREBASE_GOOGLE_SIGNIN_SETUP.md`.**
 
 ## Implemented in this checkout
 
-- Flutter Web uses Firebase Auth's Google popup; Android uses Google Sign-In and
-  exchanges the Google credential with Firebase Auth.
+- Flutter Web uses Firebase Auth's own Google popup (`signInWithPopup`, with a
+  `signInWithRedirect` fallback and a resume path for redirect returns and
+  browser refreshes); Android uses Google Sign-In and exchanges the Google
+  credential with Firebase Auth. The Web path does **not** use
+  `google_sign_in`, whose web `signIn()` is an OAuth2 token-client flow that
+  "can't reliably provide an `idToken`".
 - The backend verifies Firebase ID tokens, resolves known Firebase UIDs, links a
   matching verified Google email to an existing active ERAS user without
   changing that user's role/password, or creates a new Google user. It issues
@@ -67,12 +75,17 @@ them in chat; configure them in the corresponding provider secret stores.
   TLS connection to `binaries.prisma.sh` was unavailable. Migration deployment
   and schema verification therefore did not start; there is also no reachable
   test PostgreSQL/`DATABASE_URL` in this workspace.
-- Flutter/Dart executables are absent locally. Flutter unit tests,
-  `flutter analyze`, and `dart format` could not be run on this branch; manually
-  updated Flutter paths/tests still need the Flutter CI/toolchain validation.
-- Earlier GitHub Actions on merge commit `743f4088a9927a0f4408965140eafeea14215935`
-  passed backend and Flutter checks at that time; those historic checks do not
-  validate this branch's new changes.
+- Flutter/Dart executables are absent locally, so the fixes were validated in
+  GitHub Actions instead of on this machine. The CI run for the fix branch
+  (`arena/01a10788-emergency-resource-system`) passed `dart format`
+  (0 changes), `flutter analyze` (no issues) and the complete Flutter test
+  suite — **404 tests passed**, including the new Web Google strategy,
+  cancellation/redirect, safe-error, registration-persistence, native-regression
+  and PWA-metadata tests. The backend CI job passed too, including Prisma
+  generation, migration/schema checks, the production dependency audit, and
+  Jest. A release `flutter build web --release` compile check runs in the same
+  pipeline. These CI results validate the checked-in implementation but do not
+  replace production-provider or real-browser/device acceptance.
 - No current Render deployment, Resend request, verified-sender/domain check,
   real email receipt, Google browser sign-in, physical Android sign-in, or
   production migration was performed. No production credentials/configuration

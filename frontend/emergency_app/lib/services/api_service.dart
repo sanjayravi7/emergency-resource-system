@@ -175,22 +175,47 @@ class ApiService {
     return data['isNewUser'] == true || data['created'] == true;
   }
 
+  /// Reads the ERAS token from either the nested `data` envelope or the flat
+  /// legacy payload. Only a real, non-empty string is accepted: a malformed or
+  /// missing token must never be turned into a session.
+  static String? authResponseToken(Map<String, dynamic> body) {
+    final data = authResponseData(body);
+    final value = data['token'] ?? body['token'];
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  /// Returns a trimmed, non-empty string for [value], or null for anything
+  /// else (missing, empty, or an unexpected JSON type).
+  static String? _nonEmptyText(Object? value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   /// Stores the ERAS session carried by an auth response. Shared by password
   /// login, registration, verification and Google sign-in. The server remains
   /// the role authority; this only mirrors its nested or flat response.
+  ///
+  /// Every field is type-checked before it is used, and a field that the
+  /// response omits never clears a value that is already known.
   static void applySession(Map<String, dynamic> body) {
     final data = authResponseData(body);
     final user = authResponseUser(body);
-    if (user.isEmpty) return;
+    if (data.isEmpty || user.isEmpty) return;
 
-    final responseToken = data['token'] ?? body['token'];
-    if (responseToken != null && responseToken.toString().isNotEmpty) {
-      token = responseToken.toString();
-    }
-    currentUserId = user['id'] is num ? (user['id'] as num).toInt() : null;
-    currentRole = user['role']?.toString();
-    currentUserName = user['name']?.toString();
-    currentUserEmail = user['email']?.toString();
+    final responseToken = authResponseToken(body);
+    if (responseToken != null) token = responseToken;
+
+    final id = user['id'];
+    if (id is num) currentUserId = id.toInt();
+    final role = _nonEmptyText(user['role']);
+    if (role != null) currentRole = role;
+    final name = _nonEmptyText(user['name']);
+    if (name != null) currentUserName = name;
+    final email = _nonEmptyText(user['email']);
+    if (email != null) currentUserEmail = email;
     if (user['emailVerified'] is bool) {
       emailVerified = user['emailVerified'] as bool;
     }
@@ -224,6 +249,21 @@ class ApiService {
     if (response.statusCode != 200) {
       _fail(body, 'Google sign-in failed');
     }
+    if (body['success'] == false) {
+      _fail(body, 'Google sign-in failed');
+    }
+
+    // Firebase succeeded but the ERAS session did not: an incomplete payload
+    // must never be treated as a signed-in session. The error stays free of
+    // any server payload so nothing sensitive can leak into the UI or logs.
+    final sessionToken = authResponseToken(body);
+    if (sessionToken == null || authResponseUser(body).isEmpty) {
+      throw Exception(
+        'The ERAS server returned an incomplete Google sign-in response. '
+        'Please try again.',
+      );
+    }
+
     applySession(body);
     return body;
   }

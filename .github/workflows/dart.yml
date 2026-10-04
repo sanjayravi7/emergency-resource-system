@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: ["main"]
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -37,20 +33,14 @@ jobs:
       - name: Analyze project source
         run: flutter analyze
 
-      - name: TEMP capture Flutter test output
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set +e
-          flutter test > "$RUNNER_TEMP/flutter-test.txt" 2>&1
-          test_status=$?
-          {
-            echo "flutter test (exit $test_status):"
-            cat "$RUNNER_TEMP/flutter-test.txt"
-          } | gzip -9 | base64 -w0 > "$RUNNER_TEMP/flutter-test.b64"
-          gh pr comment "$PR_NUMBER" --body "TEMP_FLUTTER_TEST_BEGIN$(cat "$RUNNER_TEMP/flutter-test.b64")"
-
       - name: Run tests
         run: flutter test
+
+      # Compile check for the deployed artifact. The private Firebase/Google
+      # values are supplied by the release helper (tool/build_production_web.sh)
+      # at deploy time; this only proves the release web bundle, including the
+      # Firebase Auth web sign-in path, still compiles for that command.
+      - name: Build release web bundle
+        run: >
+          flutter build web --release
+          --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api

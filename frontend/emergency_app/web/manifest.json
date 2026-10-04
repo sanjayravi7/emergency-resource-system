@@ -1,11 +1,11 @@
 {
-    "name": "dispatch_console_flutter",
-    "short_name": "dispatch_console_flutter",
+    "name": "ERAS Console",
+    "short_name": "ERAS Console",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "ERAS — Emergency Resource Allocation System console for emergency request, responder and resource coordination.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -18,29 +18,35 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="ERAS — Emergency Resource Allocation System: emergency request, responder and resource coordination console.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="dispatch_console_flutter">
+  <!-- Installed-app name on iOS: must match web/manifest.json. -->
+  <meta name="apple-mobile-web-app-title" content="ERAS Console">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>ERAS · Emergency Response & Dispatch</title>
+  <!-- Browser title / installed PWA name. Keep the manifest in sync. -->
+  <title>ERAS — Emergency Resource Allocation System</title>
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0175C2">
 
   <!--
     Google Identity Services client library.
 
-    Required by google_sign_in on the web (the plugin drives
-    google.accounts.id / google.accounts.oauth2). It is served by Google, is
-    versioned by Google, and contains no project secret. Loading it here means
-    "Continue with Google" works on the web build without any extra setup; if
-    the CDN is unreachable the button reports that Google sign-in is
-    unavailable while email/password login keeps working.
+    google_sign_in's web plugin (registered by Flutter on every web build)
+    drives google.accounts.id / google.accounts.oauth2 and loads this script
+    itself. Declaring it here only starts the download earlier. It is served by
+    Google, is versioned by Google, and contains no project secret.
+
+    ERAS's own web Google sign-in does NOT depend on it: Flutter Web
+    authenticates through Firebase Auth's Google popup/redirect flow, so an
+    unreachable CDN (ad blocker, strict privacy mode) cannot break Google
+    registration on the deployed site.
   -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
