@@ -98,7 +98,7 @@ the exact code and Dart exception type instead of `Uncaught Error`.
 | `frontend/emergency_app/test/pwa_metadata_test.dart` | **New.** Locks the ERAS Console install name, title, metadata and manifest icons. |
 | `frontend/emergency_app/test/google_signin_flow_test.dart` | Route-transition pump fix in the Google welcome flow (taken from PR #82) so the widget test passes deterministically. |
 | `.github/workflows/dart.yml` | Removed the temporary CI diagnostics step (taken from PR #82). |
-| `.github/workflows/eras-web-fix-probe.yml` | **Temporary** CI probe used to run format/analyze/test/build in this environment; removed at the end of the branch. |
+| `.github/workflows/dart.yml` | Added a permanent release web-bundle compile check (the CI probe workflow used to gather this evidence was removed before merge). |
 | `FIREBASE_GOOGLE_SIGNIN_SETUP.md` (root + app copy), `FIREBASE_GOOGLE_SIGNIN_STATUS.md`, this report | Documentation of the new Web mechanism and of what remains to be configured/deployed. |
 
 No backend file was changed: the server-side Google flow already verifies the
@@ -191,7 +191,7 @@ email is sent to a Google-verified account.
 | `dart format` (CI, Flutter stable / Dart 3.13.5) | 85 files checked, **0 changes** |
 | `flutter analyze` | **No issues found** |
 | `flutter test` | **404 tests passed, 0 failed** — includes the new `google_web_signin_test.dart` (web strategy, dismissed popup, blocked popup → redirect, redirect resume, registration persistence/consumption, malformed stored state, safe error mapping, native regression, sign-out) and `pwa_metadata_test.dart` (install name/title/metadata/icons) |
-| `flutter build web --release` (compile check, CI) | **Succeeded**; `build/web/index.html` produced, with `--dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api` |
+| `flutter build web --release` (compile check, now part of the Flutter workflow) | **Succeeded** — `✓ Built build/web` (42 MB) with `--dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api` |
 | Backend CI (`npm` + Prisma migrate/schema + audit + Jest) | **Passed** |
 | Manual acceptance A–H | **Not executed live** — no browser/Google network here. A/B (password register+OTP and password login) remain covered by the existing widget suite; C/D by `google_signin_flow_test.dart` plus the welcome-email backend tests; E/F by the new web tests; G by the resume test; H by the PWA metadata test. Live A–H must be run after deployment. |
 

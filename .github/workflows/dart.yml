@@ -35,3 +35,12 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+      # Compile check for the deployed artifact. The private Firebase/Google
+      # values are supplied by the release helper (tool/build_production_web.sh)
+      # at deploy time; this only proves the release web bundle, including the
+      # Firebase Auth web sign-in path, still compiles for that command.
+      - name: Build release web bundle
+        run: >
+          flutter build web --release
+          --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api
