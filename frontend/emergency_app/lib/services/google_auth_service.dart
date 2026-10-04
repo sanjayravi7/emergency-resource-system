@@ -1,9 +1,21 @@
+import 'dart:convert';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_bootstrap.dart';
+
+/// Shown when this build has no usable Firebase/Google configuration at all.
+const String erasGoogleNotConfiguredMessage =
+    'Google sign-in is not configured for this ERAS deployment.';
+
+/// Shown for every Google failure that has no more specific explanation.
+const String erasGoogleGenericFailureMessage =
+    'Google sign-in could not be completed. Please try again. '
+    'You can still sign in with your email and password.';
 
 /// Raised when Google sign-in cannot complete. The message is safe to show.
 class GoogleAuthException implements Exception {
@@ -13,6 +25,36 @@ class GoogleAuthException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Which mechanism a build uses to obtain a Google identity proof.
+enum GoogleSignInStrategy {
+  /// Flutter Web: Firebase Auth runs the Google OAuth flow itself
+  /// (`signInWithPopup`, falling back to `signInWithRedirect`) and returns a
+  /// real Firebase ID token.
+  firebaseWebPopup,
+
+  /// Android/iOS/desktop: the platform Google account picker returns a Google
+  /// credential, which is then exchanged with Firebase Auth.
+  nativeAccountPicker,
+}
+
+/// Chooses the Google authentication mechanism for a platform.
+///
+/// Web and native are deliberately different code paths:
+///
+///   * On Web, `google_sign_in`'s `signIn()` is an OAuth2 *authorization* flow
+///     (`google.accounts.oauth2` token client). The plugin documents that it
+///     "can't reliably provide an `idToken`" there and synthesizes identity
+///     from the People API, which left ERAS exchanging an access token that
+///     Firebase rejected. Firebase Auth's own popup/redirect flow is the
+///     supported Web mechanism and returns a Firebase ID token directly.
+///   * On Android/iOS the account picker plus `signInWithCredential` is the
+///     supported mechanism and keeps working unchanged.
+@visibleForTesting
+GoogleSignInStrategy resolveGoogleSignInStrategy({required bool isWeb}) {
+  if (isWeb) return GoogleSignInStrategy.firebaseWebPopup;
+  return GoogleSignInStrategy.nativeAccountPicker;
 }
 
 /// Removes credential-like values before a native diagnostic is written to
@@ -98,9 +140,10 @@ String maskGoogleClientId(String? value) {
 class GoogleSignInClientConfig {
   const GoogleSignInClientConfig({this.clientId, this.serverClientId});
 
-  /// The OAuth client id of the app. Flutter Web only: `google_sign_in_web`
-  /// reads it (or the `google-signin-client_id` meta tag) to drive Google
-  /// Identity Services.
+  /// The OAuth client id of the app. Native platforms leave this unset so the
+  /// platform configuration file (`google-services.json` /
+  /// `GoogleService-Info.plist`) stays authoritative; Flutter Web no longer
+  /// builds a `GoogleSignIn` at all (see [resolveGoogleSignInStrategy]).
   final String? clientId;
 
   /// The backend server client id whose audience the returned ID token is
@@ -124,7 +167,7 @@ class GoogleSignInClientConfig {
   }
 }
 
-/// Resolves the OAuth client identifiers `GoogleSignIn` receives, per platform.
+/// Resolves the OAuth client identifiers a native `GoogleSignIn` receives.
 ///
 /// **Android.** The Google Sign-In SDK identifies an Android app by its package
 /// name plus the SHA-1 of its signing certificate — never by a client id — and
@@ -136,7 +179,7 @@ class GoogleSignInClientConfig {
 /// over a value from a configuration file"), and `clientId` is explicitly
 /// unsupported on Android.
 ///
-/// Hand-copying `ERAS_GOOGLE_WEB_CLIENT_ID` into the APK therefore decouples
+/// Hand-copying `ERAS_GOOGLE_WEB_CLIENT_ID` into the APK therefore decoupled
 /// the OAuth request from the configuration the app is actually registered
 /// with. Any drift between the two — a web client that is not linked to this
 /// Android client, a value taken from another Google Cloud project, or a stale
@@ -146,10 +189,10 @@ class GoogleSignInClientConfig {
 ///
 /// So the rule is:
 ///
-///   * Web: `clientId` MUST be the Firebase OAuth **web** client id
-///     (`ERAS_GOOGLE_WEB_CLIENT_ID`) and `serverClientId` MUST stay null —
-///     `google_sign_in_web` asserts `serverClientId == null`.
-///   * Android, iOS, macOS and desktop: both stay null so
+///   * Web: this function is no longer part of the sign-in path. Flutter Web
+///     authenticates through Firebase Auth's own Google popup/redirect flow,
+///     which needs no Dart-side client id.
+///   * Android, iOS, macOS and desktop: both values stay null so
 ///     `google-services.json` / `GoogleService-Info.plist` supply the
 ///     identifiers, which is the only source guaranteed to agree with the
 ///     registered package name and signing fingerprint.
@@ -162,7 +205,8 @@ GoogleSignInClientConfig resolveGoogleSignInClientConfig({
   final webClientId = googleWebClientId.trim();
   if (isWeb) {
     return GoogleSignInClientConfig(
-      // An empty value keeps the plugin's own detection (meta tag) in charge,
+      // Kept for builds that still construct a legacy GoogleSignIn on web: an
+      // empty value keeps the plugin's own detection (meta tag) in charge,
       // which is exactly what an unconfigured build needs.
       clientId: webClientId.isEmpty ? null : webClientId,
       serverClientId: null,
@@ -180,6 +224,381 @@ GoogleSignInClientConfig resolveGoogleSignInClientConfig({
     case TargetPlatform.fuchsia:
       return const GoogleSignInClientConfig();
   }
+}
+
+/// The outcome of one Google authentication attempt.
+enum GoogleSignInStatus {
+  /// A Firebase/Google ID token was obtained and can be exchanged with ERAS.
+  completed,
+
+  /// The user dismissed Google's UI. Nothing changed; no error to show.
+  cancelled,
+
+  /// Flutter Web only: the browser is navigating to Google's redirect handler.
+  /// The flow continues through [GoogleAuthService.resumeWebSignIn] once the
+  /// page reloads.
+  redirecting,
+}
+
+/// The result of starting a Google authentication.
+///
+/// Never carries anything except the Firebase ID token: no Google access
+/// token, refresh token, password or OAuth secret is kept or returned.
+@immutable
+class GoogleSignInOutcome {
+  const GoogleSignInOutcome._(this.status, this.idToken);
+
+  const GoogleSignInOutcome.completed(String idToken)
+      : this._(GoogleSignInStatus.completed, idToken);
+
+  const GoogleSignInOutcome.cancelled()
+      : this._(GoogleSignInStatus.cancelled, null);
+
+  const GoogleSignInOutcome.redirecting()
+      : this._(GoogleSignInStatus.redirecting, null);
+
+  final GoogleSignInStatus status;
+
+  /// The Firebase ID token, set only for [GoogleSignInStatus.completed].
+  final String? idToken;
+
+  bool get isCompleted => status == GoogleSignInStatus.completed;
+
+  bool get isRedirecting => status == GoogleSignInStatus.redirecting;
+
+  @override
+  String toString() => 'GoogleSignInOutcome(status: ${status.name})';
+}
+
+/// A sign-in that Flutter Web left pending and that is resumed after a reload.
+@immutable
+class GoogleWebResumeResult {
+  const GoogleWebResumeResult({required this.outcome, this.registration});
+
+  final GoogleSignInOutcome outcome;
+
+  /// The first-time ERAS registration details a redirect was started with, if
+  /// the user came from the registration screen.
+  final GoogleRegistrationRequest? registration;
+}
+
+/// The public ERAS registration choice of a first-time Google user.
+///
+/// Only ever a *request*: the backend ignores it for a known Firebase UID or an
+/// email that already has an ERAS account, and can never create an ADMIN.
+/// Flutter Web persists it before a redirect fallback because the page reloads.
+@immutable
+class GoogleRegistrationRequest {
+  const GoogleRegistrationRequest({required this.role, this.name, this.phone});
+
+  /// The only roles public registration may request; mirrors the backend
+  /// allowlist.
+  static const Set<String> publicRoles = <String>{'REQUESTER', 'RESPONDER'};
+
+  static const String _storageKey = 'eras.google.pending_registration';
+
+  final String role;
+  final String? name;
+  final String? phone;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'role': role,
+        if (name != null && name!.trim().isNotEmpty) 'name': name!.trim(),
+        if (phone != null && phone!.trim().isNotEmpty) 'phone': phone!.trim(),
+      };
+
+  /// Stores [request] for a Web redirect return, or clears the pending request
+  /// when [request] is null. Storage failures are never fatal.
+  static Future<void> persist(GoogleRegistrationRequest? request) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      if (request == null) {
+        await preferences.remove(_storageKey);
+        return;
+      }
+      await preferences.setString(_storageKey, jsonEncode(request.toJson()));
+    } catch (error) {
+      _logUnexpectedFailure('google registration persistence failed', error);
+    }
+  }
+
+  /// Reads and clears the pending request.
+  ///
+  /// Malformed values — including a role the backend would reject — are
+  /// discarded instead of being forwarded.
+  static Future<GoogleRegistrationRequest?> consume() async {
+    String? raw;
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      raw = preferences.getString(_storageKey);
+      if (raw != null) await preferences.remove(_storageKey);
+    } catch (error) {
+      _logUnexpectedFailure('google registration restore failed', error);
+      return null;
+    }
+    if (raw == null || raw.isEmpty) return null;
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! Map) return null;
+
+    final role = _nonEmptyText(decoded['role'])?.toUpperCase();
+    if (role == null || !publicRoles.contains(role)) return null;
+
+    return GoogleRegistrationRequest(
+      role: role,
+      name: _nonEmptyText(decoded['name']),
+      phone: _nonEmptyText(decoded['phone']),
+    );
+  }
+
+  /// Returns a trimmed non-empty string, or null for anything else.
+  static String? _nonEmptyText(Object? value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is GoogleRegistrationRequest &&
+      other.role == role &&
+      other.name == name &&
+      other.phone == phone;
+
+  @override
+  int get hashCode => Object.hash(role, name, phone);
+
+  @override
+  String toString() => 'GoogleRegistrationRequest(role: $role)';
+}
+
+/// The Firebase Auth calls the Flutter Web sign-in path depends on.
+///
+/// Behind an interface so the Web branch stays unit-testable on the VM (where
+/// `kIsWeb` is always false) and so tests never touch a real Firebase project.
+abstract class WebGoogleSignInHandler {
+  /// Runs the popup flow, or starts the redirect flow when the browser blocks
+  /// popups.
+  Future<GoogleSignInOutcome> signIn();
+
+  /// Completes a redirect return or restores Firebase's persisted session.
+  /// Returns null when there is nothing to resume.
+  Future<GoogleSignInOutcome?> resume();
+
+  Future<void> signOut();
+}
+
+/// Production Web implementation: Firebase Auth owns Google's OAuth UI.
+///
+/// Firebase validates the popup/redirect against the `authDomain` of the
+/// initialized Firebase app, so the deployed origin must be an authorized
+/// domain in Firebase Authentication (the Firebase Hosting domains of the
+/// project are authorized by default).
+class FirebaseWebGoogleSignInHandler implements WebGoogleSignInHandler {
+  const FirebaseWebGoogleSignInHandler();
+
+  @override
+  Future<GoogleSignInOutcome> signIn() async {
+    final auth = FirebaseAuth.instance;
+    try {
+      final credential = await auth.signInWithPopup(GoogleAuthProvider());
+      return GoogleSignInOutcome.completed(await _firebaseIdToken(credential));
+    } on FirebaseAuthException catch (error) {
+      return _handleSignInFailure(auth, error);
+    } on PlatformException catch (error) {
+      _logPlatformDiagnostic('google web sign-in failed', error);
+      throw GoogleAuthException(googleAuthErrorMessageForCode(error.code));
+    } catch (error) {
+      _logUnexpectedFailure('google web sign-in failed', error);
+      throw const GoogleAuthException(erasGoogleGenericFailureMessage);
+    }
+  }
+
+  @override
+  Future<GoogleSignInOutcome?> resume() async {
+    final auth = FirebaseAuth.instance;
+
+    // 1. An explicit redirect return. This also surfaces a redirect error that
+    //    would otherwise be lost with the page reload.
+    try {
+      final credential = await auth.getRedirectResult();
+      if (credential.user != null) {
+        return GoogleSignInOutcome.completed(await _firebaseIdToken(credential));
+      }
+    } on FirebaseAuthException catch (error) {
+      if (error.code == 'popup-closed-by-user' ||
+          error.code == 'cancelled-popup-request') {
+        return null;
+      }
+      _logGoogleAuthDiagnostic('google web redirect failed', code: error.code);
+      throw GoogleAuthException(googleAuthErrorMessageForCode(error.code));
+    } catch (error) {
+      // Nothing pending, or the result was already consumed: the persisted
+      // session below decides. Never block the login page on this.
+      _logUnexpectedFailure('google web redirect result unavailable', error);
+    }
+
+    // 2. Firebase Auth keeps the Google session across reloads (IndexedDB), so
+    //    a refresh - or a redirect return the SDK already consumed - only needs
+    //    a fresh ID token, never another popup.
+    final user = auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final token = await user.getIdToken();
+      if (token == null || token.isEmpty) return null;
+      return GoogleSignInOutcome.completed(token);
+    } on FirebaseAuthException catch (error) {
+      _logGoogleAuthDiagnostic(
+        'google web session restore failed',
+        code: error.code,
+      );
+      await _signOutQuietly(auth);
+      return null;
+    } catch (error) {
+      _logUnexpectedFailure('google web session restore failed', error);
+      return null;
+    }
+  }
+
+  @override
+  Future<void> signOut() async {
+    await FirebaseAuth.instance.signOut();
+  }
+
+  /// A browser without (allowed) popups continues in the same tab instead of
+  /// failing: Firebase restores the session when the page comes back.
+  Future<GoogleSignInOutcome> _handleSignInFailure(
+    FirebaseAuth auth,
+    FirebaseAuthException error,
+  ) async {
+    switch (error.code) {
+      case 'popup-closed-by-user':
+      case 'cancelled-popup-request':
+        // The user closed Google's window: nothing happened, nothing to show.
+        return const GoogleSignInOutcome.cancelled();
+      case 'popup-blocked':
+      case 'operation-not-supported-in-this-environment':
+        _logGoogleAuthDiagnostic(
+          'google web popup unavailable, using redirect',
+          code: error.code,
+        );
+        try {
+          await auth.signInWithRedirect(GoogleAuthProvider());
+        } on FirebaseAuthException catch (redirectError) {
+          throw GoogleAuthException(
+            googleAuthErrorMessageForCode(redirectError.code),
+          );
+        }
+        return const GoogleSignInOutcome.redirecting();
+      default:
+        _logGoogleAuthDiagnostic('google web sign-in failed', code: error.code);
+        throw GoogleAuthException(googleAuthErrorMessageForCode(error.code));
+    }
+  }
+}
+
+/// Maps a Firebase Auth error code to one safe, actionable sentence.
+///
+/// The raw code never reaches the user; it is written to the diagnostic log by
+/// the caller instead.
+@visibleForTesting
+String googleAuthErrorMessageForCode(String? code) {
+  final normalized = (code ?? '').trim();
+  final bareCode = normalized.startsWith('auth/')
+      ? normalized.substring('auth/'.length)
+      : normalized;
+  switch (bareCode) {
+    case 'popup-blocked':
+      return 'Your browser blocked the Google sign-in window. Allow pop-ups '
+          'for this site and try again.';
+    case 'popup-closed-by-user':
+    case 'cancelled-popup-request':
+      return 'Google sign-in was cancelled. Please try again.';
+    case 'unauthorized-domain':
+      return 'This website is not authorised for Google sign-in yet. Add this '
+          'domain to the Firebase Authentication authorized domains.';
+    case 'operation-not-allowed':
+      return 'Google sign-in is not enabled for this Firebase project.';
+    case 'account-exists-with-different-credential':
+      return 'An account with this email already uses a different sign-in '
+          'method. Sign in with that method to continue.';
+    case 'network-request-failed':
+      return 'Google sign-in needs a network connection. Please try again.';
+    case 'user-disabled':
+      return 'This account is disabled. Please contact your ERAS '
+          'administrator.';
+    case 'too-many-requests':
+      return 'Too many Google sign-in attempts. Please wait a moment and try '
+          'again.';
+    case 'timeout':
+      return 'Google sign-in timed out. Please try again.';
+    case 'invalid-credential':
+    case 'user-mismatch':
+    case 'internal-error':
+      return 'Google sign-in could not verify this account. Please try again.';
+    case 'invalid-api-key':
+    case 'api-key-not-valid':
+    case 'app-not-authorized':
+    case 'configuration-not-found':
+      return 'This ERAS build is not accepted by Firebase for Google sign-in. '
+          'Please contact your ERAS administrator.';
+    case 'web-storage-unsupported':
+      return 'Google sign-in needs browser storage to finish. Allow site data '
+          'for this site (private windows block it) and try again.';
+    default:
+      return erasGoogleGenericFailureMessage;
+  }
+}
+
+/// The Firebase ID token of a completed sign-in.
+///
+/// A missing token is a failed sign-in, never a silent success: the ERAS
+/// backend can only be reached with a verifiable token.
+Future<String> _firebaseIdToken(UserCredential credential) async {
+  final user = credential.user;
+  if (user == null) {
+    throw const GoogleAuthException(
+      'Google did not return a signed-in account. Please try again.',
+    );
+  }
+  final token = await user.getIdToken();
+  if (token == null || token.isEmpty) {
+    throw const GoogleAuthException(
+      'Google sign-in did not return a usable token. Please try again.',
+    );
+  }
+  return token;
+}
+
+/// Signs out of Firebase without letting a provider failure escape.
+Future<void> _signOutQuietly(FirebaseAuth auth) async {
+  try {
+    await auth.signOut();
+  } catch (error) {
+    _logUnexpectedFailure('google sign-out failed', error);
+  }
+}
+
+void _logGoogleAuthDiagnostic(String event, {String? code, String? detail}) {
+  final buffer = StringBuffer('[eras-auth] $event');
+  if (code != null && code.isNotEmpty) {
+    buffer.write(' code=$code');
+  }
+  if (detail != null && detail.isNotEmpty) {
+    buffer.write(' detail=${sanitizeGoogleAuthDiagnosticMessage(detail)}');
+  }
+  debugPrint(buffer.toString());
+}
+
+/// Logs the exception type only: plugin payloads can carry auth material.
+void _logUnexpectedFailure(String event, Object? error) {
+  _logGoogleAuthDiagnostic(event, detail: 'unexpected=${error.runtimeType}');
 }
 
 String _safePlatformDetails(Object? details) {
@@ -203,11 +622,13 @@ String _safePlatformDetails(Object? details) {
 }
 
 void _logPlatformDiagnostic(String operation, PlatformException error) {
-  debugPrint(
-    '$operation: code=${error.code}; '
-    'message=${sanitizeGoogleAuthDiagnosticMessage(error.message)}'
-    '${_safePlatformDetails(error.details)}',
+  _logGoogleAuthDiagnostic(
+    operation,
+    code: error.code,
+    detail: sanitizeGoogleAuthDiagnosticMessage(error.message),
   );
+  final details = _safePlatformDetails(error.details);
+  if (details.isNotEmpty) debugPrint('[eras-auth] $operation$details');
 }
 
 /// Google identity provider for ERAS.
@@ -222,8 +643,10 @@ void _logPlatformDiagnostic(String operation, PlatformException error) {
 ///      Google's published certificates and then issues the normal ERAS JWT.
 ///      The client never decides its own role or admin status.
 ///
-/// The service is intentionally thin and testable: it exposes an injectable
-/// token provider so widget/unit tests never need a real Google account.
+/// Flutter Web uses Firebase Auth's popup (with a redirect fallback); Android
+/// and iOS keep the platform Google account picker. The service is
+/// intentionally thin and testable: it exposes injectable seams so widget/unit
+/// tests never need a real Google account or browser.
 class GoogleAuthService {
   GoogleAuthService._();
 
@@ -241,21 +664,50 @@ class GoogleAuthService {
   @visibleForTesting
   static String? debugGoogleWebClientId;
 
+  /// Test seam: forces the Flutter Web strategy on the VM test runner.
+  @visibleForTesting
+  static bool? debugUseWebFlow;
+
+  /// Test seam: replaces the Firebase Auth Web calls.
+  @visibleForTesting
+  static WebGoogleSignInHandler? debugWebHandler;
+
+  /// Test seam: replaces the "this build has Firebase configuration" check.
+  @visibleForTesting
+  static bool? debugFirebaseConfigured;
+
+  /// Test seam: replaces `Firebase.initializeApp` readiness.
+  @visibleForTesting
+  static Future<bool> Function() debugEnsureFirebaseReady =
+      ErasFirebaseConfig.ensureInitialized;
+
   /// True when this build can attempt Google sign-in.
-  bool get isConfigured =>
-      debugTokenProvider != null || ErasFirebaseConfig.isConfigured;
+  bool get isConfigured {
+    final forced = debugFirebaseConfigured;
+    if (forced != null) return forced;
+    if (debugTokenProvider != null) return true;
+    return ErasFirebaseConfig.isConfigured;
+  }
+
+  /// True when Google authentication runs through Firebase Auth's Web flow.
+  bool get usesWebSignInFlow => debugUseWebFlow ?? kIsWeb;
+
+  /// The mechanism this build uses (see [resolveGoogleSignInStrategy]).
+  GoogleSignInStrategy get strategy =>
+      resolveGoogleSignInStrategy(isWeb: usesWebSignInFlow);
 
   /// The OAuth client configuration this build hands to `GoogleSignIn`.
   ///
-  /// Exposed for tests: it is the single place that decides which OAuth
-  /// identifiers reach the Google SDK, and [buildSignInClient] is the single
-  /// place that turns them into a client.
+  /// Native only: the Web path never constructs a `GoogleSignIn`. Exposed for
+  /// tests because it is the single place that decides which OAuth identifiers
+  /// reach the Google SDK, and [buildSignInClient] is the single place that
+  /// turns them into a client.
   @visibleForTesting
   GoogleSignInClientConfig get clientConfig {
     final webClientId =
         debugGoogleWebClientId ?? ErasFirebaseConfig.googleWebClientId;
     return resolveGoogleSignInClientConfig(
-      isWeb: kIsWeb,
+      isWeb: usesWebSignInFlow,
       platform: defaultTargetPlatform,
       googleWebClientId: webClientId,
     );
@@ -278,70 +730,129 @@ class GoogleAuthService {
 
   GoogleSignIn get _googleSignIn => buildSignInClient();
 
+  WebGoogleSignInHandler get _webHandler =>
+      debugWebHandler ?? const FirebaseWebGoogleSignInHandler();
+
   /// Runs the Google flow and returns the Firebase **ID token**.
   ///
-  /// Returns null when the user dismissed the Google sheet without choosing an
-  /// account (not an error: nothing is created and no session changes).
+  /// Returns null when the user dismissed the Google UI (not an error: nothing
+  /// is created and no session changes) or when Flutter Web switched to a
+  /// redirect and the flow resumes after the reload.
   ///
   /// Throws [GoogleAuthException] with a user-safe message on any real
   /// failure, so the UI can show one honest, non-technical string.
-  Future<String?> signInAndGetIdToken() async {
+  Future<String?> signInAndGetIdToken() async => (await signIn()).idToken;
+
+  /// Starts Google authentication.
+  ///
+  /// [registration] is the public role a first-time Google user selected on the
+  /// registration screen. It is only ever a request for a brand-new ERAS
+  /// account; the backend ignores it for an existing account.
+  Future<GoogleSignInOutcome> signIn({
+    GoogleRegistrationRequest? registration,
+  }) async {
     final injected = debugTokenProvider;
-    if (injected != null) return injected();
-
-    if (!ErasFirebaseConfig.isConfigured) {
-      throw const GoogleAuthException(
-        'Google sign-in is not configured for this ERAS deployment.',
-      );
+    if (injected != null) {
+      final token = await injected();
+      if (token == null || token.isEmpty) {
+        return const GoogleSignInOutcome.cancelled();
+      }
+      return GoogleSignInOutcome.completed(token);
     }
 
-    final ready = await ErasFirebaseConfig.ensureInitialized();
+    if (!isConfigured) {
+      throw const GoogleAuthException(erasGoogleNotConfiguredMessage);
+    }
+
+    final ready = await debugEnsureFirebaseReady();
     if (!ready) {
-      throw const GoogleAuthException(
-        'Google sign-in is not configured for this ERAS deployment.',
-      );
+      throw const GoogleAuthException(erasGoogleNotConfiguredMessage);
     }
 
+    switch (strategy) {
+      case GoogleSignInStrategy.firebaseWebPopup:
+        // A Web redirect reloads the page, so the registration choice must
+        // survive it. Login attempts clear anything a previous aborted
+        // redirect left behind.
+        await GoogleRegistrationRequest.persist(registration);
+        return _webHandler.signIn();
+      case GoogleSignInStrategy.nativeAccountPicker:
+        // Native sign-in never reloads the page: nothing to persist.
+        await GoogleRegistrationRequest.persist(null);
+        return _signInWithAccountPicker();
+    }
+  }
+
+  /// Flutter Web only: completes a Google sign-in that Firebase left pending.
+  ///
+  /// Called once when the login/registration screen appears. Returns null when
+  /// there is nothing to resume, which is the normal case for every native
+  /// platform and for a browser with no Google session.
+  Future<GoogleWebResumeResult?> resumeWebSignIn() async {
+    if (!usesWebSignInFlow) return null;
+    if (debugTokenProvider != null) return null;
+    if (!isConfigured) return null;
+    if (!await debugEnsureFirebaseReady()) return null;
+
+    final outcome = await _webHandler.resume();
+    if (outcome == null) {
+      // No pending Google session: drop a stale registration choice so it can
+      // never be applied to an unrelated later sign-in.
+      await GoogleRegistrationRequest.persist(null);
+      return null;
+    }
+
+    return GoogleWebResumeResult(
+      outcome: outcome,
+      registration: await GoogleRegistrationRequest.consume(),
+    );
+  }
+
+  /// Android/iOS/desktop: account picker plus Firebase credential exchange.
+  Future<GoogleSignInOutcome> _signInWithAccountPicker() async {
     try {
       final account = await _googleSignIn.signIn();
-      if (account == null) return null;
+      if (account == null) return const GoogleSignInOutcome.cancelled();
 
       final authentication = await account.authentication;
-      if (authentication.idToken == null &&
-          authentication.accessToken == null) {
+      final idToken = authentication.idToken;
+      final accessToken = authentication.accessToken;
+      if (idToken == null && accessToken == null) {
         throw const GoogleAuthException(
           'Google did not return an identity token for this account.',
         );
       }
 
       final credential = GoogleAuthProvider.credential(
-        idToken: authentication.idToken,
-        accessToken: authentication.accessToken,
+        idToken: idToken,
+        accessToken: accessToken,
       );
       final userCredential =
           await FirebaseAuth.instance.signInWithCredential(credential);
 
       // Always read the token from Firebase Auth, so the value sent to ERAS is
       // a fresh Firebase ID token (never a raw Google token from the sheet).
-      final idToken = await userCredential.user?.getIdToken();
-      if (idToken == null || idToken.isEmpty) {
+      final token = await userCredential.user?.getIdToken();
+      if (token == null || token.isEmpty) {
         throw const GoogleAuthException(
           'Google sign-in did not return a usable token. Please try again.',
         );
       }
-      return idToken;
+      return GoogleSignInOutcome.completed(token);
     } on GoogleAuthException {
       rethrow;
     } on FirebaseAuthException catch (error) {
-      debugPrint('google sign-in failed: ${error.code}');
-      throw GoogleAuthException(_messageForCode(error.code));
+      _logGoogleAuthDiagnostic('google sign-in failed', code: error.code);
+      throw GoogleAuthException(googleAuthErrorMessageForCode(error.code));
     } on PlatformException catch (error) {
       // Keep the native code and a redacted one-line message for diagnostics.
       // google_sign_in reports a dismissed account sheet as
       // `sign_in_canceled`. That is a normal user choice - no error, no
       // session change - so it must not be shown as a failure.
       _logPlatformDiagnostic('google sign-in cancelled/failed', error);
-      if (error.code == 'sign_in_canceled') return null;
+      if (error.code == 'sign_in_canceled') {
+        return const GoogleSignInOutcome.cancelled();
+      }
       throw const GoogleAuthException(
         'Google sign-in could not be completed on this device. '
         'You can still sign in with your email and password.',
@@ -349,11 +860,8 @@ class GoogleAuthService {
     } catch (error) {
       // Never stringify unexpected plugin errors: their payload may contain
       // auth material. The exception type is sufficient for safe diagnostics.
-      debugPrint('google sign-in failed: unexpected=${error.runtimeType}');
-      throw const GoogleAuthException(
-        'Google sign-in could not be completed. '
-        'You can still sign in with your email and password.',
-      );
+      _logUnexpectedFailure('google sign-in failed', error);
+      throw const GoogleAuthException(erasGoogleGenericFailureMessage);
     }
   }
 
@@ -363,40 +871,17 @@ class GoogleAuthService {
   /// the upstream provider so the next attempt shows the account picker.
   Future<void> signOut() async {
     try {
-      if (FirebaseAuth.instance.currentUser != null) {
-        await FirebaseAuth.instance.signOut();
+      if (usesWebSignInFlow) {
+        await _signOutQuietly(FirebaseAuth.instance);
+        return;
       }
-      if (ErasFirebaseConfig.isConfigured) {
-        await _googleSignIn.signOut();
-      }
+      if (!isConfigured) return;
+      await _signOutQuietly(FirebaseAuth.instance);
+      await _googleSignIn.signOut();
     } on PlatformException catch (error) {
       _logPlatformDiagnostic('google sign-out failed', error);
-    } on FirebaseAuthException catch (error) {
-      debugPrint('google sign-out failed: ${error.code}');
     } catch (error) {
-      debugPrint('google sign-out failed: unexpected=${error.runtimeType}');
-    }
-  }
-
-  /// Never surfaces raw Firebase codes; the user gets one actionable sentence.
-  String _messageForCode(String code) {
-    switch (code) {
-      case 'account-exists-with-different-credential':
-        return 'An account with this email already uses a different sign-in '
-            'method. Sign in with that method to continue.';
-      case 'network-request-failed':
-        return 'Google sign-in needs a network connection. Please try again.';
-      case 'user-disabled':
-        return 'This account is disabled. Please contact your ERAS '
-            'administrator.';
-      case 'operation-not-allowed':
-        return 'Google sign-in is not enabled for this Firebase project.';
-      case 'user-mismatch':
-      case 'invalid-credential':
-        return 'Google sign-in could not verify this account. Please try again.';
-      default:
-        return 'Google sign-in could not be completed. '
-            'You can still sign in with your email and password.';
+      _logUnexpectedFailure('google sign-out failed', error);
     }
   }
 }

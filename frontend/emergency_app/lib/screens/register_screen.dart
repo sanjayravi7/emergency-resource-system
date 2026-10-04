@@ -62,12 +62,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool loading = false, hidePassword = true, hideConfirm = true;
   String? error;
 
+  /// Neutral, non-error feedback (for example while a Google redirect starts).
+  String? statusMessage;
+
   /// Selected role. Kept only for the duration of the form; the persisted
   /// role always lives in PostgreSQL via the registration API.
   RegistrationRole? selectedRole;
 
   /// Validation message shown when submit is attempted with no role chosen.
   String? roleError;
+
+  @override
+  void initState() {
+    super.initState();
+    // Flutter Web: a Google redirect that started on this screen returns here
+    // (or on the login screen) and is resumed without another popup.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resumeWebGoogleSignUp();
+    });
+  }
 
   void selectRole(RegistrationRole role) {
     setState(() {
@@ -366,7 +379,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   /// The selected role is only a *request* for a brand-new ERAS account; the
   /// server ignores it for an existing Firebase UID or a verified-email match,
   /// preserving the existing ERAS role. Public Google registration can never
-  /// create an ADMIN.
+  /// create an ADMIN. Flutter Web runs the popup/redirect flow inside Firebase
+  /// Auth; the chosen role is stored for the duration of a redirect so the
+  /// resumed flow can still create the right account.
   Future<void> signUpWithGoogle() async {
     if (loading) return;
     FocusScope.of(context).unfocus();
@@ -379,43 +394,106 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() {
       loading = true;
       error = null;
+      statusMessage = null;
     });
 
     try {
-      final idToken = await GoogleAuthService.instance.signInAndGetIdToken();
-      if (idToken == null) return; // dismissed the account sheet
-
-      final response = await ApiService.googleSignIn(
-        idToken: idToken,
-        role: selectedRole!.wireName,
-        name: name.text.trim(),
-        phone: phone.text.trim(),
+      final outcome = await GoogleAuthService.instance.signIn(
+        registration: GoogleRegistrationRequest(
+          role: selectedRole!.wireName,
+          name: name.text.trim(),
+          phone: phone.text.trim(),
+        ),
       );
       if (!mounted) return;
-      if (ApiService.isNewGoogleUser(response)) {
-        final data = ApiService.authResponseData(response);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => AuthWelcomeScreen(
-              welcomeEmailDeliveryResult:
-                  data['welcomeEmailDeliveryResult']?.toString(),
-            ),
-          ),
-        );
-      } else {
-        // Existing linked/known Google accounts enter their normal ERAS route.
-        _openAuthenticatedArea();
+      if (outcome.isRedirecting) {
+        setState(() => statusMessage = 'Continuing with Google in this tab…');
+        return;
       }
+      final idToken = outcome.idToken;
+      if (idToken == null) return; // dismissed the Google sheet
+      await _completeGoogleSignUp(idToken);
     } on GoogleAuthException catch (e) {
       if (mounted) setState(() => error = e.message);
     } catch (e) {
-      final message = e.toString().replaceFirst('Exception: ', '');
-      if (mounted) setState(() => error = message);
+      if (mounted) setState(() => error = _safeErrorMessage(e));
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
+
+  /// Exchanges a Firebase ID token for the ERAS session and routes the user.
+  Future<void> _completeGoogleSignUp(
+    String idToken, {
+    GoogleRegistrationRequest? registration,
+  }) async {
+    final Map<String, dynamic> response;
+    try {
+      response = await ApiService.googleSignIn(
+        idToken: idToken,
+        role: registration?.role ?? selectedRole?.wireName,
+        name: registration?.name ?? name.text.trim(),
+        phone: registration?.phone ?? phone.text.trim(),
+      );
+    } catch (_) {
+      // Firebase authenticated this browser but ERAS did not create a session:
+      // clear the provider session so no half-authenticated state is left.
+      await GoogleAuthService.instance.signOut();
+      rethrow;
+    }
+
+    if (!mounted) return;
+    if (ApiService.isNewGoogleUser(response)) {
+      final data = ApiService.authResponseData(response);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => AuthWelcomeScreen(
+            welcomeEmailDeliveryResult:
+                data['welcomeEmailDeliveryResult']?.toString(),
+          ),
+        ),
+      );
+    } else {
+      // Existing linked/known Google accounts enter their normal ERAS route.
+      _openAuthenticatedArea();
+    }
+  }
+
+  /// Flutter Web: finishes a Google sign-in Firebase left pending, for example
+  /// a registration redirect that returned to this screen.
+  Future<void> _resumeWebGoogleSignUp() async {
+    GoogleWebResumeResult? result;
+    try {
+      result = await GoogleAuthService.instance.resumeWebSignIn();
+    } on GoogleAuthException catch (e) {
+      if (mounted) setState(() => error = e.message);
+      return;
+    } catch (_) {
+      return;
+    }
+
+    final idToken = result?.outcome.idToken;
+    if (idToken == null || !mounted) return;
+
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      await _completeGoogleSignUp(idToken, registration: result?.registration);
+    } on GoogleAuthException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } catch (e) {
+      if (mounted) setState(() => error = _safeErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  /// One safe sentence for anything that is not a [GoogleAuthException].
+  String _safeErrorMessage(Object error) =>
+      error.toString().replaceFirst('Exception: ', '');
 
   void _openAuthenticatedArea() {
     if (ApiService.isResponder) {
