@@ -89,6 +89,9 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   bool get _hasCoordinates =>
       widget.latitude != null && widget.longitude != null;
 
+  bool get _canRenderMapPreview =>
+      !kIsWeb || widget.locationService.isAvailable;
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -604,7 +607,7 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         ],
         if (widget.showMapPreview && _hasCoordinates) ...[
           const SizedBox(height: 10),
-          _mapPreview(),
+          _canRenderMapPreview ? _mapPreview() : _mapPreviewUnavailable(p),
         ],
       ],
     );
@@ -955,6 +958,32 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       ),
     );
   }
+
+  Widget _mapPreviewUnavailable(ErasPalette p) => Container(
+        height: 190,
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: p.surface2,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: p.border),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.map_outlined, color: p.textFaint),
+              const SizedBox(height: 8),
+              Text(
+                'Map preview is temporarily unavailable. '
+                'Your coordinates are retained.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: p.textDim),
+              ),
+            ],
+          ),
+        ),
+      );
 
   Widget _mapPreview() {
     final target = LatLng(widget.latitude!, widget.longitude!);

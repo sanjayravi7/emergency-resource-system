@@ -11,8 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 ///   Requests to this API places.googleapis.com method
 ///   google.maps.places.v1.Places.AutocompletePlaces are blocked.
 ///
-/// Both are key/API-restriction problems, and ERAS must classify them as such
-/// (to show the right guidance) without ever hiding the raw Google text.
+/// Both are key/API-restriction problems. ERAS must classify them and retain
+/// raw diagnostics while showing safe messages in the normal requester flow.
 void main() {
   group('isGeocodingApiDeniedError', () {
     test('recognises the Maps JS geocoder denial verbatim', () {
@@ -50,6 +50,55 @@ void main() {
       expect(kGeocodingApiDeniedHint, contains('Geocoding API'));
       expect(kGeocodingApiDeniedHint, contains('API restrictions'));
       expect(kGeocodingApiDeniedHint, contains('HTTP referrer'));
+    });
+  });
+
+  group('safe browser Maps configuration messages', () {
+    test('recognises invalid key, rejected referrer and blocked Maps APIs', () {
+      expect(isGoogleMapsConfigurationError('InvalidKeyMapError'), isTrue);
+      expect(
+        isGoogleMapsConfigurationError('RefererNotAllowedMapError'),
+        isTrue,
+      );
+      expect(
+        isGoogleMapsConfigurationError('ApiTargetBlockedMapError'),
+        isTrue,
+      );
+      expect(isGoogleMapsConfigurationError('3: API key not valid.'), isTrue);
+      expect(isGoogleMapsConfigurationError('ZERO_RESULTS'), isFalse);
+    });
+
+    test(
+      'uses a safe user-facing message without echoing provider details',
+      () {
+        const raw = '3: API key not valid. InvalidKeyMapError';
+        final message = googleLocationUserMessage(raw);
+
+        expect(message, kGoogleMapsConfigurationUserMessage);
+        expect(message, isNot(contains('InvalidKeyMapError')));
+        expect(message, isNot(contains('API key not valid')));
+        expect(message, isNot(contains('AIza')));
+
+        final exception = LocationServiceException(
+          message,
+          details: raw,
+        );
+        expect(exception.message, kGoogleMapsConfigurationUserMessage);
+        expect(exception.details, raw);
+        expect(exception.toString(), kGoogleMapsConfigurationUserMessage);
+      },
+    );
+
+    test('disabled Places API details are also sanitized for place search', () {
+      const raw = 'Places API (New) has not been used in project 1234567890';
+      expect(
+        googleLocationUserMessage(raw),
+        kGoogleMapsConfigurationUserMessage,
+      );
+      expect(
+        googleLocationUserMessage(raw),
+        isNot(contains('1234567890')),
+      );
     });
   });
 

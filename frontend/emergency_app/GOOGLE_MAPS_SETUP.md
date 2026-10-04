@@ -12,15 +12,17 @@ key in the Android manifest or the Android key in `web/google_maps_config.js`.
 
 | | **BROWSER key** |
 | --- | --- |
-| Stored in | `frontend/emergency_app/web/google_maps_config.js` (git-ignored) |
+| Stored in | Generated `web/google_maps_config.js` (git-ignored) |
+| Source | `ERAS_GOOGLE_MAPS_API_KEY` environment variable for release builds; local development may use the ignored file copied from the template |
 | Visible to users | **Yes** — it is downloaded by every browser |
 | APIs (enabled *and* in the key's API restrictions) | **Maps JavaScript API**, **Places API (New)** |
-| Application restrictions | HTTP referrers (web sites) |
-| Used by | `web/index.html`, `web/eras_location_bridge.js`, `google_maps_flutter` |
+| Application restrictions | HTTP referrers (web sites); **not** server/IP restrictions |
+| Used by | `web/eras_google_maps_loader.js`, `web/eras_location_bridge.js`, `google_maps_flutter_web` |
 
 Notes:
 
-- The browser key **must** be public: the Maps JavaScript API is loaded by the browser, so the key is in the page. The only protection Google offers for it is the HTTP-referrer allow-list, which is why its API restrictions must stay limited to the browser APIs above.
+- The browser key **must** be public: the Maps JavaScript API is loaded by the browser, so the key is in the page. The protection is Google Cloud's HTTP-referrer allow-list and API restrictions; keep both enabled and restricted.
+- The release helper validates Google's standard browser-key shape (39 characters beginning with `AIza`) without printing the value. This catches truncated/placeholder configuration before deployment; syntactic validity does not prove that the key is active or authorized for an origin/API.
 - **No server-side Google key is required.** Google Maps URLs (`https://www.google.com/maps/dir/?api=1&…`) are key-less and free, and reverse geocoding uses Photon, not Google.
 
 ## 1. Google Cloud project
@@ -68,7 +70,10 @@ Create the keys under **APIs & Services → Credentials**. Do not commit unrestr
   - `http://127.0.0.1:8081/*`
   - (optional wildcards during development: `http://localhost:*/*`, `http://127.0.0.1:*/*`)
   - Arena preview hosts, for example `https://*-*.e2b.app/*`
-- **Production referrers:** add only the exact deployed ERAS origin(s), for example `https://eras.example.org/*`
+- **Required production referrers:** add both exact production origins to this browser key:
+  - `https://eras.website/*`
+  - `https://eras-production-f3ce6.web.app/*`
+- Do not replace the HTTP-referrer restriction with an unrestricted key, an IP restriction, or a server key. Add only these production sites plus the specific development origins you need.
 
 Reuse the project's existing browser key — do not create another browser key. Adding the two missing APIs to that browser key is the Web configuration fix.
 
@@ -114,11 +119,11 @@ http://localhost:8080/eras_location_diagnostics.html
 http://localhost:8081/eras_location_diagnostics.html
 ```
 
-It prints, live and unmodified:
+It reports, live and without exposing the key:
 
 - the exact `window.location.origin` Google sees, and the referrer entry to allow-list (`<origin>/*`),
-- the masked key actually used at runtime (last 4 characters + length) and the loader URL,
-- whether `google.maps`, the `places` library and the Places API (New) classes loaded,
+- the masked key actually used at runtime (last 4 characters + length), its syntax check, and a masked loader URL,
+- the shared loader state/script count, plus whether `google.maps`, the `places` library and the Places API (New) classes loaded,
 - the verbatim result of three probes: `Geocoder.geocode`, `AutocompleteSuggestion.fetchAutocompleteSuggestions`, `Place.searchNearby`,
 - the concrete Google Cloud fix for whichever probe failed.
 
@@ -128,7 +133,7 @@ The same report is available in the app console:
 JSON.parse(await erasLocationBridge.diagnostics(10.00846, 76.45163))
 ```
 
-`web/index.html` also logs the masked key + origin at startup and installs `window.gm_authFailure`, so a rejected key is reported explicitly instead of failing silently.
+`web/index.html` records only the masked key/length and origin in `ERAS_MAPS_RUNTIME`, and installs `window.gm_authFailure`. Rejected authorization shows a safe user message; `erasLocationBridge.diagnostics()` retains the detailed Google responses without ever returning the complete key.
 
 ## 4. Local Flutter Web configuration
 
@@ -145,7 +150,9 @@ Edit `web/google_maps_config.js`:
 window.ERAS_GOOGLE_MAPS_API_KEY = 'YOUR_REFERRER_RESTRICTED_MAPS_JS_API_KEY';
 ```
 
-`web/google_maps_config.js` is ignored by Git. `web/index.html` loads it at runtime, then loads the Maps JavaScript API with the direct script loader before starting Flutter. This is intentional: `google_maps_flutter_web` reads globals such as `google.maps.MapTypeId.ROADMAP`, while the newer `importLibrary` bootstrap keeps those globals lazy until application code imports the `maps` library.
+`web/google_maps_config.js` is ignored by Git. For a release build, `tool/build_production_web.sh` writes it from `ERAS_GOOGLE_MAPS_API_KEY`, builds Flutter Web, then verifies that the final `build/web/google_maps_config.js` exactly matches the configured environment value (without printing it). Use that helper for production builds/deploys; a plain compile-only `flutter build web` without the environment variable intentionally has no Maps key.
+
+`web/eras_google_maps_loader.js` is the **only Maps JavaScript API bootstrap/script loader**. It uses Google's current Dynamic Library Import bootstrap and awaits both `importLibrary('maps')` and `importLibrary('places')` before Flutter starts. This leaves `google.maps.MapTypeId` and other globals ready for `google_maps_flutter_web`. The singleton reuses its existing promise/importer/script if already loaded or loading. The Places bridge only imports the missing library through that same state; it never inserts a script or registers another bootstrap. The diagnostics page uses the same helper rather than maintaining a second loader implementation.
 
 ## 5. Running locally
 
@@ -155,11 +162,11 @@ flutter pub get
 flutter run -d chrome
 ```
 
-If the key is missing, ERAS logs a browser-console warning and the map cannot load Google tiles. Request creation and text-only locations still work; ERAS never substitutes fake coordinates.
+If the key is missing or malformed, the Maps loader fails with a clear configuration error, displays a safe user-facing notice, and does not insert a script. Firebase Auth and the rest of ERAS still start. Text-only request locations remain editable; ERAS never substitutes fake coordinates. The diagnostics page reports the masked key/source and required referrer/API settings.
 
 ## 6. Requester location workflow (client side)
 
-`web/index.html` loads the Maps JavaScript API with `&libraries=places`, then `web/eras_location_bridge.js`, then Flutter.
+`web/index.html` initializes the one shared Maps loader, which imports Maps and Places before loading `web/eras_location_bridge.js` and starting Flutter.
 
 - `lib/services/location_service.dart` — platform-agnostic contract (`reverseGeocode`, `autocomplete`, `resolvePrediction`, `searchNearbyPlaces`) plus the `GeoPoint` / `ResolvedPlace` / `PlacePrediction` / `NearbyPlace` models and the `NearbyPlaceCategory` → Google place-type mapping.
 - `lib/services/location_service_web.dart` — Flutter Web implementation; reverse geocoding calls the authenticated ERAS backend, while Google Places calls remain in `window.erasLocationBridge`.
@@ -267,3 +274,13 @@ https://www.google.com/maps/dir/?api=1
 - Responder live location: Socket.IO `responder.location.update` updates `LiveLocationStore`, and the Google Map marker moves immediately without a REST refresh.
 - Navigation: the map draws a direct connection line between the responder's latest coordinate and the emergency coordinate (local geometry only); actual driving directions come from the key-less Google Maps URL opened by **Get directions**.
 - Terminal requests: completed/cancelled requests are removed from active map tracking and their connection line is removed.
+
+## 9. Post-deployment verification
+
+After building with `tool/build_production_web.sh` and deploying the verified `build/web` artifact, smoke-test both production origins (`https://eras.website` and `https://eras-production-f3ce6.web.app`) if both serve the application:
+
+1. Open **New Emergency** → **Place/Location**, type a real place, choose a Places suggestion, and confirm the selected label and latitude/longitude are populated and retained through request submission.
+2. Exercise current-location selection and confirm the resulting coordinates are retained; do not accept a fabricated/default coordinate.
+3. In DevTools, confirm there is one Maps JavaScript API script/bootstrap and no `InvalidKeyMapError`, referrer/API authorization failure, or duplicate custom-element definition warning.
+4. Confirm map tiles and Places search both work. If either fails, use the diagnostics page to inspect the origin, masked key/configuration status, loader counts, and API probes; do not print/copy the full browser key into logs or tickets.
+5. Smoke-test the existing Android/iOS flows separately; this Web loader change must not alter native Maps or email/OTP authentication.

@@ -27,6 +27,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Verify Google Maps loader and Places bridge
+        run: |
+          node tool/eras_google_maps_loader_test.mjs
+          node tool/eras_location_bridge_test.mjs
+
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed .
 

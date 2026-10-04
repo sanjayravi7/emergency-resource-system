@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/eras_models.dart';
+import '../services/location_service.dart';
 import '../services/direct_connection_service.dart';
 import '../services/url_launcher_adapter.dart';
 import '../theme/app_theme.dart';
@@ -323,6 +325,10 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
   @override
   Widget build(BuildContext context) {
     final p = ErasPalette.of(context);
+    if (kIsWeb && !createLocationService().isAvailable) {
+      return _mapsUnavailablePanel(p);
+    }
+
     final snapshots = _snapshots;
     final markers = snapshots.map((snapshot) => snapshot.toMarker()).toSet();
     final textOnlyOpenRequests = _textOnlyOpenRequests;
@@ -502,6 +508,32 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
       },
     );
   }
+
+  Widget _mapsUnavailablePanel(ErasPalette p) => Container(
+        key: const Key('operational-map-unavailable'),
+        width: double.infinity,
+        height: widget.isMobile ? 340 : 380,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: p.surface2,
+          border: Border.all(color: p.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.map_outlined, color: p.textFaint, size: 28),
+              const SizedBox(height: 10),
+              Text(
+                'Map is temporarily unavailable. Location data is retained.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: p.textDim, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
 
   CameraPosition _initialCamera(List<OperationalMapMarkerSnapshot> snapshots) {
     // GoogleMap is only built when a real request/responder coordinate exists.

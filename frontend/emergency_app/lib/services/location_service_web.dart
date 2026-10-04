@@ -11,8 +11,9 @@ import 'api_service.dart';
 /// Flutter Web implementation.
 ///
 /// All Google calls are made by `web/eras_location_bridge.js`, which talks to
-/// the Maps JavaScript API that `web/index.html` already loads with the
-/// referrer-restricted browser key from `web/google_maps_config.js`:
+/// Maps and Places loaded through the single idempotent loader in
+/// `web/eras_google_maps_loader.js`. Release builds source the referrer-
+/// restricted browser key from `ERAS_GOOGLE_MAPS_API_KEY`:
 ///
 ///   * reverse geocoding -> authenticated ERAS backend (Photon)
 ///   * autocomplete      -> google.maps.places.AutocompleteSuggestion
@@ -55,8 +56,7 @@ class WebLocationService implements LocationService {
     final bridge = _bridge;
     if (bridge == null) {
       throw const LocationServiceException(
-        'Google Maps JavaScript API is not loaded, so places cannot be '
-        'resolved. Configure web/google_maps_config.js.',
+        kGoogleMapsConfigurationUserMessage,
       );
     }
 
@@ -83,8 +83,19 @@ class WebLocationService implements LocationService {
 
     final map = Map<String, dynamic>.from(decoded);
     if (map['ok'] != true) {
+      final rawMessage =
+          (map['error'] as String?) ?? 'Google place lookup failed.';
+      // Preserve the disabled-Places classification for its dedicated safe UI
+      // state. All other requester actions get a safe message; retain the raw
+      // provider text only as optional diagnostic detail, never as the UI text.
+      final isDisabledPlaces =
+          method == 'searchNearby' && isPlacesApiDisabledError(rawMessage);
+      final userMessage = isDisabledPlaces
+          ? rawMessage
+          : googleLocationUserMessage(rawMessage);
       throw LocationServiceException(
-        (map['error'] as String?) ?? 'Google place lookup failed.',
+        userMessage,
+        details: userMessage == rawMessage ? null : rawMessage,
       );
     }
     return map;
@@ -199,10 +210,11 @@ class WebLocationService implements LocationService {
       ]);
     } on LocationServiceException catch (error) {
       // The screenshot failure mode: Places API (New) disabled/not enabled.
-      // Surface it as a distinct, actionable error so the NEARBY PLACES
-      // section can degrade gracefully without touching the rest of the form.
-      if (isPlacesApiDisabledError(error.message)) {
-        throw PlacesApiDisabledException(details: error.message);
+      // Classify using the raw diagnostic detail when the UI message was
+      // sanitized, then show only the dedicated safe message in the form.
+      final diagnostic = error.details ?? error.message;
+      if (isPlacesApiDisabledError(diagnostic)) {
+        throw PlacesApiDisabledException(details: diagnostic);
       }
       rethrow;
     }

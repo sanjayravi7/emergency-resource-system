@@ -238,6 +238,7 @@ class PlacesApiDisabledException implements LocationServiceException {
   String get message => userMessage;
 
   /// Original Google error text, kept for logging/debugging.
+  @override
   final String? details;
 
   @override
@@ -315,12 +316,51 @@ bool isPlacesApiDisabledError(String message) {
   return false;
 }
 
+/// Safe app-facing message for Maps/Places authorization and configuration
+/// failures. The raw Google detail remains available in the ERAS diagnostics,
+/// but invalid key strings, project identifiers and provider errors are not
+/// echoed into the requester's normal workflow UI.
+const String kGoogleMapsConfigurationUserMessage =
+    'Place search is temporarily unavailable. Please try again later '
+    'or contact ERAS support.';
+
+/// Whether [message] indicates browser key, referrer, or Maps API setup rather
+/// than an ordinary no-results/network response.
+bool isGoogleMapsConfigurationError(String message) {
+  final text = message.toLowerCase();
+  return text.contains('invalidkeymaperror') ||
+      text.contains('referernotallowedmaperror') ||
+      text.contains('apitargetblockedmaperror') ||
+      text.contains('api key not valid') ||
+      text.contains('invalid api key') ||
+      text.contains('request_denied') ||
+      text.contains('permission_denied') ||
+      text.contains('not authorized to use') ||
+      text.contains('are blocked') ||
+      text.contains('google maps javascript api is not loaded') ||
+      text.contains('google places library is not loaded') ||
+      text.contains('eras_google_maps_api_key');
+}
+
+/// Keeps ordinary provider failures useful, while reducing credential and
+/// authorization failures to one safe user-facing message.
+String googleLocationUserMessage(String message) {
+  if (isGoogleMapsConfigurationError(message) ||
+      isPlacesApiDisabledError(message)) {
+    return kGoogleMapsConfigurationUserMessage;
+  }
+  return message;
+}
+
 /// Raised when Google could not resolve a location. The caller must keep the
 /// coordinates it already has and must not invent a place name.
 class LocationServiceException implements Exception {
-  const LocationServiceException(this.message);
+  const LocationServiceException(this.message, {this.details});
 
   final String message;
+
+  /// Optional provider detail retained for diagnostics, never required for UI.
+  final String? details;
 
   @override
   String toString() => message;
