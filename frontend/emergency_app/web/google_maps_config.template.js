@@ -1,5 +1,6 @@
-// Copy this file to web/google_maps_config.js for local development.
-// Do not commit google_maps_config.js or any unrestricted/production API key.
+// Copy this file to web/google_maps_config.js for local development only.
+// Production builds source this value from ERAS_GOOGLE_MAPS_API_KEY via
+// tool/build_production_web.sh. Do not commit the generated file or any key.
 //
 // This is the BROWSER key. It is loaded by web/index.html into the Maps
 // JavaScript API loader, so it is necessarily visible in the browser and must
@@ -19,7 +20,9 @@
 //     http://127.0.0.1:8080/*
 //     http://localhost:8081/*
 //     http://127.0.0.1:8081/*
-//     (add your Arena/preview or production origins as needed)
+//     https://eras.website/*
+//     https://eras-production-f3ce6.web.app/*
+//     (add exact local/Arena preview origins only where needed)
 //
 // Driving directions are NOT computed by ERAS: the map draws a direct
 // connection line and "Get directions" opens a key-less Google Maps URL

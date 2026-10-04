@@ -368,10 +368,10 @@ console.log('diagnostics() reports key/origin/libraries without leaking the key'
         keyConfigured: true,
         keyMasked: '****1234',
         keyLength: 39,
-        keySource: 'web/google_maps_config.js',
-        libraries: 'places',
+        keySource: 'ERAS_GOOGLE_MAPS_API_KEY',
+        libraries: 'maps,places',
         loaderUrl:
-          'https://maps.googleapis.com/maps/api/js?key=****1234&libraries=places&v=weekly',
+          'https://maps.googleapis.com/maps/api/js?libraries=maps%2Cplaces&key=****1234&v=weekly&callback=google.maps.__ib__',
       },
     }
   );

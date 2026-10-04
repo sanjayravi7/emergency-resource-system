@@ -76,22 +76,22 @@ cannot keep using a previously valid JWT session indefinitely.
 
 The Flutter dashboard renders operational locations with the official
 `google_maps_flutter` package. For Flutter Web, `frontend/emergency_app/web/index.html`
-loads the Google Maps JavaScript API through a local ignored config file:
-
-1. Copy `frontend/emergency_app/web/google_maps_config.template.js` to
-   `frontend/emergency_app/web/google_maps_config.js`.
-2. Set `window.ERAS_GOOGLE_MAPS_API_KEY` to a Google Maps Platform key that is
-   restricted to the Maps JavaScript API and allowed HTTP referrers.
-3. Never commit `google_maps_config.js`, unrestricted keys, or production keys.
+uses the single idempotent Dynamic Library Import loader in
+`web/eras_google_maps_loader.js`. Production builds source the ignored static
+config from `ERAS_GOOGLE_MAPS_API_KEY` via `tool/build_production_web.sh`;
+local development may copy `google_maps_config.template.js` to
+`google_maps_config.js` and set `window.ERAS_GOOGLE_MAPS_API_KEY` there. Never
+commit the generated config, an unrestricted key, or a production key.
 
 Required Google Cloud setup:
 
 - Google Cloud project with billing enabled.
-- Maps JavaScript API enabled.
-- API key restricted by HTTP referrer. Use local development referrers such as
-  `http://localhost:*/*`, `http://127.0.0.1:*/*`, and the Arena preview host
-  pattern `https://*-*.e2b.app/*`; production keys should allow only the
-  deployed ERAS web origin.
+- Maps JavaScript API and Places API (New) enabled and both included in the
+  browser key's API restrictions.
+- API key restricted by HTTP referrer, never by server IP. Use only needed local
+  development/Arena preview referrers plus these required production entries:
+  `https://eras.website/*` and
+  `https://eras-production-f3ce6.web.app/*`.
 
 The map consumes the same realtime data described above. Request markers come
 only from `EmergencyRequest.latitude` / `EmergencyRequest.longitude`; text-only

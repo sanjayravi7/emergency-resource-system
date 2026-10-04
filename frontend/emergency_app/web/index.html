@@ -35,6 +35,27 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0175C2">
 
+  <style>
+    #eras-maps-status[hidden] { display: none; }
+    #eras-maps-status {
+      position: fixed;
+      z-index: 2147483647;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      box-sizing: border-box;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 12px 16px;
+      border: 1px solid #f0c36d;
+      border-radius: 8px;
+      background: #fff7e6;
+      color: #493512;
+      box-shadow: 0 4px 18px rgba(14, 27, 48, .18);
+      font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+  </style>
+
   <!--
     Google Identity Services client library.
 
@@ -49,45 +70,36 @@
     registration on the deployed site.
   -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- The one shared, idempotent Maps API loader used by the app/diagnostics. -->
+  <script src="eras_google_maps_loader.js"></script>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+  <div id="eras-maps-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script>
-    // Google Maps for Flutter Web uses the Maps JavaScript API.
-    //
-    // Development setup:
-    //   1. Copy web/google_maps_config.template.js to web/google_maps_config.js.
-    //   2. Put a referrer-restricted Maps JavaScript API key in that local file.
-    //   3. Keep google_maps_config.js uncommitted.
+    // Keep Firebase, Maps, the location bridge, and Flutter startup idempotent.
+    // In particular, assign functions to the config script's events: invoking
+    // loadFirebaseSdk() while assigning onload/onerror starts two Firebase
+    // chains, and each chain used to inject a second Maps API script.
     (function () {
+      var startupPromise = null;
+      var firebaseSdkPromise = null;
+      var locationBridgePromise = null;
+      var mapsInitializationPromise = null;
+      var flutterStarted = false;
+
       function startFlutter() {
+        if (flutterStarted) return;
+        flutterStarted = true;
         var flutterScript = document.createElement('script');
         flutterScript.src = 'flutter_bootstrap.js';
         flutterScript.async = true;
         document.body.appendChild(flutterScript);
       }
 
-      // ------------------------------------------------------------------
-      // Firebase JS SDK (compat build).
-      //
-      // FlutterFire's web plugins (firebase_core / firebase_auth /
-      // firebase_messaging) talk to the global `firebase` namespace, so the
-      // SDK must be present before Flutter starts. Google sign-in and web push
-      // therefore needs NO secrets here: the project configuration is supplied
-      // at build time with --dart-define (see lib/services/firebase_bootstrap.dart)
-      // and the Google *web* client id is a public OAuth client id.
-      //
-      // Loading is best-effort: if the CDN is unreachable, email/password
-      // login and every emergency workflow keep working and Google sign-in
-      // reports "not configured" instead of failing the app.
-      // ------------------------------------------------------------------
+      // Firebase JS SDK (compat build). Keep its existing best-effort,
+      // sequential loading behavior for Firebase Auth and messaging.
       var FIREBASE_JS_VERSION = '9.23.0';
       var FIREBASE_JS_FILES = [
         'firebase-app-compat.js',
@@ -95,135 +107,158 @@
         'firebase-messaging-compat.js'
       ];
 
-      function loadFirebaseSdk(done) {
-        // Sequential on purpose: the compat builds must be evaluated in order
-        // (auth/messaging extend the app namespace registered by
-        // firebase-app-compat.js). Loading is still asynchronous, so the page
-        // stays responsive.
-        var index = 0;
+      function loadFirebaseSdk() {
+        if (firebaseSdkPromise) return firebaseSdkPromise;
 
-        function next() {
-          if (index >= FIREBASE_JS_FILES.length) {
-            done();
-            return;
+        firebaseSdkPromise = new Promise(function (resolve) {
+          var index = 0;
+
+          function next() {
+            if (index >= FIREBASE_JS_FILES.length) {
+              resolve();
+              return;
+            }
+
+            var file = FIREBASE_JS_FILES[index++];
+            var script = document.createElement('script');
+            script.src =
+              'https://www.gstatic.com/firebasejs/' +
+              FIREBASE_JS_VERSION + '/' + file;
+            script.onload = next;
+            script.onerror = function () {
+              console.warn('[ERAS] ' + file + ' failed to load; the matching ' +
+                'Firebase feature stays disabled until it is reachable.');
+              next();
+            };
+            document.head.appendChild(script);
           }
 
-          var file = FIREBASE_JS_FILES[index++];
-          var script = document.createElement('script');
-          script.src =
-            'https://www.gstatic.com/firebasejs/' +
-            FIREBASE_JS_VERSION + '/' + file;
-          script.onload = next;
-          script.onerror = function () {
-            console.warn('[ERAS] ' + file + ' failed to load; the matching ' +
-              'Firebase feature stays disabled until it is reachable.');
-            next();
+          next();
+        });
+        return firebaseSdkPromise;
+      }
+
+      function loadLocationBridge() {
+        if (locationBridgePromise) return locationBridgePromise;
+
+        locationBridgePromise = new Promise(function (resolve) {
+          var bridgeScript = document.createElement('script');
+          bridgeScript.src = 'eras_location_bridge.js';
+          bridgeScript.onload = resolve;
+          bridgeScript.onerror = function () {
+            console.error('[ERAS] Location bridge failed to load.');
+            resolve();
           };
-          document.head.appendChild(script);
-        }
-
-        next();
+          document.head.appendChild(bridgeScript);
+        });
+        return locationBridgePromise;
       }
 
-      function loadLocationBridge(done) {
-        var bridgeScript = document.createElement('script');
-        bridgeScript.src = 'eras_location_bridge.js';
-        bridgeScript.onload = done;
-        bridgeScript.onerror = function () {
-          console.error('ERAS location bridge failed to load.');
-          done();
-        };
-        document.head.appendChild(bridgeScript);
-      }
-
-      // Never prints the key: only its length and last 4 characters, so the
-      // key actually used at runtime can be matched against Google Cloud
-      // without leaking it into logs or screenshots.
       function maskKey(key) {
         var text = String(key || '');
-        if (text.length <= 4) return '****';
-        return '****' + text.slice(-4);
+        return text.length > 4 ? '****' + text.slice(-4) : '****';
       }
 
-      function configureGoogleMaps() {
-        var key = window.ERAS_GOOGLE_MAPS_API_KEY;
+      function showMapsUnavailable(error) {
+        var loader = window.erasGoogleMapsLoader;
+        var code = error && error.code ? String(error.code) : 'LOAD_FAILED';
+        var status = document.getElementById('eras-maps-status');
+        var message = loader && typeof loader.getUserMessage === 'function'
+          ? loader.getUserMessage(error)
+          : 'Maps and place search are temporarily unavailable. Please contact ERAS support.';
 
-        // Diagnostics snapshot (read by web/eras_location_bridge.js and
-        // web/eras_location_diagnostics.html). No secret is stored here.
+        window.ERAS_MAPS_STATUS = { available: false, errorCode: code };
+        if (status) {
+          status.textContent = message;
+          status.hidden = false;
+          status.setAttribute('data-error-code', code);
+        }
+        // Never include the browser key or raw script URL in console output.
+        console.error(
+          '[ERAS] Google Maps initialization failed (' + code + ') for origin ' +
+          window.location.origin + '. Check the active browser key, its HTTP ' +
+          'referrer restrictions, and Maps JavaScript API / Places API (New) authorization.'
+        );
+      }
+
+      function initializeGoogleMaps() {
+        if (mapsInitializationPromise) return mapsInitializationPromise;
+
+        var key = window.ERAS_GOOGLE_MAPS_API_KEY;
+        var loader = window.erasGoogleMapsLoader;
+        var masked = key ? maskKey(key) : null;
+        var validKey = !!(loader && loader.isValidKey && loader.isValidKey(key));
+
         window.ERAS_MAPS_RUNTIME = {
           keyConfigured: !!key,
-          keyMasked: key ? maskKey(key) : null,
+          keySyntaxValid: validKey,
+          keyMasked: masked,
           keyLength: key ? String(key).length : 0,
-          keySource: 'web/google_maps_config.js',
+          keySource: 'ERAS_GOOGLE_MAPS_API_KEY',
           origin: window.location.origin,
           href: window.location.href,
-          libraries: 'places',
+          libraries: 'maps,places',
           loaderUrl: null,
           loadedAt: new Date().toISOString()
         };
 
-        // Google calls this global when the browser key itself is rejected
-        // (InvalidKeyMapError, RefererNotAllowedMapError, ApiNotActivated...).
-        // The failure is recorded and printed with the exact page origin that
-        // has to be allow-listed as an HTTP referrer.
+        // Google calls gm_authFailure when a key is inactive, invalid, or
+        // rejected by its HTTP-referrer/API restrictions. Keep diagnostics
+        // actionable while showing users a safe message that contains no key.
         window.gm_authFailure = function () {
           window.ERAS_MAPS_AUTH_FAILURE = true;
-          console.error(
-            '[ERAS] Google Maps authentication failure (gm_authFailure). ' +
-            'Key ' + (window.ERAS_MAPS_RUNTIME.keyMasked || '(missing)') +
-            ' was rejected for origin ' + window.location.origin + '. ' +
-            'Add ' + window.location.origin + '/* to the key HTTP referrers ' +
-            'and make sure Maps JavaScript API and Places API (New) are ' +
-            'enabled and allowed by the key restrictions.'
-          );
+          showMapsUnavailable({ code: 'GOOGLE_MAPS_AUTH_FAILURE' });
         };
 
-        if (!key) {
-          console.warn(
-            'ERAS Google Maps API key not configured. Copy web/google_maps_config.template.js ' +
-            'to web/google_maps_config.js and set ERAS_GOOGLE_MAPS_API_KEY.'
-          );
+        mapsInitializationPromise = Promise.resolve().then(function () {
+          if (!loader || typeof loader.ensureLoaded !== 'function') {
+            var missingLoader = new Error('The ERAS Maps loader did not load.');
+            missingLoader.code = 'LOADER_UNAVAILABLE';
+            throw missingLoader;
+          }
+          return loader.ensureLoaded(key);
+        }).then(function () {
+          var diagnostics = loader.getDiagnostics();
+          window.ERAS_MAPS_RUNTIME.loaderUrl = diagnostics.scriptUrl;
+          window.ERAS_MAPS_STATUS = {
+            available: !window.ERAS_MAPS_AUTH_FAILURE,
+            authFailure: !!window.ERAS_MAPS_AUTH_FAILURE
+          };
+        }, function (error) {
+          showMapsUnavailable(error);
+        }).then(function () {
+          return loadLocationBridge();
+        }).then(function () {
           startFlutter();
-          return;
-        }
+        });
 
-        // google_maps_flutter_web accesses the Maps JavaScript API through
-        // the global google.maps namespace (including MapTypeId.ROADMAP).
-        // Load the complete Maps JavaScript API before Flutter starts. The
-        // importLibrary bootstrap only installs a lazy import function; it does
-        // not populate google.maps.MapTypeId until application code imports the
-        // maps library, which this platform implementation does not do.
-        var mapsScript = document.createElement('script');
-        mapsScript.async = true;
-        mapsScript.src =
-          'https://maps.googleapis.com/maps/api/js?key=' +
-          encodeURIComponent(key) +
-        // The places library powers the requester place autocomplete and the
-        // Nearby Search (New) selector in web/eras_location_bridge.js.
-        '&libraries=places&v=weekly';
-        window.ERAS_MAPS_RUNTIME.loaderUrl =
-          mapsScript.src.replace(/key=[^&]*/, 'key=' + maskKey(key));
-        console.info(
-          '[ERAS] Google Maps JS loading with key ' + maskKey(key) +
-          ' (' + String(key).length + ' chars) from origin ' +
-          window.location.origin +
-          '. Required on this key: Maps JavaScript API, Places API (New), ' +
-          'Open /eras_location_diagnostics.html to test them.'
-        );
-        mapsScript.onload = function () {
-          loadLocationBridge(startFlutter);
-        };
-        mapsScript.onerror = function () {
-          console.error('ERAS Google Maps JavaScript API failed to load.');
-          startFlutter();
-        };
-        document.head.appendChild(mapsScript);
+        return mapsInitializationPromise;
       }
 
+      function startApplication() {
+        if (startupPromise) return startupPromise;
+        startupPromise = loadFirebaseSdk()
+          .then(initializeGoogleMaps)
+          .catch(function (error) {
+            // A Maps/config failure must not prevent ERAS or Firebase Auth from
+            // starting. The location controls retain a safe fallback message.
+            showMapsUnavailable(error);
+            return loadLocationBridge();
+          })
+          .then(startFlutter);
+        return startupPromise;
+      }
+
+      // The build helper creates this ignored static file from the
+      // ERAS_GOOGLE_MAPS_API_KEY environment variable. Local development can
+      // create it from google_maps_config.template.js.
       var configScript = document.createElement('script');
       configScript.src = 'google_maps_config.js';
-      configScript.onload = loadFirebaseSdk(configureGoogleMaps);
-      configScript.onerror = loadFirebaseSdk(configureGoogleMaps);
+      configScript.onload = startApplication;
+      configScript.onerror = function () {
+        window.__erasMapsConfigMissing = true;
+        startApplication();
+      };
       document.head.appendChild(configScript);
     })();
   </script>

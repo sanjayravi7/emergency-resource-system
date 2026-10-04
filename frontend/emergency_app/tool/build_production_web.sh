@@ -14,8 +14,8 @@ if [[ ! "$ERAS_API_BASE_URL" =~ ^https://[^/]+/api/?$ ]]; then
   echo "ERAS_API_BASE_URL must be an HTTPS origin followed by /api" >&2
   exit 1
 fi
-if [[ ! "$ERAS_GOOGLE_MAPS_API_KEY" =~ ^[A-Za-z0-9_-]+$ ]]; then
-  echo "ERAS_GOOGLE_MAPS_API_KEY contains unexpected characters" >&2
+if [[ ! "$ERAS_GOOGLE_MAPS_API_KEY" =~ ^AIza[A-Za-z0-9_-]{35}$ ]]; then
+  echo "ERAS_GOOGLE_MAPS_API_KEY must be a valid 39-character Google browser key (AIza prefix); value not shown." >&2
   exit 1
 fi
 if [[ ! "$ERAS_FIREBASE_AUTH_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]]; then
@@ -82,3 +82,7 @@ flutter build web --release \
   --dart-define="ERAS_API_BASE_URL=${ERAS_API_BASE_URL%/}" \
   "${vapid_arg[@]}" \
   "${firebase_args[@]}"
+
+# Verify the static browser config shipped in the final artifact matches the
+# configured environment value exactly. The verifier never prints the key.
+node tool/verify_web_maps_key.mjs

@@ -73,6 +73,7 @@
   </section>
 
   <script src="google_maps_config.js" onerror="window.__erasConfigMissing = true"></script>
+  <script src="eras_google_maps_loader.js"></script>
   <script>
     (function () {
       'use strict';
@@ -109,15 +110,18 @@
       }
 
       var key = window.ERAS_GOOGLE_MAPS_API_KEY;
+      var loader = window.erasGoogleMapsLoader;
+      var keyIsValid = !!(loader && loader.isValidKey && loader.isValidKey(key));
 
       window.ERAS_MAPS_RUNTIME = {
         keyConfigured: !!key,
+        keySyntaxValid: keyIsValid,
         keyMasked: key ? maskKey(key) : null,
         keyLength: key ? String(key).length : 0,
-        keySource: 'web/google_maps_config.js',
+        keySource: 'ERAS_GOOGLE_MAPS_API_KEY',
         origin: window.location.origin,
         href: window.location.href,
-        libraries: 'places',
+        libraries: 'maps,places',
         loaderUrl: null,
         loadedAt: new Date().toISOString()
       };
@@ -127,8 +131,17 @@
         row(
           'key',
           'gm_authFailure',
-          '<span class="bad">Google rejected this key for this origin</span> ' +
+          '<span class="bad">Google rejected the browser key for this origin</span> ' +
             '(InvalidKeyMapError / RefererNotAllowedMapError / ApiNotActivatedMapError).'
+        );
+        row(
+          'key',
+          'safe user message',
+          '<span class="warn">' + escapeHtml(
+            loader && loader.getUserMessage
+              ? loader.getUserMessage()
+              : 'Maps and place search are temporarily unavailable. Please contact ERAS support.'
+          ) + '</span>'
         );
       };
 
@@ -143,6 +156,7 @@
 
       row('key', 'google_maps_config.js loaded', flag(!window.__erasConfigMissing));
       row('key', 'ERAS_GOOGLE_MAPS_API_KEY set', flag(!!key));
+      row('key', 'browser key format valid', flag(keyIsValid));
       row('key', 'key (masked)', '<code>' + escapeHtml(key ? maskKey(key) : '(missing)') + '</code>');
       row('key', 'key length', '<code>' + (key ? String(key).length : 0) + '</code>');
 
@@ -150,39 +164,16 @@
         row(
           'key',
           'next step',
-          '<span class="bad">Create web/google_maps_config.js from ' +
-            'web/google_maps_config.template.js and set the browser key.</span>'
+          '<span class="bad">Set ERAS_GOOGLE_MAPS_API_KEY to a valid browser Maps key before building or deploying.</span>'
         );
-        return;
       }
-
-      var mapsScript = document.createElement('script');
-      // Exactly the same loader the app uses (web/index.html).
-      mapsScript.async = true;
-      mapsScript.src =
-        'https://maps.googleapis.com/maps/api/js?key=' +
-        encodeURIComponent(key) +
-        '&libraries=places&v=weekly';
-      window.ERAS_MAPS_RUNTIME.loaderUrl = mapsScript.src.replace(
-        /key=[^&]*/,
-        'key=' + maskKey(key)
-      );
-      row('key', 'loader URL (masked)', '<code>' + escapeHtml(window.ERAS_MAPS_RUNTIME.loaderUrl) + '</code>');
-
-      mapsScript.onerror = function () {
-        row('libraries', 'Maps JavaScript API', '<span class="bad">script failed to load</span>');
-      };
-
-      mapsScript.onload = function () {
-        var bridgeScript = document.createElement('script');
-        bridgeScript.src = 'eras_location_bridge.js';
-        bridgeScript.onload = describeLibraries;
-        bridgeScript.onerror = function () {
-          row('libraries', 'eras_location_bridge.js', '<span class="bad">failed to load</span>');
-        };
-        document.head.appendChild(bridgeScript);
-      };
-      document.head.appendChild(mapsScript);
+      if (key && !keyIsValid) {
+        row(
+          'key',
+          'key format',
+          '<span class="bad">The configured value is not a valid Google browser key format. Replace the environment value; the key is never displayed here.</span>'
+        );
+      }
 
       function describeLibraries() {
         var hasMaps = typeof google !== 'undefined' && !!google.maps;
@@ -257,10 +248,46 @@
             '3. Credentials → this key → <b>Application restrictions → HTTP referrers</b>: add ' +
             '<code>' +
             escapeHtml(window.location.origin) +
-            '/*</code> (plus the 8080/8081 localhost and 127.0.0.1 origins).<br>' +
-            '4. Enable billing on the project; changes can take a few minutes to propagate.</div>'
-          : '<div class="hint"><span class="ok">All three Google APIs answered successfully for this key and origin.</span></div>';
+            '/*</code>; production also requires <code>https://eras.website/*</code> and ' +
+            '<code>https://eras-production-f3ce6.web.app/*</code>.<br>' +
+            '4. Use an HTTP-referrer browser key, never a server/IP-restricted key. Enable billing; changes can take a few minutes to propagate.</div>'
+          : '<div class="hint"><span class="ok">All Places probes answered successfully for this key and origin.</span></div>';
       }
+
+      function loadBridge() {
+        var bridgeScript = document.createElement('script');
+        bridgeScript.src = 'eras_location_bridge.js';
+        bridgeScript.onload = describeLibraries;
+        bridgeScript.onerror = function () {
+          row('libraries', 'eras_location_bridge.js', '<span class="bad">failed to load</span>');
+        };
+        document.head.appendChild(bridgeScript);
+      }
+
+      function startDiagnostics() {
+        if (!loader || typeof loader.ensureLoaded !== 'function') {
+          row('libraries', 'Maps loader', '<span class="bad">ERAS loader is unavailable.</span>');
+          return;
+        }
+
+        loader.ensureLoaded(key).then(function () {
+          var info = loader.getDiagnostics();
+          window.ERAS_MAPS_RUNTIME.loaderUrl = info.scriptUrl;
+          row('key', 'loader URL (masked)', '<code>' + escapeHtml(info.scriptUrl || '(existing API)') + '</code>');
+          row('libraries', 'shared loader state', '<code>' + escapeHtml(info.status) +
+            ' · ' + info.loader + ' · API scripts inserted: ' + info.scriptCount + '</code>');
+          loadBridge();
+        }).catch(function (error) {
+          row('libraries', 'Maps loader', '<span class="bad">' +
+            escapeHtml(error && error.message ? error.message : 'Google Maps could not be initialized.') +
+            '</span>');
+          row('libraries', 'safe user message', '<span class="warn">' + escapeHtml(
+            loader.getUserMessage(error)
+          ) + '</span>');
+        });
+      }
+
+      startDiagnostics();
     })();
   </script>
 </body>

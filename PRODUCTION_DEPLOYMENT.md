@@ -152,9 +152,11 @@ The Flutter Web build now requires same-project Firebase Web config values and
 the Google OAuth Web client ID as Dart defines.
 
 Create a separate Google Maps browser key with **HTTP referrer** restrictions
-for the actual deployed origins. Restrict it to Maps JavaScript API and Places
-API (New). Browser keys are visible to browser users by design; referrer/API
-restrictions are the security boundary.
+for the actual deployed origins. Add both `https://eras.website/*` and
+`https://eras-production-f3ce6.web.app/*`. Restrict it to Maps JavaScript API
+and Places API (New); never use a server/IP-restricted key for browser Maps.
+Browser keys are visible to browser users by design; referrer/API restrictions
+are the security boundary.
 
 Run `./tool/build_production_web.sh` with the production `ERAS_API_BASE_URL`,
 `ERAS_GOOGLE_MAPS_API_KEY`, `ERAS_FIREBASE_API_KEY`,

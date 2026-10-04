@@ -10,13 +10,15 @@
  *   - Places API (New)      (AutocompleteSuggestion + Place.fetchFields +
  *                            Place.searchNearby -> Nearby Search (New))
  *
- * The browser key comes from web/google_maps_config.js (git-ignored,
- * HTTP-referrer restricted). No key is read or stored here.
+ * The browser key is injected into web/google_maps_config.js from
+ * ERAS_GOOGLE_MAPS_API_KEY (git-ignored, HTTP-referrer restricted). This bridge
+ * reuses the shared loader and never reads or stores the key itself.
  */
 (function () {
   'use strict';
 
   var sessionToken = null;
+  var placesPromise = null;
 
   function mapsReady() {
     return typeof google !== 'undefined' && !!google.maps;
@@ -99,17 +101,37 @@
     );
   }
 
-  async function ensurePlaces() {
-    if (placesReady()) return true;
-    if (mapsReady() && typeof google.maps.importLibrary === 'function') {
-      try {
-        await google.maps.importLibrary('places');
-        return placesReady();
-      } catch (e) {
-        return false;
+  function ensurePlaces() {
+    if (placesReady()) return Promise.resolve(true);
+    if (placesPromise) return placesPromise;
+
+    placesPromise = (async function () {
+      var loader = window.erasGoogleMapsLoader;
+      if (loader && typeof loader.ensureLoaded === 'function') {
+        try {
+          // Reuse the app's singleton promise; this never installs another
+          // Maps bootstrap or inserts a second API script.
+          await loader.ensureLoaded(window.ERAS_GOOGLE_MAPS_API_KEY);
+          return placesReady();
+        } catch (_error) {
+          return false;
+        }
       }
-    }
-    return false;
+
+      // Compatibility for consumers that pre-load the Maps API outside the
+      // ERAS host page. Import only the missing library; never create a loader.
+      if (mapsReady() && typeof google.maps.importLibrary === 'function') {
+        try {
+          await google.maps.importLibrary('places');
+          return placesReady();
+        } catch (_error) {
+          return false;
+        }
+      }
+      return false;
+    })();
+
+    return placesPromise;
   }
 
   /**
@@ -409,6 +431,10 @@
   // -------------------------------------------------------------------------
   async function diagnostics(latitude, longitude) {
     var runtime = window.ERAS_MAPS_RUNTIME || {};
+    var loader = window.erasGoogleMapsLoader;
+    var loaderInfo = loader && typeof loader.getDiagnostics === 'function'
+      ? loader.getDiagnostics()
+      : {};
     var lat = latitude === undefined || latitude === null ? null : Number(latitude);
     var lng = longitude === undefined || longitude === null ? null : Number(longitude);
 
@@ -435,11 +461,16 @@
         // Only a masked tail is ever exposed, never the key itself.
         masked: runtime.keyMasked || null,
         length: runtime.keyLength || 0,
-        source: runtime.keySource || 'web/google_maps_config.js',
+        source: runtime.keySource || 'ERAS_GOOGLE_MAPS_API_KEY',
       },
       loader: {
-        scriptUrl: runtime.loaderUrl || null,
-        libraries: runtime.libraries || null,
+        scriptUrl: runtime.loaderUrl || loaderInfo.scriptUrl || null,
+        libraries: runtime.libraries || loaderInfo.libraries || null,
+        type: loaderInfo.loader || null,
+        status: loaderInfo.status || null,
+        initializationCount: loaderInfo.initializationCount || 0,
+        scriptCount: loaderInfo.scriptCount || 0,
+        errorCode: loaderInfo.errorCode || null,
         authFailure: !!window.ERAS_MAPS_AUTH_FAILURE,
       },
       libraries: {
