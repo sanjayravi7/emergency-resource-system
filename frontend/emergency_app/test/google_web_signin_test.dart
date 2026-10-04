@@ -25,6 +25,9 @@ class _FakeWebHandler implements WebGoogleSignInHandler {
   /// When set, `signIn()` fails the way the real handler would.
   GoogleAuthException? failure;
 
+  /// When set, `signOut()` fails the way a broken Firebase app would.
+  Object? signOutFailure;
+
   int signInCalls = 0;
   int resumeCalls = 0;
   int signOutCalls = 0;
@@ -46,6 +49,8 @@ class _FakeWebHandler implements WebGoogleSignInHandler {
   @override
   Future<void> signOut() async {
     signOutCalls++;
+    final error = signOutFailure;
+    if (error != null) throw error;
   }
 }
 
@@ -332,6 +337,17 @@ void main() {
 
       await GoogleAuthService.instance.signOut();
 
+      expect(handler.signOutCalls, 1);
+    });
+
+    test('a failing web sign-out never escapes to the caller', () async {
+      final handler = _FakeWebHandler()
+        ..signOutFailure = StateError('no Firebase app');
+      _useWebFlow(handler);
+
+      // ERAS logout must complete even when the provider session cannot be
+      // cleared; the user still leaves the app.
+      await expectLater(GoogleAuthService.instance.signOut(), completes);
       expect(handler.signOutCalls, 1);
     });
   });

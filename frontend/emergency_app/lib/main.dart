@@ -40,8 +40,7 @@ class DispatchConsoleApp extends StatelessWidget {
             statusBarColor: Colors.transparent,
             statusBarIconBrightness:
                 isDark ? Brightness.light : Brightness.dark,
-            statusBarBrightness:
-                isDark ? Brightness.dark : Brightness.light,
+            statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
             systemNavigationBarColor: palette.sidebar,
             systemNavigationBarDividerColor: palette.border,
             systemNavigationBarIconBrightness:

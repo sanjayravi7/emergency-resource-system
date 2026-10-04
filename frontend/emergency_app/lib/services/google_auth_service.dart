@@ -57,9 +57,11 @@ GoogleSignInStrategy resolveGoogleSignInStrategy({required bool isWeb}) {
   return GoogleSignInStrategy.nativeAccountPicker;
 }
 
-/// Removes credential-like values before a native diagnostic is written to
-/// logs. The returned message is bounded and contains no raw auth payloads.
-@visibleForTesting
+/// Removes credential-like values before a diagnostic is written to logs.
+///
+/// Shared by the Google auth diagnostics and the global client error handler,
+/// so it is part of the production surface, not just a test seam. The returned
+/// message is bounded and contains no raw auth payloads.
 String sanitizeGoogleAuthDiagnosticMessage(String? message) {
   if (message == null || message.trim().isEmpty) return '<empty>';
 
@@ -428,7 +430,8 @@ class FirebaseWebGoogleSignInHandler implements WebGoogleSignInHandler {
     try {
       final credential = await auth.getRedirectResult();
       if (credential.user != null) {
-        return GoogleSignInOutcome.completed(await _firebaseIdToken(credential));
+        return GoogleSignInOutcome.completed(
+            await _firebaseIdToken(credential));
       }
     } on FirebaseAuthException catch (error) {
       if (error.code == 'popup-closed-by-user' ||
@@ -872,7 +875,14 @@ class GoogleAuthService {
   Future<void> signOut() async {
     try {
       if (usesWebSignInFlow) {
-        await _signOutQuietly(FirebaseAuth.instance);
+        // The web session lives in Firebase Auth; the handler owns that call
+        // so the path stays testable (and cannot throw) without a Firebase
+        // project initialised on the VM.
+        try {
+          await _webHandler.signOut();
+        } catch (error) {
+          _logUnexpectedFailure('google sign-out failed', error);
+        }
         return;
       }
       if (!isConfigured) return;
