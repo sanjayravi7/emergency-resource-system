@@ -310,16 +310,57 @@ simply wins the gestures inside its own area.
 - `bash -n` on `build_release_apk.sh`; Dart brace/paren balance and 80-column
   checks on every changed Dart file.
 
+## Verified in GitHub Actions (Flutter stable, on this branch)
+
+Because there is no Flutter SDK in the authoring sandbox, the three checks
+below were run through a temporary workflow (since deleted) that repeats the
+`Flutter` workflow’s steps **without** the format gate, on this branch and on
+the base commit `64c0fcc` for comparison:
+
+| Check | Base `64c0fcc` | This branch |
+| --- | --- | --- |
+| `flutter analyze` | 1 issue (`use_super_parameters`, `location_service.dart:245`) | **1 issue — the same pre-existing one.** No new findings. |
+| `flutter test` | 421 passed | **440 passed** (19 new tests) |
+| `flutter build web --release` | not reached | **exit 0** — compiles |
+| `dart format --set-exit-if-changed` | 3 files differ | 3 files differ — the same 3, none from this branch |
+
+Three compile errors were caught and fixed this way (CI output was read back
+as PR comments because the sandbox cannot download Actions logs):
+
+1. `OneSequenceGestureRecognizer` was missing from the
+   `package:flutter/gestures.dart` `show` clause, so the
+   `operationalMapGestureRecognizers` type argument did not resolve.
+2. `PlatformException`’s constructor is **not** `const` in the pinned SDK —
+   `const` removed at three call sites in
+   `test/google_signin_native_error_test.dart`.
+3. A null assertion in `board_panel.dart` that the analyzer rejected (the
+   receiver is already promoted), plus one 80-column join in
+   `email_privacy.dart`.
+
+### The `Flutter` workflow is red on `main` before this branch
+
+`dart format --set-exit-if-changed` already fails on `main` (since PR #84) for
+three files this branch never touched —
+`lib/services/location_service_stub.dart`, `lib/services/location_service_web.dart`
+and `test/location_error_mapping_test.dart` — because the Dart 3.7+ “tall”
+formatter reformats code written with the older style. Since the format step
+runs first, `flutter analyze`, `flutter test` and `flutter build web` have not
+executed on `main` for a while; the table above is what they report once the
+gate is bypassed. Fixing those three files is a separate, purely mechanical
+change (they are the current-location implementation, which must not be
+touched as part of these four fixes).
+
 ## Not run in this workspace (runs in CI / on the developer machine)
 
-- `flutter analyze`, `flutter test`, `dart format --set-exit-if-changed`,
-  `flutter build apk --release`: no Flutter/Dart SDK and no network access to
-  `storage.googleapis.com` in this sandbox.
+- `flutter build apk --release` (needs the release keystore and
+  `android/app/google-services.json`, both absent here). The web release
+  bundle compiles, which covers the same Dart sources.
 - Database-backed Jest suites (`tests/**` outside `tests/unit`): Prisma could
-  not download its query engine (`binaries.prisma.sh` unreachable), so those
-  suites were not executed here; they run in the `Backend` workflow with a
-  PostgreSQL service.
-- Real-device Google sign-in with the release APK.
+  not download its query engine (`binaries.prisma.sh` unreachable) in this
+  sandbox; they run in the `Backend` workflow with a PostgreSQL service, which
+  is green on this branch.
+- Real-device Google sign-in with the release APK, and an on-device check of
+  the map gestures.
 
 ## Database migration required
 
