@@ -51,8 +51,7 @@ String maskEmail(String? email) {
     return '';
   }
 
-  final hidden =
-      math.min(math.max(local.length - 1, 1), erasMaxMaskCharacters);
+  final hidden = math.min(math.max(local.length - 1, 1), erasMaxMaskCharacters);
   return '${local.substring(0, 1)}${_repeat('*', hidden)}@$domain';
 }
 
