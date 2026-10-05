@@ -1015,8 +1015,12 @@ class EmergencyRequest {
   final double? latitude;
   final double? longitude;
 
-  /// Human readable id used all over the dispatch board (DB-201).
-  String get displayId => 'DB-$id';
+  /// Human readable label used all over the dispatch board (User 201).
+  ///
+  /// Display only: the request keeps its numeric [id], which is what the API
+  /// and PostgreSQL use. Operators see the person-facing name instead of the
+  /// internal DB-<id> identifier.
+  String get displayId => 'User $id';
 
   bool get hasPreciseLocation => isValidCoordinatePair(latitude, longitude);
 

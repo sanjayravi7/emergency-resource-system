@@ -16,6 +16,12 @@ dependencies:
   google_maps_flutter: ^2.18.1
   url_launcher: ^6.3.1
   shared_preferences: ^2.3.3
+  # Persistent "Remember me" login sessions. The ERAS JWT is written to the
+  # platform secure storage (Android Keystore / iOS Keychain; the Web build
+  # uses the plugin's WebCrypto-backed encrypted store) - never the account
+  # password, which only exists inside the login request itself.
+  # See lib/services/session_persistence.dart.
+  flutter_secure_storage: ^10.3.0
   # FCM push notifications for backgrounded responders. Socket.IO stays the
   # foreground realtime channel; push only covers responders whose app is not
   # currently maintaining a Socket.IO connection. Runs as a silent no-op when

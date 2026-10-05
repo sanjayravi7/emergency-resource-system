@@ -75,7 +75,7 @@ void main() {
     expect(marker.kind, OperationalMapMarkerKind.activeRequest);
     expect(marker.position.latitude, 10.527642);
     expect(marker.position.longitude, 76.214435);
-    expect(marker.title, 'DB-101 · EMERGENCY');
+    expect(marker.title, 'User 101 · EMERGENCY');
     expect(marker.snippet, contains('Thrissur, Kerala'));
     expect(marker.snippet, contains('10.527642, 76.214435'));
   });
@@ -89,7 +89,7 @@ void main() {
     );
 
     expect(snapshots.single.kind, OperationalMapMarkerKind.pendingRequest);
-    expect(snapshots.single.title, 'DB-111 · PENDING REQUEST');
+    expect(snapshots.single.title, 'User 111 · PENDING REQUEST');
   });
 
   test('creates a LIVE responder marker from Socket.IO location state', () {

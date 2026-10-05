@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/client_error_reporting.dart';
 import '../services/email_validation.dart';
 import '../services/google_auth_service.dart';
+import '../services/session_persistence.dart';
 import '../services/socket_service.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/auth_shell.dart';
@@ -38,12 +40,57 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    // The stored "Remember me" choice drives the checkbox, so the control
+    // never disagrees with the session that is actually remembered.
+    _restoreRememberChoice();
     // Flutter Web: a Google redirect return - or a browser refresh after a
     // completed Google sign-in - is resumed here, without another popup.
-    // Everywhere else this is a no-op.
+    // Everywhere else only a remembered session can be restored.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _resumeWebGoogleSignIn();
+      _restoreSessionOnStart();
     });
+  }
+
+  /// Reads the stored remember-me preference into the checkbox state.
+  Future<void> _restoreRememberChoice() async {
+    final remembered = await SessionPersistence.readRememberPreference();
+    if (!mounted || !remembered) return;
+    setState(() => rememberMe = true);
+  }
+
+  /// Start-up authentication.
+  ///
+  /// A pending Flutter Web Google sign-in is finished first (it is the more
+  /// recent user intent); otherwise a session that a previous "Remember me"
+  /// login persisted is restored.
+  Future<void> _restoreSessionOnStart() async {
+    final googleCompleted = await _resumeWebGoogleSignIn();
+    if (googleCompleted || !mounted) return;
+    await _restoreRememberedSession();
+  }
+
+  /// Restores the session a previous "Remember me" login persisted.
+  ///
+  /// The stored token is validated against the server before it is used, so an
+  /// expired or revoked session simply leaves the login form on screen.
+  Future<void> _restoreRememberedSession() async {
+    final restored = await ApiService.restoreRememberedSession();
+    if (!mounted || !restored) return;
+
+    setState(() => success = true);
+
+    // An unverified account still confirms its mailbox first, exactly like a
+    // fresh password login.
+    if (ApiService.emailVerified == false) {
+      await Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+              builder: (_) => EmailVerificationScreen(
+                  email: ApiService.currentUserEmail)));
+      return;
+    }
+
+    _openAuthenticatedArea();
   }
 
   Future<void> login() async {
@@ -63,7 +110,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await ApiService.login(
-          emailController.text.trim(), passwordController.text);
+        emailController.text.trim(),
+        passwordController.text,
+        rememberMe: rememberMe,
+      );
       if (!mounted) return;
       // Purely visual confirmation: the check stays visible on the button
       // while the route transition plays. Navigation is not delayed.
@@ -136,6 +186,12 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // Flutter Web can fall back to a full-page redirect, which reloads the
+      // app and this widget with it: park the checkbox choice so the completed
+      // sign-in still honours it.
+      if (kIsWeb) {
+        await SessionPersistence.markGoogleIntent(rememberMe);
+      }
       final outcome = await GoogleAuthService.instance.signIn();
       if (!mounted) return;
       if (outcome.isRedirecting) {
@@ -149,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // changed.
         return;
       }
-      await _completeGoogleSignIn(idToken);
+      await _completeGoogleSignIn(idToken, rememberSession: rememberMe);
     } on GoogleAuthException catch (error) {
       if (mounted) setState(() => errorMessage = error.message);
     } catch (error) {
@@ -160,10 +216,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /// Exchanges a Firebase ID token for the ERAS session and routes the user.
+  ///
+  /// [rememberSession] carries the checkbox choice of the attempt that started
+  /// this exchange. When it is absent (a Flutter Web redirect return, where the
+  /// widget and its state were rebuilt) the choice parked before the redirect
+  /// is used instead.
   Future<void> _completeGoogleSignIn(
     String idToken, {
     GoogleRegistrationRequest? registration,
+    bool? rememberSession,
   }) async {
+    final parkedChoice = await SessionPersistence.consumeGoogleIntent();
+    final rememberMe = rememberSession ?? parkedChoice ?? false;
     final Map<String, dynamic> response;
     try {
       response = await ApiService.googleSignIn(
@@ -171,6 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
         role: registration?.role,
         name: registration?.name,
         phone: registration?.phone,
+        rememberMe: rememberMe,
       );
     } catch (error) {
       // Firebase authenticated this browser but ERAS did not create a session:
@@ -203,22 +268,24 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Flutter Web: finishes a Google sign-in Firebase left pending (a redirect
   /// return, or the persisted session after a browser refresh).
   ///
-  /// Does nothing on native platforms.
-  Future<void> _resumeWebGoogleSignIn() async {
+  /// Does nothing on native platforms. Returns true when the pending sign-in
+  /// actually produced an ERAS session, so the caller knows not to restore a
+  /// remembered one on top of it.
+  Future<bool> _resumeWebGoogleSignIn() async {
     GoogleWebResumeResult? result;
     try {
       result = await GoogleAuthService.instance.resumeWebSignIn();
     } on GoogleAuthException catch (error) {
       if (mounted) setState(() => errorMessage = error.message);
-      return;
+      return false;
     } catch (_) {
       // A pending sign-in that cannot be resumed must never block the page:
       // the user can simply press the Google button again.
-      return;
+      return false;
     }
 
     final idToken = result?.outcome.idToken;
-    if (idToken == null || !mounted) return;
+    if (idToken == null || !mounted) return false;
 
     setState(() {
       loading = true;
@@ -226,6 +293,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await _completeGoogleSignIn(idToken, registration: result?.registration);
+      return true;
     } on GoogleAuthException catch (error) {
       if (mounted) setState(() => errorMessage = error.message);
     } catch (error) {
@@ -233,6 +301,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => loading = false);
     }
+    return false;
   }
 
   /// One safe sentence for anything that is not a [GoogleAuthException].

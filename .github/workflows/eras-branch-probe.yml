@@ -1,0 +1,60 @@
+name: ERAS branch probe
+
+on:
+  push:
+    branches:
+      - arena/260fe2f4-emergency-resource-system
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Report formatting differences
+        run: |
+          set +e
+          dart format --output=none --set-exit-if-changed .
+          echo "format-check-exit=$?"
+          dart format . > /dev/null
+          git --no-pager diff --stat -- .
+          git --no-pager diff -- . | head -400
+
+      - name: Analyze
+        run: |
+          set +e
+          flutter analyze
+          echo "analyze-exit=$?"
+
+      - name: Run tests
+        run: |
+          set +e
+          flutter test --reporter expanded > /tmp/flutter-test.txt 2>&1
+          echo "test-exit=$?"
+          tail -n 150 /tmp/flutter-test.txt
+          echo "---- failures ----"
+          grep -n -B2 -A30 '\[E\]' /tmp/flutter-test.txt | head -200
+
+      - name: Upload updated lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pubspec-lock
+          path: frontend/emergency_app/pubspec.lock
+          if-no-files-found: error
