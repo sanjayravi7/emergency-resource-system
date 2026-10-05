@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/eras_models.dart';
 import '../services/email_privacy.dart';
 import '../theme/app_theme.dart';
+import 'auth_motion.dart';
 import 'common_widgets.dart';
 
 const int adminUserMaxNameLength = 120;
