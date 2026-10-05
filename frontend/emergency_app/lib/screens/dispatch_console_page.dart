@@ -742,11 +742,16 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     LocationPermissionResult permission;
     try {
       permission = await _requestLocationPermission();
+    } on LocationServiceException catch (error) {
+      final diagnostic = error.diagnosticMessage;
+      if (diagnostic != null) debugPrint(diagnostic);
+      rethrow;
     } catch (_) {
-      permission = const LocationPermissionResult(
-        status: LocationPermissionStatus.unavailable,
-        message: 'The device location service is unavailable.',
+      final failure = LocationServiceException.forReason(
+        LocationFailureReason.unexpectedFailure,
       );
+      debugPrint(failure.diagnosticMessage);
+      throw failure;
     }
     if (mounted) {
       setState(() {
@@ -754,26 +759,34 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         _locationPermissionChecked = true;
       });
     }
-    if (!permission.isGranted) {
-      showToast(
-        '${permission.message} You can still search for or type a location.',
-      );
-      return null;
+
+    final permissionFailure = permission.toLocationServiceException();
+    if (permissionFailure != null) {
+      final diagnostic = permissionFailure.diagnosticMessage;
+      if (diagnostic != null) debugPrint(diagnostic);
+      throw permissionFailure;
     }
 
     try {
       final point = await readDeviceLocation();
-      if (point == null && mounted) {
-        showToast(
-          'Precise GPS location is unavailable. You can still search for or type a location.',
+      if (!isUsableDeviceLocation(point)) {
+        final failure = LocationServiceException.forReason(
+          LocationFailureReason.providerUnavailable,
         );
+        debugPrint(failure.diagnosticMessage);
+        throw failure;
       }
       return point;
+    } on LocationServiceException catch (error) {
+      final diagnostic = error.diagnosticMessage;
+      if (diagnostic != null) debugPrint(diagnostic);
+      rethrow;
     } catch (_) {
-      showToast(
-        'Precise GPS location is unavailable. You can still search for or type a location.',
+      final failure = LocationServiceException.forReason(
+        LocationFailureReason.unexpectedFailure,
       );
-      return null;
+      debugPrint(failure.diagnosticMessage);
+      throw failure;
     }
   }
 
@@ -1371,18 +1384,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       );
       if (mounted) setState(() {});
 
-      // Send one real initial fix when available, then continue over the
-      // existing Socket.IO telemetry channel. A missing fix never becomes a
-      // fake coordinate; the stream may still deliver one later.
-      final initialPoint = await readDeviceLocation();
-      if (initialPoint != null && SocketService.instance.isConnected) {
-        SocketService.instance.updateLocation(
-          requestId: request.id,
-          latitude: initialPoint.latitude,
-          longitude: initialPoint.longitude,
-        );
-      }
-
+      // Start the existing Socket.IO location stream immediately. The one-shot
+      // best-effort initial fix can take longer (especially on a cold GPS), so
+      // it must never delay live updates or change responder.start/update/stop.
       locationSubscription = watchDeviceLocation().listen(
         (point) {
           final requestId = locationStore.localSharingRequestId;
@@ -1397,6 +1401,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           unawaited(stopLocationSharing(request.id));
         },
       );
+      unawaited(_sendInitialLocationIfAvailable(request.id));
       showToast('Live responder location sharing started');
     } catch (error) {
       if (locationStore.localSharingRequestId == request.id) {
@@ -1405,6 +1410,30 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       showToast('Location sharing failed: ${_clean(error)}');
     } finally {
       _locationStartInProgress = false;
+    }
+  }
+
+  Future<void> _sendInitialLocationIfAvailable(int requestId) async {
+    try {
+      final point = await readDeviceLocation();
+      if (!mounted ||
+          !isUsableDeviceLocation(point) ||
+          locationStore.localSharingRequestId != requestId ||
+          !SocketService.instance.isConnected) {
+        return;
+      }
+      SocketService.instance.updateLocation(
+        requestId: requestId,
+        latitude: point!.latitude,
+        longitude: point.longitude,
+      );
+    } on LocationServiceException catch (error) {
+      // An initial one-shot fix is best effort. The live stream remains active
+      // and may provide the first coordinate shortly afterward.
+      final diagnostic = error.diagnosticMessage;
+      if (diagnostic != null) debugPrint(diagnostic);
+    } catch (_) {
+      // Do not interrupt the established Socket.IO live-location pipeline.
     }
   }
 

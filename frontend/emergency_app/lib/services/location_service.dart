@@ -19,6 +19,7 @@ library;
 
 import 'dart:math' as math;
 
+import '../models/eras_models.dart' show isValidCoordinatePair;
 import 'location_service_stub.dart'
     if (dart.library.js_interop) 'location_service_web.dart' as impl;
 
@@ -42,6 +43,15 @@ class GeoPoint {
   @override
   int get hashCode => Object.hash(latitude, longitude);
 }
+
+/// Returns true only for a real coordinate pair the requester may use.
+///
+/// `isValidCoordinatePair` validates ranges and finite values; the zero/zero
+/// sentinel is rejected as well because it is never a usable device fix.
+bool isUsableDeviceLocation(GeoPoint? point) =>
+    point != null &&
+    isValidCoordinatePair(point.latitude, point.longitude) &&
+    !(point.latitude == 0.0 && point.longitude == 0.0);
 
 /// A human readable place bound to exact coordinates.
 class ResolvedPlace {
@@ -227,22 +237,16 @@ class NearbyPlace {
 /// project, or is blocked for the key. The UI must degrade gracefully: the
 /// NEARBY PLACES section shows the guidance below, while the map, GPS and
 /// reverse geocoding (other Google APIs) keep working.
-class PlacesApiDisabledException implements LocationServiceException {
-  const PlacesApiDisabledException({this.details});
-
+class PlacesApiDisabledException extends LocationServiceException {
   /// Exact message the requester sees in the NEARBY PLACES section.
   static const String userMessage =
       'Nearby places unavailable. Enable Places API (New) in Google Cloud.';
 
-  @override
-  String get message => userMessage;
-
-  /// Original Google error text, kept for logging/debugging.
-  @override
-  final String? details;
-
-  @override
-  String toString() => userMessage;
+  const PlacesApiDisabledException({String? details})
+      : super(
+          'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
+          details: details,
+        );
 }
 
 /// Whether a Google error [message] is a *reverse geocoding authorization*
@@ -352,18 +356,87 @@ String googleLocationUserMessage(String message) {
   return message;
 }
 
-/// Raised when Google could not resolve a location. The caller must keep the
-/// coordinates it already has and must not invent a place name.
+/// Stable, platform-neutral reasons for a failed current-location request.
+///
+/// These values intentionally contain safe user-facing copy and diagnostic
+/// codes rather than native/plugin exception strings.
+enum LocationFailureReason {
+  permissionDenied(
+    'permission_denied',
+    'Location permission is required to use your current location.',
+  ),
+  permissionDeniedForever(
+    'permission_denied_forever',
+    'Location permission is blocked. Allow it in Android app settings.',
+  ),
+  serviceDisabled(
+    'service_disabled',
+    'Location services are turned off. Enable location services and try again.',
+  ),
+  timeout(
+    'timeout',
+    'Getting your current location is taking longer than expected. Please try again.',
+  ),
+  providerUnavailable(
+    'provider_unavailable',
+    'Your device could not provide a current location. Please try again or select a place manually.',
+  ),
+  unexpectedFailure(
+    'unexpected_failure',
+    'Could not determine your current location. Please try again.',
+  );
+
+  const LocationFailureReason(this.diagnosticCode, this.userMessage);
+
+  final String diagnosticCode;
+  final String userMessage;
+}
+
+/// Raised when a location or place operation could not resolve a location.
+///
+/// For current-location failures, [reason] determines safe UI copy and
+/// [diagnosticCode] is a stable, non-sensitive internal diagnostic. Native
+/// exception text must never be copied into either field.
 class LocationServiceException implements Exception {
-  const LocationServiceException(this.message, {this.details});
+  const LocationServiceException(
+    this.message, {
+    this.details,
+    this.reason,
+    this.diagnosticCode,
+  });
+
+  factory LocationServiceException.forReason(
+    LocationFailureReason reason, {
+    String? diagnosticCode,
+  }) =>
+      LocationServiceException(
+        reason.userMessage,
+        reason: reason,
+        diagnosticCode: diagnosticCode ?? reason.diagnosticCode,
+      );
 
   final String message;
 
   /// Optional provider detail retained for diagnostics, never required for UI.
   final String? details;
 
+  /// Structured reason, null for unrelated place-search/reverse-geocode errors.
+  final LocationFailureReason? reason;
+
+  /// Safe code such as `timeout` or `platform_exception`; never raw details.
+  final String? diagnosticCode;
+
+  /// The only current-location diagnostic suitable for internal logs.
+  String? get diagnosticMessage {
+    final code = diagnosticCode ?? reason?.diagnosticCode;
+    return code == null ? null : 'location_error=$code';
+  }
+
+  /// The safe message the requester should see for a classified GPS failure.
+  String get userFacingMessage => reason?.userMessage ?? message;
+
   @override
-  String toString() => message;
+  String toString() => userFacingMessage;
 }
 
 /// The result of the platform GPS permission/service check.
@@ -383,10 +456,18 @@ class LocationPermissionResult {
   const LocationPermissionResult({
     required this.status,
     required this.message,
+    this.failureReason,
+    this.diagnosticCode,
   });
 
   final LocationPermissionStatus status;
   final String message;
+
+  /// Optional classification when a platform check itself failed.
+  final LocationFailureReason? failureReason;
+
+  /// Safe internal code; never includes native exception details.
+  final String? diagnosticCode;
 
   bool get isGranted => status == LocationPermissionStatus.granted;
   bool get isDeniedForever => status == LocationPermissionStatus.deniedForever;
@@ -395,6 +476,29 @@ class LocationPermissionResult {
   /// Disabled services, denied-forever and unavailable states require recovery
   /// UI instead and must not be treated as promptable.
   bool get canRequest => status == LocationPermissionStatus.denied;
+
+  /// Converts a non-granted result to a safe structured location failure.
+  LocationServiceException? toLocationServiceException() {
+    if (isGranted) return null;
+
+    final fallbackReason = switch (status) {
+      LocationPermissionStatus.granted =>
+        LocationFailureReason.unexpectedFailure,
+      LocationPermissionStatus.serviceDisabled =>
+        LocationFailureReason.serviceDisabled,
+      LocationPermissionStatus.denied => LocationFailureReason.permissionDenied,
+      LocationPermissionStatus.deniedForever =>
+        LocationFailureReason.permissionDeniedForever,
+      LocationPermissionStatus.unavailable =>
+        LocationFailureReason.unexpectedFailure,
+    };
+    final reason = failureReason ?? fallbackReason;
+
+    return LocationServiceException.forReason(
+      reason,
+      diagnosticCode: diagnosticCode,
+    );
+  }
 }
 
 /// Check the current service + permission state without showing a runtime
@@ -409,8 +513,10 @@ Future<LocationPermissionResult> checkDeviceLocationPermission() =>
 Future<LocationPermissionResult> ensureDeviceLocationPermission() =>
     impl.ensureDeviceLocationPermission();
 
-/// Read one real device position after [ensureDeviceLocationPermission] has
-/// returned [LocationPermissionStatus.granted].
+/// Read one real device position after verifying service state and foreground
+/// permission. Native implementations retry a timed-out high-accuracy fix with
+/// a balanced-accuracy request and throw structured [LocationServiceException]
+/// failures rather than silently returning null.
 Future<GeoPoint?> readDeviceLocation() => impl.readDeviceLocation();
 
 /// Stream real device positions for responder live sharing. The caller owns

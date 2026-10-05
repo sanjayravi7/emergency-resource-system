@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/services/live_location_store.dart';
 import 'package:dispatch_console_flutter/services/location_service.dart';
@@ -180,6 +182,68 @@ void main() {
           service.reverseGeocodeCalls.single, const GeoPoint(9.9876, 76.6543));
       expect(find.textContaining('Location detected'), findsOneWidget);
       expect(find.textContaining('9.9876'), findsOneWidget);
+    });
+
+    testWidgets('failed location request clears loading and can be retried',
+        (tester) async {
+      final controller = TextEditingController();
+      final firstAttempt = Completer<GeoPoint?>();
+      var attempts = 0;
+      double? latitude;
+      double? longitude;
+
+      await tester.pumpWidget(_host(StatefulBuilder(
+        builder: (context, setState) => RequesterLocationPicker(
+          placeController: controller,
+          latitude: latitude,
+          longitude: longitude,
+          locationService: FakeLocationService(),
+          showMapPreview: false,
+          onUseCurrentLocation: () {
+            attempts++;
+            if (attempts == 1) return firstAttempt.future;
+            return Future<GeoPoint?>.value(const GeoPoint(10.25, 76.45));
+          },
+          onLocationChanged: (lat, lng) => setState(() {
+            latitude = lat;
+            longitude = lng;
+          }),
+        ),
+      )));
+
+      final button = find.byKey(const Key('use-current-location-button'));
+      await tester.tap(button);
+      await tester.pump();
+      expect(attempts, 1);
+      expect(find.text('Locating…'), findsOneWidget);
+
+      // A second tap while a request is pending cannot start another read.
+      await tester.tap(button);
+      await tester.pump();
+      expect(attempts, 1);
+
+      firstAttempt.completeError(
+        LocationServiceException.forReason(LocationFailureReason.timeout),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Getting your current location is taking longer than expected. Please try again.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Locating…'), findsNothing);
+      expect(latitude, isNull);
+      expect(longitude, isNull);
+
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(attempts, 2);
+      expect(latitude, 10.25);
+      expect(longitude, 76.45);
+      expect(find.text('Locating…'), findsNothing);
+      expect(find.textContaining('Location detected'), findsOneWidget);
     });
 
     testWidgets(

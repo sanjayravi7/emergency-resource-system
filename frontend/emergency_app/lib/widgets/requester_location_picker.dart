@@ -46,7 +46,8 @@ class RequesterLocationPicker extends StatefulWidget {
   final double? longitude;
   final LocationService locationService;
 
-  /// Reads the browser/device GPS. Returns null when unavailable/denied.
+  /// Reads the browser/device GPS. Platform failures are thrown as a
+  /// [LocationServiceException] with a safe, structured failure reason.
   final Future<GeoPoint?> Function() onUseCurrentLocation;
 
   /// Emits the canonical coordinates (null clears them).
@@ -112,6 +113,10 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
   // 1. Use my current location
   // ------------------------------------------------------------------
   Future<void> useCurrentLocation() async {
+    // The button is disabled while locating, but keep this guard as well so
+    // programmatic/re-entrant taps can never start a second request.
+    if (_locating) return;
+
     setState(() {
       _locating = true;
       _statusMessage = 'Requesting location permission…';
@@ -119,37 +124,51 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
       _predictions = const <PlacePrediction>[];
     });
 
-    final point = await widget.onUseCurrentLocation();
+    try {
+      final point = await widget.onUseCurrentLocation();
+      if (!mounted) return;
 
-    if (!mounted) return;
+      if (point == null) {
+        throw LocationServiceException.forReason(
+          LocationFailureReason.providerUnavailable,
+        );
+      }
+      if (!isUsableDeviceLocation(point)) {
+        throw LocationServiceException.forReason(
+          LocationFailureReason.providerUnavailable,
+        );
+      }
 
-    if (point == null) {
-      setState(() {
-        _locating = false;
-        _statusMessage =
-            'Location permission denied or GPS unavailable. Search for a nearby '
-            'place instead.';
-        _statusIsError = true;
-      });
-      return;
+      // Coordinates are stored immediately - before reverse geocoding - so
+      // they are never lost when Google cannot name the place.
+      widget.onLocationChanged(point.latitude, point.longitude);
+      setState(() => _statusMessage = 'Using current location…');
+
+      await _reverseGeocodeInto(point, successMessage: 'Location detected ✓');
+      await _movePreviewCamera(point.latitude, point.longitude);
+
+      // The requester's own location (re)appeared: refresh the nearby list
+      // around it, but only when a category was already chosen (one request per
+      // explicit action, never from responder Socket.IO updates).
+      if (_nearbyCategory != null) {
+        await _refreshNearbyPlaces(center: point);
+      }
+    } on LocationServiceException catch (error) {
+      if (!mounted) return;
+      _setStatus(
+        error.reason?.userMessage ??
+            LocationFailureReason.unexpectedFailure.userMessage,
+        isError: true,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _setStatus(
+        LocationFailureReason.unexpectedFailure.userMessage,
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _locating = false);
     }
-
-    // Coordinates are stored immediately - before reverse geocoding - so they
-    // are never lost when Google cannot name the place.
-    widget.onLocationChanged(point.latitude, point.longitude);
-    setState(() => _statusMessage = 'Using current location…');
-
-    await _reverseGeocodeInto(point, successMessage: 'Location detected ✓');
-    await _movePreviewCamera(point.latitude, point.longitude);
-
-    // The requester's own location (re)appeared: refresh the nearby list
-    // around it, but only when a category was already chosen (one request per
-    // explicit action, never from responder Socket.IO updates).
-    if (_nearbyCategory != null) {
-      await _refreshNearbyPlaces(center: point);
-    }
-
-    if (mounted) setState(() => _locating = false);
   }
 
   Future<void> _reverseGeocodeInto(
