@@ -37,7 +37,7 @@ void main() {
   group('describeGoogleSignInFailure', () {
     test('a PlatformException carries the Google status code', () {
       final failure = describeGoogleSignInFailure(
-        const PlatformException(code: 'sign_in_failed', message: 'h2: 10'),
+        PlatformException(code: 'sign_in_failed', message: 'h2: 10'),
       )!;
 
       expect(failure.code, 'sign_in_failed');
@@ -49,7 +49,7 @@ void main() {
 
     test('a status code in `details` wins over the message', () {
       final failure = describeGoogleSignInFailure(
-        const PlatformException(
+        PlatformException(
           code: 'sign_in_failed',
           message: 'h2: 10',
           details: <String, Object?>{'statusCode': 12501},
@@ -62,7 +62,7 @@ void main() {
 
     test('a dismissed account sheet is a cancellation, not a failure', () {
       final failure = describeGoogleSignInFailure(
-        const PlatformException(
+        PlatformException(
           code: 'sign_in_canceled',
           message: 'The user canceled the sign-in flow',
         ),

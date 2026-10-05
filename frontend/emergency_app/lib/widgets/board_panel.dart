@@ -616,7 +616,7 @@ class BoardPanel extends StatelessWidget {
                         // signed-in owner keeps their own value readable.
                         displayEmailForOthers(
                           requester!.email,
-                          isOwnAccount: requester!.id == currentUserId,
+                          isOwnAccount: requester?.id == currentUserId,
                         ),
                         style: TextStyle(fontSize: 11, color: p.textFaint),
                       ),
