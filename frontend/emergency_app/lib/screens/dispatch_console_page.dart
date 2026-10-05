@@ -10,6 +10,7 @@ import '../services/socket_service.dart';
 import '../models/eras_models.dart';
 import '../services/location_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/admin_user_management_panel.dart';
 import '../widgets/auth_motion.dart';
 import '../widgets/board_panel.dart';
 import '../widgets/common_widgets.dart';
@@ -51,6 +52,8 @@ class DispatchConsolePage extends StatefulWidget {
 class _DispatchConsolePageState extends State<DispatchConsolePage> {
   final List<BackendResource> resources = <BackendResource>[];
   final List<BackendResponder> responders = <BackendResponder>[];
+  final List<AdminUser> adminUsers = <AdminUser>[];
+  final Set<int> _adminUserBusyIds = <int>{};
   final List<BackendResponderResource> myInventory =
       <BackendResponderResource>[];
   final List<ResponderHelpType> myHelpTypes = <ResponderHelpType>[];
@@ -66,6 +69,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
 
   ConsoleView activeView = ConsoleView.board;
   bool loading = false;
+  bool adminUsersLoading = false;
   bool submitting = false;
 
   Timer? refreshTimer;
@@ -471,6 +475,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     await loadResources(silent: silent);
     await loadRequests(silent: silent);
     await loadResponders(silent: silent);
+    if (isAdmin) await loadAdminUsers(silent: silent);
 
     if (isResponder) {
       await loadMyHelpTypes(silent: silent);
@@ -606,6 +611,27 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       });
     } catch (error) {
       if (!silent) showToast('Failed to load responders: ${_clean(error)}');
+    }
+  }
+
+  Future<void> loadAdminUsers({bool silent = false}) async {
+    if (!isAdmin) return;
+    if (!silent && mounted) setState(() => adminUsersLoading = true);
+
+    try {
+      final loaded = await ApiService.getAdminUsers();
+      if (!mounted) return;
+      setState(() {
+        adminUsers
+          ..clear()
+          ..addAll(loaded);
+      });
+    } catch (error) {
+      if (!silent) showToast('Failed to load users: ${_clean(error)}');
+    } finally {
+      if (!silent && mounted) {
+        setState(() => adminUsersLoading = false);
+      }
     }
   }
 
@@ -1463,6 +1489,193 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     if (mounted) await refreshAll(silent: true);
   }
 
+  Future<void> viewAdminUserDetails(AdminUser user) async {
+    if (!isAdmin) return;
+    final action = await showDialog<AdminUserDetailsAction>(
+      context: context,
+      builder: (_) => AdminUserDetailsDialog(
+        user: user,
+        canChangeActive:
+            !user.isActive || user.id != ApiService.currentUserId,
+      ),
+    );
+    if (!mounted) return;
+
+    if (action == AdminUserDetailsAction.edit) {
+      await editAdminUser(user);
+    } else if (action == AdminUserDetailsAction.changeActive) {
+      await changeAdminUserActiveState(user);
+    }
+  }
+
+  Future<void> editAdminUser(AdminUser user) async {
+    if (!isAdmin || _adminUserBusyIds.contains(user.id)) return;
+    final values = await showDialog<AdminUserEditValues>(
+      context: context,
+      builder: (_) => AdminUserEditDialog(user: user),
+    );
+    if (values == null || !mounted) return;
+
+    setState(() => _adminUserBusyIds.add(user.id));
+    try {
+      await ApiService.updateAdminUser(
+        user.id,
+        name: values.name,
+        phone: values.phone,
+      );
+      await loadAdminUsers(silent: true);
+      showToast('User profile updated');
+    } catch (error) {
+      showToast('Save failed: ${_clean(error)}');
+    } finally {
+      if (mounted) setState(() => _adminUserBusyIds.remove(user.id));
+    }
+  }
+
+  Future<void> changeAdminUserActiveState(AdminUser user) async {
+    if (!isAdmin || _adminUserBusyIds.contains(user.id)) return;
+    if (user.isActive && user.id == ApiService.currentUserId) {
+      showToast('You cannot deactivate your own account.');
+      return;
+    }
+
+    final activating = !user.isActive;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final p = ErasPalette.of(dialogContext);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            activating ? 'Activate this account?' : 'Deactivate this account?',
+            style: TextStyle(color: p.text, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            activating
+                ? 'The user will be able to sign in and use ERAS again.'
+                : 'The user will no longer be able to sign in or use ERAS. '
+                    'Emergency and allocation history will be preserved.',
+            style: TextStyle(fontSize: 13, height: 1.4, color: p.textDim),
+          ),
+          actions: [
+            TextButton(
+              key: Key(
+                activating
+                    ? 'cancel-activate-admin-user-${user.id}'
+                    : 'cancel-deactivate-admin-user-${user.id}',
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              style: TextButton.styleFrom(foregroundColor: p.textDim),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: Key(
+                activating
+                    ? 'confirm-activate-admin-user-${user.id}'
+                    : 'confirm-deactivate-admin-user-${user.id}',
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: activating ? p.teal : p.amber,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(activating ? 'Activate' : 'Deactivate'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _adminUserBusyIds.add(user.id));
+    try {
+      if (activating) {
+        await ApiService.activateAdminUser(user.id);
+      } else {
+        await ApiService.deactivateAdminUser(user.id);
+      }
+      await loadAdminUsers(silent: true);
+      showToast(activating ? 'User activated' : 'User deactivated');
+    } catch (error) {
+      showToast('Update failed: ${_clean(error)}');
+    } finally {
+      if (mounted) setState(() => _adminUserBusyIds.remove(user.id));
+    }
+  }
+
+  Future<void> deleteAdminUser(AdminUser user) async {
+    if (!isAdmin ||
+        _adminUserBusyIds.contains(user.id) ||
+        user.id == ApiService.currentUserId ||
+        !user.history.deletable) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final p = ErasPalette.of(dialogContext);
+        return AlertDialog(
+          backgroundColor: p.surface,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            'Delete this account?',
+            style: TextStyle(color: p.text, fontWeight: FontWeight.w700),
+          ),
+          content: Text(
+            'Permanently remove ${user.name} (ID ${user.id}) from ERAS? '
+            'This cannot be undone. Only accounts with no operational history '
+            'may be deleted. The backend will verify the account history again '
+            'before removing it.',
+            style: TextStyle(fontSize: 13, height: 1.4, color: p.textDim),
+          ),
+          actions: [
+            TextButton(
+              key: Key('cancel-delete-admin-user-${user.id}'),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              style: TextButton.styleFrom(foregroundColor: p.textDim),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: Key('confirm-delete-admin-user-${user.id}'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: p.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Delete account'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _adminUserBusyIds.add(user.id));
+    try {
+      // `history.deletable` only controls whether the secondary action is
+      // shown. DELETE is still sent to the backend, which transactionally
+      // rechecks history and may refuse a stale directory result.
+      await ApiService.deleteAdminUser(user.id, confirm: true);
+      await loadAdminUsers(silent: true);
+      showToast('User deleted');
+    } catch (error) {
+      if (error is ApiServiceException &&
+          error.statusCode == 409 &&
+          error.code == 'USER_HAS_HISTORY') {
+        showToast(
+          'This account cannot be deleted because it has ERAS operational history. '
+          'Deactivate it instead.',
+        );
+      } else {
+        showToast('Delete failed: ${_clean(error)}');
+      }
+    } finally {
+      if (mounted) setState(() => _adminUserBusyIds.remove(user.id));
+    }
+  }
+
   Future<void> saveResource(BackendResource? existing) async {
     final data = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -1587,6 +1800,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         ConsoleView.resources => 'Resources',
         ConsoleView.responders => 'Responders',
         ConsoleView.log => 'Closed Log',
+        ConsoleView.users => 'User Management',
       };
 
   String get viewSubtitle => switch (activeView) {
@@ -1597,6 +1811,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             : 'Resource catalog and inventory',
         ConsoleView.responders => 'Responders registered',
         ConsoleView.log => 'Completed and cancelled requests',
+        ConsoleView.users => 'Profiles and operational history',
       };
 
   String get roleLabel {
@@ -1747,6 +1962,22 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
           ),
         );
       }
+    }
+
+    if (activeView == ConsoleView.users && isAdmin) {
+      children.add(
+        AdminUserManagementPanel(
+          users: adminUsers,
+          loading: adminUsersLoading,
+          busyUserIds: _adminUserBusyIds,
+          currentUserId: ApiService.currentUserId,
+          onRefresh: loadAdminUsers,
+          onViewDetails: viewAdminUserDetails,
+          onEdit: editAdminUser,
+          onChangeActive: changeAdminUserActiveState,
+          onDelete: deleteAdminUser,
+        ),
+      );
     }
 
     if (activeView == ConsoleView.responders) {

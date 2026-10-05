@@ -274,6 +274,104 @@ class ResourceAvailability {
 // PEOPLE
 // ---------------------------------------------------------------------------
 
+/// Operational relationship counts returned by the ADMIN user directory.
+///
+/// These JSON keys intentionally match the backend's `history` payload:
+/// `requests`, `acceptedRequests`, `responderAssignments`, `allocations`,
+/// `responderResources`, and `responderHelpTypes`. The display layer gives the
+/// latter two user-facing labels (Inventory and Help types) without changing
+/// the API contract.
+class AdminUserHistory {
+  const AdminUserHistory({
+    this.requests = 0,
+    this.acceptedRequests = 0,
+    this.responderAssignments = 0,
+    this.allocations = 0,
+    this.responderResources = 0,
+    this.responderHelpTypes = 0,
+    this.total = 0,
+    this.deletable = false,
+  });
+
+  /// Emergencies requested by the account (`history.requests`).
+  final int requests;
+
+  /// Emergencies accepted as lead responder (`history.acceptedRequests`).
+  final int acceptedRequests;
+
+  final int responderAssignments;
+  final int allocations;
+
+  /// Durable inventory rows held by the responder (`history.responderResources`).
+  final int responderResources;
+
+  /// Responder help-type rows (`history.responderHelpTypes`).
+  final int responderHelpTypes;
+
+  final int total;
+
+  /// This value is supplied by the backend. It is never inferred from the
+  /// client-side counters and is only a UI hint; DELETE is always revalidated
+  /// by the backend.
+  final bool deletable;
+
+  factory AdminUserHistory.fromJson(Map<String, dynamic> json) {
+    return AdminUserHistory(
+      requests: _asInt(json['requests']),
+      acceptedRequests: _asInt(json['acceptedRequests']),
+      responderAssignments: _asInt(json['responderAssignments']),
+      allocations: _asInt(json['allocations']),
+      responderResources: _asInt(json['responderResources']),
+      responderHelpTypes: _asInt(json['responderHelpTypes']),
+      total: _asInt(json['total']),
+      deletable: json['deletable'] == true,
+    );
+  }
+}
+
+/// Safe projection of one row from the ADMIN-only GET /api/users directory.
+///
+/// The backend includes other account properties for its own purposes. This
+/// model deliberately keeps only the fields needed by the management screen;
+/// credentials, Firebase identifiers and device tokens are never retained or
+/// exposed to widgets.
+class AdminUser {
+  const AdminUser({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.isActive,
+    this.email,
+    this.phone,
+    this.responderStatus,
+    this.history = const AdminUserHistory(),
+  });
+
+  final int id;
+  final String name;
+  final String? email;
+  final String? phone;
+  final String role;
+  final bool isActive;
+  final String? responderStatus;
+  final AdminUserHistory history;
+
+  factory AdminUser.fromJson(Map<String, dynamic> json) {
+    final id = _asInt(json['id']);
+    final historyJson = _asMap(json['history']);
+    return AdminUser(
+      id: id,
+      name: _asTrimmedString(json['name']) ?? 'User #$id',
+      email: _asTrimmedString(json['email']),
+      phone: _asTrimmedString(json['phone']),
+      role: _asTrimmedString(json['role']) ?? 'UNKNOWN',
+      isActive: json['isActive'] == true,
+      responderStatus: _asTrimmedString(json['responderStatus']),
+      history: AdminUserHistory.fromJson(historyJson),
+    );
+  }
+}
+
 class UserSummary {
   const UserSummary({
     required this.id,
@@ -1191,7 +1289,7 @@ String formatCoordinatePair(double latitude, double longitude) =>
 
 /// Views available in the console. Which ones are shown depends on the role
 /// of the logged in user (see navItemsForRole).
-enum ConsoleView { board, newRequest, resources, responders, log }
+enum ConsoleView { board, newRequest, resources, responders, log, users }
 
 class NavItem {
   const NavItem(this.view, this.icon, this.label);
@@ -1214,6 +1312,8 @@ List<NavItem> navItemsForRole(String? role) {
     const NavItem(
         ConsoleView.responders, Icons.groups_2_outlined, 'Responders'),
     const NavItem(ConsoleView.log, Icons.receipt_long_outlined, 'Log'),
+    if (role == 'ADMIN')
+      const NavItem(ConsoleView.users, Icons.manage_accounts_outlined, 'Users'),
   ];
 }
 
