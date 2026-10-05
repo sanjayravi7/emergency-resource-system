@@ -27,29 +27,62 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Report formatting differences
+      - name: Report formatting
         run: |
           set +e
-          dart format --output=none --set-exit-if-changed .
+          dart format --output=none --set-exit-if-changed . > /tmp/format-check.txt 2>&1
           echo "format-check-exit=$?"
-          dart format . > /dev/null
+          cat /tmp/format-check.txt
+          dart format . > /dev/null 2>&1
           git --no-pager diff --stat -- .
-          git --no-pager diff -- . | head -400
+          git --no-pager diff -U0 -- . > /tmp/format.diff
+          python3 - <<'PY'
+          check = open('/tmp/format-check.txt').read()
+          diff = open('/tmp/format.diff').read()
+          def emit(title, text, kind='error'):
+              if not text.strip():
+                  return
+              text = text[-60000:]
+              escaped = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::{kind} title={title}::{escaped}')
+          emit('format-check-output', check)
+          if not diff.strip():
+              print('::notice::formatting is clean')
+          else:
+              emit('format-diff', diff)
+          PY
 
-      - name: Analyze
+      - name: Analyze project source
         run: |
           set +e
-          flutter analyze
+          flutter analyze > /tmp/analyze.txt 2>&1
           echo "analyze-exit=$?"
+          tail -n 60 /tmp/analyze.txt
+          python3 - <<'PY'
+          data = open('/tmp/analyze.txt').read()
+          if 'No issues found' in data:
+              print('::notice::analyze is clean')
+          else:
+              data = data[-60000:]
+              escaped = data.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=analyze::{escaped}')
+          PY
 
       - name: Run tests
         run: |
           set +e
           flutter test --reporter expanded > /tmp/flutter-test.txt 2>&1
           echo "test-exit=$?"
-          tail -n 150 /tmp/flutter-test.txt
-          echo "---- failures ----"
-          grep -n -B2 -A30 '\[E\]' /tmp/flutter-test.txt | head -200
+          tail -n 80 /tmp/flutter-test.txt
+          python3 - <<'PY'
+          data = open('/tmp/flutter-test.txt').read()
+          if 'All tests passed' in data:
+              print('::notice::flutter test is clean')
+          else:
+              data = data[-60000:]
+              escaped = data.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=flutter-test::{escaped}')
+          PY
 
       - name: Upload updated lockfile
         if: always()
