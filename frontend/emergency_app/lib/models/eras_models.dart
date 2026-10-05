@@ -1019,7 +1019,7 @@ class EmergencyRequest {
   ///
   /// Display only: the request keeps its numeric [id], which is what the API
   /// and PostgreSQL use. Operators see the person-facing name instead of the
-  /// internal DB-<id> identifier.
+  /// internal `DB-<id>` identifier.
   String get displayId => 'User $id';
 
   bool get hasPreciseLocation => isValidCoordinatePair(latitude, longitude);

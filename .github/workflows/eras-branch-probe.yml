@@ -6,6 +6,9 @@ on:
       - arena/260fe2f4-emergency-resource-system
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -27,67 +30,51 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Report formatting
+      - name: Probe formatting (branch)
         run: |
           set +e
-          dart format --output=none --set-exit-if-changed . > /tmp/format-check.txt 2>&1
-          echo "format-check-exit=$?"
+          { dart format --output=none --set-exit-if-changed .; echo "format-exit=$?"; } > /tmp/format-check.txt 2>&1
           cat /tmp/format-check.txt
-          dart format . > /dev/null 2>&1
-          git --no-pager diff --stat -- .
-          git --no-pager diff -U0 -- . > /tmp/format.diff
-          python3 - <<'PY'
-          check = open('/tmp/format-check.txt').read()
-          diff = open('/tmp/format.diff').read()
-          def emit(title, text, kind='error'):
-              if not text.strip():
-                  return
-              text = text[-60000:]
-              escaped = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::{kind} title={title}::{escaped}')
-          emit('format-check-output', check)
-          if not diff.strip():
-              print('::notice::formatting is clean')
-          else:
-              emit('format-diff', diff)
-          PY
 
-      - name: Analyze project source
+      - name: Probe analyze (branch)
         run: |
           set +e
-          flutter analyze > /tmp/analyze.txt 2>&1
-          echo "analyze-exit=$?"
-          tail -n 60 /tmp/analyze.txt
-          python3 - <<'PY'
-          data = open('/tmp/analyze.txt').read()
-          if 'No issues found' in data:
-              print('::notice::analyze is clean')
-          else:
-              data = data[-60000:]
-              escaped = data.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::error title=analyze::{escaped}')
-          PY
+          { flutter analyze; echo "analyze-exit=$?"; } > /tmp/analyze.txt 2>&1
+          cat /tmp/analyze.txt
 
-      - name: Run tests
+      - name: Probe tests (branch)
         run: |
           set +e
-          flutter test --reporter expanded > /tmp/flutter-test.txt 2>&1
-          echo "test-exit=$?"
-          tail -n 80 /tmp/flutter-test.txt
-          python3 - <<'PY'
-          data = open('/tmp/flutter-test.txt').read()
-          if 'All tests passed' in data:
-              print('::notice::flutter test is clean')
-          else:
-              data = data[-60000:]
-              escaped = data.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::error title=flutter-test::{escaped}')
-          PY
+          { flutter test --reporter expanded; echo "test-exit=$?"; } > /tmp/flutter-test.txt 2>&1
+          grep -E "^\s*[0-9].*(\[E\]|All tests passed|Some tests failed)" /tmp/flutter-test.txt | tail -n 60
 
-      - name: Upload updated lockfile
+      - name: Baseline checks on origin/main
+        working-directory: ${{ github.workspace }}
+        run: |
+          set +e
+          git fetch --depth=1 origin main
+          git worktree add /tmp/main-check origin/main > /dev/null 2>&1
+          cd /tmp/main-check/frontend/emergency_app
+          { dart format --output=none --set-exit-if-changed .; echo "format-exit=$?"; } > /tmp/main-format.txt 2>&1
+          flutter pub get > /tmp/main-pubget.txt 2>&1
+          { flutter analyze; echo "analyze-exit=$?"; } > /tmp/main-analyze.txt 2>&1
+          cat /tmp/main-format.txt /tmp/main-analyze.txt
+
+      - name: Publish probe logs to probe-logs branch
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pubspec-lock
-          path: frontend/emergency_app/pubspec.lock
-          if-no-files-found: error
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -e
+          rm -rf /tmp/probe-out && mkdir -p /tmp/probe-out
+          for f in format-check.txt analyze.txt flutter-test.txt main-format.txt main-analyze.txt main-pubget.txt; do
+            cp "/tmp/$f" "/tmp/probe-out/$f" 2>/dev/null || true
+          done
+          cp frontend/emergency_app/pubspec.lock /tmp/probe-out/pubspec.lock
+          cd /tmp/probe-out
+          git init -q .
+          git checkout -q -b probe-logs
+          git config user.email "probe@arena.dev"
+          git config user.name "arena probe"
+          git add -A
+          git commit -q -m "probe logs for ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/probe-logs

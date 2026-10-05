@@ -85,8 +85,8 @@ class _LoginScreenState extends State<LoginScreen> {
       await Navigator.pushReplacement(
           context,
           MaterialPageRoute<void>(
-              builder: (_) => EmailVerificationScreen(
-                  email: ApiService.currentUserEmail)));
+              builder: (_) =>
+                  EmailVerificationScreen(email: ApiService.currentUserEmail)));
       return;
     }
 
