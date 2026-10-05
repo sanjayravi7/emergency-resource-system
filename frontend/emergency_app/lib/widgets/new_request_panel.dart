@@ -70,7 +70,8 @@ class NewRequestPanel extends StatefulWidget {
   final Future<bool> Function(NewRequestPayload payload) onSubmit;
   final VoidCallback onReload;
 
-  /// Reads browser/device GPS. Returns null when denied or unavailable.
+  /// Reads browser/device GPS. Classified failures are thrown as
+  /// [LocationServiceException] so the picker can show accurate guidance.
   final Future<GeoPoint?> Function() onUseCurrentLocation;
 
   /// Google-backed reverse geocoding / place autocomplete. Injectable so tests
