@@ -11,7 +11,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "seed": "node prisma/seed.js",
-    "provision:admin": "node scripts/provision-admin.js"
+    "provision:admin": "node scripts/provision-admin.js",
+    "inspect:user": "node scripts/inspect-user.js",
+    "promote:admin": "node scripts/provision-admin.js"
   },
   "keywords": [],
   "author": "",

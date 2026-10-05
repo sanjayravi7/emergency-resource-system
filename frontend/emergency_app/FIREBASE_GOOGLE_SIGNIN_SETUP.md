@@ -65,9 +65,40 @@ Verification notes:
    * register an **Android** app with the release keystore's SHA-1/SHA-256
      (gives `android/app/google-services.json` and the Android client id).
      Also add the debug keystore SHA-1 for local testing.
+
+   **The release SHA-1 is the step that decides whether Google sign-in works
+   in a release APK.** Google identifies an Android app by *package name plus
+   the SHA-1 of the certificate that actually signed the APK*, so a release APK
+   signed with a certificate that the Android OAuth client does not list is
+   rejected before the account picker appears
+   (`CommonStatusCodes.DEVELOPER_ERROR`, status 10 → the plugin's
+   `sign_in_failed`). Add:
+
+   * the upload/release keystore SHA-1 (for APKs you sign yourself):
+     `183A5CC4DD91C8AE1525486434FF0831CAA35C27`,
+   * the **Play App Signing** certificate SHA-1 as well if the app is
+     distributed through Google Play (Play re-signs the APK, so the signing
+     certificate at runtime is Google's, not yours):
+     Play Console → Setup → App integrity → App signing key certificate,
+   * the debug keystore SHA-1 for local testing.
+
+   After adding a fingerprint, **download a fresh `google-services.json`** and
+   rebuild: the fingerprint lives in the Android OAuth client entry of that
+   file, and the APK is checked against what is compiled in.
 4. Download `google-services.json` into `frontend/emergency_app/android/app/`.
    It is **git-ignored** on purpose; CI/other checkouts build without it
    (the Google Services Gradle plugin is applied only when the file exists).
+   `tool/build_release_apk.sh` verifies the package name, the project number,
+   the web OAuth client and **both release fingerprints** before it builds:
+
+   ```bash
+   python3 tool/verify_firebase_android_config.py \
+     --file android/app/google-services.json \
+     --project-id "$ERAS_FIREBASE_PROJECT_ID" \
+     --web-client-id "$ERAS_GOOGLE_WEB_CLIENT_ID" \
+     --release-sha1  "$RELEASE_SHA1" \
+     --release-sha256 "$RELEASE_SHA256"
+   ```
 
 ## 3. Google Cloud console
 
@@ -132,6 +163,12 @@ configuration and refuses to produce a release without the configured key.
   client id and never calls `google_sign_in` on the web. What it does need is
   the Firebase **web app configuration** (`ERAS_FIREBASE_*`) plus the deployed
   origin being an authorized domain in Firebase Authentication.
+* Reading a failed Android attempt: every native failure is logged with its
+  Google status code (`adb logcat -s flutter` / `flutter: [eras-auth] google
+  sign-in cancelled/failed code=… statusCode=…`). `statusCode=10` means the
+  build is not registered with Google — see step 3 above; the in-app message
+  says so instead of asking the user to retry. Any other status is an
+  environment/account problem (network, Play services, account state).
 * `ERAS_GOOGLE_WEB_CLIENT_ID` is therefore only kept for compatibility with
   older web builds. Android does **not** use it at all: the
   Google Sign-In SDK identifies the app by package name plus signing SHA-1 and

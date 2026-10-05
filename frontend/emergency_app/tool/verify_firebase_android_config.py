@@ -128,6 +128,14 @@ def main() -> None:
         "--release-sha1",
         help="Optional SHA-1 of the release certificate to require in the JSON",
     )
+    parser.add_argument(
+        "--release-sha256",
+        help=(
+            "Optional SHA-256 of the release certificate. google-services.json "
+            "only carries SHA-1 in `certificate_hash`, so this value is echoed "
+            "as a console reminder instead of being compared against the file."
+        ),
+    )
     args = parser.parse_args()
 
     path = Path(args.file)
@@ -220,7 +228,25 @@ def main() -> None:
     if args.release_sha1:
         release_sha1 = normalize_sha1(args.release_sha1)
         if release_sha1 not in sha1s:
-            fail("the release signing SHA-1 is not registered in google-services.json")
+            # This is the one mismatch that produces
+            # CommonStatusCodes.DEVELOPER_ERROR (10) - `sign_in_failed` with the
+            # message `h2: 10` - on a release APK while a debug build works.
+            fail(
+                "the release signing SHA-1 is NOT registered in "
+                "google-services.json.\n"
+                f"  expected release SHA-1 : {release_sha1}\n"
+                f"  registered in the file : {', '.join(sha1s) or '<none>'}\n"
+                "  Google rejects the Android sign-in request before an account "
+                "picker appears (status 10, DEVELOPER_ERROR), which ERAS "
+                "reports as a failed Google sign-in.\n"
+                "  Fix: Firebase console -> Project settings -> Your apps -> "
+                "Android app (io.github.sanjayravi7.eras) -> Add fingerprint -> "
+                "paste the release SHA-1 -> Save, then download the new "
+                "google-services.json into android/app/ and rebuild the APK.\n"
+                "  If the APK ships through Google Play, Play App Signing "
+                "re-signs it: add the Play App Signing certificate SHA-1 from "
+                "Play Console -> Setup -> App integrity as well."
+            )
 
     print(f"Firebase project: {project_id}")
     print(f"Firebase project number: {mask(project_number)}")
@@ -233,7 +259,13 @@ def main() -> None:
     for sha1 in sha1s:
         print(f"  {sha1}")
     if args.release_sha1:
-        print("Release signing SHA-1: registered")
+        print(f"Release signing SHA-1: {normalize_sha1(args.release_sha1)} registered")
+    if args.release_sha256:
+        print(
+            "Release signing SHA-256: "
+            f"{normalize_sha1(args.release_sha256)} (console only - "
+            "google-services.json carries SHA-1 fingerprints exclusively)"
+        )
 
     # -- 5. Cross-check the generated Android resources -----------------------
     generated_dir = Path(args.generated_res)

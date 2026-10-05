@@ -52,6 +52,24 @@ const requestInclude = {
   },
 };
 
+// EMAIL PRIVACY NOTE
+//
+// The REST boundary masks another account's email address (see
+// `domain/privacy.js` → `emailForViewer`): a request's requester email is
+// masked for every viewer who is not that requester and not an ADMIN.
+//
+// Realtime is deliberately NOT masked here. One broadcast goes to the union of
+// the requester room, the participating responder rooms and the admin room, so
+// the server cannot serialize per viewer, and the payload intentionally still
+// carries the requester's PHONE so a responder can contact the person in need.
+// The Flutter display layer therefore masks every address that is not the
+// signed-in user's own (`services/email_privacy.dart`), which is what the user
+// actually sees.
+//
+// Follow-up if per-viewer realtime privacy is ever required: emit two payloads
+// (a masked one to participant rooms and a full one to the requester/admin
+// rooms) instead of one union broadcast.
+
 function requestPayload(request) {
   if (!request) return null;
   return {

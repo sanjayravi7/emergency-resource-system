@@ -15,6 +15,8 @@
 // stay visible to every authenticated role because dispatch depends on them.
 // ---------------------------------------------------------------------------
 
+const { maskEmail } = require('./emailMasking');
+
 /** Contact fields that only ADMIN may receive for a responder. */
 const RESPONDER_CONTACT_FIELDS = Object.freeze(['email', 'phone']);
 
@@ -43,6 +45,53 @@ function isPlainObject(value) {
 }
 
 /**
+ * The email address of one ERAS account as a viewer may receive it.
+ *
+ * An address is only ever sent in full to the account that owns it and to an
+ * ADMIN (the existing authorized-admin exception). Every other viewer gets the
+ * masked form from `emailMasking`, so a shared screen - the dispatch board, a
+ * request detail, an assignment - can never expose a complete personal
+ * address, even though the field stays present for operational context.
+ *
+ * Masking happens here, at the serialization boundary, and not only in the
+ * Flutter widgets: a client that renders a payload directly (a future screen,
+ * a log, a screenshot) therefore inherits the same privacy.
+ *
+ * @param {unknown} email
+ * @param {object} viewer { role, userId }
+ * @param {number|string|null|undefined} ownerId id of the account [email] belongs to
+ * @returns {string|null}
+ */
+function emailForViewer(email, viewer = {}, ownerId = null) {
+  if (typeof email !== 'string' || email.trim() === '') return email ?? null;
+
+  // ADMIN keeps the authorized contact visibility of the existing model.
+  if (canViewResponderContact(viewer.role)) return email;
+
+  const viewerUserId = viewer.userId;
+  if (
+    viewerUserId !== null &&
+    viewerUserId !== undefined &&
+    ownerId !== null &&
+    ownerId !== undefined &&
+    Number(viewerUserId) === Number(ownerId)
+  ) {
+    return email; // Own account: nothing to hide from its owner.
+  }
+
+  return maskEmail(email) ?? '';
+}
+
+/** Copy one requester object with the viewer-scoped email. */
+function withMaskedRequesterEmail(requester, viewer) {
+  if (!isPlainObject(requester) || !('email' in requester)) return requester;
+  return {
+    ...requester,
+    email: emailForViewer(requester.email, viewer, requester.id),
+  };
+}
+
+/**
  * Copy one responder-shaped object, dropping contact fields for non-admins.
  * Unknown keys are dropped as well (allow-list): a future schema addition can
  * never leak through this serializer by accident.
@@ -67,17 +116,32 @@ function sanitizeResponderList(rows, viewerRole) {
 }
 
 /**
- * Serialize an emergency request for one viewer role.
+ * Serialize an emergency request for one viewer.
  *
- * The requester's own contact details are unchanged (they are part of the
- * existing dispatch contract and belong to the person asking for help). Only
- * responder contact fields are role-gated.
+ * Responder contact fields stay role-gated. The REQUESTER's email address is
+ * additionally masked for every viewer who is not that requester (and not an
+ * ADMIN): dispatch does not need a complete personal address, and the board
+ * and the request detail dialog are shared surfaces.
+ *
+ * @param {object|null} request
+ * @param {string} viewerRole
+ * @param {number|string|null} [viewerUserId] id of the account receiving the
+ *   payload; when supplied, their own address is never masked for them.
  */
-function sanitizeRequestForViewer(request, viewerRole) {
+function sanitizeRequestForViewer(request, viewerRole, viewerUserId = null) {
   if (!isPlainObject(request)) return request ?? null;
+
+  const viewer = { role: viewerRole, userId: viewerUserId };
+
+  // ADMIN keeps the full operational payload (existing authorized exception),
+  // including the requester's complete address: nothing is rewritten here.
   if (canViewResponderContact(viewerRole)) return request;
 
   const out = { ...request };
+
+  if (isPlainObject(out.requester)) {
+    out.requester = withMaskedRequesterEmail(out.requester, viewer);
+  }
 
   if (isPlainObject(out.acceptedBy)) {
     out.acceptedBy = sanitizeResponder(out.acceptedBy, viewerRole);
@@ -110,15 +174,18 @@ function sanitizeRequestForViewer(request, viewerRole) {
   return out;
 }
 
-function sanitizeRequestsForViewer(requests, viewerRole) {
+function sanitizeRequestsForViewer(requests, viewerRole, viewerUserId = null) {
   if (!Array.isArray(requests)) return [];
-  return requests.map((request) => sanitizeRequestForViewer(request, viewerRole));
+  return requests.map((request) =>
+    sanitizeRequestForViewer(request, viewerRole, viewerUserId)
+  );
 }
 
 module.exports = {
   RESPONDER_CONTACT_FIELDS,
   RESPONDER_OPERATIONAL_FIELDS,
   canViewResponderContact,
+  emailForViewer,
   sanitizeResponder,
   sanitizeResponderList,
   sanitizeRequestForViewer,

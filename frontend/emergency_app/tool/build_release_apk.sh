@@ -67,6 +67,7 @@ firebase_check_args=(
   --project-id "$ERAS_FIREBASE_PROJECT_ID"
   --web-client-id "$ERAS_GOOGLE_WEB_CLIENT_ID"
   --release-sha1 "$release_sha1"
+  --release-sha256 "$release_sha256"
 )
 if [[ -n "${ERAS_FIREBASE_PROJECT_NUMBER:-}" ]]; then
   firebase_check_args+=(--project-number "$ERAS_FIREBASE_PROJECT_NUMBER")

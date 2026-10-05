@@ -1,6 +1,8 @@
 import 'package:dispatch_console_flutter/services/live_location_store.dart';
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/widgets/operational_google_map.dart';
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart' show OneSequenceGestureRecognizer;
 import 'package:flutter_test/flutter_test.dart';
 
 EmergencyRequest _request(
@@ -353,5 +355,17 @@ void main() {
     expect(responderB.position.longitude, 76.267303);
     expect(
         snapshots.map((item) => item.id).toSet(), hasLength(snapshots.length));
+  });
+
+  group('map gestures', () {
+    test('the map claims the gestures that land on it', () {
+      // The operational map is a platform view inside the Dispatch Board's
+      // scrollable page. Without a recognizer of its own the parent scroll
+      // view would win every drag and the map could not be panned or pinched.
+      expect(operationalMapGestureRecognizers, isNotEmpty);
+      for (final factory in operationalMapGestureRecognizers) {
+        expect(factory, isA<Factory<OneSequenceGestureRecognizer>>());
+      }
+    });
   });
 }

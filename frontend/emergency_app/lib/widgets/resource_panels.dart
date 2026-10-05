@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
 import '../services/api_service.dart';
+import '../services/email_privacy.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
 import 'common_widgets.dart';
@@ -799,9 +800,17 @@ class BackendRespondersPanel extends StatelessWidget {
                 // RESPONDER CONTACT PRIVACY: the responder directory is shared
                 // by every role, so email/phone render for ADMIN only. The
                 // backend omits both fields for any other viewer.
+                //
+                // The address is additionally MASKED here: an administrator
+                // needs to identify a responder (name + id), not to read their
+                // personal address. Only the responder's own account keeps the
+                // complete value.
                 if (ApiService.isAdmin && r.email.isNotEmpty)
                   Text(
-                    r.email,
+                    displayEmailForOthers(
+                      r.email,
+                      isOwnAccount: r.id == ApiService.currentUserId,
+                    ),
                     style: TextStyle(fontSize: 11.5, color: p.textFaint),
                   ),
                 if (ApiService.isAdmin && (r.phone ?? '').isNotEmpty) ...[

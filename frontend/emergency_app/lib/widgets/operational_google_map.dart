@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show Factory, kIsWeb;
+import 'package:flutter/gestures.dart' show EagerGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
@@ -230,6 +231,27 @@ Polyline buildDirectConnectionPolyline(DirectConnection c, [ErasPalette? p]) {
   );
 }
 
+/// Gestures the operational map claims from the page that scrolls around it.
+///
+/// The map is an Android/iOS platform view inside the Dispatch Board's
+/// scrollable page. A platform view only receives a pointer sequence that no
+/// Flutter recognizer claims, and the surrounding `ListView` competes with
+/// every drag - so without this set the page won each vertical drag and the
+/// map could neither be panned with one finger nor pinched to zoom, while taps
+/// (which no parent recognizer claims) still worked. That is exactly the
+/// reported symptom: the map rendered, but only taps got through.
+///
+/// `EagerGestureRecognizer` makes the map claim the sequences that land on it,
+/// which restores one-finger pan, pinch zoom, double-tap zoom and marker taps.
+/// It is deliberately scoped to the map: the "Center"/"Fit pins" controls and
+/// the navigation deck are siblings painted above the map in the same `Stack`,
+/// so they keep receiving their own taps, and a drag that starts anywhere
+/// outside the map still scrolls the board.
+final Set<Factory<OneSequenceGestureRecognizer>>
+    operationalMapGestureRecognizers = <Factory<OneSequenceGestureRecognizer>>{
+  Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+};
+
 class OperationalGoogleMap extends StatefulWidget {
   const OperationalGoogleMap({
     super.key,
@@ -372,6 +394,14 @@ class _OperationalGoogleMapState extends State<OperationalGoogleMap> {
                           initialCameraPosition: _initialCamera(snapshots),
                           markers: markers,
                           polylines: polylines,
+                          // GESTURE FIX: claim the pointer sequences that land
+                          // on the map instead of letting the Dispatch Board's
+                          // scroll view win them (see
+                          // [operationalMapGestureRecognizers]). Pan, pinch
+                          // zoom, double-tap zoom and marker taps all depend
+                          // on this; scrolling the page from outside the map
+                          // is unaffected.
+                          gestureRecognizers: operationalMapGestureRecognizers,
                           mapToolbarEnabled: false,
                           // Never ask the Android Maps SDK for its My Location
                           // layer before Geolocator has granted permission.
