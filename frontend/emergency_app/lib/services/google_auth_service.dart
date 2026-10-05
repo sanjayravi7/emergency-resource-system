@@ -1015,7 +1015,11 @@ class GoogleAuthService {
     } on GoogleAuthException {
       rethrow;
     } on FirebaseAuthException catch (error) {
-      _logGoogleAuthDiagnostic('google sign-in failed', code: error.code);
+      _logGoogleAuthDiagnostic(
+        'google sign-in failed',
+        code: error.code,
+        detail: sanitizeGoogleAuthDiagnosticMessage(error.message),
+      );
       throw GoogleAuthException(googleAuthErrorMessageForCode(error.code));
     } on PlatformException catch (error) {
       // Keep the native code and a redacted one-line message for diagnostics.
