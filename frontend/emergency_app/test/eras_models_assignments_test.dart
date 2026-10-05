@@ -236,7 +236,7 @@ void main() {
   });
 }
 
-/// DB-42 style multi-responder snapshot: lead 9 (ACTIVE), responder 11
+/// User 42 style multi-responder snapshot: lead 9 (ACTIVE), responder 11
 /// (ACTIVE), responder 12 (ENDED).
 EmergencyRequest _multiResponderRequest() {
   return EmergencyRequest.fromJson(<String, dynamic>{

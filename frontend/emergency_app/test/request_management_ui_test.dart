@@ -307,7 +307,7 @@ void main() {
     );
 
     expect(find.byKey(const Key('request-detail-dialog')), findsOneWidget);
-    expect(find.text('DB-41'), findsWidgets);
+    expect(find.text('User 41'), findsWidgets);
     expect(find.text('Central Library'), findsOneWidget);
     expect(find.text('Asha Requester'), findsOneWidget);
     expect(find.text('Smoke near the east stairwell'), findsOneWidget);

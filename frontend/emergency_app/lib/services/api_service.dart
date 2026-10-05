@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/eras_models.dart';
+import 'session_persistence.dart';
 
 /// An API failure that preserves a backend error code for safe UI handling.
 class ApiServiceException implements Exception {
@@ -141,13 +143,25 @@ class ApiService {
     if (response.statusCode != 201) {
       _fail(body, 'Registration failed');
     }
+
+    // Registration has no "Remember me" choice of its own: never leave another
+    // account's remembered session behind for the newly created account. The
+    // storage work runs in the background so registration is never delayed.
+    unawaited(SessionPersistence.forgetSession());
     return body;
   }
 
+  /// Email/password login.
+  ///
+  /// [rememberMe] is the login screen's "Remember me" choice: when true the
+  /// returned ERAS session is written to secure storage so it survives an app
+  /// or browser restart, and when false any previously remembered session is
+  /// removed. The password itself is only ever sent in this request body.
   static Future<Map<String, dynamic>> login(
     String email,
-    String password,
-  ) async {
+    String password, {
+    bool rememberMe = false,
+  }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
       headers: {
@@ -166,6 +180,7 @@ class ApiService {
     }
 
     applySession(body);
+    unawaited(_applyRememberMe(rememberMe));
     return body;
   }
 
@@ -239,6 +254,63 @@ class ApiService {
     }
   }
 
+  /// Applies the "Remember me" choice of an authentication response.
+  ///
+  /// Checked: the ERAS JWT is written to secure storage, so it can be restored
+  /// after the app or browser is closed. Unchecked: any previously remembered
+  /// session is removed, leaving the existing in-memory session behaviour
+  /// unchanged. Storage failures never turn a successful login into a failure.
+  ///
+  /// The returned future is never awaited by the authentication call itself:
+  /// a slow or unavailable keystore must not delay the screen transition. The
+  /// storage queue keeps this work ordered with later logouts and logins.
+  static Future<void> _applyRememberMe(bool rememberMe) async {
+    final sessionToken = token;
+    if (rememberMe && sessionToken != null) {
+      await SessionPersistence.rememberSession(sessionToken);
+      return;
+    }
+    await SessionPersistence.forgetSession();
+  }
+
+  /// Restores a session that a previous "Remember me" login persisted.
+  ///
+  /// Returns true only when the stored token still belongs to an active
+  /// account. The token is validated with the existing `GET /api/auth/me`
+  /// endpoint, which also re-reads the role, name, email and verification
+  /// state from PostgreSQL - the client never trusts its own stored copy. A
+  /// token the server no longer accepts (expired, revoked by a password
+  /// change, or a deactivated account) is deleted so the next start is clean.
+  static Future<bool> restoreRememberedSession() async {
+    final storedToken = await SessionPersistence.readToken();
+    if (storedToken == null) return false;
+
+    token = storedToken;
+    try {
+      await fetchMe();
+      if (currentRole == null) {
+        throw const ApiServiceException(
+          'The ERAS server could not restore this session',
+        );
+      }
+      return true;
+    } catch (_) {
+      await SessionPersistence.clearToken();
+      _clearLocalSession();
+      return false;
+    }
+  }
+
+  /// Forgets every in-memory session value without touching storage.
+  static void _clearLocalSession() {
+    token = null;
+    currentRole = null;
+    currentUserId = null;
+    currentUserName = null;
+    currentUserEmail = null;
+    emailVerified = null;
+  }
+
   /// Google sign-in through the EXISTING Firebase project.
   ///
   /// The Flutter side only obtains the Firebase ID token; the backend verifies
@@ -247,11 +319,14 @@ class ApiService {
   /// its role), and creates a new user only when neither exists. It returns the
   /// normal ERAS JWT. A client can therefore never grant itself ADMIN: the role
   /// always comes from PostgreSQL.
+  /// [rememberMe] carries the login screen's "Remember me" choice exactly like
+  /// the password login above; the Google registration path leaves it false.
   static Future<Map<String, dynamic>> googleSignIn({
     required String idToken,
     String? role,
     String? name,
     String? phone,
+    bool rememberMe = false,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/google'),
@@ -283,6 +358,7 @@ class ApiService {
     }
 
     applySession(body);
+    unawaited(_applyRememberMe(rememberMe));
     return body;
   }
 
@@ -407,6 +483,9 @@ class ApiService {
   /// Mark a responder offline before clearing the local session. A failed
   /// network call must never strand the UI, so local credentials are cleared
   /// in all cases and no emergency/allocation is altered by logout.
+  ///
+  /// A remembered "Remember me" session is removed as well: a persistent login
+  /// never survives an explicit sign-out.
   static Future<void> logout() async {
     try {
       if (isResponder && token != null) {
@@ -416,12 +495,10 @@ class ApiService {
         );
       }
     } finally {
-      token = null;
-      currentRole = null;
-      currentUserId = null;
-      currentUserName = null;
-      currentUserEmail = null;
-      emailVerified = null;
+      // Cleared from memory immediately; the stored session is removed by the
+      // ordered background queue so a slow keystore never delays the UI.
+      unawaited(SessionPersistence.forgetSession());
+      _clearLocalSession();
     }
   }
 
