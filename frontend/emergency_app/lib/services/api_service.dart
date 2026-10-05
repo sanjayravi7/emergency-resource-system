@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -144,8 +145,9 @@ class ApiService {
     }
 
     // Registration has no "Remember me" choice of its own: never leave another
-    // account's remembered session behind for the newly created account.
-    await SessionPersistence.forgetSession();
+    // account's remembered session behind for the newly created account. The
+    // storage work runs in the background so registration is never delayed.
+    unawaited(SessionPersistence.forgetSession());
     return body;
   }
 
@@ -178,7 +180,7 @@ class ApiService {
     }
 
     applySession(body);
-    await _applyRememberMe(rememberMe);
+    unawaited(_applyRememberMe(rememberMe));
     return body;
   }
 
@@ -258,6 +260,10 @@ class ApiService {
   /// after the app or browser is closed. Unchecked: any previously remembered
   /// session is removed, leaving the existing in-memory session behaviour
   /// unchanged. Storage failures never turn a successful login into a failure.
+  ///
+  /// The returned future is never awaited by the authentication call itself:
+  /// a slow or unavailable keystore must not delay the screen transition. The
+  /// storage queue keeps this work ordered with later logouts and logins.
   static Future<void> _applyRememberMe(bool rememberMe) async {
     final sessionToken = token;
     if (rememberMe && sessionToken != null) {
@@ -352,7 +358,7 @@ class ApiService {
     }
 
     applySession(body);
-    await _applyRememberMe(rememberMe);
+    unawaited(_applyRememberMe(rememberMe));
     return body;
   }
 
@@ -489,7 +495,9 @@ class ApiService {
         );
       }
     } finally {
-      await SessionPersistence.forgetSession();
+      // Cleared from memory immediately; the stored session is removed by the
+      // ordered background queue so a slow keystore never delays the UI.
+      unawaited(SessionPersistence.forgetSession());
       _clearLocalSession();
     }
   }

@@ -226,8 +226,13 @@ class _LoginScreenState extends State<LoginScreen> {
     GoogleRegistrationRequest? registration,
     bool? rememberSession,
   }) async {
-    final parkedChoice = await SessionPersistence.consumeGoogleIntent();
-    final rememberMe = rememberSession ?? parkedChoice ?? false;
+    // A Flutter Web redirect return rebuilds this screen, so it has no live
+    // checkbox state to pass: the choice parked before the redirect is used
+    // instead. Everywhere else the caller's value is already final.
+    var rememberMe = rememberSession ?? false;
+    if (rememberSession == null && kIsWeb) {
+      rememberMe = await SessionPersistence.consumeGoogleIntent() ?? false;
+    }
     final Map<String, dynamic> response;
     try {
       response = await ApiService.googleSignIn(

@@ -102,8 +102,12 @@ Future<void> _signInThroughUi(WidgetTester tester) async {
 }
 
 /// Unmounts the tree so console timers and animations never outlive a test.
+///
+/// The root widget type changes on purpose: pumping another `MaterialApp`
+/// would keep the existing `Navigator` - and with it every pushed route - so a
+/// replaced `home` alone never disposes the console.
 Future<void> _unmount(WidgetTester tester) async {
-  await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+  await tester.pumpWidget(const SizedBox());
   await tester.pump(const Duration(milliseconds: 100));
 }
 
