@@ -3,6 +3,24 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/eras_models.dart';
+
+/// An API failure that preserves a backend error code for safe UI handling.
+class ApiServiceException implements Exception {
+  const ApiServiceException(
+    this.message, {
+    this.statusCode,
+    this.code,
+  });
+
+  final String message;
+  final int? statusCode;
+  final String? code;
+
+  @override
+  String toString() => message;
+}
+
 /// Thin HTTP data layer for the ERAS backend.
 ///
 /// Every HTTP mutation still goes through this class. Socket.IO push events
@@ -424,6 +442,120 @@ class ApiService {
       _fail(body, 'Failed to delete the log entry');
     }
     return body;
+  }
+
+  // ---------------------------------------------------------------------
+  // ADMIN USER MANAGEMENT (existing /api/users contract)
+  // ---------------------------------------------------------------------
+
+  /// Reads the backend's ADMIN directory response: `{ success, users: [...] }`.
+  /// The [AdminUser] projection intentionally keeps only fields used by the
+  /// UI, not credentials or device/authentication identifiers.
+  static Future<List<AdminUser>> getAdminUsers() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/users'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to load users');
+    }
+
+    final users = body['users'];
+    if (users is! List) {
+      _fail(body, 'The ERAS server returned an invalid user list');
+    }
+    return users
+        .whereType<Map>()
+        .map((user) => AdminUser.fromJson(Map<String, dynamic>.from(user)))
+        .toList(growable: false);
+  }
+
+  /// Updates ONLY the display name and optional phone number via
+  /// PATCH /api/users/:id. Email, role, active state and identity fields are
+  /// deliberately not accepted by this client method.
+  static Future<AdminUser> updateAdminUser(
+    int id, {
+    required String name,
+    String? phone,
+  }) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/users/$id'),
+      headers: _headers,
+      body: jsonEncode(<String, dynamic>{
+        'name': name.trim(),
+        if (phone != null) 'phone': phone.trim(),
+      }),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to update user');
+    }
+
+    final user = body['user'];
+    if (user is! Map) {
+      throw const ApiServiceException(
+        'The ERAS server returned an invalid user profile.',
+      );
+    }
+    return AdminUser.fromJson(Map<String, dynamic>.from(user));
+  }
+
+  /// Deactivates an account through PATCH /api/users/:id/deactivate. The
+  /// backend enforces self/last-ADMIN protections and preserves history.
+  static Future<void> deactivateAdminUser(int id) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/users/$id/deactivate'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to deactivate user');
+    }
+  }
+
+  /// Activates an account through PATCH /api/users/:id/activate.
+  static Future<void> activateAdminUser(int id) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/users/$id/activate'),
+      headers: _headers,
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      _fail(body, 'Failed to activate user');
+    }
+  }
+
+  /// Deletes only after explicit UI confirmation. The backend re-checks
+  /// operational history transactionally and remains the source of truth even
+  /// when the directory's `history.deletable` hint is stale.
+  static Future<void> deleteAdminUser(
+    int id, {
+    required bool confirm,
+  }) async {
+    if (!confirm) {
+      throw StateError('Explicit confirmation is required to delete a user.');
+    }
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/users/$id'),
+      headers: _headers,
+      body: jsonEncode(<String, dynamic>{'confirm': confirm}),
+    );
+    final body = _decode(response);
+    if (response.statusCode != 200) {
+      final code = body['code']?.toString();
+      if (response.statusCode == 409 && code == 'USER_HAS_HISTORY') {
+        throw ApiServiceException(
+          body['message']?.toString() ??
+              'This account cannot be deleted because it has ERAS operational history. '
+                  'Deactivate it instead.',
+          statusCode: response.statusCode,
+          code: code,
+        );
+      }
+      _fail(body, 'Failed to delete user');
+    }
   }
 
   // ---------------------------------------------------------------------
