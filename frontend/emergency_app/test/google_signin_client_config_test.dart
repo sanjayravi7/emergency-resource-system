@@ -29,42 +29,52 @@ const String kWebClientIdFixture =
 
 void main() {
   group('Android / native configuration path', () {
-    test('Android passes no client id or server client id', () {
-      final config = resolveGoogleSignInClientConfig(
+    test(
+      'Android keeps clientId null and passes the Web id as serverClientId',
+      () {
+        final config = resolveGoogleSignInClientConfig(
         isWeb: false,
         platform: TargetPlatform.android,
         googleWebClientId: kWebClientIdFixture,
       );
 
-      // google_sign_in_android falls back to the `default_web_client_id`
-      // resource generated from google-services.json only when both are
-      // absent, so both must be absent.
+      // The Android app client remains platform-configured; the Web client
+      // supplies the ID-token audience explicitly.
       expect(config.clientId, isNull);
-      expect(config.serverClientId, isNull);
-      expect(config, const GoogleSignInClientConfig());
+      expect(config.serverClientId, kWebClientIdFixture);
+      expect(
+        config,
+        const GoogleSignInClientConfig(
+          serverClientId: kWebClientIdFixture,
+        ),
+      );
     });
 
-    test('every native platform defers to its config file', () {
+    test(
+      'every native platform keeps clientId null and uses the Web id as audience',
+      () {
       for (final platform in TargetPlatform.values) {
         final config = resolveGoogleSignInClientConfig(
           isWeb: false,
           platform: platform,
           googleWebClientId: kWebClientIdFixture,
         );
-        // google-services.json on Android, GoogleService-Info.plist on
-        // iOS/macOS: never a value copied into the Dart build.
-        expect(config, const GoogleSignInClientConfig());
+        // The platform file identifies the installed app; this configured
+        // Web client is used only as the ID-token audience.
+        expect(config.clientId, isNull);
+        expect(config.serverClientId, kWebClientIdFixture);
       }
     });
 
-    test('a blank web client id changes nothing on Android', () {
+    test('an empty Web client id leaves Android serverClientId null', () {
       for (final webClientId in <String>['', '   ']) {
         final config = resolveGoogleSignInClientConfig(
           isWeb: false,
           platform: TargetPlatform.android,
           googleWebClientId: webClientId,
         );
-        expect(config, const GoogleSignInClientConfig());
+        expect(config.clientId, isNull);
+        expect(config.serverClientId, isNull);
       }
     });
   });
@@ -97,7 +107,7 @@ void main() {
       expect(config.serverClientId, isNull);
     });
 
-    test('only web receives the web client id', () {
+    test('Web keeps clientId while native uses serverClientId', () {
       final web = resolveGoogleSignInClientConfig(
         isWeb: true,
         platform: TargetPlatform.android,
@@ -112,12 +122,12 @@ void main() {
       expect(web.clientId, kWebClientIdFixture);
       expect(web.serverClientId, isNull);
       expect(android.clientId, isNull);
-      expect(android.serverClientId, isNull);
+      expect(android.serverClientId, kWebClientIdFixture);
     });
   });
 
-  group('no web client id as an Android client id', () {
-    test('no native config carries the web client id', () {
+  group('native client id slots', () {
+    test('no native config uses the Web id as clientId', () {
       for (final platform in TargetPlatform.values) {
         final config = resolveGoogleSignInClientConfig(
           isWeb: false,
@@ -126,9 +136,8 @@ void main() {
         );
 
         expect(config.clientId, isNull);
-        expect(config.serverClientId, isNull);
+        expect(config.serverClientId, kWebClientIdFixture);
         expect(config.clientId, isNot(kWebClientIdFixture));
-        expect(config.serverClientId, isNot(kWebClientIdFixture));
         // Diagnostics must not leak it either.
         expect(config.toString(), isNot(contains(kWebClientIdFixture)));
         expect(config.toString(), contains('unset'));
@@ -142,9 +151,7 @@ void main() {
       expect(defaultTargetPlatform, TargetPlatform.android);
 
       // Simulate a release build, where the web client id IS compiled in.
-      // This is the configuration that produced DEVELOPER_ERROR (10): the old
-      // code forwarded it as `serverClientId` and overrode
-      // `default_web_client_id` from google-services.json.
+      // The configured Web client is passed as the ID-token audience.
       GoogleAuthService.debugGoogleWebClientId = kWebClientIdFixture;
       addTearDown(() => GoogleAuthService.debugGoogleWebClientId = null);
 
@@ -154,11 +161,13 @@ void main() {
       final client = GoogleAuthService.instance.buildSignInClient();
       expect(client, isA<GoogleSignIn>());
       expect(client.clientId, isNull);
-      expect(client.serverClientId, isNull);
+      expect(client.serverClientId, kWebClientIdFixture);
       expect(client.scopes, <String>['email', 'profile']);
       expect(
         GoogleAuthService.instance.clientConfig,
-        const GoogleSignInClientConfig(),
+        const GoogleSignInClientConfig(
+          serverClientId: kWebClientIdFixture,
+        ),
       );
     });
   });

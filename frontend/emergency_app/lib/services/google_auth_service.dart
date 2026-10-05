@@ -144,8 +144,9 @@ class GoogleSignInClientConfig {
 
   /// The OAuth client id of the app. Native platforms leave this unset so the
   /// platform configuration file (`google-services.json` /
-  /// `GoogleService-Info.plist`) stays authoritative; Flutter Web no longer
-  /// builds a `GoogleSignIn` at all (see [resolveGoogleSignInStrategy]).
+  /// `GoogleService-Info.plist`) remains authoritative for the installed app;
+  /// Flutter Web no longer builds a `GoogleSignIn` at all (see
+  /// [resolveGoogleSignInStrategy]).
   final String? clientId;
 
   /// The backend server client id whose audience the returned ID token is
@@ -172,32 +173,27 @@ class GoogleSignInClientConfig {
 /// Resolves the OAuth client identifiers a native `GoogleSignIn` receives.
 ///
 /// **Android.** The Google Sign-In SDK identifies an Android app by its package
-/// name plus the SHA-1 of its signing certificate — never by a client id — and
-/// takes the ID-token audience from the `default_web_client_id` string resource
-/// that the google-services Gradle plugin generates from
-/// `android/app/google-services.json`. `google_sign_in_android` only reads that
-/// resource when Dart supplied neither `serverClientId` nor `clientId`; a
-/// Dart-supplied value always wins ("The value specified here has precedence
-/// over a value from a configuration file"), and `clientId` is explicitly
-/// unsupported on Android.
+/// name plus the SHA-1 of its signing certificate — not by the Web client id.
+/// The Web client id is the ID-token audience (`serverClientId`). It is read
+/// from `default_web_client_id` when no Dart value is supplied, but this app
+/// passes the configured Web OAuth client explicitly so the native request is
+/// deterministic even when the Gradle-generated resource is unavailable.
+/// `clientId` remains unset on Android because it is not an Android app client
+/// override.
 ///
-/// Hand-copying `ERAS_GOOGLE_WEB_CLIENT_ID` into the APK therefore decoupled
-/// the OAuth request from the configuration the app is actually registered
-/// with. Any drift between the two — a web client that is not linked to this
-/// Android client, a value taken from another Google Cloud project, or a stale
-/// copy — makes Google reject the request with
-/// `CommonStatusCodes.DEVELOPER_ERROR` (status 10), which the plugin reports as
-/// `sign_in_failed` with the message `h2: 10`.
+/// The value comes from `ErasFirebaseConfig.googleWebClientId` (including the
+/// existing `ERAS_GOOGLE_WEB_CLIENT_ID` build configuration), rather than a
+/// hardcoded Dart credential. It must still be the Web client linked to this
+/// Firebase project and Android app; otherwise Google can reject the request
+/// with `CommonStatusCodes.DEVELOPER_ERROR` (status 10).
 ///
 /// So the rule is:
 ///
-///   * Web: this function is no longer part of the sign-in path. Flutter Web
-///     authenticates through Firebase Auth's own Google popup/redirect flow,
-///     which needs no Dart-side client id.
-///   * Android, iOS, macOS and desktop: both values stay null so
-///     `google-services.json` / `GoogleService-Info.plist` supply the
-///     identifiers, which is the only source guaranteed to agree with the
-///     registered package name and signing fingerprint.
+///   * Web: this function retains the existing Web configuration. The actual
+///     sign-in path uses Firebase Auth's own Google popup/redirect flow.
+///   * Android, iOS, macOS and desktop: `clientId` stays null, while a
+///     configured Web client id is passed as `serverClientId`. An empty Web
+///     client id remains null so platform configuration can supply it.
 @visibleForTesting
 GoogleSignInClientConfig resolveGoogleSignInClientConfig({
   required bool isWeb,
@@ -215,8 +211,9 @@ GoogleSignInClientConfig resolveGoogleSignInClientConfig({
     );
   }
 
-  // Every native platform resolves its OAuth configuration from its Firebase
-  // configuration file; see the documentation above.
+  // Native platforms use the Web OAuth client as the ID-token audience. Keep
+  // clientId null so the platform-specific app registration remains in charge
+  // of identifying the installed app.
   switch (platform) {
     case TargetPlatform.android:
     case TargetPlatform.iOS:
@@ -224,7 +221,9 @@ GoogleSignInClientConfig resolveGoogleSignInClientConfig({
     case TargetPlatform.linux:
     case TargetPlatform.windows:
     case TargetPlatform.fuchsia:
-      return const GoogleSignInClientConfig();
+      return GoogleSignInClientConfig(
+        serverClientId: webClientId.isEmpty ? null : webClientId,
+      );
   }
 }
 
@@ -981,11 +980,11 @@ class GoogleAuthService {
       final accessToken = authentication.accessToken;
       if (idToken == null) {
         // google_sign_in only asks Google for an ID token when a server
-        // client id is configured. On Android that value is the
-        // `default_web_client_id` resource the google-services Gradle plugin
-        // generates from google-services.json, so a missing ID token means the
-        // file has no `client_type` 3 (web) OAuth client. Firebase can still
-        // exchange an access token, so this is a diagnostic, not a failure.
+        // client id is configured. Native builds receive that audience from
+        // the configured Web OAuth client (with the generated resource as a
+        // platform fallback), so a missing ID token indicates incomplete
+        // native OAuth configuration. Firebase can still exchange an access
+        // token, so this is a diagnostic, not a failure.
         _logGoogleAuthDiagnostic(
           'google sign-in returned no id token',
           detail: accessToken == null ? 'no-token' : 'access-token-only',
