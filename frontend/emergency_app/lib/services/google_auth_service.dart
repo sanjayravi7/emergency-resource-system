@@ -559,6 +559,157 @@ String googleAuthErrorMessageForCode(String? code) {
   }
 }
 
+/// `CommonStatusCodes.DEVELOPER_ERROR`.
+///
+/// Google Play services returns this status when the request itself is not
+/// authorized: the package name or the signing certificate fingerprint does
+/// not match the Android OAuth client the Firebase/Google Cloud project has
+/// registered for this app. It is a build/console problem, never a user
+/// problem, and no retry or code path can work around it.
+const int googleDeveloperErrorStatusCode = 10;
+
+/// A failure reported by the platform Google Sign-In SDK.
+///
+/// `google_sign_in` surfaces native failures in two shapes depending on the
+/// pinned plugin version: a `PlatformException` (code `sign_in_failed`,
+/// message `h2: 10` for DEVELOPER_ERROR) or the newer `GoogleSignInException`,
+/// which is a plain `Exception` and therefore slips past an
+/// `on PlatformException` handler. Both carry the same facts, so ERAS
+/// normalises them into one value that is safe to log and easy to map to an
+/// honest user-facing sentence.
+@immutable
+class GoogleNativeSignInFailure {
+  const GoogleNativeSignInFailure({
+    required this.code,
+    this.statusCode,
+    this.detail,
+    this.cancelled = false,
+  });
+
+  /// The plugin/SDK error code (for example `sign_in_failed`).
+  final String code;
+
+  /// The Google Play services status code when it can be recovered.
+  final int? statusCode;
+
+  /// Sanitized one-line detail for the diagnostic log. Never raw.
+  final String? detail;
+
+  /// True when the user dismissed Google's account picker.
+  final bool cancelled;
+
+  /// Google refused the request because this build is not registered for it.
+  bool get isDeveloperError => statusCode == googleDeveloperErrorStatusCode;
+
+  @override
+  String toString() =>
+      'GoogleNativeSignInFailure(code: $code, statusCode: $statusCode)';
+}
+
+int? _nativeStatusCode(Object? details) {
+  if (details is int) return details;
+  if (details is Map) {
+    for (final key in <String>[
+      'statusCode',
+      'status_code',
+      'errorCode',
+      'error_code',
+      'code',
+    ]) {
+      final value = details[key];
+      if (value is int) return value;
+      if (value is String) return int.tryParse(value);
+    }
+  }
+  return null;
+}
+
+/// Recovers a status code from a plugin message such as `h2: 10`.
+///
+/// The class name is R8-obfuscated and changes with every build, so the
+/// trailing integer is the only stable part.
+int? _statusCodeFromText(String? text) {
+  if (text == null || text.isEmpty) return null;
+  final matches = RegExp(r'\b(\d{1,6})\b').allMatches(text).toList();
+  if (matches.isEmpty) return null;
+  return int.tryParse(matches.last.group(1)!);
+}
+
+bool _isCancellation(String? value) {
+  if (value == null || value.isEmpty) return false;
+  return value.toLowerCase().contains('cancel');
+}
+
+/// Normalises an error raised by the platform Google Sign-In SDK.
+///
+/// Returns null when [error] did not come from Google Sign-In, so callers can
+/// keep their existing "unexpected failure" handling for everything else.
+///
+/// The runtime type - not a type test - is what identifies
+/// `GoogleSignInException`: importing a class the pinned plugin may not export
+/// would couple this file to one plugin version, while the runtime type check
+/// works with every shape the plugin uses.
+@visibleForTesting
+GoogleNativeSignInFailure? describeGoogleSignInFailure(Object error) {
+  if (error is PlatformException) {
+    return GoogleNativeSignInFailure(
+      code: error.code,
+      statusCode: _nativeStatusCode(error.details) ??
+          _statusCodeFromText(error.message),
+      detail: sanitizeGoogleAuthDiagnosticMessage(error.message),
+      cancelled: _isCancellation(error.code) || _isCancellation(error.message),
+    );
+  }
+
+  final type = error.runtimeType.toString();
+  if (type.endsWith('GoogleSignInException')) {
+    final detail = sanitizeGoogleAuthDiagnosticMessage(error.toString());
+    return GoogleNativeSignInFailure(
+      code: type,
+      statusCode: _statusCodeFromText(detail),
+      detail: detail,
+      cancelled: _isCancellation(detail),
+    );
+  }
+
+  return null;
+}
+
+/// One honest sentence for a native Google Sign-In failure.
+///
+/// DEVELOPER_ERROR is called out because "try again" is actively wrong there:
+/// the build is not registered with Google, so the administrator has to add
+/// the release signing fingerprint to the Firebase Android app (Google Cloud
+/// Console -> the auto-created Android OAuth client) and ship a new build.
+/// Every other native failure keeps the previous wording.
+@visibleForTesting
+String nativeGoogleSignInMessage(GoogleNativeSignInFailure failure) {
+  if (failure.isDeveloperError) {
+    return 'Google sign-in is not registered for this ERAS build yet. '
+        'Ask your ERAS administrator to add this app\'s release signing '
+        'certificate (SHA-1) to the Firebase Android app and install a new '
+        'build. You can still sign in with your email and password.';
+  }
+  return 'Google sign-in could not be completed on this device. '
+      'You can still sign in with your email and password.';
+}
+
+/// Writes one sanitized line for a native failure.
+///
+/// The status code is what makes a release-APK failure diagnosable from
+/// `adb logcat`: it distinguishes a configuration problem (10) from a network
+/// or account problem without ever logging credential material.
+void _logNativeFailure(String operation, GoogleNativeSignInFailure failure) {
+  _logGoogleAuthDiagnostic(
+    operation,
+    code: failure.code,
+    detail: failure.detail,
+  );
+  if (failure.statusCode != null) {
+    debugPrint('[eras-auth] $operation statusCode=${failure.statusCode}');
+  }
+}
+
 /// The Firebase ID token of a completed sign-in.
 ///
 /// A missing token is a failed sign-in, never a silent success: the ERAS
@@ -731,7 +882,15 @@ class GoogleAuthService {
     );
   }
 
-  GoogleSignIn get _googleSignIn => buildSignInClient();
+  /// The native Google Sign-In client, created at most once.
+  ///
+  /// `GoogleSignIn` keeps the account that completed `signIn()` on the
+  /// instance that produced it, so `signOut()` has to talk to that same client
+  /// - building a fresh one on every access re-runs `initWithParams` against
+  /// the native SDK and would leave the previous account behind.
+  GoogleSignIn get _googleSignIn => _signInClient ??= buildSignInClient();
+
+  GoogleSignIn? _signInClient;
 
   WebGoogleSignInHandler get _webHandler =>
       debugWebHandler ?? const FirebaseWebGoogleSignInHandler();
@@ -820,6 +979,18 @@ class GoogleAuthService {
       final authentication = await account.authentication;
       final idToken = authentication.idToken;
       final accessToken = authentication.accessToken;
+      if (idToken == null) {
+        // google_sign_in only asks Google for an ID token when a server
+        // client id is configured. On Android that value is the
+        // `default_web_client_id` resource the google-services Gradle plugin
+        // generates from google-services.json, so a missing ID token means the
+        // file has no `client_type` 3 (web) OAuth client. Firebase can still
+        // exchange an access token, so this is a diagnostic, not a failure.
+        _logGoogleAuthDiagnostic(
+          'google sign-in returned no id token',
+          detail: accessToken == null ? 'no-token' : 'access-token-only',
+        );
+      }
       if (idToken == null && accessToken == null) {
         throw const GoogleAuthException(
           'Google did not return an identity token for this account.',
@@ -852,15 +1023,29 @@ class GoogleAuthService {
       // google_sign_in reports a dismissed account sheet as
       // `sign_in_canceled`. That is a normal user choice - no error, no
       // session change - so it must not be shown as a failure.
-      _logPlatformDiagnostic('google sign-in cancelled/failed', error);
-      if (error.code == 'sign_in_canceled') {
-        return const GoogleSignInOutcome.cancelled();
-      }
-      throw const GoogleAuthException(
-        'Google sign-in could not be completed on this device. '
-        'You can still sign in with your email and password.',
-      );
+      final failure = describeGoogleSignInFailure(error) ??
+          GoogleNativeSignInFailure(
+            code: error.code,
+            detail: sanitizeGoogleAuthDiagnosticMessage(error.message),
+          );
+      _logNativeFailure('google sign-in cancelled/failed', failure);
+      if (failure.cancelled) return const GoogleSignInOutcome.cancelled();
+      throw GoogleAuthException(nativeGoogleSignInMessage(failure));
     } catch (error) {
+      // google_sign_in >= 6.2 raises `GoogleSignInException` - a plain
+      // Exception, not a PlatformException - for native failures. Without this
+      // branch a release-APK DEVELOPER_ERROR (10), the signature of an Android
+      // OAuth client that does not list this build's signing certificate, was
+      // swallowed by the generic message and could not be told apart from a
+      // network hiccup.
+      final nativeFailure = describeGoogleSignInFailure(error);
+      if (nativeFailure != null) {
+        _logNativeFailure('google sign-in cancelled/failed', nativeFailure);
+        if (nativeFailure.cancelled) {
+          return const GoogleSignInOutcome.cancelled();
+        }
+        throw GoogleAuthException(nativeGoogleSignInMessage(nativeFailure));
+      }
       // Never stringify unexpected plugin errors: their payload may contain
       // auth material. The exception type is sufficient for safe diagnostics.
       _logUnexpectedFailure('google sign-in failed', error);

@@ -58,10 +58,16 @@ function activeRequestWhere(where = {}, now = new Date()) {
  * Responder/acceptedBy contact fields are omitted for every non-admin viewer.
  * ADMIN keeps the full operational payload.
  */
-function forViewer(requests, viewerRole) {
+/**
+ * `viewerUserId` is the id of the account the payload is serialized for. It is
+ * optional: every existing caller keeps its behaviour, and the only field it
+ * changes is the requester's email address, which stays readable for its own
+ * owner (and for ADMIN, who is exempted inside `privacy`).
+ */
+function forViewer(requests, viewerRole, viewerUserId = null) {
   return Array.isArray(requests)
-    ? sanitizeRequestsForViewer(requests, viewerRole)
-    : sanitizeRequestForViewer(requests, viewerRole);
+    ? sanitizeRequestsForViewer(requests, viewerRole, viewerUserId)
+    : sanitizeRequestForViewer(requests, viewerRole, viewerUserId);
 }
 
 async function emitAfterCommit(callback) {
@@ -326,14 +332,20 @@ exports.createEmergencyRequest = async (userId, data) => {
   return created;
 };
 
-exports.getRequestsByUser = async (userId, viewerRole = 'ADMIN') => {
+/**
+ * @param {number} userId id whose requests are loaded
+ * @param {string} viewerRole
+ * @param {object} [options] `{ viewerUserId }` - the signed-in account, so a
+ *   requester is never shown a masked copy of their own email address.
+ */
+exports.getRequestsByUser = async (userId, viewerRole = 'ADMIN', options = {}) => {
   await enforceExpiryOnRetrieval();
   const requests = await prisma.emergencyRequest.findMany({
     where: activeRequestWhere({ requesterId: Number(userId) }),
     include: requestInclude,
     orderBy: { createdAt: 'desc' },
   });
-  return forViewer(requests, viewerRole);
+  return forViewer(requests, viewerRole, options?.viewerUserId ?? null);
 };
 
 exports.updateOwnRequest = async (userId, id, data) => {

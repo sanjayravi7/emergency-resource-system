@@ -9,6 +9,7 @@ import '../services/location_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
 import 'common_widgets.dart';
+import 'operational_google_map.dart' show operationalMapGestureRecognizers;
 
 /// Requester location workflow:
 ///
@@ -1013,6 +1014,11 @@ class _RequesterLocationPickerState extends State<RequesterLocationPicker> {
         height: 190,
         child: GoogleMap(
           initialCameraPosition: CameraPosition(target: target, zoom: 16),
+          // Same gesture fix as the Dispatch Board map: the preview lives in
+          // the board's scrollable page, so it has to claim the pointer
+          // sequences that land on it (pan + pinch) instead of losing them to
+          // the parent scroll view. Tapping to pick a point is unaffected.
+          gestureRecognizers: operationalMapGestureRecognizers,
           markers: <Marker>{
             Marker(
               markerId: const MarkerId('requester-selected-location'),

@@ -62,7 +62,10 @@ exports.getMyRequests = async (req, res, next) => {
   try {
     const requests = await requestService.getRequestsByUser(
       req.user.id,
-      req.user.role
+      req.user.role,
+      // These are the signed-in user's OWN requests, so their own email
+      // address is not masked for them.
+      { viewerUserId: req.user.id }
     );
     res.json({ success: true, requests });
   } catch (error) {

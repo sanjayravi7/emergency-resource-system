@@ -111,9 +111,32 @@ describe('request payload projection', () => {
     expect(view.assignments[0].responder.phone).toBe('+91 90000 00000');
   });
 
-  test('the requester contact details are unchanged (existing dispatch contract)', () => {
+  test('a responder receives the requester email MASKED, never in full', () => {
     const view = sanitizeRequestForViewer(requestRow(), 'RESPONDER');
+    expect(view.requester.email).toBe('m****@example.com');
+    expect(JSON.stringify(view)).not.toContain('meera@example.com');
+  });
+
+  test('a requester still receives their OWN email in full', () => {
+    const view = sanitizeRequestForViewer(requestRow(), 'REQUESTER', 2);
     expect(view.requester.email).toBe('meera@example.com');
+  });
+
+  test('ADMIN keeps the complete requester email (authorized exception)', () => {
+    const view = sanitizeRequestForViewer(requestRow(), 'ADMIN');
+    expect(view.requester.email).toBe('meera@example.com');
+  });
+
+  test('lists honour the same viewer identity', () => {
+    const [view] = sanitizeRequestsForViewer([requestRow()], 'RESPONDER', 99);
+    expect(view.requester.email).toBe('m****@example.com');
+    const [own] = sanitizeRequestsForViewer([requestRow()], 'RESPONDER', 2);
+    expect(own.requester.email).toBe('meera@example.com');
+  });
+
+  test('the requester phone stays available for dispatch', () => {
+    const view = sanitizeRequestForViewer(requestRow(), 'RESPONDER');
+    expect(view.requester.phone).toBe('9000000001');
   });
 
   test('arrays are projected element-wise and non-objects pass through safely', () => {

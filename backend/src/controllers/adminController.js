@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const requestService = require('../services/requestService');
 const auditLogService = require('../services/auditLogService');
+const userAdminService = require('../services/userAdminService');
 
 // ADMIN-only identifiers are validated before touching the database so invalid
 // or hostile ids cannot reach Prisma as raw input.
@@ -93,16 +94,114 @@ exports.updateRequestStatus = async (req, res, next) => {
   }
 };
 
+/**
+ * ADMIN user directory.
+ *
+ * Every row carries a `history` block with the relationship counters that
+ * decide whether the account may be deleted, so an administrator can see
+ * *why* an account is removable instead of guessing. Deleting is only offered
+ * for an account with `history.deletable === true`.
+ */
 exports.getAllUsers = async (req, res, next) => {
   try {
-    const users = await prisma.user.findMany({
-      select: { id: true, name: true, email: true, phone: true, role: true,
-        isActive: true, lastActiveAt: true, responderStatus: true, createdAt: true,
-        updatedAt: true },
-      orderBy: { id: 'asc' },
-    });
+    const users = await userAdminService.listUsers();
     res.json({ success: true, users });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * ADMIN correction of another account's display name / phone number.
+ *
+ * The email address, the role and the active flag are deliberately NOT
+ * writable here: each has its own guarded endpoint, and silently rewriting an
+ * email address would break login, OTP, password reset and Google linking.
+ */
+exports.updateUserProfile = async (req, res, next) => {
+  try {
+    const userId = positiveInteger(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+
+    const before = await userAdminService.findUserOrFail(userId);
+    const user = await userAdminService.updateUserProfile(userId, req.body);
+
+    await auditLogService.recordForRequest(req, 'ADMIN_UPDATED_USER_PROFILE', {
+      targetType: 'User',
+      targetId: userId,
+      metadata: {
+        changedFields: Object.keys(req.body || {}),
+        previousName: before.name,
+        previousPhone: before.phone,
+      },
+    });
+    res.json({ success: true, user });
+  } catch (error) {
+    if (error instanceof userAdminService.UserAdminError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
+    next(error);
+  }
+};
+
+/**
+ * ADMIN removal of an account that carries NO operational history.
+ *
+ * Requires `{ "confirm": true }`. An account with emergencies, assignments,
+ * allocations or responder inventory is refused with 409 and must be
+ * DEACTIVATED instead, which preserves history while removing access. The
+ * request itself is rate limited by `adminSensitiveLimiter`.
+ */
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const userId = positiveInteger(req.params.id);
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+    if (req.body && req.body.confirm !== true) {
+      return res.status(400).json({
+        success: false,
+        message: 'Confirmation is required to delete a user account',
+      });
+    }
+
+    const removed = await userAdminService.deleteUser(userId, req.user.id);
+
+    await auditLogService.recordForRequest(req, 'ADMIN_DELETED_USER', {
+      targetType: 'User',
+      targetId: userId,
+      metadata: {
+        removedEmail: removed.email,
+        removedRole: removed.role,
+        // Explicitly documents that no emergency/allocation history existed.
+        historyPreserved: true,
+      },
+    });
+    res.json({ success: true, deletedUserId: removed.id });
+  } catch (error) {
+    if (error instanceof userAdminService.UserAdminError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
+    // Prisma's own foreign-key guard is the last line of defence: a user that
+    // still has history is reported as a conflict, never as a 500.
+    if (error && (error.code === 'P2003' || error.code === 'P2014')) {
+      return res.status(409).json({
+        success: false,
+        code: 'USER_HAS_HISTORY',
+        message:
+          'This account is still referenced by emergency or allocation history and cannot be deleted. Deactivate it instead.',
+      });
+    }
     next(error);
   }
 };
@@ -120,6 +219,26 @@ exports.updateUserRole = async (req, res, next) => {
     }
     if (userId === req.user.userId && req.body.role !== 'ADMIN') {
       return res.status(400).json({ success: false, message: 'You cannot demote your own admin account' });
+    }
+    // ERAS must never lose its last administrator: demoting the only remaining
+    // ADMIN would lock every operator out of user management.
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, isActive: true },
+    });
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (target.role === 'ADMIN' && req.body.role !== 'ADMIN') {
+      const activeAdmins = await prisma.user.count({
+        where: { role: 'ADMIN', isActive: true },
+      });
+      if (activeAdmins <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'At least one active administrator account must remain',
+        });
+      }
     }
     // Only the role column is written - never a spread of the request body.
     const user = await prisma.user.update({
@@ -167,6 +286,25 @@ exports.deactivateUser = async (req, res, next) => {
     }
     if (userId === req.user.userId) {
       return res.status(400).json({ success: false, message: 'You cannot deactivate your own account' });
+    }
+    // Deactivating the last administrator would remove every admin session.
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (target.role === 'ADMIN') {
+      const activeAdmins = await prisma.user.count({
+        where: { role: 'ADMIN', isActive: true },
+      });
+      if (activeAdmins <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'At least one active administrator account must remain',
+        });
+      }
     }
     const user = await prisma.user.update({
       where: { id: userId },

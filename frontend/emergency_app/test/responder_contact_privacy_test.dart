@@ -8,10 +8,15 @@
 /// tests and any future serializer mistake).
 ///
 /// ADMIN keeps contact visibility: that is an explicit, documented exception.
+/// Visibility is not the same as rendering it in full, though - every surface
+/// masks another person's email address through `email_privacy.dart`, so an
+/// administrator identifies a responder by name and id, not by their personal
+/// address. Phone numbers stay visible because dispatch needs them.
 library;
 
 import 'package:dispatch_console_flutter/models/eras_models.dart';
 import 'package:dispatch_console_flutter/services/api_service.dart';
+import 'package:dispatch_console_flutter/services/email_privacy.dart';
 import 'package:dispatch_console_flutter/theme/app_theme.dart';
 import 'package:dispatch_console_flutter/widgets/board_panel.dart';
 import 'package:dispatch_console_flutter/widgets/resource_panels.dart';
@@ -189,7 +194,7 @@ void main() {
       expect(find.text(_leadPhone), findsNothing);
     });
 
-    testWidgets('the ADMIN directory row shows the contact details',
+    testWidgets('the ADMIN directory row masks the email, keeps the phone',
         (tester) async {
       _setRole('ADMIN');
 
@@ -199,7 +204,11 @@ void main() {
       )));
       await tester.pump();
 
-      expect(find.text(_responderEmail), findsOneWidget);
+      // ADMIN is allowed to receive the address, but the directory still shows
+      // it partially masked: identification needs the name and the id.
+      expect(find.text(_responderEmail), findsNothing);
+      expect(find.text(maskEmail(_responderEmail)), findsOneWidget);
+      // Operational contact is untouched by email masking.
       expect(find.text(_leadPhone), findsOneWidget);
     });
   });

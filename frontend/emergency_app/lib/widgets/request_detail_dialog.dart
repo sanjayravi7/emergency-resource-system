@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
+import '../services/api_service.dart';
+import '../services/email_privacy.dart';
 import '../theme/app_theme.dart';
 import 'common_widgets.dart';
 import 'operational_status.dart';
@@ -157,7 +159,12 @@ class _RequestDetailBody extends StatelessWidget {
                     Text(requester.name, style: TextStyle(color: p.text)),
                     if ((requester.email ?? '').isNotEmpty)
                       Text(
-                        requester.email!,
+                        // Shared surface: another person's address is masked.
+                        displayEmailForOthers(
+                          requester.email,
+                          isOwnAccount:
+                              requester.id == ApiService.currentUserId,
+                        ),
                         style: TextStyle(color: p.textDim),
                       ),
                     if ((requester.phone ?? '').isNotEmpty)

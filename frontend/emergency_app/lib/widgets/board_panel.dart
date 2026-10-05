@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/eras_models.dart';
 import '../services/api_service.dart';
+import '../services/email_privacy.dart';
 import '../services/socket_service.dart';
 import '../theme/app_theme.dart';
 import 'auth_motion.dart';
@@ -610,7 +611,13 @@ class BoardPanel extends StatelessWidget {
                     ),
                     if ((requester?.email ?? '').isNotEmpty)
                       Text(
-                        requester!.email!,
+                        // A requester's address is shared with the responders
+                        // working their emergency, but never in full: only the
+                        // signed-in owner keeps their own value readable.
+                        displayEmailForOthers(
+                          requester!.email,
+                          isOwnAccount: requester.id == currentUserId,
+                        ),
                         style: TextStyle(fontSize: 11, color: p.textFaint),
                       ),
                     if ((requester?.phone ?? '').isNotEmpty)
@@ -843,8 +850,14 @@ class _RequestCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child:
-                      InfoChip(label: 'Email', value: requester?.email ?? '-'),
+                  child: InfoChip(
+                    label: 'Email',
+                    value: displayEmailForOthers(
+                      requester?.email,
+                      isOwnAccount: requester?.id == ApiService.currentUserId,
+                      fallback: '-',
+                    ),
+                  ),
                 ),
                 Expanded(
                   child:
