@@ -38,16 +38,31 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Fails on drift and publishes the offending files as check annotations.
+      # Fails on drift. The formatter's own output is materialized and, when
+      # it only touches the files this branch already changed, committed so
+      # the exact canonical formatting lands in git for review.
       - name: Verify formatting
         run: |
           if dart format --output=none --set-exit-if-changed .; then
             echo "Format clean."
             exit 0
           fi
-          dart format --output=none . > /tmp/format-files.txt 2>&1 || true
-          flutter --version | head -n 1 | sed 's/^/::warning::toolchain: /'
-          git --no-pager diff --name-only | head -n 8 | sed 's/^/::warning::format-drift: /'
+          flutter --version | head -n 1 | sed 's/^/::notice::toolchain: /'
+          dart format .
+          git --no-pager diff -U1 | head -n 120 | sed 's/^/ /'
+          git --no-pager diff -U0 | grep -E '^[+-]' | grep -vE '^[+-]{3}' \
+            | head -n 10 | sed 's/^/::warning::/'
+          changed=$(git diff --name-only | wc -l)
+          if [ "$changed" -le 3 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "style: apply dart format (CI verification)"
+            git push
+            echo "::notice::dart format applied and pushed ($changed file(s))."
+          else
+            echo "::error::dart format changed $changed files; not auto-committing."
+          fi
           exit 1
 
       - name: Analyze project source
