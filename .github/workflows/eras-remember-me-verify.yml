@@ -92,14 +92,31 @@ jobs:
             | sed 's/^/::warning::preexisting-analyze: /'
           exit 0
 
-      # Required first run: the Remember Me session suite.
+      # Required first run: the Remember Me session suite. Failures are
+      # echoed as a check annotation because raw step logs are not readable
+      # from the sandbox that drives this run.
       - name: Remember Me tests
-        run: flutter test test/remember_me_session_test.dart --reporter expanded
+        if: always()
+        run: |
+          set +e
+          flutter test test/remember_me_session_test.dart --reporter expanded \
+            > /tmp/t1.txt 2>&1
+          rc=$?
+          tail -n 2 /tmp/t1.txt | sed 's/^/::notice::remember-me: /'
+          if [ "$rc" -ne 0 ]; then
+            { grep -A 15 '\[E\]' /tmp/t1.txt || tail -n 30 /tmp/t1.txt; } \
+              | head -c 3500 | sed 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::remember-me-test: /'
+            printf '\n'
+          fi
+          exit $rc
 
       # Relevant authentication suites (roles, Google sign-in, verification,
       # compatibility, login routing, and the auth UI flows that sign in).
       - name: Related authentication tests
+        if: always()
         run: |
+          set +e
           flutter test --reporter expanded \
             test/login_role_routing_test.dart \
             test/auth_response_compatibility_test.dart \
@@ -114,16 +131,50 @@ jobs:
             test/auth_mobile_stability_test.dart \
             test/auth_keyboard_composition_test.dart \
             test/auth_motion_test.dart \
-            test/auth_visual_layout_test.dart
+            test/auth_visual_layout_test.dart \
+            > /tmp/t2.txt 2>&1
+          rc=$?
+          tail -n 2 /tmp/t2.txt | sed 's/^/::notice::auth-tests: /'
+          if [ "$rc" -ne 0 ]; then
+            { grep -A 15 '\[E\]' /tmp/t2.txt || tail -n 30 /tmp/t2.txt; } \
+              | head -c 3500 | sed 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::auth-test: /'
+            printf '\n'
+          fi
+          exit $rc
 
       # Full frontend suite so no unrelated feature regressed.
+      # if: always() so one run reports tests AND build status together.
       - name: Full test suite
-        run: flutter test --reporter expanded
+        if: always()
+        run: |
+          set +e
+          flutter test --reporter expanded > /tmp/t3.txt 2>&1
+          rc=$?
+          tail -n 2 /tmp/t3.txt | sed 's/^/::notice::full-suite: /'
+          if [ "$rc" -ne 0 ]; then
+            { grep -A 15 '\[E\]' /tmp/t3.txt || tail -n 30 /tmp/t3.txt; } \
+              | head -c 3500 | sed 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::full-suite-test: /'
+            printf '\n'
+          fi
+          exit $rc
 
       # Same release web compile check as the existing Flutter workflow
       # (dart.yml). The full tool/build_production_web.sh additionally needs
       # the private Firebase/Maps values that are never present in CI here.
       - name: Build release web bundle
-        run: >-
-          flutter build web --release
-          --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api
+        if: always()
+        run: |
+          set +e
+          flutter build web --release \
+            --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api \
+            > /tmp/build.txt 2>&1
+          rc=$?
+          tail -n 2 /tmp/build.txt | sed 's/^/::notice::web-build: /'
+          if [ "$rc" -ne 0 ]; then
+            tail -c 3000 /tmp/build.txt | sed 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::web-build: /'
+            printf '\n'
+          fi
+          exit $rc
