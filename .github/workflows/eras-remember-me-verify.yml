@@ -28,38 +28,26 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # Pinned to the toolchain the repository's committed formatting was
+          # verified with (see .probe/version.txt) so an unpinned stable
+          # formatter update cannot flag pre-existing files.
+          flutter-version: 3.47.6
           channel: stable
           cache: true
 
       - name: Install dependencies
         run: flutter pub get
 
-      # Fails on drift and publishes the exact formatter diff as check
-      # annotations. If the drift is confined to the files this branch
-      # already touched (at most 3), the formatted result is committed so the
-      # follow-up push can verify everything cleanly.
+      # Fails on drift and publishes the offending files as check annotations.
       - name: Verify formatting
         run: |
-          dart format .
-          if git diff --quiet; then
+          if dart format --output=none --set-exit-if-changed .; then
             echo "Format clean."
             exit 0
           fi
-          git --no-pager diff --stat
-          git --no-pager diff -U2 | head -n 160 | sed 's/^/ /'
-          git --no-pager diff -U0 | grep -E '^[+-]' | grep -vE '^[+-]{3}' \
-            | head -n 40 | sed 's/^/::warning::/'
-          changed=$(git diff --name-only | wc -l)
-          if [ "$changed" -le 3 ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add -A
-            git commit -m "style: apply dart format (CI verification)"
-            git push
-            echo "::notice::dart format applied and pushed ($changed files). Re-run verification on the new head."
-          else
-            echo "::error::dart format changed $changed files; not auto-committing. See annotations."
-          fi
+          dart format --output=none . > /tmp/format-files.txt 2>&1 || true
+          flutter --version | head -n 1 | sed 's/^/::warning::toolchain: /'
+          git --no-pager diff --name-only | head -n 8 | sed 's/^/::warning::format-drift: /'
           exit 1
 
       - name: Analyze project source
