@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -145,9 +144,8 @@ class ApiService {
     }
 
     // Registration has no "Remember me" choice of its own: never leave another
-    // account's remembered session behind for the newly created account. The
-    // storage work runs in the background so registration is never delayed.
-    unawaited(SessionPersistence.forgetSession());
+    // account's remembered session behind for the newly created account.
+    await SessionPersistence.forgetSession();
     return body;
   }
 
@@ -261,11 +259,10 @@ class ApiService {
   /// session is removed, leaving the existing in-memory session behaviour
   /// unchanged. Storage failures never turn a successful login into a failure.
   ///
-  /// The authentication call awaits this method, so the persistence work has
-  /// completed before the login flow returns - the remembered session cannot
-  /// be lost if the app or browser closes right after signing in. Storage
-  /// failures still never fail the login. The storage queue keeps this work
-  /// ordered with later logouts and logins.
+  /// The authentication call awaits this: the session is durable before the
+  /// caller returns, so a browser or app that closes right after sign-in still
+  /// restores the account. Logout awaits its removal in the same way, so a
+  /// sign-out can never be overtaken by the login that preceded it.
   static Future<void> _applyRememberMe(bool rememberMe) async {
     final sessionToken = token;
     if (rememberMe && sessionToken != null) {
@@ -497,9 +494,9 @@ class ApiService {
         );
       }
     } finally {
-      // Cleared from memory immediately; the stored session is removed by the
-      // ordered background queue so a slow keystore never delays the UI.
-      unawaited(SessionPersistence.forgetSession());
+      // The remembered session is removed before logout returns, so the next
+      // app or browser start always asks for credentials again.
+      await SessionPersistence.forgetSession();
       _clearLocalSession();
     }
   }
