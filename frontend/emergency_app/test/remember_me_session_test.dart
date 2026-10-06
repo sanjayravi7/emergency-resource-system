@@ -48,6 +48,16 @@ MockClient _backend({bool acceptStoredSession = true}) {
         },
       });
     }
+    if (request.url.path == '/api/auth/google') {
+      return _json({
+        'success': true,
+        'message': 'Google login successful',
+        'data': {
+          'token': 'google-session-token',
+          'user': _user(),
+        },
+      });
+    }
     if (request.url.path == '/api/auth/me') {
       if (!acceptStoredSession) {
         return _json({
@@ -260,5 +270,57 @@ void main() {
     expect(stored['eras.session.remember_me'], 'true');
     // No password, email or any other credential material is persisted.
     expect(stored.keys, hasLength(2));
+  });
+
+  test('password login finishes persistence before returning', () async {
+    await http.runWithClient(
+      () async {
+        await ApiService.login(
+          'user@example.com',
+          'Test123456',
+          rememberMe: true,
+        );
+
+        // Read the platform storage directly, bypassing the SessionPersistence
+        // ordering queue: the write must have completed when login returned.
+        final stored =
+            await const FlutterSecureStorage().read(key: 'eras.session.token');
+        expect(stored, 'stored-session-token');
+      },
+      () => _backend(),
+    );
+  });
+
+  test('Google sign-in persists "Remember me" before returning', () async {
+    await http.runWithClient(
+      () async {
+        await ApiService.googleSignIn(
+          idToken: 'firebase-id-token',
+          rememberMe: true,
+        );
+
+        expect(ApiService.token, 'google-session-token');
+        expect(await SessionPersistence.readRememberPreference(), isTrue);
+        final stored =
+            await const FlutterSecureStorage().read(key: 'eras.session.token');
+        expect(stored, 'google-session-token');
+      },
+      () => _backend(),
+    );
+  });
+
+  test('Google sign-in without "Remember me" clears storage', () async {
+    await SessionPersistence.rememberSession('older-session-token');
+    expect(await SessionPersistence.readToken(), 'older-session-token');
+
+    await http.runWithClient(
+      () async {
+        await ApiService.googleSignIn(idToken: 'firebase-id-token');
+      },
+      () => _backend(),
+    );
+
+    expect(await SessionPersistence.readToken(), isNull);
+    expect(await SessionPersistence.readRememberPreference(), isFalse);
   });
 }

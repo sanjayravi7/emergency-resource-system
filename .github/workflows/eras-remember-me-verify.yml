@@ -1,0 +1,75 @@
+# Temporary verification workflow for the "Remember me" fix on this branch.
+# It reuses the exact checks of the existing Flutter workflow (dart.yml) and
+# additionally runs the Remember Me suite first, as required by the task.
+# This file is removed again once verification is complete.
+name: ERAS remember-me verify
+
+on:
+  push:
+    branches:
+      - arena/5c07a3d1-emergency-resource-system
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    defaults:
+      run:
+        working-directory: frontend/emergency_app
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze project source
+        run: flutter analyze
+
+      # Required first run: the Remember Me session suite.
+      - name: Remember Me tests
+        run: flutter test test/remember_me_session_test.dart --reporter expanded
+
+      # Relevant authentication suites (roles, Google sign-in, verification,
+      # compatibility, login routing, and the auth UI flows that sign in).
+      - name: Related authentication tests
+        run: |
+          flutter test --reporter expanded \
+            test/login_role_routing_test.dart \
+            test/auth_response_compatibility_test.dart \
+            test/google_signin_flow_test.dart \
+            test/google_web_signin_test.dart \
+            test/google_signin_client_config_test.dart \
+            test/google_signin_native_error_test.dart \
+            test/google_auth_diagnostics_test.dart \
+            test/registration_role_test.dart \
+            test/email_verification_screen_test.dart \
+            test/forgot_password_flow_test.dart \
+            test/auth_mobile_stability_test.dart \
+            test/auth_keyboard_composition_test.dart \
+            test/auth_motion_test.dart \
+            test/auth_visual_layout_test.dart
+
+      # Full frontend suite so no unrelated feature regressed.
+      - name: Full test suite
+        run: flutter test --reporter expanded
+
+      # Same release web compile check as the existing Flutter workflow
+      # (dart.yml). The full tool/build_production_web.sh additionally needs
+      # the private Firebase/Maps values that are never present in CI here.
+      - name: Build release web bundle
+        run: >-
+          flutter build web --release
+          --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api

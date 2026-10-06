@@ -180,7 +180,7 @@ class ApiService {
     }
 
     applySession(body);
-    unawaited(_applyRememberMe(rememberMe));
+    await _applyRememberMe(rememberMe);
     return body;
   }
 
@@ -261,9 +261,11 @@ class ApiService {
   /// session is removed, leaving the existing in-memory session behaviour
   /// unchanged. Storage failures never turn a successful login into a failure.
   ///
-  /// The returned future is never awaited by the authentication call itself:
-  /// a slow or unavailable keystore must not delay the screen transition. The
-  /// storage queue keeps this work ordered with later logouts and logins.
+  /// The authentication call awaits this method, so the persistence work has
+  /// completed before the login flow returns - the remembered session cannot
+  /// be lost if the app or browser closes right after signing in. Storage
+  /// failures still never fail the login. The storage queue keeps this work
+  /// ordered with later logouts and logins.
   static Future<void> _applyRememberMe(bool rememberMe) async {
     final sessionToken = token;
     if (rememberMe && sessionToken != null) {
@@ -358,7 +360,7 @@ class ApiService {
     }
 
     applySession(body);
-    unawaited(_applyRememberMe(rememberMe));
+    await _applyRememberMe(rememberMe);
     return body;
   }
 
