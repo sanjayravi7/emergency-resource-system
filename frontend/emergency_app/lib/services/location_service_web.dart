@@ -90,9 +90,8 @@ class WebLocationService implements LocationService {
       // provider text only as optional diagnostic detail, never as the UI text.
       final isDisabledPlaces =
           method == 'searchNearby' && isPlacesApiDisabledError(rawMessage);
-      final userMessage = isDisabledPlaces
-          ? rawMessage
-          : googleLocationUserMessage(rawMessage);
+      final userMessage =
+          isDisabledPlaces ? rawMessage : googleLocationUserMessage(rawMessage);
       throw LocationServiceException(
         userMessage,
         details: userMessage == rawMessage ? null : rawMessage,

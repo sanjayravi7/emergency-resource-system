@@ -78,8 +78,7 @@ void main() {
         provider.userFacingMessage,
         'Your device could not provide a current location. Please try again or select a place manually.',
       );
-      expect(provider.diagnosticMessage,
-          'location_error=provider_unavailable');
+      expect(provider.diagnosticMessage, 'location_error=provider_unavailable');
     });
 
     test('unexpected failures do not expose exception text', () {
@@ -117,8 +116,7 @@ void main() {
       );
 
       expect(permission.reason, LocationFailureReason.permissionDenied);
-      expect(permission.diagnosticMessage,
-          'location_error=permission_denied');
+      expect(permission.diagnosticMessage, 'location_error=permission_denied');
       expect(permission.toString(),
           'Location permission is required to use your current location.');
       expect(service.reason, LocationFailureReason.serviceDisabled);
@@ -146,15 +144,15 @@ void main() {
       expect(failure.userFacingMessage,
           'Your device could not provide a current location. Please try again or select a place manually.');
       expect(failure.toString(), isNot(contains('private device')));
-      expect(providerFailure.reason,
-          LocationFailureReason.providerUnavailable);
+      expect(providerFailure.reason, LocationFailureReason.providerUnavailable);
       expect(providerFailure.diagnosticMessage,
           'location_error=provider_unavailable');
       expect(providerFailure.toString(),
           isNot(contains('private provider details')));
     });
 
-    test('Dart and platform timeouts map to timeout, not permission denial', () {
+    test('Dart and platform timeouts map to timeout, not permission denial',
+        () {
       final dartFailure = locationServiceExceptionForError(
         TimeoutException('the provider was slow'),
       );
@@ -239,7 +237,8 @@ void main() {
       expect(attempts, 2);
     });
 
-    test('provider failure is not misclassified as a timeout or retried', () async {
+    test('provider failure is not misclassified as a timeout or retried',
+        () async {
       var attempts = 0;
       final providerError = PlatformException(code: 'provider_unavailable');
 

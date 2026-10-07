@@ -1495,8 +1495,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       context: context,
       builder: (_) => AdminUserDetailsDialog(
         user: user,
-        canChangeActive:
-            !user.isActive || user.id != ApiService.currentUserId,
+        canChangeActive: !user.isActive || user.id != ApiService.currentUserId,
       ),
     );
     if (!mounted) return;

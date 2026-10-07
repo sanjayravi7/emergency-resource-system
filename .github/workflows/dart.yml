@@ -35,27 +35,7 @@ jobs:
           node tool/eras_location_bridge_test.mjs
 
       - name: Verify formatting
-        run: |
-          set +e
-          dart format --output=none --set-exit-if-changed . > /tmp/dart-format-check.txt 2>&1
-          format_status=$?
-          cat /tmp/dart-format-check.txt
-
-          if [ "$format_status" -ne 0 ]; then
-            dart format . > /tmp/dart-format-apply.txt 2>&1
-            cat /tmp/dart-format-apply.txt
-            # Keep only formatter changes: `flutter pub get` can also rewrite the lockfile.
-            base64_patch=$(git diff --binary -- ':(glob)**/*.dart' | base64 -w0)
-            part=0
-            while [ -n "$base64_patch" ]; do
-              part=$((part + 1))
-              chunk=${base64_patch:0:3000}
-              base64_patch=${base64_patch:3000}
-              echo "::notice title=DART_FORMAT_DIFF_${part}::${chunk}"
-            done
-          fi
-
-          exit "$format_status"
+        run: dart format --output=none --set-exit-if-changed .
 
       - name: Analyze project source
         run: flutter analyze

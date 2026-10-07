@@ -127,7 +127,8 @@ class _AdminUserCard extends StatelessWidget {
                 color: p.tealDim,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.person_outline_rounded, color: p.teal, size: 21),
+              child:
+                  Icon(Icons.person_outline_rounded, color: p.teal, size: 21),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -217,7 +218,8 @@ class _AdminUserCard extends StatelessWidget {
               tooltip: 'View account details',
               onPressed: busy ? null : () => onViewDetails(user),
               visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.info_outline_rounded, size: 18, color: p.textDim),
+              icon:
+                  Icon(Icons.info_outline_rounded, size: 18, color: p.textDim),
             ),
             TextButton.icon(
               key: Key('edit-admin-user-${user.id}'),
@@ -238,8 +240,8 @@ class _AdminUserCard extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: user.isActive ? p.amber : p.teal,
                 side: BorderSide(
-                  color: (user.isActive ? p.amber : p.teal)
-                      .withValues(alpha: .5),
+                  color:
+                      (user.isActive ? p.amber : p.teal).withValues(alpha: .5),
                 ),
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 9),
@@ -524,7 +526,8 @@ class _HistoryCountRow extends StatelessWidget {
           ),
           Text(
             '$count',
-            style: monoStyle(size: 12.5, color: p.text, weight: FontWeight.w700),
+            style:
+                monoStyle(size: 12.5, color: p.text, weight: FontWeight.w700),
           ),
         ],
       ),
@@ -612,7 +615,8 @@ class _AdminUserEditDialogState extends State<AdminUserEditDialog> {
                     required currentLength,
                     required isFocused,
                     maxLength,
-                  }) => null,
+                  }) =>
+                      null,
                   decoration: const InputDecoration(labelText: 'Full name'),
                   validator: (value) {
                     final name = value?.trim() ?? '';
@@ -635,7 +639,8 @@ class _AdminUserEditDialogState extends State<AdminUserEditDialog> {
                     required currentLength,
                     required isFocused,
                     maxLength,
-                  }) => null,
+                  }) =>
+                      null,
                   decoration: const InputDecoration(labelText: 'Phone'),
                   validator: (value) {
                     if ((value?.trim().length ?? 0) > adminUserMaxPhoneLength) {

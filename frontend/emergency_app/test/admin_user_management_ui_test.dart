@@ -98,16 +98,19 @@ class _FakeBackend {
       });
     }
     if (request.method == 'GET' && path == '/api/resources') {
-      return _json(<String, dynamic>{'success': true, 'resources': <dynamic>[]});
+      return _json(
+          <String, dynamic>{'success': true, 'resources': <dynamic>[]});
     }
     if (request.method == 'GET' && path == '/api/resources/availability') {
-      return _json(<String, dynamic>{'success': true, 'resources': <dynamic>[]});
+      return _json(
+          <String, dynamic>{'success': true, 'resources': <dynamic>[]});
     }
     if (request.method == 'GET' && path == '/api/admin/requests') {
       return _json(<String, dynamic>{'success': true, 'requests': <dynamic>[]});
     }
     if (request.method == 'GET' && path == '/api/admin/responders') {
-      return _json(<String, dynamic>{'success': true, 'responders': <dynamic>[]});
+      return _json(
+          <String, dynamic>{'success': true, 'responders': <dynamic>[]});
     }
 
     if (request.method == 'PATCH' && path == '/api/users/8') {
@@ -381,7 +384,8 @@ void main() {
     ));
     await tester.tap(find.text('Edit'));
     await tester.pump();
-    await tester.enterText(find.byKey(const Key('admin-user-name-field')), '   ');
+    await tester.enterText(
+        find.byKey(const Key('admin-user-name-field')), '   ');
     await tester.tap(find.byKey(const Key('save-admin-user-button')));
     await tester.pump();
 
@@ -389,7 +393,8 @@ void main() {
     expect(find.byType(AdminUserEditDialog), findsOneWidget);
   });
 
-  testWidgets('editing a user calls PATCH /api/users/:id with only name and phone',
+  testWidgets(
+      'editing a user calls PATCH /api/users/:id with only name and phone',
       (tester) async {
     _useDesktopViewport(tester);
     final backend = _FakeBackend();
@@ -444,11 +449,13 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.textContaining('Emergency and allocation history will be preserved'),
+          find.textContaining(
+              'Emergency and allocation history will be preserved'),
           findsOneWidget,
         );
         expect(
-          backend.requests.where((request) => request.url.path.endsWith('/deactivate')),
+          backend.requests
+              .where((request) => request.url.path.endsWith('/deactivate')),
           isEmpty,
         );
 
@@ -483,13 +490,16 @@ void main() {
         await tester.pump();
 
         expect(find.text('Activate this account?'), findsOneWidget);
-        expect(find.textContaining('sign in and use ERAS again'), findsOneWidget);
         expect(
-          backend.requests.where((request) => request.url.path.endsWith('/activate')),
+            find.textContaining('sign in and use ERAS again'), findsOneWidget);
+        expect(
+          backend.requests
+              .where((request) => request.url.path.endsWith('/activate')),
           isEmpty,
         );
 
-        await tester.tap(find.byKey(const Key('confirm-activate-admin-user-8')));
+        await tester
+            .tap(find.byKey(const Key('confirm-activate-admin-user-8')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
         await tester.pump(const Duration(milliseconds: 350));
@@ -523,7 +533,9 @@ void main() {
         await tester.tap(find.byKey(const Key('delete-admin-user-8')));
         await tester.pump();
         expect(find.text('Delete this account?'), findsOneWidget);
-        expect(find.textContaining('backend will verify the account history again'),
+        expect(
+            find.textContaining(
+                'backend will verify the account history again'),
             findsOneWidget);
 
         await tester.tap(find.byKey(const Key('confirm-delete-admin-user-8')));
@@ -532,8 +544,7 @@ void main() {
 
         expect(
           backend.requests.where((request) =>
-              request.method == 'DELETE' &&
-              request.url.path == '/api/users/8'),
+              request.method == 'DELETE' && request.url.path == '/api/users/8'),
           hasLength(1),
         );
         expect(
@@ -549,7 +560,8 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(find.textContaining('server found operational history'), findsNothing);
+        expect(find.textContaining('server found operational history'),
+            findsNothing);
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));
       },
       () => MockClient(backend.handle),
