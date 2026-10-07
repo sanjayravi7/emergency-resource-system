@@ -38,7 +38,20 @@ jobs:
         run: dart format --output=none --set-exit-if-changed .
 
       - name: Analyze project source
-        run: flutter analyze
+        run: |
+          set +e
+          flutter analyze --machine > /tmp/flutter-analyze.txt 2>&1
+          analyze_status=$?
+          cat /tmp/flutter-analyze.txt
+          output=$(base64 -w0 /tmp/flutter-analyze.txt)
+          part=0
+          while [ -n "$output" ]; do
+            part=$((part + 1))
+            chunk=${output:0:3000}
+            output=${output:3000}
+            echo "::notice title=FLUTTER_ANALYZE_${part}::${chunk}"
+          done
+          exit "$analyze_status"
 
       - name: Run tests
         run: flutter test
