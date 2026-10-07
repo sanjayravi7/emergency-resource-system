@@ -16,11 +16,13 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          # Keep the Dart formatter/analyzer version deterministic in CI.
+          flutter-version: "3.47.6"
           channel: stable
           cache: true
 
