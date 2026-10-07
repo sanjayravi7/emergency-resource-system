@@ -29,6 +29,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Capture resolved package lock (temporary)
+        run: |
+          lock_patch=$(git diff --binary -- pubspec.lock | base64 -w0)
+          part=0
+          while [ -n "$lock_patch" ]; do
+            part=$((part + 1))
+            chunk=${lock_patch:0:3000}
+            lock_patch=${lock_patch:3000}
+            echo "::notice title=PUBSPEC_LOCK_DIFF_${part}::${chunk}"
+          done
+
       - name: Verify Google Maps loader and Places bridge
         run: |
           node tool/eras_google_maps_loader_test.mjs
