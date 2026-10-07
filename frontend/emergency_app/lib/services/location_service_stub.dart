@@ -419,7 +419,8 @@ Future<LocationServiceException> _classifyLocationException(
   // OS permission changed mid-request. Only report "blocked" when Geolocator's
   // current permission enum explicitly confirms deniedForever.
   try {
-    if (await Geolocator.checkPermission() == LocationPermission.deniedForever) {
+    if (await Geolocator.checkPermission() ==
+        LocationPermission.deniedForever) {
       return LocationServiceException.forReason(
         LocationFailureReason.permissionDeniedForever,
       );

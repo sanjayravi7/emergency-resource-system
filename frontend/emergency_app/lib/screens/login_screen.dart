@@ -83,10 +83,13 @@ class _LoginScreenState extends State<LoginScreen> {
     // fresh password login.
     if (ApiService.emailVerified == false) {
       await Navigator.pushReplacement(
-          context,
-          MaterialPageRoute<void>(
-              builder: (_) =>
-                  EmailVerificationScreen(email: ApiService.currentUserEmail)));
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => EmailVerificationScreen(
+            email: ApiService.currentUserEmail,
+          ),
+        ),
+      );
       return;
     }
 

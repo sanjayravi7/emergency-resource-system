@@ -242,10 +242,9 @@ class PlacesApiDisabledException extends LocationServiceException {
   static const String userMessage =
       'Nearby places unavailable. Enable Places API (New) in Google Cloud.';
 
-  const PlacesApiDisabledException({String? details})
+  const PlacesApiDisabledException({super.details})
       : super(
           'Nearby places unavailable. Enable Places API (New) in Google Cloud.',
-          details: details,
         );
 }
 

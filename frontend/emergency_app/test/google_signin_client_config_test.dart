@@ -29,10 +29,9 @@ const String kWebClientIdFixture =
 
 void main() {
   group('Android / native configuration path', () {
-    test(
-      'Android keeps clientId null and passes the Web id as serverClientId',
-      () {
-        final config = resolveGoogleSignInClientConfig(
+    test('Android keeps clientId null and passes the Web id as serverClientId',
+        () {
+      final config = resolveGoogleSignInClientConfig(
         isWeb: false,
         platform: TargetPlatform.android,
         googleWebClientId: kWebClientIdFixture,
@@ -51,8 +50,8 @@ void main() {
     });
 
     test(
-      'every native platform keeps clientId null and uses the Web id as audience',
-      () {
+        'every native platform keeps clientId null and uses the Web id as audience',
+        () {
       for (final platform in TargetPlatform.values) {
         final config = resolveGoogleSignInClientConfig(
           isWeb: false,
