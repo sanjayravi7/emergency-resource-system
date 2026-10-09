@@ -86,6 +86,8 @@ class BackendResource {
     this.location,
     this.mode = 'CONSUMABLE',
     this.availableResponders,
+    this.catalogTotalQuantity,
+    this.catalogAvailableQuantity,
   });
 
   final int id;
@@ -93,6 +95,13 @@ class BackendResource {
   final String type;
   final int totalQuantity;
   final int availableQuantity;
+
+  /// Master catalog quantities, kept separate from derived operational stock.
+  /// Null on manually constructed resources, where the displayed fields apply.
+  final int? catalogTotalQuantity;
+  final int? catalogAvailableQuantity;
+  int get editTotalQuantity => catalogTotalQuantity ?? totalQuantity;
+  int get editAvailableQuantity => catalogAvailableQuantity ?? availableQuantity;
   final bool isActive;
   final int lowStockThreshold;
   final String? unit;
@@ -112,25 +121,27 @@ class BackendResource {
   bool get isService => mode == 'SERVICE';
 
   /// Returns a copy with the live availability numbers from
-  /// GET /api/resources/availability merged in. CONSUMABLE resources keep
-  /// their catalog `availableQuantity` (already authoritative); SERVICE
-  /// resources gain the live responder count.
+  /// GET /api/resources/availability merged in. Operational CONSUMABLE
+  /// quantities never overwrite the separate master catalog editing values.
   BackendResource withAvailability(ResourceAvailability? availability) {
-    if (availability == null) return this;
+    if (availability == null && isService) return this;
     return BackendResource(
       id: id,
       name: name,
       type: type,
-      totalQuantity: totalQuantity,
+      totalQuantity:
+          isService ? totalQuantity : (availability?.totalQuantity ?? 0),
       availableQuantity: isService
           ? availableQuantity
-          : (availability.availableQuantity ?? availableQuantity),
+          : (availability?.availableQuantity ?? 0),
+      catalogTotalQuantity: editTotalQuantity,
+      catalogAvailableQuantity: editAvailableQuantity,
       isActive: isActive,
       lowStockThreshold: lowStockThreshold,
       unit: unit,
       location: location,
       mode: mode,
-      availableResponders: availability.availableResponders,
+      availableResponders: availability?.availableResponders,
     );
   }
 
@@ -201,6 +212,8 @@ class BackendResource {
       type: json['type']?.toString() ?? '',
       totalQuantity: _asInt(json['totalQuantity']),
       availableQuantity: _asInt(json['availableQuantity']),
+      catalogTotalQuantity: _asInt(json['totalQuantity']),
+      catalogAvailableQuantity: _asInt(json['availableQuantity']),
       // Databases that have not run the migration yet still work: a missing
       // isActive flag is treated as active.
       isActive: json['isActive'] == null ? true : json['isActive'] == true,
@@ -226,6 +239,7 @@ class ResourceAvailability {
     this.unit,
     this.availableResponders,
     this.availableQuantity,
+    this.totalQuantity,
   });
 
   final int id;
@@ -238,9 +252,9 @@ class ResourceAvailability {
   /// resource enabled. Null for CONSUMABLE resources.
   final int? availableResponders;
 
-  /// CONSUMABLE only - current catalog inventory. Null for SERVICE
-  /// resources.
+  /// CONSUMABLE only - eligible responder inventory. Null for SERVICE.
   final int? availableQuantity;
+  final int? totalQuantity;
 
   bool get isService => mode == 'SERVICE';
 
@@ -266,6 +280,7 @@ class ResourceAvailability {
       unit: _asTrimmedString(json['unit']),
       availableResponders: _asIntOrNull(json['availableResponders']),
       availableQuantity: _asIntOrNull(json['availableQuantity']),
+      totalQuantity: _asIntOrNull(json['totalQuantity']),
     );
   }
 }

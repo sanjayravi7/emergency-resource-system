@@ -48,8 +48,9 @@ class _DraftLine {
 /// absurd numbers. The backend independently caps quantities.
 const int _maxServiceRequestQuantity = 20;
 
-/// Shared REQUESTER / ADMIN emergency form. Every selectable resource comes
-/// from GET /api/resources, so a resource added by an admin (for example
+/// Shared REQUESTER / ADMIN emergency form. Catalog entries are merged with
+/// GET /api/resources/availability before they reach this widget, so a resource
+/// added by an admin (for example
 /// "Rescue Boat") shows up without touching this file.
 class NewRequestPanel extends StatefulWidget {
   const NewRequestPanel({

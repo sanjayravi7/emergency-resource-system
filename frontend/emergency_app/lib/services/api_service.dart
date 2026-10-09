@@ -1084,7 +1084,8 @@ class ApiService {
 
   /// Live availability for every active resource. SERVICE resources come
   /// back with `availableResponders` (a responder count); CONSUMABLE
-  /// resources come back with `availableQuantity` (real inventory). The UI
+  /// resources come back with `availableQuantity` and `totalQuantity`
+  /// derived from eligible responder stock (not master catalog fields). The UI
   /// never computes either number itself - PostgreSQL is the source of
   /// truth for both.
   static Future<List<dynamic>> getResourceAvailability() async {

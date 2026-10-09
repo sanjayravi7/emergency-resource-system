@@ -55,21 +55,50 @@ exports.getResourceById = async (id) => {
 };
 
 /**
- * Availability for every active resource, shaped for the requester UI.
- *
- * - SERVICE resources are reusable responder capabilities: availability is
- *   the count of active, currently AVAILABLE responders with that exact
- *   resource enabled. Quantity never applies.
- * - CONSUMABLE resources are spent from inventory: availability is the
- *   current catalog availableQuantity. Responder counts never apply.
- *
- * Business logic branches on Resource.mode only - never on name/type.
+ * Spendable consumable stock lives only in ResponderResource. Sum each eligible
+ * inventory row once; catalog quantities are administrative metadata, not a
+ * second pool of stock. BUSY responders retain unspent stock for allocations
+ * on their current work, while OFFLINE responders cannot be dispatched.
  */
+const consumableInventoryWhere = {
+  isEnabled: true,
+  status: 'AVAILABLE',
+  availableQuantity: { gt: 0 },
+  responder: {
+    role: 'RESPONDER',
+    isActive: true,
+    responderStatus: { in: ['AVAILABLE', 'BUSY'] },
+  },
+  resource: { isActive: true, mode: 'CONSUMABLE' },
+};
+
+async function getConsumableStock(resourceIds) {
+  if (!resourceIds.length) return new Map();
+  const rows = await prisma.responderResource.groupBy({
+    by: ['resourceId'],
+    where: {
+      ...consumableInventoryWhere,
+      resourceId: { in: resourceIds },
+    },
+    _sum: { totalQuantity: true, availableQuantity: true },
+  });
+  return new Map(rows.map((row) => [row.resourceId, {
+    totalQuantity: row._sum.totalQuantity ?? 0,
+    availableQuantity: row._sum.availableQuantity ?? 0,
+  }]));
+}
+
+exports.getConsumableStock = getConsumableStock;
+
+/** Operational availability for every active catalog resource. */
 exports.getResourceAvailability = async () => {
   const resources = await prisma.resource.findMany({
     where: { isActive: true },
     orderBy: [{ name: 'asc' }],
   });
+  const stock = await getConsumableStock(
+    resources.filter((resource) => resource.mode === 'CONSUMABLE').map((resource) => resource.id)
+  );
 
   return Promise.all(
     resources.map(async (resource) => {
@@ -93,7 +122,7 @@ exports.getResourceAvailability = async () => {
           mode: resource.mode,
           unit: resource.unit,
           availableResponders,
-          // Never expose a misleading quantity for a reusable capability.
+          totalQuantity: null,
           availableQuantity: null,
         };
       }
@@ -104,9 +133,9 @@ exports.getResourceAvailability = async () => {
         type: resource.type,
         mode: resource.mode,
         unit: resource.unit,
-        // Never expose a misleading responder count for a consumable.
         availableResponders: null,
-        availableQuantity: resource.availableQuantity,
+        totalQuantity: stock.get(resource.id)?.totalQuantity ?? 0,
+        availableQuantity: stock.get(resource.id)?.availableQuantity ?? 0,
       };
     })
   );
