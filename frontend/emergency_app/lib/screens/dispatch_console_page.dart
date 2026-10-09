@@ -517,9 +517,8 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
             .toList();
       } catch (_) {
         // Non-fatal: fail closed for consumables, retain master edit values.
-        loaded = loaded
-            .map((resource) => resource.withAvailability(null))
-            .toList();
+        loaded =
+            loaded.map((resource) => resource.withAvailability(null)).toList();
       }
 
       if (!mounted) return;

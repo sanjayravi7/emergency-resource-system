@@ -181,6 +181,24 @@ if (!hasDatabase) {
         availableQuantity: 2,
       },
     });
+    // Consumable requests are created against derived responder stock, so the
+    // catalog quantities above alone would be rejected as out of stock. The
+    // medical responder holds one unit: creation succeeds, while the fire
+    // responder below still has no inventory and is gated at acceptance.
+    await prisma.user.update({
+      where: { id: users.medical.id },
+      data: { responderStatus: 'AVAILABLE' },
+    });
+    await prisma.responderResource.create({
+      data: {
+        responderId: users.medical.id,
+        resourceId: resource.id,
+        totalQuantity: 1,
+        availableQuantity: 1,
+        isEnabled: true,
+        status: 'AVAILABLE',
+      },
+    });
     const created = await request(app)
       .post('/api/requests')
       .set('Authorization', `Bearer ${tokens.requester}`)

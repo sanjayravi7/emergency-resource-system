@@ -187,7 +187,8 @@ void main() {
     )));
     await tester.enterText(
         find.byKey(const Key('location-place-field')), 'Test street');
-    await scrollIntoViewAndTap(tester, find.byType(DropdownButtonFormField<int>));
+    await scrollIntoViewAndTap(
+        tester, find.byType(DropdownButtonFormField<int>));
     expect(find.text('5 available').hitTestable(), findsOneWidget);
     await tester.tap(find.text('Water').hitTestable());
     await tester.pumpAndSettle();

@@ -101,7 +101,8 @@ class BackendResource {
   final int? catalogTotalQuantity;
   final int? catalogAvailableQuantity;
   int get editTotalQuantity => catalogTotalQuantity ?? totalQuantity;
-  int get editAvailableQuantity => catalogAvailableQuantity ?? availableQuantity;
+  int get editAvailableQuantity =>
+      catalogAvailableQuantity ?? availableQuantity;
   final bool isActive;
   final int lowStockThreshold;
   final String? unit;

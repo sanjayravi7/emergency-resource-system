@@ -187,8 +187,10 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
         },
       });
 
-      // Both medical responders carry Blood + First Aid Kit. Nobody carries
-      // Water, so a Water-only request can never be accepted.
+      // Both medical responders carry Blood + First Aid Kit. Only the
+      // unassigned responder carries Water: the catalog holds no stock of its
+      // own, so a Water-only request can be created (derived stock exists)
+      // but can never be accepted by a medical responder.
       await prisma.responderResource.createMany({
         data: [
           {
@@ -212,6 +214,14 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
             resourceId: resourceBlood.id,
             totalQuantity: 4,
             availableQuantity: 4,
+            isEnabled: true,
+            status: 'AVAILABLE',
+          },
+          {
+            responderId: responderUnassigned.id,
+            resourceId: resourceWater.id,
+            totalQuantity: 2,
+            availableQuantity: 2,
             isEnabled: true,
             status: 'AVAILABLE',
           },
@@ -471,11 +481,13 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
     });
 
     test('8. Acceptance still enforces the existing server-side resource compatibility rules', async () => {
-      // Nobody carries Water. Discovery stays category-based (existing,
-      // tested semantics), but the authoritative server-side gate at
-      // acceptance - the SAME findServableRequiredResources algorithm used
-      // before this phase - rejects a responder whose inventory cannot
-      // satisfy the required resources. No second algorithm is introduced.
+      // No medical responder carries Water (only the unassigned responder
+      // holds stock, which is what lets the request be created at all).
+      // Discovery stays category-based (existing, tested semantics), but the
+      // authoritative server-side gate at acceptance - the SAME
+      // findServableRequiredResources algorithm used before this phase -
+      // rejects a responder whose inventory cannot satisfy the required
+      // resources. No second algorithm is introduced.
       const waterOnly = await createRequest([
         { resourceId: resourceWater.id, quantity: 1 },
       ]);
