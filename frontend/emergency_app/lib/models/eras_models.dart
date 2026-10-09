@@ -129,8 +129,9 @@ class BackendResource {
       id: id,
       name: name,
       type: type,
-      totalQuantity:
-          isService ? totalQuantity : (availability?.totalQuantity ?? 0),
+      totalQuantity: isService
+          ? totalQuantity
+          : (availability?.totalQuantity ?? 0),
       availableQuantity: isService
           ? availableQuantity
           : (availability?.availableQuantity ?? 0),

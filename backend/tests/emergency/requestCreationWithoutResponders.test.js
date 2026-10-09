@@ -183,7 +183,12 @@ if (!hasDatabase) {
         data: {
           name: resourceNames.blood,
           type: 'BLOOD',
-          mode: 'CONSUMABLE',
+          // SERVICE: a reusable capability. These tests lock in the rule that
+          // a requester's submission is never blocked by responder
+          // availability, which only holds for resources that are not gated
+          // by spendable consumable stock (see resourceModes.test.js for the
+          // CONSUMABLE derivation contract).
+          mode: 'SERVICE',
           totalQuantity: 10,
           availableQuantity: 10,
           unit: 'bags',

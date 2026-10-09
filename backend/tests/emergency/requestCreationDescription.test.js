@@ -43,6 +43,10 @@ describe("Emergency request creation description handling", () => {
       data: {
         name: resourceName,
         type: "MEDICAL",
+        // SERVICE: a reusable capability, so request creation is never gated
+        // by responder inventory. These tests exercise description handling,
+        // not consumable stock derivation (covered in resourceModes.test.js).
+        mode: "SERVICE",
         totalQuantity: 10,
         availableQuantity: 10,
         unit: "kit",

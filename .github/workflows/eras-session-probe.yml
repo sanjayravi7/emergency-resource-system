@@ -1,0 +1,134 @@
+# TEMPORARY diagnostic workflow for the arena/462fd70f session.
+# Mirrors backend.yml + dart.yml, captures every step's full output (including
+# the exact `dart format` patch) and publishes it to the arena-probe-logs
+# branch so the session can read CI-equivalent results locally.
+# This file is removed before the session's pull request is opened.
+name: ERAS session probe (temporary)
+
+on:
+  push:
+    branches:
+      - arena/462fd70f-emergency-resource-system
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://eras:eras@localhost:5432/eras_test?schema=public
+      JWT_SECRET: ci-only-strong-secret-please-rotate-1234567890-abcdef
+      NODE_ENV: test
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: eras
+          POSTGRES_PASSWORD: eras
+          POSTGRES_DB: eras_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eras"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Backend install + schema
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma migrate deploy
+          node scripts/verify-schema.js
+
+      - name: Backend tests (capture)
+        working-directory: backend
+        run: |
+          set +e
+          npm test -- --runInBand > /tmp/backend-test.txt 2>&1
+          echo "exit_code=$?" >> /tmp/backend-test.txt
+          tail -n 25 /tmp/backend-test.txt
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.6"
+          channel: stable
+          cache: true
+
+      - name: Flutter deps + node tool tests (capture)
+        working-directory: frontend/emergency_app
+        run: |
+          set +e
+          flutter pub get > /tmp/flutter-pubget.txt 2>&1
+          echo "pubget_exit=$?" >> /tmp/flutter-pubget.txt
+          node tool/eras_google_maps_loader_test.mjs > /tmp/tool1.txt 2>&1
+          echo "exit=$?" >> /tmp/tool1.txt
+          node tool/eras_location_bridge_test.mjs > /tmp/tool2.txt 2>&1
+          echo "exit=$?" >> /tmp/tool2.txt
+          cat /tmp/tool1.txt /tmp/tool2.txt
+
+      - name: Format check (capture verdict + patch)
+        working-directory: frontend/emergency_app
+        run: |
+          set +e
+          { dart format --output=none --set-exit-if-changed .; echo "format_check_exit=$?"; } > /tmp/format-check.txt 2>&1
+          dart format . > /tmp/format-apply.txt 2>&1
+          git diff -- '*.dart' > /tmp/format.patch
+          git checkout -- .
+          cat /tmp/format-check.txt
+
+      - name: Analyze (capture)
+        working-directory: frontend/emergency_app
+        run: |
+          set +e
+          { flutter analyze; echo "analyze_exit=$?"; } > /tmp/analyze.txt 2>&1
+          tail -n 30 /tmp/analyze.txt
+
+      - name: Flutter tests (capture)
+        working-directory: frontend/emergency_app
+        run: |
+          set +e
+          { flutter test; echo "test_exit=$?"; } > /tmp/flutter-test.txt 2>&1
+          tail -n 40 /tmp/flutter-test.txt
+
+      - name: Build release web bundle (capture)
+        working-directory: frontend/emergency_app
+        run: |
+          set +e
+          { flutter build web --release --dart-define=ERAS_API_BASE_URL=https://eras-api-sdjo.onrender.com/api; echo "build_exit=$?"; } > /tmp/flutter-build.txt 2>&1
+          tail -n 20 /tmp/flutter-build.txt
+
+      - name: Publish probe logs to arena-probe-logs branch
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -e
+          rm -rf /tmp/probe-out && mkdir -p /tmp/probe-out
+          for f in backend-test.txt flutter-pubget.txt tool1.txt tool2.txt format-check.txt format-apply.txt format.patch analyze.txt flutter-test.txt flutter-build.txt; do
+            cp "/tmp/$f" "/tmp/probe-out/$f" 2>/dev/null || echo "(missing $f)" > "/tmp/probe-out/$f"
+          done
+          cd /tmp/probe-out
+          git init -q .
+          git checkout -q -b arena-probe-logs
+          git config user.email "probe@arena.dev"
+          git config user.name "arena probe"
+          git add -A
+          git commit -q -m "probe logs for ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:refs/heads/arena-probe-logs

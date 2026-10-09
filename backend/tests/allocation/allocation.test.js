@@ -260,6 +260,7 @@ describe("Allocation Lifecycle", () => {
         resourceId: resource.id,
         totalQuantity: 10,
         availableQuantity: 10,
+        isEnabled: true,
         status: "AVAILABLE",
       },
     });
@@ -270,6 +271,7 @@ describe("Allocation Lifecycle", () => {
         resourceId: resource2.id,
         totalQuantity: 10,
         availableQuantity: 10,
+        isEnabled: true,
         status: "AVAILABLE",
       },
     });
