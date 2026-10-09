@@ -423,6 +423,7 @@ function bindSocketConnection(socket) {
   const userRoom = rooms.user(socket.user.id);
   socket.join(userRoom);
   if (socket.user.role === 'RESPONDER') socket.join(rooms.responders);
+  if (socket.user.role === 'REQUESTER') socket.join(rooms.requesters);
   if (socket.user.role === 'ADMIN') socket.join(rooms.admins);
 
   // Join currently authorized request rooms at connect time. This gives a

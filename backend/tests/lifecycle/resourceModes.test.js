@@ -233,12 +233,16 @@ describe('Resource modes (SERVICE vs CONSUMABLE) and availability', () => {
     await accept(emergency.id, responderToken);
     await createAllocation(responderToken, emergency.id, inventory, oxygen, 4);
     expect((await prisma.responderResource.findUnique({ where: { id: inventory.id } })).availableQuantity).toBe(6);
+    expect((await getAvailability(requesterToken)).body.resources.find((row) => row.id === oxygen.id))
+      .toMatchObject({ totalQuantity: 10, availableQuantity: 6 });
 
     const cancelled = await request(app)
       .patch(`/api/requests/${emergency.id}/cancel`)
       .set('Authorization', `Bearer ${requesterToken}`);
     expect(cancelled.statusCode).toBe(200);
     expect((await prisma.responderResource.findUnique({ where: { id: inventory.id } })).availableQuantity).toBe(10);
+    expect((await getAvailability(requesterToken)).body.resources.find((row) => row.id === oxygen.id))
+      .toMatchObject({ totalQuantity: 10, availableQuantity: 10 });
   });
 
   // ----------------------------------------------------------------
@@ -360,6 +364,8 @@ describe('Resource modes (SERVICE vs CONSUMABLE) and availability', () => {
     const requesterToken = tokenFor(requesterUser);
     const ambulance = await createResource('AvailAmbulance', 'SERVICE');
     const water = await createResource('AvailWater', 'CONSUMABLE', { totalQuantity: 18, availableQuantity: 18 });
+    // Master quantities are deliberately different from physical inventory.
+    await enableCapability(await createResponder('Water holder'), water, { totalQuantity: 10, availableQuantity: 5 });
 
     const r1 = await createResponder('Avail responder 1');
     const r2 = await createResponder('Avail responder 2');
@@ -380,8 +386,101 @@ describe('Resource modes (SERVICE vs CONSUMABLE) and availability', () => {
 
     const waterRow = response.body.resources.find((row) => row.id === water.id);
     expect(waterRow.mode).toBe('CONSUMABLE');
-    expect(waterRow.availableQuantity).toBe(18);
+    expect(waterRow.availableQuantity).toBe(5);
+    expect(waterRow.totalQuantity).toBe(10);
     expect(waterRow.availableResponders).toBeNull();
+  });
+
+  test('aggregates only enabled, active, ready consumable rows and ignores master stock', async () => {
+    const requesterUser = await createRequester();
+    const token = tokenFor(requesterUser);
+    const water = await createResource('Water', 'CONSUMABLE');
+    const inactiveWater = await createResource('Inactive water', 'CONSUMABLE', { isActive: false });
+    const one = await createResponder('Water 1');
+    await enableCapability(one, inactiveWater, { totalQuantity: 50, availableQuantity: 50 });
+    const two = await createResponder('Water 2');
+    await enableCapability(one, water, { totalQuantity: 10, availableQuantity: 5 });
+    await enableCapability(two, water, { totalQuantity: 8, availableQuantity: 3 });
+    await enableCapability(await createResponder('Disabled'), water,
+      { totalQuantity: 20, availableQuantity: 20, isEnabled: false });
+    await enableCapability(await createResponder('Unavailable'), water,
+      { totalQuantity: 20, availableQuantity: 20, status: 'UNAVAILABLE' });
+    await enableCapability(await createResponder('Inactive', { isActive: false }), water,
+      { totalQuantity: 20, availableQuantity: 20 });
+    const offline = await createResponder('Offline');
+    await prisma.user.update({ where: { id: offline.id }, data: { responderStatus: 'OFFLINE' } });
+    await enableCapability(offline, water, { totalQuantity: 20, availableQuantity: 20 });
+    const row = (await getAvailability(token)).body.resources.find((item) => item.id === water.id);
+    expect(row).toMatchObject({ totalQuantity: 18, availableQuantity: 8, availableResponders: null });
+    expect((await getAvailability(token)).body.resources.find((item) => item.id === inactiveWater.id))
+      .toBeUndefined();
+    // The catalog is metadata, never overwritten by the derived sum.
+    expect((await prisma.resource.findUnique({ where: { id: water.id } })).availableQuantity).toBe(0);
+
+    // Creation uses the same operational bound, not the legacy catalog value.
+    const create = await request(app).post('/api/requests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ emergencyType: 'OTHER', location: 'Test location', priority: 'HIGH',
+        requiredResources: [{ resourceId: water.id, quantity: 9 }] });
+    expect(create.statusCode).not.toBe(201);
+    expect(create.body.message).toContain('Only 8');
+    const valid = await request(app).post('/api/requests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ emergencyType: 'OTHER', location: 'Test location', priority: 'HIGH',
+        requiredResources: [{ resourceId: water.id, quantity: 8 }] });
+    expect(valid.statusCode).toBe(201);
+  });
+
+  test('responder stock add/edit, disable, unavailable and delete immediately affect availability', async () => {
+    const requesterUser = await createRequester();
+    const token = tokenFor(requesterUser);
+    const responder = await createResponder('Inventory editor');
+    const responderToken = tokenFor(responder);
+    const water = await createResource('Water edit', 'CONSUMABLE');
+    const stock = async () => (await getAvailability(token)).body.resources.find((r) => r.id === water.id);
+    const patch = (id, data) => request(app).patch(`/api/responder-resources/${id}`)
+      .set('Authorization', `Bearer ${responderToken}`).send(data);
+    expect(await stock()).toMatchObject({ availableQuantity: 0, totalQuantity: 0 });
+    const added = await request(app).post('/api/responder-resources')
+      .set('Authorization', `Bearer ${responderToken}`)
+      .send({ resourceId: water.id, totalQuantity: 10, availableQuantity: 5, isEnabled: true });
+    expect(added.statusCode).toBe(201);
+    const id = added.body.resource.id;
+    expect(await stock()).toMatchObject({ availableQuantity: 5, totalQuantity: 10 });
+    expect((await patch(id, { totalQuantity: 12, availableQuantity: 7 })).statusCode).toBe(200);
+    expect(await stock()).toMatchObject({ availableQuantity: 7, totalQuantity: 12 });
+    await patch(id, { isEnabled: false });
+    expect(await stock()).toMatchObject({ availableQuantity: 0, totalQuantity: 0 });
+    await patch(id, { isEnabled: true, status: 'UNAVAILABLE' });
+    expect(await stock()).toMatchObject({ availableQuantity: 0, totalQuantity: 0 });
+    await patch(id, { status: 'AVAILABLE', availableQuantity: 3 });
+    expect(await stock()).toMatchObject({ availableQuantity: 3, totalQuantity: 12 });
+    expect((await request(app).delete(`/api/responder-resources/${id}`)
+      .set('Authorization', `Bearer ${responderToken}`)).statusCode).toBe(200);
+    expect(await stock()).toMatchObject({ availableQuantity: 0, totalQuantity: 0 });
+  });
+
+  test('allocation spends inventory, cancellation restores reservation, delivery never restores it', async () => {
+    const requesterUser = await createRequester();
+    const token = tokenFor(requesterUser);
+    const responder = await createResponder('Water allocator');
+    const responderToken = tokenFor(responder);
+    const water = await createResource('Water lifecycle', 'CONSUMABLE');
+    const inventory = await enableCapability(responder, water, { totalQuantity: 10, availableQuantity: 5 });
+    const stock = async () => (await getAvailability(token)).body.resources.find((r) => r.id === water.id);
+    const emergency = await createEmergency(requesterUser, [{ resourceId: water.id, quantity: 2 }]);
+    expect((await accept(emergency.id, responderToken)).statusCode).toBe(200);
+    const allocation = await createAllocation(responderToken, emergency.id, inventory, water, 2);
+    expect(allocation.statusCode).toBe(201);
+    expect(await stock()).toMatchObject({ availableQuantity: 3, totalQuantity: 10 });
+    expect((await request(app).patch(`/api/allocations/${allocation.body.allocation.id}/status`)
+      .set('Authorization', `Bearer ${responderToken}`).send({ status: 'CANCELLED' })).statusCode).toBe(200);
+    expect(await stock()).toMatchObject({ availableQuantity: 5, totalQuantity: 10 });
+    const again = await createAllocation(responderToken, emergency.id, inventory, water, 2);
+    expect(again.statusCode).toBe(201);
+    await dispatch(responderToken, again.body.allocation.id);
+    await received(token, again.body.allocation.id);
+    expect(await stock()).toMatchObject({ availableQuantity: 3, totalQuantity: 10 });
   });
 
   test('availability count decreases on acceptance and increases again after final delivery', async () => {

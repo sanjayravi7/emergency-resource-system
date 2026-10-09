@@ -6,6 +6,7 @@ const rooms = {
   user: (userId) => `user:${Number(userId)}`,
   request: (requestId) => `request:${Number(requestId)}`,
   responders: 'responders',
+  requesters: 'requesters',
   admins: 'admins',
 };
 

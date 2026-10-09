@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { getConsumableStock } = require('./resourceService');
 const logger = require('../config/logger');
 const {
   validateEmergencyRequestInput,
@@ -220,6 +221,10 @@ exports.createEmergencyRequest = async (userId, data) => {
   });
   const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
 
+  const stock = await getConsumableStock(
+    resources.filter((row) => row.mode === 'CONSUMABLE').map((row) => row.id)
+  );
+
   for (const required of requiredResources) {
     const resource = resourceById.get(required.resourceId);
     if (!resource) throw new Error(`Resource ${required.resourceId} does not exist`);
@@ -231,12 +236,13 @@ exports.createEmergencyRequest = async (userId, data) => {
     // Their availability is a function of responder capacity at
     // matching/acceptance time, never a static catalog quantity.
     if (resource.mode === 'CONSUMABLE') {
-      if (resource.availableQuantity <= 0) {
+      const available = stock.get(resource.id)?.availableQuantity ?? 0;
+      if (available <= 0) {
         throw new Error(`Resource "${resource.name}" is out of stock`);
       }
-      if (required.quantity > resource.availableQuantity) {
+      if (required.quantity > available) {
         throw new Error(
-          `Only ${resource.availableQuantity} of "${resource.name}" are currently available`
+          `Only ${available} of "${resource.name}" are currently available`
         );
       }
     }
@@ -375,10 +381,16 @@ exports.updateOwnRequest = async (userId, id, data) => {
   const required = normalizeRequiredResources(data.requiredResources ?? existing.requiredResources);
   const resources = await prisma.resource.findMany({ where: { id: { in: required.map(r => r.resourceId) } } });
   const byId = new Map(resources.map(r => [r.id, r]));
+  const stock = await getConsumableStock(
+    resources.filter((row) => row.mode === 'CONSUMABLE').map((row) => row.id)
+  );
   for (const row of required) {
     const resource = byId.get(row.resourceId);
     if (!resource || !resource.isActive) throw new Error(`Resource ${row.resourceId} does not exist or is not active`);
-    if (resource.mode === 'CONSUMABLE' && (row.quantity > resource.availableQuantity || resource.availableQuantity <= 0)) throw new Error(`Resource ${resource.name} is not available in the requested quantity`);
+    if (resource.mode === 'CONSUMABLE' &&
+        row.quantity > (stock.get(resource.id)?.availableQuantity ?? 0)) {
+      throw new Error(`Resource ${resource.name} is not available in the requested quantity`);
+    }
   }
   return prisma.$transaction(async tx => {
     if (data.requiredResources !== undefined) await tx.requestResource.deleteMany({ where: { requestId } });

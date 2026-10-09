@@ -146,6 +146,60 @@ void main() {
     return submitted;
   }
 
+  testWidgets('derived responder stock appears in dropdown and bounds request',
+      (tester) async {
+    useDesktopSizedSurface(tester);
+    final catalog = BackendResource.fromJson(<String, dynamic>{
+      'id': 42,
+      'name': 'Water',
+      'type': 'SUPPLY',
+      'mode': 'CONSUMABLE',
+      'totalQuantity': 0,
+      'availableQuantity': 0,
+      'isActive': true,
+    });
+    final operational = catalog.withAvailability(ResourceAvailability.fromJson(
+      <String, dynamic>{
+        'id': 42,
+        'name': 'Water',
+        'type': 'SUPPLY',
+        'mode': 'CONSUMABLE',
+        'totalQuantity': 10,
+        'availableQuantity': 5,
+      },
+    ));
+    expect(operational.isSelectable, isTrue);
+    expect(operational.availabilityLabel, '5 / 10 available');
+    expect(operational.editTotalQuantity, 0);
+    expect(operational.editAvailableQuantity, 0);
+
+    NewRequestPayload? submitted;
+    await tester.pumpWidget(host(NewRequestPanel(
+      resources: <BackendResource>[operational],
+      locationService: _StaticLocationService(),
+      showMapPreview: false,
+      onReload: () {},
+      onUseCurrentLocation: () async => null,
+      onSubmit: (payload) async {
+        submitted = payload;
+        return true;
+      },
+    )));
+    await tester.enterText(
+        find.byKey(const Key('location-place-field')), 'Test street');
+    await scrollIntoViewAndTap(tester, find.byType(DropdownButtonFormField<int>));
+    expect(find.text('5 available').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('Water').hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('5 / 10 available'), findsOneWidget);
+    for (var i = 0; i < 6; i++) {
+      await scrollIntoViewAndTap(tester, find.byIcon(Icons.add).first);
+    }
+    await scrollIntoViewAndTap(tester, find.text('Submit request'));
+    expect(submitted, isNotNull);
+    expect(submitted!.requiredResources.single['quantity'], 5);
+  });
+
   testWidgets('zero available responders never block a SERVICE resource',
       (tester) async {
     expect(unstaffedAmbulance.hasNoRespondersOnline, isTrue);

@@ -332,6 +332,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
     }
 
     if (event.name == 'responder.availability') {
+      // Inventory mutations and lifecycle transitions can change operational
+      // stock even when the responder status itself is unchanged.
+      await loadResources(silent: true);
       final responderId = _asEventInt(event.payload['responderId']);
       final status = event.payload['responderStatus']?.toString();
       final timestamp =
@@ -346,6 +349,7 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
         }
       });
       if (isResponder && responderId == ApiService.currentUserId) {
+        await loadMyInventory(silent: true);
         await loadMyHelpTypes(silent: true);
       }
       return;
@@ -495,11 +499,9 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
               BackendResource.fromJson(Map<String, dynamic>.from(item as Map)))
           .toList();
 
-      // Merge in live availability ("N responders available" for SERVICE,
-      // real inventory for CONSUMABLE) so the requester form never has to
-      // guess or hardcode a count. Best-effort: if this call fails the
-      // catalog still loads with its own (already correct for CONSUMABLE)
-      // numbers.
+      // Merge live responder counts and spendable consumable inventory.
+      // If availability fails, keep master catalog editing data but fail
+      // closed for consumables instead of offering legacy catalog stock.
       try {
         final availabilityData = await ApiService.getResourceAvailability();
         final availabilityRows = availabilityData
@@ -514,7 +516,10 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
                 resource.withAvailability(availabilityById[resource.id]))
             .toList();
       } catch (_) {
-        // Non-fatal: fall back to the plain catalog numbers.
+        // Non-fatal: fail closed for consumables, retain master edit values.
+        loaded = loaded
+            .map((resource) => resource.withAvailability(null))
+            .toList();
       }
 
       if (!mounted) return;

@@ -543,7 +543,7 @@ async function emitResponderAvailability(responderId) {
     currentResponderStatus: responder.responderStatus,
     responderStatus: responder.responderStatus,
     timestamp: new Date().toISOString(),
-  }, [rooms.user(responder.id), rooms.responders, rooms.admins]);
+  }, [rooms.user(responder.id), rooms.responders, rooms.requesters, rooms.admins]);
 }
 
 module.exports = {

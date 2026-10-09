@@ -181,6 +181,18 @@ exports.createAllocation = async (responderId, data) => {
     }
 
     if (catalogResource.mode === 'CONSUMABLE') {
+      // Only the same usable inventory exposed by operational availability
+      // can be spent. BUSY responders may allocate on their current work;
+      // OFFLINE or inactive responders and disabled/unavailable stock cannot.
+      const owner = await tx.user.findUnique({
+        where: { id: Number(responderId) },
+        select: { role: true, isActive: true, responderStatus: true },
+      });
+      if (!owner || owner.role !== 'RESPONDER' || !owner.isActive ||
+          owner.responderStatus === 'OFFLINE' ||
+          !responderResource.isEnabled || responderResource.status !== 'AVAILABLE') {
+        throw new Error('Responder inventory is not available');
+      }
       if (responderResource.availableQuantity < quantity) {
         throw new Error('Not enough available quantity');
       }

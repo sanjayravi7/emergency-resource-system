@@ -163,8 +163,10 @@ class _ResourceRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${resource.availableQuantity}/${resource.totalQuantity}'
-                '${resource.unit == null ? '' : ' ${resource.unit}'}',
+                resource.isService
+                    ? resource.availabilityLabel
+                    : '${resource.availableQuantity}/${resource.totalQuantity}'
+                        '${resource.unit == null ? '' : ' ${resource.unit}'}',
                 style: monoStyle(size: 12.5, color: p.textDim),
               ),
               const SizedBox(height: 4),
@@ -265,9 +267,9 @@ class _ResourceEditorDialogState extends State<ResourceEditorDialog> {
     nameController = TextEditingController(text: resource?.name ?? '');
     typeController = TextEditingController(text: resource?.type ?? '');
     totalController =
-        TextEditingController(text: '${resource?.totalQuantity ?? 0}');
+        TextEditingController(text: '${resource?.editTotalQuantity ?? 0}');
     availableController =
-        TextEditingController(text: '${resource?.availableQuantity ?? 0}');
+        TextEditingController(text: '${resource?.editAvailableQuantity ?? 0}');
     unitController = TextEditingController(text: resource?.unit ?? '');
     locationController = TextEditingController(text: resource?.location ?? '');
     thresholdController =
