@@ -101,7 +101,8 @@ class BackendResource {
   final int? catalogTotalQuantity;
   final int? catalogAvailableQuantity;
   int get editTotalQuantity => catalogTotalQuantity ?? totalQuantity;
-  int get editAvailableQuantity => catalogAvailableQuantity ?? availableQuantity;
+  int get editAvailableQuantity =>
+      catalogAvailableQuantity ?? availableQuantity;
   final bool isActive;
   final int lowStockThreshold;
   final String? unit;
@@ -129,9 +130,8 @@ class BackendResource {
       id: id,
       name: name,
       type: type,
-      totalQuantity: isService
-          ? totalQuantity
-          : (availability?.totalQuantity ?? 0),
+      totalQuantity:
+          isService ? totalQuantity : (availability?.totalQuantity ?? 0),
       availableQuantity: isService
           ? availableQuantity
           : (availability?.availableQuantity ?? 0),
