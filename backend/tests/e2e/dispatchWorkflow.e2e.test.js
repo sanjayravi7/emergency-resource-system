@@ -306,13 +306,15 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
           longitude: null,
         },
       });
+      // Delivery now consumes totalQuantity as well, so both columns are
+      // restored to the fixture baseline between scenarios.
       await prisma.responderResource.update({
         where: { id: capabilities.bloodA.id },
-        data: { availableQuantity: 20, status: 'AVAILABLE', isEnabled: true },
+        data: { totalQuantity: 20, availableQuantity: 20, status: 'AVAILABLE', isEnabled: true },
       });
       await prisma.responderResource.update({
         where: { id: capabilities.bloodD.id },
-        data: { availableQuantity: 20, status: 'AVAILABLE', isEnabled: true },
+        data: { totalQuantity: 20, availableQuantity: 20, status: 'AVAILABLE', isEnabled: true },
       });
     });
 

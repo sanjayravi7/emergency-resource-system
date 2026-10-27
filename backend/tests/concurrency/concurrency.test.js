@@ -474,17 +474,20 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       const row = await prisma.responderResource.findUnique({
         where: { id: responderResourceId },
       });
-      const committed = await prisma.allocation.aggregate({
+      // Only RESERVED/DISPATCHED allocations still hold availability.
+      // DELIVERED allocations already consumed the units from totalQuantity,
+      // and CANCELLED allocations restored their quantity to available.
+      const outstanding = await prisma.allocation.aggregate({
         _sum: { quantity: true },
         where: {
           responderResourceId,
-          status: { not: 'CANCELLED' },
+          status: { in: ['RESERVED', 'DISPATCHED'] },
         },
       });
-      const committedQuantity = committed._sum.quantity ?? 0;
+      const outstandingQuantity = outstanding._sum.quantity ?? 0;
       expect(row.availableQuantity).toBeGreaterThanOrEqual(0);
       expect(row.availableQuantity).toBe(
-        row.totalQuantity - committedQuantity
+        row.totalQuantity - outstandingQuantity
       );
       return row;
     }
@@ -928,11 +931,12 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       );
 
       // Completion releases both responders and never restores delivered
-      // consumables; the SERVICE row stays untouched.
+      // consumables; delivery also consumes the delivered quantity from total.
+      // The SERVICE row stays untouched.
       expect(await responderStatus(medic.id)).toBe('AVAILABLE');
       expect(await responderStatus(pilot.id)).toBe('AVAILABLE');
       expect(await expectConsumableInvariant(medicInventory.id))
-        .toMatchObject({ availableQuantity: 2 });
+        .toMatchObject({ availableQuantity: 2, totalQuantity: 2 });
       // SERVICE row: the consumable formula does not apply - assert the
       // quantities are simply untouched.
       const pilotRow = await prisma.responderResource.findUnique({

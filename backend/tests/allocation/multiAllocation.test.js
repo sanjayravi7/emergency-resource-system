@@ -17,10 +17,12 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
 // responders and SEVERAL allocations share one emergency:
 //
 // CONSUMABLE invariant (per ResponderResource row):
-//   availableQuantity === totalQuantity - sum(non-CANCELLED allocation
+//   availableQuantity === totalQuantity - sum(RESERVED/DISPATCHED allocation
 //   quantities of that row) at every lifecycle step, and never negative.
-//   DELIVERED stays committed (units were consumed); only cancellation of a
-//   non-delivered allocation restores stock.
+//   Reservation reduces availableQuantity only; delivery then consumes the
+//   units from totalQuantity (DELIVERED allocations leave the reservation
+//   sum). Only cancellation of a non-delivered allocation restores stock, and
+//   cancellation never touches totalQuantity.
 //
 // SERVICE invariant:
 //   allocation, delivery and cancellation NEVER touch a SERVICE resource's
@@ -149,24 +151,30 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
     }
 
     /**
-     * The explicit Phase D CONSUMABLE invariant: availableQuantity is always
-     * totalQuantity minus the currently committed (non-CANCELLED) allocation
-     * quantity of THIS inventory row, and never negative.
+     * The CONSUMABLE inventory invariant across the full lifecycle:
+     *
+     *   availableQuantity = totalQuantity - quantity still reserved or
+     *   dispatched (the outstanding reservations on THIS inventory row)
+     *
+     * DELIVERED allocations are excluded because delivery consumes the units
+     * from totalQuantity itself; CANCELLED allocations are excluded because
+     * their quantity was restored to availableQuantity. The value can never
+     * be negative.
      */
     async function expectConsumableInvariant(responderResourceId) {
       const row = await prisma.responderResource.findUnique({
         where: { id: responderResourceId },
       });
-      const committed = await prisma.allocation.aggregate({
+      const outstanding = await prisma.allocation.aggregate({
         _sum: { quantity: true },
         where: {
           responderResourceId,
-          status: { not: 'CANCELLED' },
+          status: { in: ['RESERVED', 'DISPATCHED'] },
         },
       });
-      const committedQuantity = committed._sum.quantity ?? 0;
+      const outstandingQuantity = outstanding._sum.quantity ?? 0;
       expect(row.availableQuantity).toBeGreaterThanOrEqual(0);
-      expect(row.availableQuantity).toBe(row.totalQuantity - committedQuantity);
+      expect(row.availableQuantity).toBe(row.totalQuantity - outstandingQuantity);
       return row;
     }
 
@@ -437,12 +445,13 @@ const hasDatabase = Boolean(process.env.DATABASE_URL && process.env.JWT_SECRET);
       expect(await responderStatus(medic.id)).toBe('AVAILABLE');
       expect(await responderStatus(pilot.id)).toBe('AVAILABLE');
 
-      // Delivered consumables stay committed; SERVICE inventory untouched
-      // (the consumable formula does not apply to SERVICE rows - their
-      // allocations commit no inventory at all).
+      // Delivered consumables stay committed: available was spent at
+      // reservation (5 -> 2) and delivery consumes the same quantity from
+      // total (5 -> 2). SERVICE inventory is untouched (the consumable
+      // formula does not apply to SERVICE rows).
       expect(
         await expectConsumableInvariant(medicInventory.id)
-      ).toMatchObject({ availableQuantity: 2 });
+      ).toMatchObject({ availableQuantity: 2, totalQuantity: 2 });
       const pilotRow = await prisma.responderResource.findUnique({
         where: { id: pilotInventory.id },
       });
