@@ -202,7 +202,7 @@ describe('Resource modes (SERVICE vs CONSUMABLE) and availability', () => {
   // CONSUMABLE resources keep inventory semantics
   // ----------------------------------------------------------------
 
-  test('CONSUMABLE allocation decreases inventory, cancellation restores it, delivery does not', async () => {
+  test('CONSUMABLE allocation reserves availability and delivery consumes total quantity', async () => {
     const requesterUser = await createRequester();
     const requesterToken = tokenFor(requesterUser);
     const responder = await createResponder('Blood responder');
@@ -214,11 +214,16 @@ describe('Resource modes (SERVICE vs CONSUMABLE) and availability', () => {
     await accept(emergency.id, responderToken);
     const allocation = await createAllocation(responderToken, emergency.id, inventory, blood, 3);
     expect(allocation.statusCode).toBe(201);
+    // Reservation spends availability only: total stays 10, available 10 -> 7.
     expect((await prisma.responderResource.findUnique({ where: { id: inventory.id } })).availableQuantity).toBe(7);
+    expect((await prisma.responderResource.findUnique({ where: { id: inventory.id } })).totalQuantity).toBe(10);
 
     await dispatch(responderToken, allocation.body.allocation.id);
     await received(requesterToken, allocation.body.allocation.id);
+    // Delivery consumes the units: available stays 7 (never restored) and the
+    // recorded total drops by the delivered quantity (10 - 3 = 7).
     expect((await prisma.responderResource.findUnique({ where: { id: inventory.id } })).availableQuantity).toBe(7);
+    expect((await prisma.responderResource.findUnique({ where: { id: inventory.id } })).totalQuantity).toBe(7);
   });
 
   test('cancelling a CONSUMABLE request before delivery restores inventory', async () => {
@@ -460,7 +465,7 @@ describe('Resource modes (SERVICE vs CONSUMABLE) and availability', () => {
     expect(await stock()).toMatchObject({ availableQuantity: 0, totalQuantity: 0 });
   });
 
-  test('allocation spends inventory, cancellation restores reservation, delivery never restores it', async () => {
+  test('allocation spends inventory, cancellation restores reservation, delivery consumes total', async () => {
     const requesterUser = await createRequester();
     const token = tokenFor(requesterUser);
     const responder = await createResponder('Water allocator');
@@ -480,7 +485,9 @@ describe('Resource modes (SERVICE vs CONSUMABLE) and availability', () => {
     expect(again.statusCode).toBe(201);
     await dispatch(responderToken, again.body.allocation.id);
     await received(token, again.body.allocation.id);
-    expect(await stock()).toMatchObject({ availableQuantity: 3, totalQuantity: 10 });
+    // Available stays at the post-reservation 3 (delivery never restores it);
+    // total is consumed by the delivered quantity (10 - 2 = 8).
+    expect(await stock()).toMatchObject({ availableQuantity: 3, totalQuantity: 8 });
   });
 
   test('availability count decreases on acceptance and increases again after final delivery', async () => {

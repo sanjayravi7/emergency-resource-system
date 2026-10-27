@@ -85,6 +85,53 @@ async function lockResponderResource(tx, responderResourceId) {
   return locked[0] || null;
 }
 
+/**
+ * Consume a DELIVERED CONSUMABLE allocation.
+ *
+ * Reservation (createAllocation) already reduced `availableQuantity`. Delivery
+ * confirms the units physically left the responder, so the recorded TOTAL must
+ * now drop by the delivered quantity as well:
+ *
+ *   2/2 -> reserve 1 -> 2/1 -> deliver -> 1/1
+ *   2/2 -> reserve 2 -> 2/0 -> deliver -> 0/0
+ *
+ * `availableQuantity` is deliberately untouched here (it was spent at
+ * reservation time and must never be "restored" by a delivery). SERVICE
+ * capabilities are reusable and never consume quantity. The caller has already
+ * verified the allocation is transitioning to DELIVERED while holding the
+ * allocation row lock, so a repeated/concurrent confirmation re-checks status
+ * before reaching this helper and can never deduct the same units twice.
+ */
+async function consumeConsumableOnDelivery(tx, allocation) {
+  const resourceRow = await tx.resource.findUnique({
+    where: { id: allocation.resourceId },
+    select: { mode: true },
+  });
+
+  // Missing rows and SERVICE capabilities never consume inventory.
+  if (!resourceRow || resourceRow.mode !== 'CONSUMABLE') return;
+
+  const responderResource = await lockResponderResource(
+    tx,
+    allocation.responderResourceId
+  );
+  if (!responderResource) throw new Error('Responder resource not found');
+
+  const remainingTotal =
+    responderResource.totalQuantity - allocation.quantity;
+  if (remainingTotal < 0) {
+    // Defensive: reservations are guarded by availableQuantity under the same
+    // row lock, so this should be unreachable. Fail the transaction rather
+    // than persisting a negative total.
+    throw new Error('Delivery would exceed the recorded total quantity');
+  }
+
+  await tx.responderResource.update({
+    where: { id: allocation.responderResourceId },
+    data: { totalQuantity: remainingTotal },
+  });
+}
+
 exports.createAllocation = async (responderId, data) => {
   const requestId = asPositiveInteger(data.requestId, 'requestId');
   const responderResourceId = asPositiveInteger(
@@ -279,12 +326,20 @@ exports.updateAllocationStatus = async (responderId, allocationId, status) => {
 
     // Responder-side delivery fallback: when the requester forgets to confirm
     // receipt, the owning responder may complete the delivery themselves.
-    // Delivery is only valid from DISPATCHED (never straight from RESERVED),
-    // and it must never touch inventory: the units were genuinely consumed.
+    // Delivery is only valid from DISPATCHED (never straight from RESERVED).
+    // A DELIVERED CONSUMABLE allocation consumes the units: availableQuantity
+    // was already reduced at reservation time, and delivery now reduces
+    // totalQuantity by the same quantity. The status guards above (DELIVERED /
+    // CANCELLED are rejected) plus the allocation row lock make this exactly
+    // once: a repeated or concurrent confirmation never reaches the deduct.
     // Availability is still derived below by the request-scoped availability
     // sync - a sibling RESERVED/DISPATCHED allocation keeps the responder BUSY.
     if (status === 'DELIVERED' && allocation.status !== 'DISPATCHED') {
       throw new Error('Only DISPATCHED allocations can be marked as delivered');
+    }
+
+    if (status === 'DELIVERED') {
+      await consumeConsumableOnDelivery(tx, allocation);
     }
 
     if (status === 'CANCELLED') {
@@ -395,6 +450,12 @@ exports.confirmAllocationReceived = async (requesterId, allocationId) => {
     if (allocation.status !== 'DISPATCHED') {
       throw new Error('Only DISPATCHED allocations can be confirmed as received');
     }
+
+    // Requester-confirmed receipt is the second legal delivery path and must
+    // consume CONSUMABLE stock identically to the responder Mark Delivered
+    // fallback. The allocation row lock plus the DELIVERED/CANCELLED guards
+    // above make the deduct exactly once, even when both actors race.
+    await consumeConsumableOnDelivery(tx, allocation);
 
     const updated = await tx.allocation.update({
       where: { id: numericAllocationId },

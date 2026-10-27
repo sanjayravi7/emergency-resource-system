@@ -351,6 +351,15 @@ class _DispatchConsolePageState extends State<DispatchConsolePage> {
       if (isResponder && responderId == ApiService.currentUserId) {
         await loadMyInventory(silent: true);
         await loadMyHelpTypes(silent: true);
+        // A responder who was BUSY (or otherwise unavailable) was not notified
+        // about requests created while they were ineligible. When the backend
+        // releases them back to AVAILABLE, re-read the authoritative compatible
+        // list so pending catalog-resource emergencies appear on the board
+        // without a manual pull-to-refresh. Eligibility stays entirely
+        // server-side; this only re-fetches the list the server already returns.
+        if (status == 'AVAILABLE') {
+          await loadRequests(silent: true);
+        }
       }
       return;
     }

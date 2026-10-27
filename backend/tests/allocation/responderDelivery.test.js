@@ -348,25 +348,28 @@ describe("Responder Mark Delivered Fallback", () => {
     expect(completedRequest.status).toBe("COMPLETED");
   });
 
-  test("✅ CONSUMABLE inventory is NOT restored by marking DELIVERED", async () => {
+  test("✅ DELIVERED CONSUMABLE units are consumed: available stays spent and total drops", async () => {
     const emergency = await createPendingRequest({ quantity: 3 });
     const dispatched = await createDispatchedAllocation(emergency, 3);
 
     let inventory = await prisma.responderResource.findUnique({
       where: { id: responderResource.id },
     });
+    // Reservation already moved available 10 -> 7 while total stays 10.
     expect(inventory.availableQuantity).toBe(7);
+    expect(inventory.totalQuantity).toBe(10);
 
     const res = await patchStatus(dispatched.id, "DELIVERED");
     expect(res.statusCode).toBe(200);
 
-    // The units were genuinely consumed: unlike CANCELLED, DELIVERED must
-    // never put stock back.
+    // The units genuinely left the responder: unlike CANCELLED, DELIVERED
+    // never restores availableQuantity, and the recorded totalQuantity is now
+    // consumed by the delivered quantity as well (10 - 3 = 7).
     inventory = await prisma.responderResource.findUnique({
       where: { id: responderResource.id },
     });
     expect(inventory.availableQuantity).toBe(7);
-    expect(inventory.totalQuantity).toBe(10);
+    expect(inventory.totalQuantity).toBe(7);
   });
 
   // =====================================================
@@ -527,10 +530,14 @@ describe("Responder Mark Delivered Fallback", () => {
     expect(responderAfterB.responderStatus).toBe(
       responderAfterA.responderStatus
     );
+    // Both delivery paths consume exactly the delivered quantity: available
+    // was spent at reservation time and total drops on delivery.
     expect(inventoryAfterA.availableQuantity).toBe(8);
+    expect(inventoryAfterA.totalQuantity).toBe(8);
     expect(inventoryAfterB.availableQuantity).toBe(
       inventoryAfterA.availableQuantity
     );
+    expect(inventoryAfterB.totalQuantity).toBe(inventoryAfterA.totalQuantity);
   });
 
   test("❌ Unsupported status values are still rejected", async () => {
